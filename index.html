@@ -36,6 +36,7 @@
       <button class="nav-tab"        id="tab-btn-minigames" onclick="showTab('minigames')">Minigames</button>
       <button class="nav-tab"        id="tab-btn-news"      onclick="showTab('news')">News</button>
       <button class="nav-tab"        id="tab-btn-twitch"    onclick="showTab('twitch')">Twitch</button>
+      <button class="nav-tab"        id="tab-btn-redeem"    onclick="showTab('redeem')">🎟 Redeem</button>
     </div>
     <div class="navbar-user">
       <span id="nav-user"></span>
@@ -114,6 +115,7 @@
         <div class="quicklink-card" onclick="showTab('shop')"><span class="ql-icon">&#128717;</span><span class="ql-label">Shop</span></div>
         <div class="quicklink-card" onclick="showTab('minigames')"><span class="ql-icon">&#127918;</span><span class="ql-label">Minigames</span></div>
         <div class="quicklink-card" onclick="showTab('news')"><span class="ql-icon">&#128240;</span><span class="ql-label">News</span></div>
+        <div class="quicklink-card" onclick="showTab('redeem')"><span class="ql-icon">🎟</span><span class="ql-label">Redeem Code</span></div>
       </div>
       <div class="section-header"><h2>About PawketPetsVT</h2><div class="section-line"></div></div>
       <div class="card" style="line-height:1.8;color:var(--text-light);">
@@ -261,6 +263,54 @@
       </div>
     </div>
   </div>
+  <!-- REDEEM -->
+  <div class="page-section" id="section-redeem">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">🎟 ✦ 🎟</div>
+        <h1>Redeem a Code</h1>
+        <p>Got a special code? Enter it below to claim your reward! ✨</p>
+      </div>
+      <div class="points-banner">
+        <span class="pb-label">🪙 Your PawketPoints</span>
+        <span class="pb-amount" id="redeem-points">0 PP</span>
+      </div>
+
+      <div class="redeem-card" id="redeem-card">
+        <div class="redeem-icon">🎟</div>
+        <h2>Enter Your Code</h2>
+        <p>Codes are handed out during streams, events, and special ARG moments. Check our Twitch and socials!</p>
+        <div class="redeem-input-row">
+          <input
+            type="text"
+            id="redeem-code-input"
+            class="redeem-input"
+            placeholder="e.g. PAWKET2025"
+            maxlength="40"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="characters"
+            spellcheck="false"
+          />
+          <button class="btn btn-primary" id="redeem-btn" onclick="redeemCode()">✨ Redeem!</button>
+        </div>
+        <div class="alert alert-error" id="redeem-error" style="margin-top:16px;"></div>
+        <div class="redeem-success-panel" id="redeem-success-panel" style="display:none">
+          <div class="redeem-success-icon">🎉</div>
+          <div class="redeem-success-title" id="redeem-success-title">Code Redeemed!</div>
+          <div class="redeem-success-msg" id="redeem-success-msg">You earned some PawketPoints!</div>
+          <a id="redeem-lore-btn" href="#" class="btn btn-outline redeem-lore-btn" style="display:none;margin-top:14px;">🔍 Something feels... off. Click here.</a>
+        </div>
+      </div>
+
+      <div class="redeem-history-wrap">
+        <div class="section-header"><h2>Recently Redeemed</h2><div class="section-line"></div></div>
+        <div id="redeem-history" class="redeem-history"><div class="spinner"></div></div>
+      </div>
+
+    </div>
+  </div>
+
 
 </div><!-- end app-content -->
 
@@ -390,7 +440,7 @@ function makeEl(tag, attrs, text) {
 function updateAllPoints(pts) {
   currentPoints = pts;
   var str = pts + ' PP';
-  ['adopt-points','mypets-points','shop-points','games-points'].forEach(function(id){
+  ['adopt-points','mypets-points','shop-points','games-points','redeem-points'].forEach(function(id){
     var e = el(id); if (e) e.textContent = str;
   });
   el('nav-points').innerHTML = '&#129689; ' + pts + ' PP';
@@ -413,6 +463,7 @@ function loadTab(tab) {
   else if (tab === 'minigames') initMinigames();
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
+  else if (tab === 'redeem') { loadRedeemHistory(); }
 }
 
 // ── AUTH GATE ────────────────────────────
@@ -1351,6 +1402,174 @@ async function unlinkTwitch(){
   el('twitch-linked').style.display='none';
   showToast('Twitch unlinked.');
 }
+<script>
+// ── REDEEM CODES ─────────────────────────────
+
+// Update the points counter in the redeem tab too
+// We need to patch updateAllPoints to include redeem-points.
+// Find your updateAllPoints function and add 'redeem-points' to the forEach array like this:
+//   ['adopt-points','mypets-points','shop-points','games-points','redeem-points']
+
+async function redeemCode() {
+  if (!currentUser) return;
+  var input = el('redeem-code-input');
+  var btn   = el('redeem-btn');
+  var errEl = el('redeem-error');
+  var successPanel = el('redeem-success-panel');
+  var code  = input.value.trim().toUpperCase();
+
+  // Reset state
+  errEl.classList.remove('show');
+  errEl.textContent = '';
+  successPanel.style.display = 'none';
+
+  if (!code) {
+    errEl.textContent = 'Please enter a code!';
+    errEl.classList.add('show');
+    return;
+  }
+
+  btn.textContent = 'Checking...';
+  btn.disabled = true;
+
+  try {
+    // 1. Look up the promo code (case-insensitive via upper())
+    var codeRes = await supabaseClient
+      .from('promo_codes')
+      .select('id, code, pp_reward, lore_page, description, max_uses, times_used, is_active')
+      .eq('code', code)
+      .eq('is_active', true)
+      .single();
+
+    if (codeRes.error || !codeRes.data) {
+      errEl.textContent = 'That code doesn\'t exist or is no longer active. Check for typos!';
+      errEl.classList.add('show');
+      btn.textContent = '✨ Redeem!';
+      btn.disabled = false;
+      return;
+    }
+
+    var promo = codeRes.data;
+
+    // 2. Check max uses
+    if (promo.max_uses !== null && promo.times_used >= promo.max_uses) {
+      errEl.textContent = 'This code has been fully claimed — sorry!';
+      errEl.classList.add('show');
+      btn.textContent = '✨ Redeem!';
+      btn.disabled = false;
+      return;
+    }
+
+    // 3. Check if THIS player already redeemed it
+    var alreadyRes = await supabaseClient
+      .from('redeemed_codes')
+      .select('id')
+      .eq('player_id', currentUser.id)
+      .eq('code_id', promo.id)
+      .maybeSingle();
+
+    if (alreadyRes.data) {
+      errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
+      errEl.classList.add('show');
+      btn.textContent = '✨ Redeem!';
+      btn.disabled = false;
+      return;
+    }
+
+    // 4. All good — award the PP
+    if (promo.pp_reward && promo.pp_reward > 0) {
+      var newPoints = currentPoints + promo.pp_reward;
+      var ppRes = await supabaseClient
+        .from('players')
+        .update({ pawketpoints: newPoints })
+        .eq('id', currentUser.id);
+      if (ppRes.error) throw new Error(ppRes.error.message);
+      updateAllPoints(newPoints);
+    }
+
+    // 5. Log the redemption in redeemed_codes
+    await supabaseClient.from('redeemed_codes').insert([{
+      player_id: currentUser.id,
+      code_id: promo.id,
+      redeemed_at: new Date().toISOString()
+    }]);
+
+    // 6. Increment times_used on promo_codes
+    await supabaseClient
+      .from('promo_codes')
+      .update({ times_used: (promo.times_used || 0) + 1 })
+      .eq('id', promo.id);
+
+    // 7. Show success panel
+    input.value = '';
+    successPanel.style.display = 'block';
+
+    var titleEl = el('redeem-success-title');
+    var msgEl   = el('redeem-success-msg');
+    var loreBtn = el('redeem-lore-btn');
+
+    if (promo.pp_reward && promo.pp_reward > 0) {
+      titleEl.textContent = '+' + promo.pp_reward + ' PawketPoints!';
+      msgEl.textContent = promo.description || 'Code redeemed successfully!';
+    } else {
+      titleEl.textContent = 'Code Accepted.';
+      msgEl.textContent = promo.description || 'Something has been unlocked...';
+    }
+
+    // 8. If it's a lore code, show the creepy button
+    if (promo.lore_page) {
+      loreBtn.style.display = 'inline-block';
+      loreBtn.href = promo.lore_page; // e.g. "secret.html"
+      loreBtn.textContent = '🔍 Something feels... off. Click here.';
+    } else {
+      loreBtn.style.display = 'none';
+    }
+
+    // Reload history
+    loadRedeemHistory();
+    showToast('Code redeemed! 🎉');
+
+  } catch(err) {
+    errEl.textContent = 'Something went wrong: ' + err.message;
+    errEl.classList.add('show');
+  }
+
+  btn.textContent = '✨ Redeem!';
+  btn.disabled = false;
+}
+
+async function loadRedeemHistory() {
+  var container = el('redeem-history');
+  if (!currentUser) return;
+  container.innerHTML = '<div class="spinner"></div>';
+
+  var res = await supabaseClient
+    .from('redeemed_codes')
+    .select('redeemed_at, code_id, promo_codes(code, pp_reward, description)')
+    .eq('player_id', currentUser.id)
+    .order('redeemed_at', { ascending: false })
+    .limit(10);
+
+  if (res.error || !res.data || !res.data.length) {
+    container.innerHTML = '<div class="redeem-empty">No codes redeemed yet!<br>Check streams and socials for codes. 🎟</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  res.data.forEach(function(row) {
+    var promo = row.promo_codes || {};
+    var date  = new Date(row.redeemed_at).toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+    var item  = document.createElement('div');
+    item.className = 'redeem-history-item';
+    item.innerHTML =
+      '<span class="rhi-code">🎟 ' + (promo.code || '???') + '</span>' +
+      '<span style="flex:1;padding:0 12px;font-size:0.82rem;color:var(--text-light);">' + (promo.description || '') + '</span>' +
+      (promo.pp_reward ? '<span class="rhi-pp">+' + promo.pp_reward + ' PP</span>' : '<span class="rhi-pp" style="color:var(--purple)">🔍 Lore</span>') +
+      '<span class="rhi-date" style="margin-left:12px;">' + date + '</span>';
+    container.appendChild(item);
+  });
+}
+</script>
 
 // ── BOOT ─────────────────────────────────
 initApp();
