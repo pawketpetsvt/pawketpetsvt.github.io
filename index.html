@@ -65,6 +65,7 @@
         <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="your@email.com" /></div>
         <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="Password" /></div>
         <button class="btn btn-primary btn-lg form-submit" id="login-btn" onclick="handleLogin()">Login</button>
+        <div style="text-align:center;margin:10px 0 0;"><a href="#" onclick="showForgotPassword();return false;" style="font-size:0.85rem;color:var(--text-light);">Forgot your password?</a></div>
         <div class="form-footer">New? <a href="#" onclick="showAuthSection('register');return false;">Create an account!</a></div>
       </div>
     </div>
@@ -91,7 +92,24 @@
     </div>
   </div>
 </div>
-
+      <div class="page-section" id="section-forgot">
+  <div class="page-wrap">
+    <div class="page-hero">
+      <div class="sparkle-row">✦ ✧ ✦</div>
+      <h1>Reset Password</h1>
+      <p>Enter your email and we'll send you a reset link ✨</p>
+    </div>
+    <div class="form-card">
+      <h2>🔑 Forgot Password</h2>
+      <p class="form-subtitle">Remember it? <a href="#" onclick="showAuthSection('login');return false;">Back to login!</a></p>
+      <div class="alert alert-error" id="forgot-error"></div>
+      <div class="alert alert-success" id="forgot-success"></div>
+      <div class="form-group"><label>Email Address</label><input type="email" id="forgot-email" placeholder="your@email.com" /></div>
+      <button class="btn btn-primary btn-lg form-submit" onclick="handleForgotPassword()">✉️ Send Reset Email</button>
+      <div class="form-footer"><a href="#" onclick="showAuthSection('login');return false;">← Back to Login</a></div>
+    </div>
+  </div>
+</div>
 <!-- APP CONTENT -->
 <div id="app-content" style="display:none">
 
