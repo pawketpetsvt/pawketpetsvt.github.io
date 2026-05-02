@@ -50,7 +50,7 @@ async function logoutUser() {
 
 async function resetPassword(email) {
   var result = await supabaseClient.auth.resetPasswordForEmail(email, {
-    redirectTo: window.location.origin
+    redirectTo: 'https://pawketpetsvt.github.io/'
   });
   if (result.error) {
     throw new Error(result.error.message);
