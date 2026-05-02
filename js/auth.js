@@ -27,13 +27,35 @@ async function registerUser(email, password, username) {
 
 async function loginUser(email, password) {
   var result = await supabaseClient.auth.signInWithPassword({ email: email, password: password });
-  if (result.error) throw new Error(result.error.message);
+  if (result.error) {
+    // Provide more user-friendly error messages
+    var errorMsg = result.error.message;
+    if (errorMsg.includes('Invalid login credentials')) {
+      throw new Error('Invalid email or password. Please check your credentials and try again.');
+    } else if (errorMsg.includes('Email not confirmed')) {
+      throw new Error('Please verify your email address before logging in.');
+    } else if (errorMsg.includes('User not found')) {
+      throw new Error('No account found with this email address.');
+    } else {
+      throw new Error(errorMsg);
+    }
+  }
   return result.data;
 }
 
 async function logoutUser() {
   await supabaseClient.auth.signOut();
   window.location.reload();
+}
+
+async function resetPassword(email) {
+  var result = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin
+  });
+  if (result.error) {
+    throw new Error(result.error.message);
+  }
+  return result.data;
 }
 
 async function checkDailyBonus(userId) {
