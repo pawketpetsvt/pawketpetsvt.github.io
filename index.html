@@ -491,6 +491,11 @@ function showAuthSection(which) {
   return false;
 }
 
+function showForgotPassword() {
+  showAuthSection('forgot');
+  return false;
+}
+
 async function initApp() {
   var session = await requireLogin();
   if (session) {
@@ -560,9 +565,15 @@ async function handleLogin() {
   btn.textContent = 'Logging in...';
   btn.disabled = true;
   try {
-    await loginUser(email, password);
-    suc.textContent = 'Logged in!';
+    var result = await loginUser(email, password);
+    suc.textContent = 'Logged in! Loading...';
     suc.classList.add('show');
+    // Wait a moment for the auth state to update, then manually trigger app load
+    setTimeout(async function() {
+      if (result && result.user) {
+        await showApp(result.user);
+      }
+    }, 500);
   } catch(e) {
     err.textContent = e.message || 'Login failed.';
     err.classList.add('show');
@@ -597,6 +608,39 @@ async function handleRegister() {
     err.classList.add('show');
     btn.textContent='Create Account';
     btn.disabled=false;
+  }
+}
+
+async function handleForgotPassword() {
+  var email = el('forgot-email').value.trim();
+  var err = el('forgot-error');
+  var suc = el('forgot-success');
+  err.classList.remove('show');
+  suc.classList.remove('show');
+  
+  if (!email) {
+    err.textContent = 'Please enter your email address!';
+    err.classList.add('show');
+    return;
+  }
+  
+  var btn = event.target;
+  btn.textContent = 'Sending...';
+  btn.disabled = true;
+  
+  try {
+    await resetPassword(email);
+    suc.textContent = 'Password reset email sent! Check your inbox.';
+    suc.classList.add('show');
+    el('forgot-email').value = '';
+    btn.textContent = '✉️ Send Reset Email';
+    btn.disabled = false;
+    setTimeout(function(){ showAuthSection('login'); }, 3000);
+  } catch(e) {
+    err.textContent = e.message || 'Failed to send reset email. Please try again.';
+    err.classList.add('show');
+    btn.textContent = '✉️ Send Reset Email';
+    btn.disabled = false;
   }
 }
 
