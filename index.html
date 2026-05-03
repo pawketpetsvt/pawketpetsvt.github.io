@@ -2426,9 +2426,22 @@ body.three-column-layout .navbar {
 </style>
 
 </head>
-<body>
+<body class="three-column-layout">
 
 <audio id="bg-music" loop><source src="music.mp3" type="audio/mpeg" /></audio>
+<div class="top-header-bar">
+  <div class="header-left">
+    <div class="header-logo">
+      <img src="images/pawket-logo.png" alt="PawketPetsVT" />
+      <span><span style="color:#ffdd00;">Pawket</span>Pets</span>
+    </div>
+    <div class="header-status" id="header-status">Logged in as: <span id="header-username">...</span> | Day <span id="header-day">1</span></div>
+  </div>
+  <div class="header-right">
+    <span class="header-points" id="header-points">0 PP</span>
+    <button class="header-logout" onclick="handleLogout()">Logout</button>
+  </div>
+</div>
 
 <div class="music-bar">
   <span class="music-title">&#127925; PawketPetsVT OST</span>
@@ -2466,6 +2479,58 @@ body.three-column-layout .navbar {
 </nav>
 
 <div class="toast" id="toast"></div>
+  <div class="app-container">
+  <div class="left-sidebar">
+    <!-- LEFT SIDEBAR CONTENT -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">🐾 PawketPetsVT</div>
+      <div style="text-align:center;font-size:0.75rem;color:var(--text-light);margin-bottom:12px;">VIRTUAL PETS</div>
+    </div>
+    
+    <div class="sidebar-section">
+      <div class="sidebar-nav-links">
+        <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-news" onclick="showTab('news')">📰 News</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-twitch" onclick="showTab('twitch')">🎬 Twitch</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-redeem" onclick="showTab('redeem')">🎟️ Redeem</button>
+      </div>
+    </div>
+    
+    <div class="sidebar-section">
+      <div class="sidebar-title">Your Stats</div>
+      <div class="sidebar-stats">
+        <div class="stat-row">
+          <span class="stat-label">Pets Owned</span>
+          <span class="stat-value" id="sidebar-pet-count">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Points</span>
+          <span class="stat-value" id="sidebar-points">0 PP</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Items</span>
+          <span class="stat-value" id="sidebar-items">0</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Day Streak</span>
+          <span class="stat-value" id="sidebar-streak">0</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="sidebar-section" style="background:linear-gradient(135deg,var(--yellow),var(--orange));border-color:rgba(255,255,255,0.6);">
+      <button class="daily-bonus-btn" onclick="showTab('minigames')">✨ Daily Bonus!</button>
+    </div>
+  </div>
+
+  <div class="center-content">
+    <!-- ALL YOUR EXISTING PAGE SECTIONS GO HERE -->
+    <!-- Keep everything from <div id="auth-gate"> through the footer -->
+
 
 <!-- AUTH GATE -->
 <div id="auth-gate">
@@ -2803,6 +2868,79 @@ body.three-column-layout .navbar {
   <div class="footer-sparkles">&#10022; &#10023; &#9733; &#10022; &#10023; &#9733; &#10022;</div>
   <p>&#169; 2026 PawketPetsVT &nbsp;|&nbsp; Made with &#128150; &nbsp;|&nbsp; <a href="https://twitch.tv/Embertail" target="_blank">Twitch</a></p>
 </footer>
+    </div><!-- close center-content -->
+
+  <div class="right-sidebar">
+    <!-- OUR STREAMERS -->
+    <div class="streamers-widget">
+      <div class="sidebar-title">Our Streamers</div>
+      <div class="streamer-item">
+        <div class="streamer-avatar">
+          <img src="images/ember.png" alt="Embertail" onerror="this.parentElement.innerHTML='🦊'" />
+        </div>
+        <div class="streamer-info">
+          <div class="streamer-name">Embertail</div>
+          <div class="streamer-status" id="ember-status">OFFLINE</div>
+        </div>
+      </div>
+      <div class="streamer-item">
+        <div class="streamer-avatar">
+          <img src="images/pyxie.png" alt="Pyxshuul" onerror="this.parentElement.innerHTML='🐾'" />
+        </div>
+        <div class="streamer-info">
+          <div class="streamer-name">Pyxshuul</div>
+          <div class="streamer-status" id="pyxs-status">OFFLINE</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK ACTIONS -->
+    <div class="sidebar-section">
+      <div class="sidebar-title">Quick Actions</div>
+      <div class="quick-actions-grid">
+        <div class="quick-action-btn" onclick="showTab('adopt')">
+          <span class="qa-icon">🐣</span>
+          <span class="qa-label">Adopt</span>
+        </div>
+        <div class="quick-action-btn" onclick="showTab('shop')">
+          <span class="qa-icon">🛍️</span>
+          <span class="qa-label">Shop</span>
+        </div>
+        <div class="quick-action-btn" onclick="showTab('minigames')">
+          <span class="qa-icon">🎮</span>
+          <span class="qa-label">Minigames</span>
+        </div>
+        <div class="quick-action-btn" onclick="showTab('redeem')">
+          <span class="qa-icon">🎟️</span>
+          <span class="qa-label">Redeem</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LATEST NEWS -->
+    <div class="news-widget">
+      <div class="sidebar-title">Latest News</div>
+      <div class="news-item">
+        <div class="news-item-date">MAY 1, 2026</div>
+        <div class="news-item-title">Site Launch + New Features!</div>
+        <div class="news-item-desc">Redeem codes are now live! Check our Twitch streams for codes. New pet dropping this week...</div>
+      </div>
+      <div class="news-item">
+        <div class="news-item-date">APR 28, 2026</div>
+        <div class="news-item-title">Something Seems Off...</div>
+        <div class="news-item-desc">Reports of strange incidents involving the first ten beta testers. Read more...</div>
+      </div>
+    </div>
+
+    <!-- REDEEM CODE -->
+    <div class="redeem-widget">
+      <div class="redeem-widget-title">Redeem Code</div>
+      <input type="text" class="redeem-code-input" placeholder="ENTER CODE..." maxlength="20" id="quick-redeem-input" />
+      <button class="redeem-submit-btn" onclick="quickRedeem()">Submit</button>
+    </div>
+  </div>
+</div><!-- close app-container -->
+
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="js/supabase.js"></script>
@@ -4054,5 +4192,71 @@ async function loadRedeemHistory() {
 // ── BOOT ─────────────────────────────────
 initApp();
 </script>
+  <script>
+// Sync sidebar navigation with main tab switching
+var originalShowTab = window.showTab;
+window.showTab = function(tabName) {
+  // Call original showTab function
+  if (originalShowTab) originalShowTab(tabName);
+  
+  // Update sidebar buttons
+  document.querySelectorAll('.sidebar-nav-btn').forEach(function(btn) {
+    btn.classList.remove('active');
+  });
+  var sidebarBtn = document.getElementById('sidebar-btn-' + tabName);
+  if (sidebarBtn) sidebarBtn.classList.add('active');
+};
+
+// Quick redeem function
+function quickRedeem() {
+  var input = document.getElementById('quick-redeem-input');
+  if (!input || !input.value.trim()) return;
+  var code = input.value.trim();
+  document.getElementById('redeem-code-input').value = code;
+  showTab('redeem');
+  setTimeout(function() {
+    var btn = document.getElementById('redeem-btn');
+    if (btn) btn.click();
+  }, 100);
+}
+
+// Update sidebar stats when points/pets change
+function updateSidebarStats() {
+  if (!currentUser) return;
+  
+  // Update points
+  var pointsEl = document.getElementById('sidebar-points');
+  if (pointsEl && typeof currentPoints !== 'undefined') {
+    pointsEl.textContent = currentPoints + ' PP';
+  }
+  
+  // Update pet count
+  var petCountEl = document.getElementById('sidebar-pet-count');
+  if (petCountEl && typeof petState !== 'undefined') {
+    petCountEl.textContent = Object.keys(petState).length;
+  }
+  
+  // Update header
+  var headerPoints = document.getElementById('header-points');
+  if (headerPoints && typeof currentPoints !== 'undefined') {
+    headerPoints.textContent = currentPoints + ' PP';
+  }
+  
+  var headerUsername = document.getElementById('header-username');
+  if (headerUsername && currentUser && currentUser.user_metadata) {
+    headerUsername.textContent = currentUser.user_metadata.username || currentUser.email.split('@')[0];
+  }
+}
+
+// Call updateSidebarStats whenever the app loads
+if (typeof init === 'function') {
+  var originalInit = init;
+  init = function() {
+    originalInit();
+    updateSidebarStats();
+  };
+}
+</script>
+
 </body>
 </html>
