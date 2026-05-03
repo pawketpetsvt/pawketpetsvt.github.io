@@ -7,38 +7,7 @@
   <title>PawketPetsVT — Adopt a Pet</title>
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/style-additions.css?v=2" />
-  <style>
-    .pets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 24px; margin-top: 24px; }
-    .pet-card { background: var(--white); border: 2.5px solid var(--border); border-radius: var(--radius-lg); padding: 24px 20px; text-align: center; box-shadow: 0 6px 24px var(--shadow); transition: transform 0.2s, box-shadow 0.2s; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-    .pet-card:hover { transform: translateY(-6px); box-shadow: 0 14px 32px var(--shadow); }
-    .pet-card.placeholder { background: linear-gradient(135deg, #f0e8ff, #ffe8f5); border-style: dashed; }
-    .pet-card.already-owned { border-color: var(--green); background: linear-gradient(135deg, #f0fff4, #e8fff0); }
-    .pet-image-wrap { width: 140px; height: 140px; border-radius: 50%; overflow: hidden; border: 4px solid var(--purple-light); background: var(--purple-light); display: flex; align-items: center; justify-content: center; margin: 0 auto; box-shadow: 0 4px 16px var(--shadow); }
-    .pet-image-wrap img { width: 100%; height: 100%; object-fit: cover; }
-    .pet-image-placeholder { font-size: 3.5rem; line-height: 1; }
-    .pet-name { font-family: 'Fredoka One', cursive; font-size: 1.4rem; color: var(--purple-dark); margin: 4px 0 0; }
-    .pet-vtuber { font-size: 0.82rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; }
-    .pet-description { font-size: 0.9rem; color: var(--text-light); line-height: 1.5; flex: 1; }
-    .pet-price { font-family: 'Fredoka One', cursive; font-size: 1rem; color: var(--purple); background: var(--purple-light); padding: 4px 14px; border-radius: 20px; }
-    .pet-price.free { color: var(--white); background: linear-gradient(135deg, var(--green), #3ab85a); }
-    .btn-adopt { width: 100%; margin-top: 4px; }
-    .btn-owned { width: 100%; margin-top: 4px; background: var(--green); color: var(--white); font-family: 'Fredoka One', cursive; font-size: 1rem; padding: 10px 24px; border-radius: 30px; border: none; cursor: default; }
-    .btn-locked { width: 100%; margin-top: 4px; background: #ddd; color: #999; font-family: 'Fredoka One', cursive; font-size: 1rem; padding: 10px 24px; border-radius: 30px; border: none; cursor: not-allowed; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(60,20,100,0.5); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
-    .modal-overlay.show { display: flex; }
-    .modal { background: var(--white); border: 2.5px solid var(--border); border-radius: var(--radius-lg); padding: 36px 32px; max-width: 400px; width: 90%; text-align: center; box-shadow: 0 20px 60px rgba(60,20,100,0.3); animation: modal-pop 0.2s ease-out; }
-    @keyframes modal-pop { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-    .modal h2 { font-size: 1.8rem; color: var(--purple-dark); margin-bottom: 8px; }
-    .modal p { color: var(--text-light); margin-bottom: 20px; line-height: 1.6; }
-    .modal-image { width: 100px; height: 100px; border-radius: 50%; border: 4px solid var(--purple-light); background: var(--purple-light); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 3rem; overflow: hidden; }
-    .modal-image img { width: 100%; height: 100%; object-fit: cover; }
-    .modal-nickname-group { text-align: left; margin-bottom: 20px; }
-    .modal-nickname-group label { display: block; font-weight: 700; font-size: 0.9rem; margin-bottom: 6px; color: var(--text); }
-    .modal-nickname-group input { width: 100%; padding: 10px 14px; border: 2.5px solid var(--border); border-radius: var(--radius); font-family: 'Nunito', sans-serif; font-size: 1rem; color: var(--text); background: var(--cream); outline: none; transition: border-color 0.2s; }
-    .modal-nickname-group input:focus { border-color: var(--purple); }
-    .modal-buttons { display: flex; gap: 10px; }
-    .modal-buttons button { flex: 1; }
-  </style>
+  
 </head>
 <body>
   <div class="page-wrap">
