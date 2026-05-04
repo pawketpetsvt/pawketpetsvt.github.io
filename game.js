@@ -211,7 +211,6 @@ async function showApp(user) {
   currentUser = user;
   el('auth-gate').style.display = 'none';
   el('app-content').style.display = 'block';
-  el('navbar-tabs').style.display = 'flex';
   el('nav-logout').style.display = 'inline-block';
   el('nav-profile').style.display = 'inline-block';
 
@@ -254,8 +253,8 @@ function showAuth() {
   currentUser = null;
   el('auth-gate').style.display = 'block';
   el('app-content').style.display = 'none';
-  el('navbar-tabs').style.display = 'none';
   el('nav-logout').style.display = 'none';
+  el('nav-profile').style.display = 'none';
   el('nav-user').textContent = '';
   el('nav-points').textContent = '';
   tabsLoaded = {};
