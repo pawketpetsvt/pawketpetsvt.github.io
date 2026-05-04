@@ -117,6 +117,11 @@ function showTab(tab) {
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   if (!tabsLoaded[tab]) { tabsLoaded[tab] = true; loadTab(tab); }
   window.scrollTo(0, 0);
+  
+  // Update URL hash to persist tab (without triggering reload)
+  if (window.location.hash !== '#tab-' + tab) {
+    history.replaceState(null, null, '#tab-' + tab);
+  }
 }
 
 function loadTab(tab) {
@@ -192,17 +197,22 @@ async function showApp(user) {
     updateAllPoints(bonus.newTotal);
   }
 
-  // Only show home if no tab is currently active
-  var currentTab = document.querySelector('.page-content.active');
-  if (!currentTab) {
-    showTab('home');
-  }
-  
   el('home-cta').innerHTML = '<button class="btn btn-primary btn-lg" onclick="showTab(\'mypets\')" style="margin-right:10px;">My Pets</button><button class="btn btn-secondary btn-lg" onclick="showTab(\'adopt\')">Adopt More</button>';
 
+  // Restore last active tab from URL hash
   var hash = window.location.hash;
-  if (hash && hash.includes('access_token')) {
+  if (hash && hash.startsWith('#tab-')) {
+    var savedTab = hash.replace('#tab-', '');
+    showTab(savedTab);
+  } else if (hash && hash.includes('access_token')) {
+    // Twitch auth callback
     showTab('twitch');
+  } else {
+    // Only show home if no tab is currently active and no hash
+    var currentTab = document.querySelector('.page-content.active');
+    if (!currentTab) {
+      showTab('home');
+    }
   }
 }
 
@@ -2047,12 +2057,12 @@ async function loadLeaderboard(type) {
     var data;
     
     if (type === 'points') {
-      // Top players by PawketPoints
+      // Top players by PawketPoints (top 10)
       var res = await supabaseClient
         .from('players')
         .select('id, username, pawketpoints')
         .order('pawketpoints', { ascending: false })
-        .limit(50);
+        .limit(10);
       
       if (res.error) throw res.error;
       data = res.data.map(function(p) {
@@ -2083,7 +2093,7 @@ async function loadLeaderboard(type) {
         
         data = Object.entries(counts)
           .sort(function(a, b) { return b[1] - a[1]; })
-          .slice(0, 50)
+          .slice(0, 10)
           .map(function(entry) {
             return {
               username: entry[0],
@@ -2121,7 +2131,7 @@ async function loadLeaderboard(type) {
         
         data = Object.entries(totals)
           .sort(function(a, b) { return b[1] - a[1]; })
-          .slice(0, 50)
+          .slice(0, 10)
           .map(function(entry) {
             return {
               username: entry[0],
