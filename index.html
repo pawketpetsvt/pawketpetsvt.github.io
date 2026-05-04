@@ -4628,118 +4628,174 @@ if (typeof init === 'function') {
 // SPOOKY EFFECT FOR THEYWENTMISSING CODE
 // ══════════════════════════════════════════════════════════════════════════
 function triggerSpookyEffect() {
-  var body = document.body;
-  var originalBg = body.style.background;
-  var originalFilter = body.style.filter;
+  console.log('🎃 SPOOKY EFFECT TRIGGERED!');
   
   // PAUSE BACKGROUND MUSIC
   var bgMusic = document.getElementById('bg-music');
   var wasMusicPlaying = false;
-  if (bgMusic && !bgMusic.paused) {
-    wasMusicPlaying = true;
-    bgMusic.pause();
+  
+  if (bgMusic) {
+    console.log('Music found, current state:', bgMusic.paused ? 'paused' : 'playing');
+    if (!bgMusic.paused) {
+      wasMusicPlaying = true;
+      bgMusic.pause();
+      console.log('Music paused for spooky effect');
+    }
+  } else {
+    console.log('⚠️ Music element not found!');
   }
   
-  // Create glitch overlay
-  var glitchDiv = document.createElement('div');
-  glitchDiv.style.cssText = `
+  // Play creepy sound effect FIRST
+  var audio = new Audio('sounds/glitch.mp3');
+  audio.volume = 0.6;
+  audio.play()
+    .then(function() { console.log('✅ Glitch sound playing'); })
+    .catch(function(e) { console.log('❌ Audio blocked:', e); });
+  
+  var body = document.body;
+  
+  // Create dark vignette overlay (no flashing)
+  var vignetteDiv = document.createElement('div');
+  vignetteDiv.style.cssText = `
     position: fixed;
     inset: 0;
-    background: black;
-    z-index: 99999;
+    background: radial-gradient(circle at center, transparent 0%, rgba(10,0,0,0.7) 50%, rgba(0,0,0,0.95) 100%);
+    z-index: 99998;
     pointer-events: none;
-    animation: spooky-flicker 3s ease-out forwards;
+    animation: creepy-vignette 3s ease-in-out forwards;
   `;
   
-  // Add CSS animation
+  // Create static/noise overlay (subtle)
+  var noiseDiv = document.createElement('div');
+  noiseDiv.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.3'/%3E%3C/svg%3E");
+    z-index: 99999;
+    pointer-events: none;
+    opacity: 0;
+    animation: noise-fade 3s ease-in-out forwards;
+  `;
+  
+  // Add CSS animations
   var style = document.createElement('style');
   style.textContent = `
-    @keyframes spooky-flicker {
+    @keyframes creepy-vignette {
       0% { opacity: 0; }
-      5% { opacity: 1; background: #000; }
-      10% { opacity: 0; }
-      15% { opacity: 0.9; background: #1a0000; }
-      20% { opacity: 0; }
-      25% { opacity: 1; background: #000; }
-      30% { opacity: 0.3; }
-      35% { opacity: 1; background: #0a0000; }
-      40% { opacity: 0; }
-      45% { opacity: 0.8; background: #1a0000; }
-      50% { opacity: 0.1; }
-      55% { opacity: 1; background: #000; }
-      60% { opacity: 0; }
-      65% { opacity: 0.9; }
-      70% { opacity: 0; }
-      75% { opacity: 1; background: #1a0000; }
-      80% { opacity: 0.2; }
-      85% { opacity: 0.7; }
-      90% { opacity: 0; }
-      95% { opacity: 0.5; }
+      20% { opacity: 1; }
+      80% { opacity: 1; }
       100% { opacity: 0; }
     }
     
-    @keyframes body-glitch {
-      0%, 100% { filter: none; }
-      10% { filter: hue-rotate(90deg) contrast(1.5); }
-      20% { filter: invert(0.1); }
-      30% { filter: hue-rotate(180deg) saturate(0); }
-      40% { filter: contrast(2); }
-      50% { filter: invert(0.2) hue-rotate(270deg); }
-      60% { filter: saturate(0) contrast(3); }
-      70% { filter: hue-rotate(45deg); }
-      80% { filter: invert(0.1); }
-      90% { filter: contrast(1.5); }
+    @keyframes noise-fade {
+      0% { opacity: 0; }
+      10% { opacity: 0.4; }
+      30% { opacity: 0.2; }
+      50% { opacity: 0.5; }
+      70% { opacity: 0.3; }
+      90% { opacity: 0.4; }
+      100% { opacity: 0; }
+    }
+    
+    @keyframes body-desaturate {
+      0% { filter: saturate(1) contrast(1); }
+      20% { filter: saturate(0.3) contrast(1.2) brightness(0.8); }
+      50% { filter: saturate(0) contrast(1.5) brightness(0.7); }
+      80% { filter: saturate(0.3) contrast(1.2) brightness(0.8); }
+      100% { filter: saturate(1) contrast(1) brightness(1); }
+    }
+    
+    @keyframes text-corrupt {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
     }
   `;
   document.head.appendChild(style);
-  document.body.appendChild(glitchDiv);
+  document.body.appendChild(vignetteDiv);
+  document.body.appendChild(noiseDiv);
   
-  // Apply body glitch
-  body.style.animation = 'body-glitch 3s ease-out';
+  // Apply desaturation effect (no flashing, just gradual color drain)
+  body.style.animation = 'body-desaturate 3s ease-in-out';
   
-  // Play creepy sound effect
-  var audio = new Audio('sounds/glitch.mp3');
-  audio.volume = 0.5;
-  audio.play().catch(e => console.log('Audio blocked'));
-  
-  // Random text corruption on page
-  var textElements = document.querySelectorAll('h1, h2, h3, p, button, .sidebar-title');
+  // Corrupt random text elements (more subtle)
+  var textElements = document.querySelectorAll('h1, h2, h3, p, button, .sidebar-title, .nav-tab');
   var corruptedElements = [];
+  var glitchChars = '█▓▒░▄▀■□▪▫◘◙';
   
-  for (var i = 0; i < Math.min(textElements.length, 8); i++) {
-    var el = textElements[Math.floor(Math.random() * textElements.length)];
-    if (!corruptedElements.includes(el)) {
-      corruptedElements.push(el);
-      var originalText = el.textContent;
-      var glitchChars = '█▓▒░▄▀■□▪▫◘◙';
+  // Corrupt 5-8 random elements
+  var numToCorrupt = Math.floor(Math.random() * 4) + 5;
+  for (var i = 0; i < numToCorrupt; i++) {
+    var randomEl = textElements[Math.floor(Math.random() * textElements.length)];
+    if (!corruptedElements.includes(randomEl) && randomEl.textContent.trim().length > 0) {
+      corruptedElements.push(randomEl);
       
-      // Corrupt text
-      setTimeout(function(element, original) {
-        var corrupted = original.split('').map(function(c, i) {
-          return Math.random() > 0.7 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
-        }).join('');
-        element.textContent = corrupted;
+      (function(element) {
+        var originalText = element.textContent;
+        var corruptDelay = Math.random() * 2000; // Spread out over 2 seconds
         
-        // Restore after delay
         setTimeout(function() {
-          element.textContent = original;
-        }, 500);
-      }, Math.random() * 1500, el, originalText);
+          // Corrupt 20-40% of characters
+          var corrupted = originalText.split('').map(function(c) {
+            if (c === ' ') return c; // Keep spaces
+            return Math.random() > 0.7 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
+          }).join('');
+          
+          element.textContent = corrupted;
+          element.style.animation = 'text-corrupt 0.3s ease-in-out';
+          
+          // Restore after 300-800ms
+          setTimeout(function() {
+            element.textContent = originalText;
+            element.style.animation = '';
+          }, Math.random() * 500 + 300);
+        }, corruptDelay);
+      })(randomEl);
     }
   }
   
-  // Clean up after effect
+  // Add a creepy red glow to the edges
+  var glowDiv = document.createElement('div');
+  glowDiv.style.cssText = `
+    position: fixed;
+    inset: 0;
+    box-shadow: inset 0 0 100px rgba(139, 0, 0, 0.3);
+    z-index: 99997;
+    pointer-events: none;
+    opacity: 0;
+    animation: red-glow 3s ease-in-out forwards;
+  `;
+  var glowStyle = document.createElement('style');
+  glowStyle.textContent = `
+    @keyframes red-glow {
+      0% { opacity: 0; }
+      30% { opacity: 1; }
+      70% { opacity: 1; }
+      100% { opacity: 0; }
+    }
+  `;
+  document.head.appendChild(glowStyle);
+  document.body.appendChild(glowDiv);
+  
+  console.log('Spooky effects applied, will clean up in 3 seconds...');
+  
+  // Clean up after 3 seconds
   setTimeout(function() {
     body.style.animation = '';
-    body.style.filter = originalFilter;
-    body.style.background = originalBg;
-    glitchDiv.remove();
+    body.style.filter = '';
+    vignetteDiv.remove();
+    noiseDiv.remove();
+    glowDiv.remove();
     style.remove();
+    glowStyle.remove();
     
-    // RESUME BACKGROUND MUSIC if it was playing
+    // RESUME BACKGROUND MUSIC
     if (wasMusicPlaying && bgMusic) {
-      bgMusic.play().catch(e => console.log('Music resume blocked'));
+      bgMusic.play()
+        .then(function() { console.log('✅ Music resumed'); })
+        .catch(function(e) { console.log('❌ Music resume blocked:', e); });
     }
+    
+    console.log('Spooky effect complete!');
   }, 3000);
 }
 </script>
