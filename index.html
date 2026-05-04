@@ -12,20 +12,6 @@
 <body class="three-column-layout">
 
 <audio id="bg-music" loop><source src="music.mp3" type="audio/mpeg" /></audio>
-<div class="top-header-bar">
-  <div class="header-left">
-    <div class="header-logo">
-      <img src="images/pawket-logo.png" alt="PawketPetsVT" />
-      <span><span style="color:#ffdd00;">Pawket</span>Pets</span>
-    </div>
-    <div class="header-status" id="header-status">Logged in as: <span id="header-username">...</span> | Day <span id="header-day">1</span></div>
-  </div>
-  <div class="header-right">
-    <span class="header-points" id="header-points">0 PP</span>
-    <button class="header-logout" onclick="handleLogout()">Logout</button>
-  </div>
-</div>
-
 <div class="music-bar">
   <span class="music-title">&#127925; PawketPetsVT OST</span>
   <button class="music-btn" id="music-play-btn" onclick="toggleMusic()">&#9654;</button>
@@ -872,16 +858,7 @@ function updateSidebarStats() {
     petCountEl.textContent = Object.keys(petState).length;
   }
   
-  // Update header
-  var headerPoints = document.getElementById('header-points');
-  if (headerPoints && typeof currentPoints !== 'undefined') {
-    headerPoints.textContent = currentPoints + ' PP';
-  }
-  
-  var headerUsername = document.getElementById('header-username');
-  if (headerUsername && currentUser && currentUser.user_metadata) {
-    headerUsername.textContent = currentUser.user_metadata.username || currentUser.email.split('@')[0];
-  }
+  // Header updates now handled by game.js (nav-points, nav-user)
 }
 
 // Call updateSidebarStats whenever the app loads
