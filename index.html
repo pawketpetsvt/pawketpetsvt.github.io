@@ -4632,6 +4632,14 @@ function triggerSpookyEffect() {
   var originalBg = body.style.background;
   var originalFilter = body.style.filter;
   
+  // PAUSE BACKGROUND MUSIC
+  var bgMusic = document.getElementById('bg-music');
+  var wasMusicPlaying = false;
+  if (bgMusic && !bgMusic.paused) {
+    wasMusicPlaying = true;
+    bgMusic.pause();
+  }
+  
   // Create glitch overlay
   var glitchDiv = document.createElement('div');
   glitchDiv.style.cssText = `
@@ -4689,10 +4697,10 @@ function triggerSpookyEffect() {
   // Apply body glitch
   body.style.animation = 'body-glitch 3s ease-out';
   
-  // Play creepy sound effect (if you want to add audio)
-  // var audio = new Audio('sounds/glitch.mp3');
-  // audio.volume = 0.3;
-  // audio.play().catch(e => console.log('Audio blocked'));
+  // Play creepy sound effect
+  var audio = new Audio('sounds/glitch.mp3');
+  audio.volume = 0.5;
+  audio.play().catch(e => console.log('Audio blocked'));
   
   // Random text corruption on page
   var textElements = document.querySelectorAll('h1, h2, h3, p, button, .sidebar-title');
@@ -4727,6 +4735,11 @@ function triggerSpookyEffect() {
     body.style.background = originalBg;
     glitchDiv.remove();
     style.remove();
+    
+    // RESUME BACKGROUND MUSIC if it was playing
+    if (wasMusicPlaying && bgMusic) {
+      bgMusic.play().catch(e => console.log('Music resume blocked'));
+    }
   }, 3000);
 }
 </script>
