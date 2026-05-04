@@ -161,6 +161,7 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
+  else if (tab === 'myprofile') { loadMyProfile(); }
   // Note: leaderboard handled by initLeaderboardTab() in showTab
 }
 
@@ -2436,6 +2437,7 @@ async function loadMyProfile() {
     
     // Update form
     el('edit-username').value = username;
+    el('edit-bio').value = player.bio || '';
     
     // Update stats
     el('myprofile-points').textContent = player.pawketpoints || 0;
@@ -2467,6 +2469,7 @@ async function saveProfile() {
   successEl.style.display = 'none';
   
   var newUsername = el('edit-username').value.trim();
+  var newBio = el('edit-bio').value.trim();
   
   // Validation
   if (!newUsername) {
@@ -2483,6 +2486,12 @@ async function saveProfile() {
   
   if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
     errorEl.textContent = 'Username can only contain letters, numbers, and underscores!';
+    errorEl.style.display = 'block';
+    return;
+  }
+  
+  if (newBio.length > 200) {
+    errorEl.textContent = 'Bio must be 200 characters or less!';
     errorEl.style.display = 'block';
     return;
   }
@@ -2504,10 +2513,10 @@ async function saveProfile() {
       }
     }
     
-    // Update username
+    // Update username and bio
     var updateRes = await supabaseClient
       .from('players')
-      .update({ username: newUsername })
+      .update({ username: newUsername, bio: newBio })
       .eq('id', currentUser.id);
     
     if (updateRes.error) throw updateRes.error;
