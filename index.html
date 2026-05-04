@@ -4436,20 +4436,22 @@ async function redeemCode() {
       return;
     }
 
-    // 3. Check if THIS player already redeemed it
-    var alreadyRes = await supabaseClient
-      .from('redeemed_codes')
-      .select('id')
-      .eq('player_id', currentUser.id)
-      .eq('code_id', promo.id)
-      .maybeSingle();
+    // 3. Check if THIS player already redeemed it (skip for unlimited codes)
+    if (promo.max_uses !== null) {
+      var alreadyRes = await supabaseClient
+        .from('redeemed_codes')
+        .select('id')
+        .eq('player_id', currentUser.id)
+        .eq('code_id', promo.id)
+        .maybeSingle();
 
-    if (alreadyRes.data) {
-      errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
-      errEl.classList.add('show');
-      btn.textContent = '✨ Redeem!';
-      btn.disabled = false;
-      return;
+      if (alreadyRes.data) {
+        errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
+        errEl.classList.add('show');
+        btn.textContent = '✨ Redeem!';
+        btn.disabled = false;
+        return;
+      }
     }
 
     // 4. All good — award the PP
@@ -4463,18 +4465,25 @@ async function redeemCode() {
       updateAllPoints(newPoints);
     }
 
-    // 5. Log the redemption in redeemed_codes
-    await supabaseClient.from('redeemed_codes').insert([{
-      player_id: currentUser.id,
-      code_id: promo.id,
-      redeemed_at: new Date().toISOString()
-    }]);
+    // 5. Log the redemption in redeemed_codes (only if max_uses is set)
+    if (promo.max_uses !== null) {
+      await supabaseClient.from('redeemed_codes').insert([{
+        player_id: currentUser.id,
+        code_id: promo.id,
+        redeemed_at: new Date().toISOString()
+      }]);
+    }
 
     // 6. Increment times_used on promo_codes
     await supabaseClient
       .from('promo_codes')
       .update({ times_used: (promo.times_used || 0) + 1 })
       .eq('id', promo.id);
+
+    // 6.5. SPOOKY EFFECT for THEYWENTMISSING code
+    if (code === 'THEYWENTMISSING') {
+      triggerSpookyEffect();
+    }
 
     // 7. Show success panel
     input.value = '';
@@ -4613,6 +4622,112 @@ if (typeof init === 'function') {
     originalInit();
     updateSidebarStats();
   };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SPOOKY EFFECT FOR THEYWENTMISSING CODE
+// ══════════════════════════════════════════════════════════════════════════
+function triggerSpookyEffect() {
+  var body = document.body;
+  var originalBg = body.style.background;
+  var originalFilter = body.style.filter;
+  
+  // Create glitch overlay
+  var glitchDiv = document.createElement('div');
+  glitchDiv.style.cssText = `
+    position: fixed;
+    inset: 0;
+    background: black;
+    z-index: 99999;
+    pointer-events: none;
+    animation: spooky-flicker 3s ease-out forwards;
+  `;
+  
+  // Add CSS animation
+  var style = document.createElement('style');
+  style.textContent = `
+    @keyframes spooky-flicker {
+      0% { opacity: 0; }
+      5% { opacity: 1; background: #000; }
+      10% { opacity: 0; }
+      15% { opacity: 0.9; background: #1a0000; }
+      20% { opacity: 0; }
+      25% { opacity: 1; background: #000; }
+      30% { opacity: 0.3; }
+      35% { opacity: 1; background: #0a0000; }
+      40% { opacity: 0; }
+      45% { opacity: 0.8; background: #1a0000; }
+      50% { opacity: 0.1; }
+      55% { opacity: 1; background: #000; }
+      60% { opacity: 0; }
+      65% { opacity: 0.9; }
+      70% { opacity: 0; }
+      75% { opacity: 1; background: #1a0000; }
+      80% { opacity: 0.2; }
+      85% { opacity: 0.7; }
+      90% { opacity: 0; }
+      95% { opacity: 0.5; }
+      100% { opacity: 0; }
+    }
+    
+    @keyframes body-glitch {
+      0%, 100% { filter: none; }
+      10% { filter: hue-rotate(90deg) contrast(1.5); }
+      20% { filter: invert(0.1); }
+      30% { filter: hue-rotate(180deg) saturate(0); }
+      40% { filter: contrast(2); }
+      50% { filter: invert(0.2) hue-rotate(270deg); }
+      60% { filter: saturate(0) contrast(3); }
+      70% { filter: hue-rotate(45deg); }
+      80% { filter: invert(0.1); }
+      90% { filter: contrast(1.5); }
+    }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(glitchDiv);
+  
+  // Apply body glitch
+  body.style.animation = 'body-glitch 3s ease-out';
+  
+  // Play creepy sound effect (if you want to add audio)
+  // var audio = new Audio('sounds/glitch.mp3');
+  // audio.volume = 0.3;
+  // audio.play().catch(e => console.log('Audio blocked'));
+  
+  // Random text corruption on page
+  var textElements = document.querySelectorAll('h1, h2, h3, p, button, .sidebar-title');
+  var corruptedElements = [];
+  
+  for (var i = 0; i < Math.min(textElements.length, 8); i++) {
+    var el = textElements[Math.floor(Math.random() * textElements.length)];
+    if (!corruptedElements.includes(el)) {
+      corruptedElements.push(el);
+      var originalText = el.textContent;
+      var glitchChars = '█▓▒░▄▀■□▪▫◘◙';
+      
+      // Corrupt text
+      setTimeout(function(element, original) {
+        var corrupted = original.split('').map(function(c, i) {
+          return Math.random() > 0.7 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
+        }).join('');
+        element.textContent = corrupted;
+        
+        // Restore after delay
+        setTimeout(function() {
+          element.textContent = original;
+        }, 500);
+      }, Math.random() * 1500, el, originalText);
+    }
+  }
+  
+  // Clean up after effect
+  setTimeout(function() {
+    body.style.animation = '';
+    body.style.filter = originalFilter;
+    body.style.background = originalBg;
+    glitchDiv.remove();
+    style.remove();
+  }, 3000);
 }
 </script>
 
