@@ -51,6 +51,7 @@
       <button class="nav-tab"        id="tab-btn-news"      onclick="showTab('news')">News</button>
       <button class="nav-tab"        id="tab-btn-twitch"    onclick="showTab('twitch')">Twitch</button>
       <button class="nav-tab"        id="tab-btn-redeem"    onclick="showTab('redeem')">🎟 Redeem</button>
+      <button class="nav-tab"        id="tab-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
     </div>
     <div class="navbar-user">
       <span id="nav-user"></span>
@@ -79,6 +80,7 @@
         <button class="sidebar-nav-btn" id="sidebar-btn-news" onclick="showTab('news')">📰 News</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-twitch" onclick="showTab('twitch')">🎬 Twitch</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-redeem" onclick="showTab('redeem')">🎟️ Redeem</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
       </div>
     </div>
     
@@ -521,6 +523,40 @@
       <div class="redeem-history-wrap">
         <div class="section-header"><h2>Recently Redeemed</h2><div class="section-line"></div></div>
         <div id="redeem-history" class="redeem-history"><div class="spinner"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       LEADERBOARDS
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-leaderboard">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">🏆 ✦ 🏆</div>
+        <h1>Leaderboards</h1>
+        <p>See who's at the top of PawketPetsVT! 🌟</p>
+      </div>
+
+      <!-- Leaderboard Tabs -->
+      <div class="leaderboard-tabs">
+        <button class="leaderboard-tab active" onclick="switchLeaderboard('points')">💰 Most Points</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('pets')">🐾 Most Pets</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('levels')">⭐ Highest Levels</button>
+      </div>
+
+      <!-- Leaderboard Content -->
+      <div class="leaderboard-container">
+        <div id="leaderboard-points" class="leaderboard-list active">
+          <div class="spinner"></div>
+        </div>
+        <div id="leaderboard-pets" class="leaderboard-list">
+          <div class="spinner"></div>
+        </div>
+        <div id="leaderboard-levels" class="leaderboard-list">
+          <div class="spinner"></div>
+        </div>
       </div>
 
     </div>

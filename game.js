@@ -2006,4 +2006,195 @@ setTimeout(function() {
   }
 }, 1000);
 
+// ══════════════════════════════════════════════════════════════════════════
+// LEADERBOARDS
+// ══════════════════════════════════════════════════════════════════════════
+
+var currentLeaderboard = 'points';
+var leaderboardCache = {
+  points: null,
+  pets: null,
+  levels: null
+};
+
+function switchLeaderboard(type) {
+  currentLeaderboard = type;
+  
+  // Update tab styles
+  var tabs = document.querySelectorAll('.leaderboard-tab');
+  tabs.forEach(function(tab) {
+    tab.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  
+  // Show correct list
+  document.querySelectorAll('.leaderboard-list').forEach(function(list) {
+    list.classList.remove('active');
+  });
+  el('leaderboard-' + type).classList.add('active');
+  
+  // Load data if not cached
+  if (!leaderboardCache[type]) {
+    loadLeaderboard(type);
+  }
+}
+
+async function loadLeaderboard(type) {
+  var container = el('leaderboard-' + type);
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var data;
+    
+    if (type === 'points') {
+      // Top players by PawketPoints
+      var res = await supabaseClient
+        .from('players')
+        .select('id, username, pawketpoints')
+        .order('pawketpoints', { ascending: false })
+        .limit(50);
+      
+      if (res.error) throw res.error;
+      data = res.data.map(function(p) {
+        return {
+          username: p.username,
+          value: p.pawketpoints + ' PP',
+          stat: p.pawketpoints + ' PawketPoints'
+        };
+      });
+      
+    } else if (type === 'pets') {
+      // Top players by pet count
+      var res = await supabaseClient.rpc('get_leaderboard_pets');
+      
+      if (res.error) {
+        // Fallback if RPC doesn't exist - manual query
+        var petsRes = await supabaseClient
+          .from('user_pets')
+          .select('user_id, players(username)');
+        
+        if (petsRes.error) throw petsRes.error;
+        
+        var counts = {};
+        petsRes.data.forEach(function(pet) {
+          var username = pet.players.username;
+          counts[username] = (counts[username] || 0) + 1;
+        });
+        
+        data = Object.entries(counts)
+          .sort(function(a, b) { return b[1] - a[1]; })
+          .slice(0, 50)
+          .map(function(entry) {
+            return {
+              username: entry[0],
+              value: entry[1] + ' pets',
+              stat: entry[1] + ' pets owned'
+            };
+          });
+      } else {
+        data = res.data.map(function(p) {
+          return {
+            username: p.username,
+            value: p.pet_count + ' pets',
+            stat: p.pet_count + ' pets owned'
+          };
+        });
+      }
+      
+    } else if (type === 'levels') {
+      // Top players by total pet levels
+      var res = await supabaseClient.rpc('get_leaderboard_levels');
+      
+      if (res.error) {
+        // Fallback if RPC doesn't exist
+        var levelsRes = await supabaseClient
+          .from('user_pets')
+          .select('user_id, level, players(username)');
+        
+        if (levelsRes.error) throw levelsRes.error;
+        
+        var totals = {};
+        levelsRes.data.forEach(function(pet) {
+          var username = pet.players.username;
+          totals[username] = (totals[username] || 0) + pet.level;
+        });
+        
+        data = Object.entries(totals)
+          .sort(function(a, b) { return b[1] - a[1]; })
+          .slice(0, 50)
+          .map(function(entry) {
+            return {
+              username: entry[0],
+              value: 'Lvl ' + entry[1],
+              stat: 'Total level: ' + entry[1]
+            };
+          });
+      } else {
+        data = res.data.map(function(p) {
+          return {
+            username: p.username,
+            value: 'Lvl ' + p.total_level,
+            stat: 'Total level: ' + p.total_level
+          };
+        });
+      }
+    }
+    
+    // Cache the data
+    leaderboardCache[type] = data;
+    
+    // Render leaderboard
+    if (data.length === 0) {
+      container.innerHTML = '<div class="empty-state"><p>No data yet! Be the first! 🌟</p></div>';
+      return;
+    }
+    
+    var html = '';
+    data.forEach(function(player, index) {
+      var rank = index + 1;
+      var rankClass = '';
+      var rankEmoji = rank + '.';
+      
+      if (rank === 1) {
+        rankClass = 'top1';
+        rankEmoji = '🥇';
+      } else if (rank === 2) {
+        rankClass = 'top2';
+        rankEmoji = '🥈';
+      } else if (rank === 3) {
+        rankClass = 'top3';
+        rankEmoji = '🥉';
+      }
+      
+      html += '<div class="leaderboard-item">';
+      html += '  <div class="leaderboard-rank ' + rankClass + '">' + rankEmoji + '</div>';
+      html += '  <div class="leaderboard-avatar">' + player.username.charAt(0).toUpperCase() + '</div>';
+      html += '  <div class="leaderboard-info">';
+      html += '    <div class="leaderboard-username">' + escapeHtml(player.username) + '</div>';
+      html += '    <div class="leaderboard-stats">' + player.stat + '</div>';
+      html += '  </div>';
+      html += '  <div class="leaderboard-value">' + player.value + '</div>';
+      html += '</div>';
+    });
+    
+    container.innerHTML = html;
+    
+  } catch (err) {
+    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + err.message + '</p></div>';
+  }
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Load points leaderboard when tab is opened
+tabsLoaded.leaderboard = function() {
+  if (!leaderboardCache.points) {
+    loadLeaderboard('points');
+  }
+};
+
 initApp();
