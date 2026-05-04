@@ -213,6 +213,7 @@ async function showApp(user) {
   el('app-content').style.display = 'block';
   el('navbar-tabs').style.display = 'flex';
   el('nav-logout').style.display = 'inline-block';
+  el('nav-profile').style.display = 'inline-block';
 
   var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).single();
   if (pr.data) {
@@ -2393,6 +2394,156 @@ tabsLoaded.profile = function() {
   if (window.currentProfileUsername) {
     loadProfile(window.currentProfileUsername);
   }
+};
+
+// ══════════════════════════════════════════════════════════════
+// MY PROFILE (Edit Own Profile)
+// ══════════════════════════════════════════════════════════════
+
+async function loadMyProfile() {
+  if (!currentUser) return;
+  
+  try {
+    // Get player data
+    var res = await supabaseClient
+      .from('players')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (res.error) throw res.error;
+    var player = res.data;
+    
+    // Get pet count and levels
+    var petsRes = await supabaseClient
+      .from('user_pets')
+      .select('level')
+      .eq('user_id', currentUser.id);
+    
+    var totalPets = petsRes.data ? petsRes.data.length : 0;
+    var totalLevels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + p.level; }, 0) : 0;
+    
+    // Update preview
+    var username = player.username || 'User';
+    el('myprofile-avatar-preview').textContent = username.charAt(0).toUpperCase();
+    el('myprofile-username-preview').textContent = username;
+    
+    var joinDate = new Date(player.created_at).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    el('myprofile-joined-preview').textContent = 'Joined: ' + joinDate;
+    
+    // Update form
+    el('edit-username').value = username;
+    
+    // Update stats
+    el('myprofile-points').textContent = player.pawketpoints || 0;
+    el('myprofile-pets').textContent = totalPets;
+    el('myprofile-levels').textContent = totalLevels;
+    
+    // Get rank from leaderboard
+    var rankRes = await supabaseClient
+      .from('players')
+      .select('id, pawketpoints')
+      .order('pawketpoints', { ascending: false });
+    
+    if (rankRes.data) {
+      var rank = rankRes.data.findIndex(function(p) { return p.id === currentUser.id; }) + 1;
+      el('myprofile-rank').textContent = rank > 0 ? '#' + rank : '-';
+    }
+    
+  } catch (err) {
+    console.error('Error loading profile:', err);
+  }
+}
+
+async function saveProfile() {
+  if (!currentUser) return;
+  
+  var errorEl = el('profile-edit-error');
+  var successEl = el('profile-edit-success');
+  errorEl.style.display = 'none';
+  successEl.style.display = 'none';
+  
+  var newUsername = el('edit-username').value.trim();
+  
+  // Validation
+  if (!newUsername) {
+    errorEl.textContent = 'Username cannot be empty!';
+    errorEl.style.display = 'block';
+    return;
+  }
+  
+  if (newUsername.length > 20) {
+    errorEl.textContent = 'Username must be 20 characters or less!';
+    errorEl.style.display = 'block';
+    return;
+  }
+  
+  if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
+    errorEl.textContent = 'Username can only contain letters, numbers, and underscores!';
+    errorEl.style.display = 'block';
+    return;
+  }
+  
+  try {
+    // Check if username is taken (if changed)
+    var currentUsername = el('myprofile-username-preview').textContent;
+    if (newUsername !== currentUsername) {
+      var checkRes = await supabaseClient
+        .from('players')
+        .select('id')
+        .ilike('username', newUsername)
+        .neq('id', currentUser.id);
+      
+      if (checkRes.data && checkRes.data.length > 0) {
+        errorEl.textContent = 'Username "' + newUsername + '" is already taken!';
+        errorEl.style.display = 'block';
+        return;
+      }
+    }
+    
+    // Update username
+    var updateRes = await supabaseClient
+      .from('players')
+      .update({ username: newUsername })
+      .eq('id', currentUser.id);
+    
+    if (updateRes.error) throw updateRes.error;
+    
+    // Update preview
+    el('myprofile-username-preview').textContent = newUsername;
+    el('myprofile-avatar-preview').textContent = newUsername.charAt(0).toUpperCase();
+    
+    // Update header
+    el('nav-user').textContent = newUsername;
+    
+    successEl.textContent = '✅ Profile saved successfully!';
+    successEl.style.display = 'block';
+    
+    // Hide success message after 3 seconds
+    setTimeout(function() {
+      successEl.style.display = 'none';
+    }, 3000);
+    
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    errorEl.textContent = 'Failed to save profile: ' + err.message;
+    errorEl.style.display = 'block';
+  }
+}
+
+function viewMyPublicProfile() {
+  if (!currentUser) return;
+  var username = el('myprofile-username-preview').textContent;
+  viewProfile(username);
+}
+
+// Load profile data when tab is shown
+tabsLoaded.myprofile = function() {
+  loadMyProfile();
 };
 
 initApp();

@@ -56,6 +56,7 @@
     <div class="navbar-user">
       <span id="nav-user"></span>
       <span id="nav-points"></span>
+      <button class="btn-nav-action" id="nav-profile" style="display:none" onclick="showTab('myprofile')">👤 Profile</button>
       <button class="btn-nav-action" id="nav-logout" style="display:none" onclick="handleLogout()">Logout</button>
     </div>
   </div>
@@ -613,6 +614,101 @@
       </div>
       <div id="profile-pets-grid" class="pets-grid">
         <div class="spinner"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
+       MY PROFILE (Edit Your Profile)
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-myprofile">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">👤 ✦ 👤</div>
+        <h1>My Profile</h1>
+        <p>Customize how others see you! 🌟</p>
+      </div>
+
+      <!-- Profile Preview Card -->
+      <div class="profile-preview-card">
+        <h3>Profile Preview</h3>
+        <div class="profile-header">
+          <div class="profile-avatar large" id="myprofile-avatar-preview">?</div>
+          <div class="profile-info">
+            <h2 class="profile-username" id="myprofile-username-preview">Loading...</h2>
+            <div class="profile-joined" id="myprofile-joined-preview">Joined: ...</div>
+          </div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="viewMyPublicProfile()" style="margin-top: 12px;">
+          🔗 View My Public Profile
+        </button>
+      </div>
+
+      <!-- Edit Form -->
+      <div class="profile-edit-card">
+        <h3>✏️ Edit Profile</h3>
+        
+        <div class="form-group">
+          <label for="edit-username">Username</label>
+          <input type="text" id="edit-username" class="form-input" maxlength="20" placeholder="Your username" />
+          <small class="form-hint">Max 20 characters. Letters, numbers, and underscores only.</small>
+        </div>
+
+        <div class="form-group">
+          <label for="edit-bio">Bio</label>
+          <textarea id="edit-bio" class="form-input" rows="3" maxlength="200" placeholder="Tell others about yourself..." disabled></textarea>
+          <small class="form-hint">Coming soon! Max 200 characters.</small>
+        </div>
+
+        <div class="form-group">
+          <label>Profile Picture</label>
+          <div class="avatar-upload-placeholder">
+            <span class="placeholder-icon">📷</span>
+            <p>Custom avatars coming soon!</p>
+            <small>For now, your avatar is the first letter of your username</small>
+          </div>
+        </div>
+
+        <div id="profile-edit-error" class="alert alert-error" style="display:none;"></div>
+        <div id="profile-edit-success" class="alert alert-success" style="display:none;"></div>
+
+        <button class="btn btn-primary btn-lg" onclick="saveProfile()">💾 Save Changes</button>
+      </div>
+
+      <!-- Stats Overview -->
+      <div class="section-header" style="margin-top: 40px;">
+        <h2>Your Stats</h2>
+        <div class="section-line"></div>
+      </div>
+      
+      <div class="profile-stats-grid">
+        <div class="profile-stat-card">
+          <div class="stat-icon">🪙</div>
+          <div class="stat-value" id="myprofile-points">0</div>
+          <div class="stat-label">PawketPoints</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="stat-icon">🐾</div>
+          <div class="stat-value" id="myprofile-pets">0</div>
+          <div class="stat-label">Pets Owned</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="stat-icon">⭐</div>
+          <div class="stat-value" id="myprofile-levels">0</div>
+          <div class="stat-label">Total Levels</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="stat-icon">🏆</div>
+          <div class="stat-value" id="myprofile-rank">-</div>
+          <div class="stat-label">Leaderboard Rank</div>
+        </div>
+        <div class="profile-stat-card coming-soon">
+          <div class="stat-icon">🎖️</div>
+          <div class="stat-value">0</div>
+          <div class="stat-label">Badges</div>
+          <small>Coming Soon!</small>
+        </div>
       </div>
 
     </div>
