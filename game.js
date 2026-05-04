@@ -109,13 +109,42 @@ function updateAllPoints(pts) {
   el('nav-points').innerHTML = '&#129689; ' + pts + ' PP';
 }
 
+// ── LEADERBOARD INITIALIZATION ────────────────────────────
+function initLeaderboardTab() {
+  // Set initial state
+  currentLeaderboard = 'points';
+  // Activate the Most Points button
+  document.querySelectorAll('.leaderboard-tab').forEach(function(t) {
+    t.classList.remove('active');
+  });
+  var firstTab = document.querySelectorAll('.leaderboard-tab')[0];
+  if (firstTab) firstTab.classList.add('active');
+  // Show points list, hide others
+  document.querySelectorAll('.leaderboard-list').forEach(function(list) {
+    list.classList.remove('active');
+  });
+  el('leaderboard-points').classList.add('active');
+  // Load data if not cached
+  if (!leaderboardCache.points) {
+    loadLeaderboard('points');
+  }
+}
+
 // ── TAB NAVIGATION ───────────────────────
 function showTab(tab) {
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
-  if (!tabsLoaded[tab]) { tabsLoaded[tab] = true; loadTab(tab); }
+  
+  // Special case: leaderboard needs to initialize every time
+  if (tab === 'leaderboard') {
+    initLeaderboardTab();
+  } else if (!tabsLoaded[tab]) { 
+    tabsLoaded[tab] = true; 
+    loadTab(tab); 
+  }
+  
   window.scrollTo(0, 0);
   
   // Update URL hash to persist tab (without triggering reload)
@@ -132,24 +161,7 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
-  else if (tab === 'leaderboard') { 
-    // Set initial state
-    currentLeaderboard = 'points';
-    // Activate the Most Points button
-    document.querySelectorAll('.leaderboard-tab').forEach(function(t) {
-      t.classList.remove('active');
-    });
-    document.querySelectorAll('.leaderboard-tab')[0].classList.add('active');
-    // Show points list, hide others
-    document.querySelectorAll('.leaderboard-list').forEach(function(list) {
-      list.classList.remove('active');
-    });
-    el('leaderboard-points').classList.add('active');
-    // Load data
-    if (!leaderboardCache.points) {
-      loadLeaderboard('points');
-    }
-  }
+  // Note: leaderboard handled by initLeaderboardTab() in showTab
 }
 
 // ── AUTH GATE ────────────────────────────
