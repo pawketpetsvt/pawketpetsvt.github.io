@@ -221,6 +221,23 @@ async function handleLogout() { await logoutUser(); }
 function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
 
 // ── LOGIN / REGISTER ─────────────────────
+// ══════════════════════════════════════════════════════════════════════════
+// AUTH HELPER FUNCTIONS
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loginUser(email, password) {
+  var { data, error } = await supabaseClient.auth.signInWithPassword({
+    email: email,
+    password: password
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// AUTH UI HANDLERS
+// ══════════════════════════════════════════════════════════════════════════
+
 async function handleLogin() {
   var email = el('login-email').value.trim();
   var password = el('login-password').value;
