@@ -2457,6 +2457,8 @@ async function loadMyProfile() {
     
   } catch (err) {
     console.error('Error loading profile:', err);
+    el('myprofile-username-preview').textContent = 'Error loading profile';
+    el('myprofile-joined-preview').textContent = 'Please refresh the page';
   }
 }
 
