@@ -9,13 +9,27 @@ var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 // Initialize supabaseClient - wait for library to load
 var supabaseClient;
 if (typeof supabase !== 'undefined') {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: {
+      autoRefreshToken: true,
+      persistSession: true,
+      detectSessionInUrl: true,
+      flowType: 'pkce'
+    }
+  });
 } else {
   // Wait for Supabase library to load
   console.log('Waiting for Supabase library...');
   var checkSupabase = setInterval(function() {
     if (typeof supabase !== 'undefined') {
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+        auth: {
+          autoRefreshToken: true,
+          persistSession: true,
+          detectSessionInUrl: true,
+          flowType: 'pkce'
+        }
+      });
       console.log('Supabase initialized!');
       clearInterval(checkSupabase);
     }
