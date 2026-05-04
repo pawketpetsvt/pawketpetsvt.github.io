@@ -2159,11 +2159,7 @@ body::after {
 }
 
 /* HIDE OLD NAVBAR */
-body.three-column-layout .navbar {
-  display: none !important;
-}
-
-/* TOP HEADER BAR */
+/* TOP HEADER BAR - OLD, REMOVED */
 .top-header-bar {
   background: linear-gradient(135deg, var(--purple), var(--pink)) !important;
   padding: 12px 20px !important;
