@@ -2862,6 +2862,9 @@ body.three-column-layout .navbar {
         <p>Adopt virtual pets based on your favourite VTubers, play games, and earn rewards &#10024;</p>
         <div id="home-cta" style="margin-top:16px;"></div>
         <div class="social-links" style="margin-top:18px;">
+          <a href="https://twitch.tv/Embertail" target="_blank" class="social-link">Embertail on Twitch</a>
+          <span style="color:var(--purple);font-size:1.2rem;margin:0 12px;">✨</span>
+          <a href="https://twitch.tv/Pyxshuul" target="_blank" class="social-link">Pyxshuul on Twitch</a>
         </div>
       </div>
       <div class="section-header"><h2>What do you want to do?</h2><div class="section-line"></div></div>
@@ -3803,6 +3806,23 @@ function makeMyPetCard(pet) {
   var playBtn = makeEl('button', {class:'btn-action btn-play', id:'play-'+pet.id}, pet.energy>=10?'Play':'Tired!');
   if (pet.energy < 10) playBtn.disabled=true;
   playBtn.onclick = function(){ play(pet.id); };
+  
+  // Check if already used today and update button states
+  var feedKey = 'feed_' + pet.id + '_' + today;
+  var playKey = 'play_' + pet.id + '_' + today;
+  
+  if (localStorage.getItem(feedKey) === 'done') {
+    feedBtn.textContent = 'Fed Today!';
+    feedBtn.disabled = true;
+    feedBtn.style.opacity = '0.6';
+  }
+  
+  if (localStorage.getItem(playKey) === 'done') {
+    playBtn.textContent = 'Played Today!';
+    playBtn.disabled = true;
+    playBtn.style.opacity = '0.6';
+  }
+  
   actions.appendChild(feedBtn); actions.appendChild(playBtn);
   body.appendChild(actions);
 
@@ -3825,7 +3845,16 @@ function makeStatRow(stat, petId, val, max, pct, label) {
 }
 
 async function feed(petId) {
-  var pet = petState[petId]; if (!pet||pet.hunger>=pet.max_hunger) return;
+  var pet = petState[petId]; 
+  if (!pet || pet.hunger >= pet.max_hunger) return;
+  
+  // Check daily limit (once per day per pet)
+  var feedKey = 'feed_' + petId + '_' + today;
+  if (localStorage.getItem(feedKey) === 'done') {
+    showFlash(petId, 'Already fed today! Use items for more.', '#ff9f43');
+    return;
+  }
+  
   var btn = el('feed-'+petId); btn.disabled=true; btn.textContent='...';
   var nh=Math.min(pet.hunger+20,pet.max_hunger);
   var nhap=Math.min(pet.happiness+5,pet.max_happiness);
@@ -3836,13 +3865,30 @@ async function feed(petId) {
   if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Feed';return;}
   Object.assign(petState[petId],upd);
   updateBar(petId,'hunger',nh,lu.maxHunger); updateBar(petId,'happiness',nhap,lu.maxHappiness); updateXpBar(petId,lu.xp,lu.level);
+  
+  // Mark as used today
+  localStorage.setItem(feedKey, 'done');
+  
   if(lu.leveled){showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');updateLvl(petId,lu.level,lu.maxHunger);}
   else showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
-  if(nh>=lu.maxHunger){btn.textContent='Full!';}else{btn.disabled=false;btn.textContent='Feed';}
+  
+  // Update button to show already used
+  btn.textContent='Fed Today!';
+  btn.disabled=true;
+  btn.style.opacity='0.6';
 }
 
 async function play(petId) {
-  var pet=petState[petId]; if(!pet||pet.energy<10)return;
+  var pet = petState[petId]; 
+  if (!pet || pet.energy < 10) return;
+  
+  // Check daily limit (once per day per pet)
+  var playKey = 'play_' + petId + '_' + today;
+  if (localStorage.getItem(playKey) === 'done') {
+    showFlash(petId, 'Already played today! Use items for more.', '#ff9f43');
+    return;
+  }
+  
   var btn=el('play-'+petId); btn.disabled=true; btn.textContent='...';
   var ne=Math.max(pet.energy-10,0);
   var nhap=Math.min(pet.happiness+15,pet.max_happiness);
@@ -3853,9 +3899,17 @@ async function play(petId) {
   if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Play';return;}
   Object.assign(petState[petId],upd);
   updateBar(petId,'energy',ne,lu.maxEnergy); updateBar(petId,'happiness',nhap,lu.maxHappiness); updateXpBar(petId,lu.xp,lu.level);
+  
+  // Mark as used today
+  localStorage.setItem(playKey, 'done');
+  
   if(lu.leveled){showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');updateLvl(petId,lu.level,lu.maxHunger);}
   else showFlash(petId,'-10 Energy +15 Happiness +15 XP','#5dde7a');
-  if(ne<10){btn.textContent='Tired!';}else{btn.disabled=false;btn.textContent='Play';}
+  
+  // Update button to show already used
+  btn.textContent='Played Today!';
+  btn.disabled=true;
+  btn.style.opacity='0.6';
 }
 
 function updateBar(petId,stat,val,max) {
