@@ -2166,7 +2166,7 @@ async function loadLeaderboard(type) {
         rankEmoji = '🥉';
       }
       
-      html += '<div class="leaderboard-item">';
+      html += '<div class="leaderboard-item" onclick="viewProfile(\'' + player.username + '\')">';
       html += '  <div class="leaderboard-rank ' + rankClass + '">' + rankEmoji + '</div>';
       html += '  <div class="leaderboard-avatar">' + player.username.charAt(0).toUpperCase() + '</div>';
       html += '  <div class="leaderboard-info">';
@@ -2194,6 +2194,140 @@ function escapeHtml(text) {
 tabsLoaded.leaderboard = function() {
   if (!leaderboardCache.points) {
     loadLeaderboard('points');
+  }
+};
+
+// ══════════════════════════════════════════════════════════════════════════
+// PUBLIC PROFILES
+// ══════════════════════════════════════════════════════════════════════════
+
+function viewProfile(username) {
+  // Store the username and show profile tab
+  window.currentProfileUsername = username;
+  showTab('profile');
+}
+
+async function loadProfile(username) {
+  try {
+    // Get profile data
+    var profileRes = await supabaseClient.rpc('get_player_profile', { p_username: username });
+    
+    if (profileRes.error || !profileRes.data || profileRes.data.length === 0) {
+      // Fallback if RPC doesn't exist
+      var playerRes = await supabaseClient
+        .from('players')
+        .select('id, username, pawketpoints, created_at')
+        .ilike('username', username)
+        .single();
+      
+      if (playerRes.error) throw new Error('Player not found');
+      
+      var player = playerRes.data;
+      
+      // Get pet stats separately
+      var petsRes = await supabaseClient
+        .from('user_pets')
+        .select('level')
+        .eq('user_id', player.id);
+      
+      var totalPets = petsRes.data ? petsRes.data.length : 0;
+      var totalLevels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + p.level; }, 0) : 0;
+      var highestLevel = petsRes.data && petsRes.data.length > 0 ? Math.max(...petsRes.data.map(function(p) { return p.level; })) : 0;
+      
+      profileRes.data = [{
+        id: player.id,
+        username: player.username,
+        pawketpoints: player.pawketpoints,
+        created_at: player.created_at,
+        total_pets: totalPets,
+        total_levels: totalLevels,
+        highest_level: highestLevel
+      }];
+    }
+    
+    var profile = profileRes.data[0];
+    
+    // Update UI
+    el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
+    el('profile-username').textContent = profile.username;
+    
+    var joinDate = new Date(profile.created_at);
+    el('profile-joined').textContent = 'Joined: ' + joinDate.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric', 
+      year: 'numeric' 
+    });
+    
+    el('profile-points').textContent = profile.pawketpoints.toLocaleString();
+    el('profile-pet-count').textContent = profile.total_pets;
+    el('profile-total-level').textContent = profile.total_levels;
+    
+    // Get their rank
+    var rankRes = await supabaseClient
+      .from('players')
+      .select('pawketpoints')
+      .order('pawketpoints', { ascending: false });
+    
+    if (!rankRes.error && rankRes.data) {
+      var rank = rankRes.data.findIndex(function(p) { return p.pawketpoints <= profile.pawketpoints; }) + 1;
+      el('profile-rank').textContent = '#' + rank;
+    } else {
+      el('profile-rank').textContent = '-';
+    }
+    
+    // Load their pets
+    var petsGrid = el('profile-pets-grid');
+    petsGrid.innerHTML = '<div class="spinner"></div>';
+    
+    var petsRes = await supabaseClient
+      .from('user_pets')
+      .select('*, pets(name, image_file, vtuber_name)')
+      .eq('user_id', profile.id)
+      .order('adopted_at', { ascending: true });
+    
+    if (petsRes.error) throw petsRes.error;
+    
+    if (petsRes.data.length === 0) {
+      petsGrid.innerHTML = '<div class="empty-state"><p>No pets yet! 🐾</p></div>';
+      return;
+    }
+    
+    // Render pets
+    var html = '';
+    petsRes.data.forEach(function(userPet) {
+      var pet = userPet.pets;
+      var mood = getPetMood(userPet.hunger, userPet.energy, userPet.happiness);
+      var displayName = userPet.nickname || pet.name;
+      
+      html += '<div class="pet-card">';
+      html += '  <div class="pet-card-image">';
+      html += '    <img src="images/pets/' + pet.image_file + '" alt="' + pet.name + '" />';
+      html += '  </div>';
+      html += '  <div class="pet-card-body">';
+      html += '    <div class="pet-card-header">';
+      html += '      <h3>' + escapeHtml(displayName) + '</h3>';
+      html += '      <span class="pet-level">Lv ' + userPet.level + '</span>';
+      html += '    </div>';
+      html += '    <div class="pet-mood-display" style="border-color: ' + mood.color + '; background: ' + mood.color + '22;">';
+      html += '      <span style="font-size: 1.2rem;">' + mood.emoji + '</span>';
+      html += '      <span>Mood: ' + mood.mood + '</span>';
+      html += '    </div>';
+      html += '  </div>';
+      html += '</div>';
+    });
+    
+    petsGrid.innerHTML = html;
+    
+  } catch (err) {
+    el('profile-username').textContent = 'Error loading profile';
+    el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + err.message + '</p></div>';
+  }
+}
+
+// Load profile when tab is opened
+tabsLoaded.profile = function() {
+  if (window.currentProfileUsername) {
+    loadProfile(window.currentProfileUsername);
   }
 };
 

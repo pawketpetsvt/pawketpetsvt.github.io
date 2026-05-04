@@ -562,6 +562,62 @@
     </div>
   </div>
 
+  <!-- ═══════════════════════════════════════════════════════════
+       PUBLIC PROFILE
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-profile">
+    <div class="page-wrap">
+      
+      <!-- Back Button -->
+      <button class="btn btn-outline" onclick="showTab('leaderboard')" style="margin-bottom: 20px;">
+        ← Back to Leaderboards
+      </button>
+
+      <!-- Profile Header -->
+      <div class="profile-header">
+        <div class="profile-avatar" id="profile-avatar">?</div>
+        <div class="profile-info">
+          <h1 class="profile-username" id="profile-username">Loading...</h1>
+          <div class="profile-joined" id="profile-joined">Joined: ...</div>
+        </div>
+      </div>
+
+      <!-- Profile Stats Grid -->
+      <div class="profile-stats-grid">
+        <div class="profile-stat-card">
+          <div class="profile-stat-icon">🪙</div>
+          <div class="profile-stat-value" id="profile-points">0</div>
+          <div class="profile-stat-label">PawketPoints</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="profile-stat-icon">🐾</div>
+          <div class="profile-stat-value" id="profile-pet-count">0</div>
+          <div class="profile-stat-label">Pets Owned</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="profile-stat-icon">⭐</div>
+          <div class="profile-stat-value" id="profile-total-level">0</div>
+          <div class="profile-stat-label">Total Levels</div>
+        </div>
+        <div class="profile-stat-card">
+          <div class="profile-stat-icon">🏆</div>
+          <div class="profile-stat-value" id="profile-rank">-</div>
+          <div class="profile-stat-label">Rank</div>
+        </div>
+      </div>
+
+      <!-- Pet Collection -->
+      <div class="section-header" style="margin-top: 40px;">
+        <h2>Pet Collection</h2>
+        <div class="section-line"></div>
+      </div>
+      <div id="profile-pets-grid" class="pets-grid">
+        <div class="spinner"></div>
+      </div>
+
+    </div>
+  </div>
+
 
 </div><!-- end app-content -->
 
