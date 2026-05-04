@@ -2401,15 +2401,22 @@ tabsLoaded.profile = function() {
 // ══════════════════════════════════════════════════════════════
 
 async function loadMyProfile() {
-  if (!currentUser) return;
+  console.log('[loadMyProfile] Starting...');
+  if (!currentUser) {
+    console.error('[loadMyProfile] No currentUser!');
+    return;
+  }
   
   try {
+    console.log('[loadMyProfile] Fetching player data for user:', currentUser.id);
     // Get player data
     var res = await supabaseClient
       .from('players')
       .select('*')
       .eq('id', currentUser.id)
       .single();
+    
+    console.log('[loadMyProfile] Player data result:', res);
     
     if (res.error) throw res.error;
     var player = res.data;
@@ -2545,10 +2552,19 @@ async function saveProfile() {
   }
 }
 
-function viewMyPublicProfile() {
+async function viewMyPublicProfile() {
   if (!currentUser) return;
-  var username = el('myprofile-username-preview').textContent;
-  viewProfile(username);
+  
+  // Get username from database instead of preview element
+  var res = await supabaseClient
+    .from('players')
+    .select('username')
+    .eq('id', currentUser.id)
+    .single();
+  
+  if (res.data && res.data.username) {
+    viewProfile(res.data.username);
+  }
 }
 
 // Load profile data when tab is shown
