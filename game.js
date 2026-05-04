@@ -1,5 +1,12 @@
 'use strict';
 
+// ══════════════════════════════════════════════════════════════════════════
+// SUPABASE INITIALIZATION
+// ══════════════════════════════════════════════════════════════════════════
+var SUPABASE_URL = 'https://zlkggxpgfdqxtlzrvwau.supabase.co';
+var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpsa2dneHBnZmRxeHRsenJ2d2F1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYxOTc3MTcsImV4cCI6MjA1MTc3MzcxN30.BxZUwPVD8eOBz3DPPjBEG4vVK2eWmUuoOy3FgW3S9Ow';
+var supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // ── CONFIG ──────────────────────────────
 var TWITCH_CLIENT_ID = 'PASTE_YOUR_TWITCH_CLIENT_ID_HERE';
 var TWITCH_REDIRECT_URI = 'https://pawketpetsvt.github.io/';
