@@ -132,6 +132,7 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
+  else if (tab === 'leaderboard') { loadLeaderboard('points'); }
 }
 
 // ── AUTH GATE ────────────────────────────
@@ -2070,13 +2071,17 @@ async function loadLeaderboard(type) {
       console.log('Leaderboard points query result:', res);
       
       if (res.error) throw res.error;
-      data = res.data.map(function(p) {
-        return {
-          username: p.username,
-          value: p.pawketpoints + ' PP',
-          stat: p.pawketpoints + ' PawketPoints'
-        };
-      });
+      
+      // Filter out players with null usernames
+      data = res.data
+        .filter(function(p) { return p.username != null; })
+        .map(function(p) {
+          return {
+            username: p.username,
+            value: p.pawketpoints + ' PP',
+            stat: p.pawketpoints + ' PawketPoints'
+          };
+        });
       
     } else if (type === 'pets') {
       // Top players by pet count
@@ -2166,6 +2171,12 @@ async function loadLeaderboard(type) {
     
     var html = '';
     data.forEach(function(player, index) {
+      // Skip players with null/undefined username
+      if (!player.username) {
+        console.warn('Skipping player with null username:', player);
+        return;
+      }
+      
       var rank = index + 1;
       var rankClass = '';
       var rankEmoji = rank + '.';
@@ -2181,7 +2192,7 @@ async function loadLeaderboard(type) {
         rankEmoji = '🥉';
       }
       
-      html += '<div class="leaderboard-item" onclick="viewProfile(\'' + player.username + '\')">';
+      html += '<div class="leaderboard-item" onclick="viewProfile(\'' + escapeHtml(player.username) + '\')">';
       html += '  <div class="leaderboard-rank ' + rankClass + '">' + rankEmoji + '</div>';
       html += '  <div class="leaderboard-avatar">' + player.username.charAt(0).toUpperCase() + '</div>';
       html += '  <div class="leaderboard-info">';
