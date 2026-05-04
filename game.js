@@ -283,9 +283,8 @@ async function handleForgotPassword() {
   btn.disabled = true;
   
   try {
-    var res = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/'
-    });
+    // Don't specify redirectTo - let Supabase use the Site URL from settings
+    var res = await supabaseClient.auth.resetPasswordForEmail(email);
     
     if (res.error) throw res.error;
     
