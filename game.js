@@ -234,6 +234,16 @@ async function loginUser(email, password) {
   return data;
 }
 
+async function requireLogin() {
+  // Check if user is already logged in
+  var { data, error } = await supabaseClient.auth.getSession();
+  if (error) {
+    console.error('Error checking session:', error);
+    return null;
+  }
+  return data.session;
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // AUTH UI HANDLERS
 // ══════════════════════════════════════════════════════════════════════════
