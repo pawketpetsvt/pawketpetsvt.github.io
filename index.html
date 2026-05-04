@@ -2779,7 +2779,7 @@ body.three-column-layout .navbar {
     </div>
     
     <div class="sidebar-section" style="background:linear-gradient(135deg,var(--yellow),var(--orange));border-color:rgba(255,255,255,0.6);">
-      <button class="daily-bonus-btn" onclick="showTab('minigames')">✨ Daily Bonus!</button>
+      <button class="daily-bonus-btn" onclick="claimDailyBonus()">✨ Daily Bonus!</button>
     </div>
   </div>
 
@@ -2863,6 +2863,7 @@ body.three-column-layout .navbar {
         <div id="home-cta" style="margin-top:16px;"></div>
         <div class="social-links" style="margin-top:18px;">
           <a href="https://twitch.tv/Embertail" target="_blank" class="social-link">Embertail on Twitch</a>
+          <span style="color:var(--purple);font-size:1.2rem;margin:0 12px;">✨</span>
           <a href="https://twitch.tv/Pyxshuul" target="_blank" class="social-link">Pyxshuul on Twitch</a>
         </div>
       </div>
@@ -3897,52 +3898,7 @@ function itemEmoji(type) {
     pillow:'🛏️',   // Bed/pillow
     snack:'🍪'      // Cookie/treat
   }[type]||'🎁';     // Gift box default
-
-  async function loadNews() {
-  var container = document.getElementById('news-container');
-  if (!container) return;
-  
-  try {
-    var res = await supabaseClient
-      .from('news')
-      .select('*')
-      .eq('is_published', true)
-      .order('published_at', { ascending: false })
-      .limit(3);
-    
-    if (res.error || !res.data || res.data.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
-      return;
-    }
-    
-    container.innerHTML = '';
-    res.data.forEach(function(news) {
-      var newsItem = makeEl('div', {class: 'news-item'});
-      
-      // Format date
-      var date = new Date(news.published_at || news.created_at);
-      var dateStr = date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric' 
-      }).toUpperCase();
-      
-      newsItem.appendChild(makeEl('div', {class: 'news-item-date'}, dateStr));
-      newsItem.appendChild(makeEl('div', {class: 'news-item-title'}, news.title));
-      newsItem.appendChild(makeEl('div', {class: 'news-item-desc'}, news.content));
-      
-      container.appendChild(newsItem);
-    });
-  } catch (error) {
-    console.error('Error loading news:', error);
-    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">Error loading news</div>';
-  }
 }
-
-// Call loadNews when page loads
-window.addEventListener('load', function() {
-  loadNews();
-});
 
 
 async function loadShop() {
@@ -4159,6 +4115,61 @@ function flipCard(btn) {
         if(triesLeft===0&&matchedPairs<6){awardPP(memoryEarned);setCD('memory');var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});}
       },900);
     }
+  }
+}
+
+// ── DAILY BONUS ──────────────────────────────
+async function checkDailyBonus(userId) {
+  // Check if daily bonus was already claimed today
+  var lastClaim = localStorage.getItem('daily_bonus_' + userId + '_' + today);
+  
+  if (lastClaim === 'claimed') {
+    // Update sidebar button to show claimed status
+    var btn = document.querySelector('.daily-bonus-btn');
+    if (btn) {
+      btn.textContent = '✅ Claimed Today!';
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+    }
+    return { awarded: false };
+  }
+  
+  // Award daily bonus
+  var bonusAmount = 50;
+  var pr = await supabaseClient.from('players').select('pawketpoints').eq('id', userId).single();
+  if (!pr.data) return { awarded: false };
+  
+  var newTotal = pr.data.pawketpoints + bonusAmount;
+  await supabaseClient.from('players').update({ pawketpoints: newTotal }).eq('id', userId);
+  
+  // Mark as claimed
+  localStorage.setItem('daily_bonus_' + userId + '_' + today, 'claimed');
+  
+  // Update sidebar button
+  var btn = document.querySelector('.daily-bonus-btn');
+  if (btn) {
+    btn.textContent = '✅ Claimed Today!';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.style.cursor = 'not-allowed';
+  }
+  
+  return { awarded: true, amount: bonusAmount, newTotal: newTotal };
+}
+
+async function claimDailyBonus() {
+  if (!currentUser) {
+    showToast('Please log in to claim daily bonus!');
+    return;
+  }
+  
+  var result = await checkDailyBonus(currentUser.id);
+  if (result.awarded) {
+    showToast('🎉 Daily Bonus! +' + result.amount + ' PP!');
+    updateAllPoints(result.newTotal);
+  } else {
+    showToast('Daily bonus already claimed today!');
   }
 }
 
