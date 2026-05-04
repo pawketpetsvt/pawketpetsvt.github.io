@@ -132,7 +132,24 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
-  else if (tab === 'leaderboard') { loadLeaderboard('points'); }
+  else if (tab === 'leaderboard') { 
+    // Set initial state
+    currentLeaderboard = 'points';
+    // Activate the Most Points button
+    document.querySelectorAll('.leaderboard-tab').forEach(function(t) {
+      t.classList.remove('active');
+    });
+    document.querySelectorAll('.leaderboard-tab')[0].classList.add('active');
+    // Show points list, hide others
+    document.querySelectorAll('.leaderboard-list').forEach(function(list) {
+      list.classList.remove('active');
+    });
+    el('leaderboard-points').classList.add('active');
+    // Load data
+    if (!leaderboardCache.points) {
+      loadLeaderboard('points');
+    }
+  }
 }
 
 // ── AUTH GATE ────────────────────────────
