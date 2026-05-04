@@ -1079,8 +1079,9 @@ a:hover { color: var(--pink) !important; }
   box-shadow: 0 5px 12px rgba(0,0,0,0.25) !important;
 }
 .btn-use-item:disabled {
-  opacity: 0.5 !important;
+  opacity: 0.7 !important;
   cursor: not-allowed !important;
+  background: linear-gradient(135deg, #cccccc, #999999) !important;
 }
 .item-effect-preview {
   font-size: 0.85rem !important;
@@ -3177,12 +3178,6 @@ body.three-column-layout .navbar {
     </div>
 
 
-    <!-- REDEEM CODE -->
-    <div class="redeem-widget">
-      <div class="redeem-widget-title">Redeem Code</div>
-      <input type="text" class="redeem-code-input" placeholder="ENTER CODE..." maxlength="20" id="quick-redeem-input" />
-      <button class="redeem-submit-btn" onclick="quickRedeem()">Submit</button>
-    </div>
   </div>
 </div><!-- close app-container -->
 
@@ -3331,7 +3326,12 @@ async function showApp(user) {
     updateAllPoints(bonus.newTotal);
   }
 
-  showTab('home');
+  // Only show home if no tab is currently active
+  var currentTab = document.querySelector('.page-content.active');
+  if (!currentTab) {
+    showTab('home');
+  }
+  
   el('home-cta').innerHTML = '<button class="btn btn-primary btn-lg" onclick="showTab(\'mypets\')" style="margin-right:10px;">My Pets</button><button class="btn btn-secondary btn-lg" onclick="showTab(\'adopt\')">Adopt More</button>';
 
   var hash = window.location.hash;
@@ -3616,18 +3616,19 @@ function makeDropdown(petId) {
   }
   var row = makeEl('div', {class:'use-item-row'});
   var sel = makeEl('select', {class:'item-select', id:'sel-'+petId});
-  sel.appendChild(makeEl('option', {value:''}, 'Choose an item'));
+  sel.appendChild(makeEl('option', {value:''}, '— Select an item —'));
   inventoryItems.forEach(function(item) {
-    sel.appendChild(makeEl('option', {value:item.invId}, item.name + ' (x'+item.qty+') - ' + getEffectText(item)));
+    sel.appendChild(makeEl('option', {value:item.invId}, item.name + ' (x'+item.qty+')'));
   });
   sel.onchange = function(){ previewItem(petId); };
-  var useBtn = makeEl('button', {class:'btn-use-item', id:'usebtn-'+petId, disabled:'true'}, 'Use');
+  var useBtn = makeEl('button', {class:'btn-use-item', id:'usebtn-'+petId}, 'Use Item');
   useBtn.disabled = true;
   useBtn.onclick = function(){ useItem(petId); };
   row.appendChild(sel);
   row.appendChild(useBtn);
   section.appendChild(row);
   var preview = makeEl('div', {class:'item-effect-preview', id:'preview-'+petId});
+  preview.textContent = 'Choose an item to see effects';
   section.appendChild(preview);
   return section;
 }
