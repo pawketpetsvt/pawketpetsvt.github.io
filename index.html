@@ -3894,7 +3894,17 @@ function showShopTab(tab) {
   el('inv-tab-btn').classList.toggle('active',tab==='inventory');
 }
 
-function itemEmoji(type) { return {food:'&#127830;',toy:'&#127934;',potion:'&#10024;',special:'&#127775;'}[type]||'&#127873;'; }
+function itemEmoji(type) { 
+  return {
+    food:'🍖',      // Meat
+    toy:'🧸',       // Teddy bear
+    potion:'⚡',    // Lightning/energy
+    special:'✨',   // Sparkles
+    drink:'🥤',     // Cup with straw
+    pillow:'🛏️',   // Bed/pillow
+    snack:'🍪'      // Cookie/treat
+  }[type]||'🎁';     // Gift box default
+
 
 async function loadShop() {
   var grid = el('shop-grid');
