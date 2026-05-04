@@ -2851,6 +2851,32 @@ body.three-column-layout .navbar {
     </div>
   </div>
 </div>
+
+<!-- RESET PASSWORD (after clicking email link) -->
+<div id="reset-password-gate" style="display:none;">
+  <div class="auth-container">
+    <div class="auth-header">
+      <img src="images/logo.png" alt="PawketPets" class="auth-logo" />
+      <h1>Set New Password</h1>
+      <p>Choose a secure password for your account 🔐</p>
+    </div>
+    <div class="form-card">
+      <h2>🔑 New Password</h2>
+      <div class="alert alert-error" id="reset-error"></div>
+      <div class="alert alert-success" id="reset-success"></div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="reset-new-password" placeholder="Enter new password" />
+      </div>
+      <div class="form-group">
+        <label>Confirm Password</label>
+        <input type="password" id="reset-confirm-password" placeholder="Confirm new password" />
+      </div>
+      <button class="btn btn-primary btn-lg form-submit" onclick="handleResetPassword()">🔐 Update Password</button>
+    </div>
+  </div>
+</div>
+
 <!-- APP CONTENT -->
 <div id="app-content" style="display:none">
 
@@ -3289,6 +3315,16 @@ function showForgotPassword() {
 }
 
 async function initApp() {
+  // Check if user is coming from password reset email
+  var hash = window.location.hash;
+  if (hash && hash.includes('type=recovery')) {
+    console.log('Password recovery mode detected');
+    el('auth-gate').style.display = 'none';
+    el('reset-password-gate').style.display = 'block';
+    el('app-content').style.display = 'none';
+    return; // Stop here, show reset form
+  }
+  
   var session = await requireLogin();
   if (session) {
     await showApp(session.user);
@@ -3296,8 +3332,16 @@ async function initApp() {
     showAuth();
   }
   supabaseClient.auth.onAuthStateChange(function(event, session) {
-    if (event === 'SIGNED_IN' && session) showApp(session.user);
-    else if (event === 'SIGNED_OUT') showAuth();
+    if (event === 'PASSWORD_RECOVERY') {
+      // Show reset password form
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      showApp(session.user);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
   });
 }
 
@@ -3426,7 +3470,12 @@ async function handleForgotPassword() {
   btn.disabled = true;
   
   try {
-    await resetPassword(email);
+    var res = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/index.html'
+    });
+    
+    if (res.error) throw res.error;
+    
     suc.textContent = 'Password reset email sent! Check your inbox.';
     suc.classList.add('show');
     el('forgot-email').value = '';
@@ -3437,6 +3486,62 @@ async function handleForgotPassword() {
     err.textContent = e.message || 'Failed to send reset email. Please try again.';
     err.classList.add('show');
     btn.textContent = '✉️ Send Reset Email';
+    btn.disabled = false;
+  }
+}
+
+async function handleResetPassword() {
+  var newPassword = el('reset-new-password').value;
+  var confirmPassword = el('reset-confirm-password').value;
+  var err = el('reset-error');
+  var suc = el('reset-success');
+  
+  err.classList.remove('show');
+  suc.classList.remove('show');
+  
+  if (!newPassword || !confirmPassword) {
+    err.textContent = 'Please fill in both password fields!';
+    err.classList.add('show');
+    return;
+  }
+  
+  if (newPassword.length < 6) {
+    err.textContent = 'Password must be at least 6 characters!';
+    err.classList.add('show');
+    return;
+  }
+  
+  if (newPassword !== confirmPassword) {
+    err.textContent = 'Passwords do not match!';
+    err.classList.add('show');
+    return;
+  }
+  
+  var btn = event.target;
+  btn.textContent = 'Updating...';
+  btn.disabled = true;
+  
+  try {
+    var res = await supabaseClient.auth.updateUser({
+      password: newPassword
+    });
+    
+    if (res.error) throw res.error;
+    
+    suc.textContent = 'Password updated successfully! Redirecting...';
+    suc.classList.add('show');
+    
+    // Hide reset form, show app
+    setTimeout(function() {
+      el('reset-password-gate').style.display = 'none';
+      el('auth-gate').style.display = 'none';
+      initApp();
+    }, 2000);
+    
+  } catch(e) {
+    err.textContent = e.message || 'Failed to update password. Please try again.';
+    err.classList.add('show');
+    btn.textContent = '🔐 Update Password';
     btn.disabled = false;
   }
 }
