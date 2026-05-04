@@ -173,3 +173,110 @@ async function unlinkTwitch() {
   document.getElementById('twitch-linked').style.display = 'none';
   showToast('Twitch account unlinked.');
 }
+
+
+async function checkLiveStatus(username) {
+  try {
+    // Get a valid token - try to use the logged-in user's token first
+    var user = await getCurrentUser();
+    var token = null;
+    
+    if (user) {
+      var playerRes = await supabaseClient
+        .from('players')
+        .select('twitch_token')
+        .eq('id', user.id)
+        .single();
+      
+      if (playerRes.data && playerRes.data.twitch_token) {
+        token = playerRes.data.twitch_token;
+      }
+    }
+    
+    // If no user token, we can't check (Twitch API requires auth)
+    if (!token) {
+      console.log('No Twitch token available for live status check');
+      return false;
+    }
+    
+    // Call Twitch API to check if user is streaming
+    var response = await fetch(
+      'https://api.twitch.tv/helix/streams?user_login=' + username,
+      {
+        headers: {
+          'Client-Id': TWITCH_CLIENT_ID,
+          'Authorization': 'Bearer ' + token
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      console.warn('Twitch API error for ' + username + ':', response.status);
+      return false;
+    }
+    
+    var data = await response.json();
+    
+    // If data.data array has items, the streamer is live
+    return data.data && data.data.length > 0;
+    
+  } catch (error) {
+    console.error('Error checking live status for ' + username + ':', error);
+    return false;
+  }
+}
+
+/**
+ * Update the UI to show/hide live status for a streamer
+ * @param {string} username - Twitch username ('embertail' or 'pyxshuul')
+ * @param {boolean} isLive - Whether the streamer is currently live
+ */
+function updateStreamerUI(username, isLive) {
+  var prefix = username === 'embertail' ? 'ember' : 'pyxs';
+  
+  var statusEl = document.getElementById(prefix + '-status');
+  var liveBadge = document.getElementById(prefix + '-live-badge');
+  var watchBtn = document.getElementById(prefix + '-watch-btn');
+  
+  if (isLive) {
+    // Show LIVE indicator
+    if (liveBadge) liveBadge.style.display = 'inline-block';
+    if (watchBtn) watchBtn.style.display = 'inline-block';
+    if (statusEl) {
+      statusEl.textContent = 'Streaming now!';
+      statusEl.style.color = '#ff0000';
+      statusEl.style.fontWeight = '600';
+    }
+  } else {
+    // Show OFFLINE
+    if (liveBadge) liveBadge.style.display = 'none';
+    if (watchBtn) watchBtn.style.display = 'none';
+    if (statusEl) {
+      statusEl.textContent = 'OFFLINE';
+      statusEl.style.color = '';
+      statusEl.style.fontWeight = '';
+    }
+  }
+}
+
+/**
+ * Check all streamers' live status and update UI
+ */
+async function checkAllStreamersLiveStatus() {
+  // Check Embertail
+  var emberLive = await checkLiveStatus('embertail');
+  updateStreamerUI('embertail', emberLive);
+  
+  // Check Pyxshuul
+  var pyxsLive = await checkLiveStatus('pyxshuul');
+  updateStreamerUI('pyxshuul', pyxsLive);
+}
+// Check immediately when page loads (after a small delay to ensure user is loaded)
+setTimeout(function() {
+  checkAllStreamersLiveStatus();
+}, 2000);
+
+// Check every 60 seconds
+setInterval(function() {
+  checkAllStreamersLiveStatus();
+}, 60000);
