@@ -561,12 +561,19 @@ async function useItem(petId) {
   btn.disabled=false; btn.textContent='Use';
 }
 
-function getMoodEmoji(happiness, hunger, energy) {
-  if (happiness >= 80 && hunger >= 60) return '&#128516;';
-  if (happiness >= 60) return '&#128512;';
-  if (happiness >= 40) return '&#128528;';
-  if (happiness >= 20) return '&#128542;';
-  return '&#128549;';
+function getMoodEmoji(happiness, hunger, energy, maxHappiness, maxHunger, maxEnergy) {
+  // Use the comprehensive mood calculator if max values provided
+  if (maxHappiness && maxHunger && maxEnergy) {
+    var mood = getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappiness);
+    return mood.emoji;
+  }
+  
+  // Fallback to simple mood
+  if (happiness >= 80 && hunger >= 60) return '😊';
+  if (happiness >= 60) return '🙂';
+  if (happiness >= 40) return '😐';
+  if (happiness >= 20) return '😟';
+  return '😭';
 }
 
 function getHabitatStyle(vtuberName) {
@@ -612,7 +619,8 @@ function makeMyPetCard(pet) {
   var hapPct = Math.round(pet.happiness/pet.max_happiness*100);
   var ePct = Math.round(pet.energy/pet.max_energy*100);
   var xpPct = Math.min(pet.xp/xpNext*100, 100);
-  var moodEmoji = getMoodEmoji(pet.happiness, pet.hunger, pet.energy);
+  var mood = getPetMood(pet.hunger, pet.energy, pet.happiness, pet.max_hunger, pet.max_energy, pet.max_happiness);
+  var moodEmoji = mood.emoji;
   var achievements = getAchievements(pet);
   var lastSeen = getLastSeenText(pet.last_fed, pet.last_played);
 
@@ -668,6 +676,12 @@ function makeMyPetCard(pet) {
     });
     body.appendChild(achRow);
   }
+
+  // Mood status display
+  var moodDisplay = makeEl('div', {class:'pet-mood-display'});
+  moodDisplay.style.cssText = 'text-align:center;padding:8px;margin:10px 0;background:' + mood.color + '20;border:2px solid ' + mood.color + ';border-radius:12px;font-weight:bold;color:' + mood.color + ';';
+  moodDisplay.innerHTML = mood.emoji + ' Mood: ' + mood.mood;
+  body.appendChild(moodDisplay);
 
   // Warning if neglected
   if (pet.happiness <= 20 || pet.hunger <= 10) {
@@ -735,6 +749,86 @@ function makeStatRow(stat, petId, val, max, pct, label) {
   row.appendChild(makeEl('span', {class:'stat-value', id:stat+'-val-'+petId}, val+'/'+max));
   return row;
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// PET STAT DECAY & REGENERATION SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+function calculateEnergyRegen(currentEnergy, maxEnergy, lastPlayedTimestamp) {
+  if (!lastPlayedTimestamp) return currentEnergy;
+  
+  var now = new Date();
+  var lastPlayed = new Date(lastPlayedTimestamp);
+  var hoursPassed = (now - lastPlayed) / (1000 * 60 * 60);
+  
+  // Regenerate 5% per hour
+  var regenRate = 5; // 5% per hour
+  var regenAmount = Math.floor((maxEnergy * (regenRate / 100)) * hoursPassed);
+  
+  var newEnergy = Math.min(currentEnergy + regenAmount, maxEnergy);
+  return newEnergy;
+}
+
+function calculateHungerDecay(currentHunger, lastFedTimestamp) {
+  if (!lastFedTimestamp) return currentHunger;
+  
+  var now = new Date();
+  var lastFed = new Date(lastFedTimestamp);
+  var hoursPassed = (now - lastFed) / (1000 * 60 * 60);
+  
+  // Hunger decreases 10 points per hour
+  var decayRate = 10; // points per hour
+  var decayAmount = Math.floor(decayRate * hoursPassed);
+  
+  var newHunger = Math.max(currentHunger - decayAmount, 0);
+  return newHunger;
+}
+
+function calculateHappinessDecay(currentHappiness, lastFedTimestamp, lastPlayedTimestamp) {
+  if (!lastFedTimestamp && !lastPlayedTimestamp) return currentHappiness;
+  
+  var now = new Date();
+  
+  // Use the most recent interaction timestamp
+  var lastInteraction = lastFedTimestamp;
+  if (lastPlayedTimestamp) {
+    var fedTime = new Date(lastFedTimestamp || 0);
+    var playedTime = new Date(lastPlayedTimestamp);
+    lastInteraction = playedTime > fedTime ? lastPlayedTimestamp : lastFedTimestamp;
+  }
+  
+  var lastTime = new Date(lastInteraction);
+  var hoursPassed = (now - lastTime) / (1000 * 60 * 60);
+  
+  // Happiness decreases 8 points per hour
+  var decayRate = 8; // points per hour
+  var decayAmount = Math.floor(decayRate * hoursPassed);
+  
+  var newHappiness = Math.max(currentHappiness - decayAmount, 0);
+  return newHappiness;
+}
+
+function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappiness) {
+  // Calculate percentages
+  var hungerPercent = (hunger / maxHunger) * 100;
+  var energyPercent = (energy / maxEnergy) * 100;
+  var happinessPercent = (happiness / maxHappiness) * 100;
+  
+  // Average overall wellness
+  var overall = (hungerPercent + energyPercent + happinessPercent) / 3;
+  
+  if (overall >= 90) return { mood: 'Ecstatic', emoji: '😍', color: '#5dde7a' };
+  if (overall >= 75) return { mood: 'Happy', emoji: '😊', color: '#8de6a1' };
+  if (overall >= 60) return { mood: 'Content', emoji: '🙂', color: '#ffdd00' };
+  if (overall >= 40) return { mood: 'Okay', emoji: '😐', color: '#ff9f43' };
+  if (overall >= 25) return { mood: 'Unhappy', emoji: '😟', color: '#ff9933' };
+  if (overall >= 10) return { mood: 'Sad', emoji: '😢', color: '#ff6b6b' };
+  return { mood: 'Miserable', emoji: '😭', color: '#ff3838' };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PET ACTIONS (Feed, Play)
+// ══════════════════════════════════════════════════════════════════════════
 
 async function feed(petId) {
   var pet = petState[petId]; 
