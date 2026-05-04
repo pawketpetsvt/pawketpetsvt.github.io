@@ -2839,4 +2839,84 @@ body.three-column-layout .navbar {
   margin-top: 2px;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   SPOOKY LORE BUTTON (THEYWENTMISSING easter egg)
+   ═══════════════════════════════════════════════════════════ */
+
+.redeem-lore-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d0d0d 100%);
+  color: #ff3838;
+  border: 2px solid #ff3838;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(255, 56, 56, 0.3), inset 0 0 10px rgba(255, 56, 56, 0.1);
+  position: relative;
+  overflow: hidden;
+  animation: glitch-pulse 3s infinite;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+}
+
+.redeem-lore-btn:hover {
+  background: linear-gradient(135deg, #2d0d0d 0%, #1a1a1a 100%);
+  border-color: #ff0000;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.2);
+  transform: translateY(-2px);
+  animation: glitch-shake 0.3s infinite;
+}
+
+.redeem-lore-btn::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, transparent, rgba(255, 56, 56, 0.3), transparent);
+  animation: glitch-sweep 4s infinite;
+  pointer-events: none;
+}
+
+@keyframes glitch-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.9;
+    filter: brightness(1.1);
+  }
+  85% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  87% {
+    opacity: 0.7;
+    filter: brightness(0.8);
+  }
+  89% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes glitch-shake {
+  0%, 100% { transform: translateY(-2px) translateX(0); }
+  25% { transform: translateY(-2px) translateX(-2px); }
+  75% { transform: translateY(-2px) translateX(2px); }
+}
+
+@keyframes glitch-sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(200%) rotate(45deg); }
+}
+
     

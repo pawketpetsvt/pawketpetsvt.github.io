@@ -1903,20 +1903,22 @@ async function redeemCode() {
     var msgEl   = el('redeem-success-msg');
     var loreBtn = el('redeem-lore-btn');
 
-    if (promo.pp_reward && promo.pp_reward > 0) {
-      titleEl.textContent = '+' + promo.pp_reward + ' PawketPoints!';
-      msgEl.textContent = promo.description || 'Code redeemed successfully!';
-    } else {
-      titleEl.textContent = 'Code Accepted.';
-      msgEl.textContent = promo.description || 'Something has been unlocked...';
-    }
-
-    // 8. If it's a lore code, show the creepy button
+    // 7. If it's a lore code (spooky easter egg), hide normal messages
     if (promo.lore_page) {
+      titleEl.textContent = '...';
+      msgEl.textContent = ''; // No description shown
       loreBtn.style.display = 'inline-block';
-      loreBtn.href = promo.lore_page; // e.g. "secret.html"
+      loreBtn.href = promo.lore_page;
       loreBtn.textContent = '🔍 Something feels... off. Click here.';
     } else {
+      // Normal reward codes
+      if (promo.pp_reward && promo.pp_reward > 0) {
+        titleEl.textContent = '+' + promo.pp_reward + ' PawketPoints!';
+        msgEl.textContent = promo.description || 'Code redeemed successfully!';
+      } else {
+        titleEl.textContent = 'Code Accepted.';
+        msgEl.textContent = promo.description || 'Something has been unlocked...';
+      }
       loreBtn.style.display = 'none';
     }
 
