@@ -201,8 +201,10 @@ async function showApp(user) {
 
   // Restore last active tab from URL hash
   var hash = window.location.hash;
+  console.log('Page loaded with hash:', hash);
   if (hash && hash.startsWith('#tab-')) {
     var savedTab = hash.replace('#tab-', '');
+    console.log('Restoring saved tab:', savedTab);
     showTab(savedTab);
   } else if (hash && hash.includes('access_token')) {
     // Twitch auth callback
@@ -211,6 +213,7 @@ async function showApp(user) {
     // Only show home if no tab is currently active and no hash
     var currentTab = document.querySelector('.page-content.active');
     if (!currentTab) {
+      console.log('No saved tab, showing home');
       showTab('home');
     }
   }
@@ -2064,6 +2067,8 @@ async function loadLeaderboard(type) {
         .order('pawketpoints', { ascending: false })
         .limit(10);
       
+      console.log('Leaderboard points query result:', res);
+      
       if (res.error) throw res.error;
       data = res.data.map(function(p) {
         return {
@@ -2218,11 +2223,15 @@ function viewProfile(username) {
 }
 
 async function loadProfile(username) {
+  console.log('Loading profile for:', username);
   try {
     // Get profile data
     var profileRes = await supabaseClient.rpc('get_player_profile', { p_username: username });
     
+    console.log('RPC result:', profileRes);
+    
     if (profileRes.error || !profileRes.data || profileRes.data.length === 0) {
+      console.log('Using fallback query, RPC error:', profileRes.error);
       // Fallback if RPC doesn't exist
       var playerRes = await supabaseClient
         .from('players')
@@ -2230,7 +2239,9 @@ async function loadProfile(username) {
         .ilike('username', username)
         .single();
       
-      if (playerRes.error) throw new Error('Player not found');
+      console.log('Player query result:', playerRes);
+      
+      if (playerRes.error) throw new Error('Player not found: ' + playerRes.error.message);
       
       var player = playerRes.data;
       
@@ -2239,6 +2250,8 @@ async function loadProfile(username) {
         .from('user_pets')
         .select('level')
         .eq('user_id', player.id);
+      
+      console.log('Pets query result:', petsRes);
       
       var totalPets = petsRes.data ? petsRes.data.length : 0;
       var totalLevels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + p.level; }, 0) : 0;
@@ -2256,6 +2269,7 @@ async function loadProfile(username) {
     }
     
     var profile = profileRes.data[0];
+    console.log('Final profile data:', profile);
     
     // Update UI
     el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
