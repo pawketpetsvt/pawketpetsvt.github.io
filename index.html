@@ -3167,21 +3167,14 @@ body.three-column-layout .navbar {
       </div>
     </div>
 
-
     <!-- LATEST NEWS -->
     <div class="news-widget">
       <div class="sidebar-title">Latest News</div>
-      <div class="news-item">
-        <div class="news-item-date">MAY 1, 2026</div>
-        <div class="news-item-title">Site Launch + New Features!</div>
-        <div class="news-item-desc">Redeem codes are now live! Check our Twitch streams for codes. New pet dropping this week...</div>
-      </div>
-      <div class="news-item">
-        <div class="news-item-date">APR 28, 2026</div>
-        <div class="news-item-title">Something Seems Off...</div>
-        <div class="news-item-desc">Reports of strange incidents involving the first ten beta testers. Read more...</div>
+      <div id="news-container">
+        <div style="text-align:center;padding:20px;color:var(--text-light);">Loading news...</div>
       </div>
     </div>
+
 
     <!-- REDEEM CODE -->
     <div class="redeem-widget">
@@ -3904,6 +3897,52 @@ function itemEmoji(type) {
     pillow:'🛏️',   // Bed/pillow
     snack:'🍪'      // Cookie/treat
   }[type]||'🎁';     // Gift box default
+
+  async function loadNews() {
+  var container = document.getElementById('news-container');
+  if (!container) return;
+  
+  try {
+    var res = await supabaseClient
+      .from('news')
+      .select('*')
+      .eq('is_published', true)
+      .order('published_at', { ascending: false })
+      .limit(3);
+    
+    if (res.error || !res.data || res.data.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
+      return;
+    }
+    
+    container.innerHTML = '';
+    res.data.forEach(function(news) {
+      var newsItem = makeEl('div', {class: 'news-item'});
+      
+      // Format date
+      var date = new Date(news.published_at || news.created_at);
+      var dateStr = date.toLocaleDateString('en-US', { 
+        month: 'short', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }).toUpperCase();
+      
+      newsItem.appendChild(makeEl('div', {class: 'news-item-date'}, dateStr));
+      newsItem.appendChild(makeEl('div', {class: 'news-item-title'}, news.title));
+      newsItem.appendChild(makeEl('div', {class: 'news-item-desc'}, news.content));
+      
+      container.appendChild(newsItem);
+    });
+  } catch (error) {
+    console.error('Error loading news:', error);
+    container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">Error loading news</div>';
+  }
+}
+
+// Call loadNews when page loads
+window.addEventListener('load', function() {
+  loadNews();
+});
 
 
 async function loadShop() {
