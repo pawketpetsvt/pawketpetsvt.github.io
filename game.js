@@ -284,7 +284,7 @@ async function handleForgotPassword() {
   
   try {
     var res = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/index.html'
+      redirectTo: window.location.origin + '/'
     });
     
     if (res.error) throw res.error;
