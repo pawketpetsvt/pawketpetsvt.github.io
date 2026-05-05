@@ -142,6 +142,8 @@ function showTab(tab) {
     initLeaderboardTab();
   } else if (tab === 'myprofile') {
     loadMyProfile();
+  } else if (tab === 'profile' && window.currentProfileUsername) {
+    loadProfile(window.currentProfileUsername);
   } else if (!tabsLoaded[tab]) { 
     tabsLoaded[tab] = true; 
     loadTab(tab); 
@@ -154,6 +156,7 @@ function showTab(tab) {
     history.replaceState(null, null, '#tab-' + tab);
   }
 }
+
 
 function loadTab(tab) {
   if (tab === 'adopt') loadAdopt();
@@ -249,6 +252,9 @@ async function showApp(user) {
       showTab('home');
     }
   }
+  
+  // Load sidebar news widget
+  loadSidebarNews();
 }
 
 function showAuth() {
@@ -1686,6 +1692,26 @@ async function claimDailyBonus() {
 }
 
 // ── NEWS ─────────────────────────────────
+async function loadSidebarNews() {
+  var widget = document.querySelector('.right-sidebar .news-widget-content');
+  if (!widget) return;
+  
+  var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
+  
+  if (res.error || !res.data || !res.data.length) {
+    widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
+    return;
+  }
+  
+  widget.innerHTML = '';
+  res.data.forEach(function(post){
+    var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    var item = makeEl('div', {class:'news-item'});
+    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.title || 'Untitled') + '</div>';
+    widget.appendChild(item);
+  });
+}
+
 async function loadNews() {
   var container=el('news-container');
   var res=await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false});
