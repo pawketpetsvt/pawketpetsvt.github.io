@@ -3747,8 +3747,8 @@ async function startBattle(petId, enemyId) {
     return;
   }
   
-  // Check if pet has enough energy (need at least 10)
-  if (playerStats.energy < 10) {
+  // Check if pet has enough energy (need at least 5)
+  if (playerStats.energy < 5) {
     showToast('🥱 Your pet is too tired! Feed them to restore energy.');
     return;
   }
@@ -3786,7 +3786,7 @@ async function startBattle(petId, enemyId) {
     sprite_frames: enemy.sprite_frames
   };
   
-  // Deduct 10 energy from pet BEFORE battle
+  // Deduct 5 energy from pet BEFORE battle
   // Get fresh energy value from database to be sure
   var freshPet = await supabaseClient
     .from('user_pets')
@@ -3796,12 +3796,20 @@ async function startBattle(petId, enemyId) {
   
   if (freshPet.data) {
     var currentEnergy = freshPet.data.energy || 100;
-    var newEnergy = Math.max(0, currentEnergy - 10);
+    var newEnergy = Math.max(0, currentEnergy - 5);
     
-    await supabaseClient
+    console.log('Energy deduction: ' + currentEnergy + ' -> ' + newEnergy);
+    
+    var updateRes = await supabaseClient
       .from('user_pets')
       .update({ energy: newEnergy })
       .eq('id', petId);
+    
+    if (updateRes.error) {
+      console.error('Energy update error:', updateRes.error);
+    } else {
+      console.log('Energy updated successfully!');
+    }
   }
   
   // Simulate the battle
