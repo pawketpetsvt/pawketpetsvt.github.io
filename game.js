@@ -943,6 +943,32 @@ function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappines
 // PET ACTIONS (Feed, Play)
 // ══════════════════════════════════════════════════════════════════════════
 
+function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness) {
+  var xpNeeded = currentLevel * 100;
+  
+  if (newXp >= xpNeeded) {
+    // Level up!
+    return {
+      xp: newXp - xpNeeded, // Carry over excess XP
+      level: currentLevel + 1,
+      maxHunger: currentMaxHunger + 5,
+      maxEnergy: currentMaxEnergy + 5,
+      maxHappiness: currentMaxHappiness + 5,
+      leveled: true
+    };
+  } else {
+    // No level up
+    return {
+      xp: newXp,
+      level: currentLevel,
+      maxHunger: currentMaxHunger,
+      maxEnergy: currentMaxEnergy,
+      maxHappiness: currentMaxHappiness,
+      leveled: false
+    };
+  }
+}
+
 async function feed(petId) {
   var pet = petState[petId]; 
   if (!pet || pet.hunger >= pet.max_hunger) return;
