@@ -2741,7 +2741,13 @@ async function loadMyProfile() {
     }
     
     // Load badges
-    await loadMyProfileBadges();
+    console.log('[loadMyProfile] About to load badges...');
+    try {
+      await loadMyProfileBadges();
+      console.log('[loadMyProfile] Badges loaded successfully');
+    } catch (badgeErr) {
+      console.error('[loadMyProfile] Error loading badges:', badgeErr);
+    }
     
   } catch (err) {
     console.error('Error loading profile:', err);
@@ -2751,7 +2757,15 @@ async function loadMyProfile() {
 }
 
 async function loadMyProfileBadges() {
+  console.log('[loadMyProfileBadges] Function called!');
   var badgesGrid = el('myprofile-badges-grid');
+  console.log('[loadMyProfileBadges] Badge grid element:', badgesGrid);
+  
+  if (!badgesGrid) {
+    console.error('[loadMyProfileBadges] Grid element not found!');
+    return;
+  }
+  
   badgesGrid.innerHTML = '<div class="spinner"></div>';
   
   // Get all badges
