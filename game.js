@@ -1713,7 +1713,7 @@ async function loadSidebarNews() {
   res.data.forEach(function(post){
     var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
     var item = makeEl('div', {class:'news-item'});
-    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.title || 'Untitled') + '</div>';
+    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.content || 'No content') + '</div>';
     widget.appendChild(item);
   });
 }
@@ -2345,6 +2345,20 @@ async function loadProfile(username) {
     var profile = profileRes.data[0];
     console.log('Final profile data:', profile);
     
+    // If RPC didn't include pet stats, calculate them
+    if (profile.total_pets === undefined || profile.total_pets === null) {
+      console.log('Pet stats missing, calculating manually...');
+      var petsRes = await supabaseClient
+        .from('user_pets')
+        .select('level')
+        .eq('user_id', profile.id);
+      
+      console.log('Manual pets query:', petsRes);
+      
+      profile.total_pets = petsRes.data ? petsRes.data.length : 0;
+      profile.total_levels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + (p.level || 0); }, 0) : 0;
+    }
+    
     // Update UI
     el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
     el('profile-username').textContent = profile.username;
@@ -2356,9 +2370,9 @@ async function loadProfile(username) {
       year: 'numeric' 
     });
     
-    el('profile-points').textContent = profile.pawketpoints.toLocaleString();
-    el('profile-pet-count').textContent = profile.total_pets;
-    el('profile-total-level').textContent = profile.total_levels;
+    el('profile-points').textContent = (profile.pawketpoints || 0).toLocaleString();
+    el('profile-pet-count').textContent = profile.total_pets || 0;
+    el('profile-total-level').textContent = profile.total_levels || 0;
     
     // Get their rank
     var rankRes = await supabaseClient
