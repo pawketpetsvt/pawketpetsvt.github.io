@@ -3794,23 +3794,35 @@ async function startBattle(petId, enemyId) {
     .eq('id', petId)
     .single();
   
+  console.log('=== ENERGY DEDUCTION DEBUG ===');
+  console.log('Pet ID:', petId);
+  console.log('Fresh pet query result:', freshPet);
+  
   if (freshPet.data) {
     var currentEnergy = freshPet.data.energy || 100;
     var newEnergy = Math.max(0, currentEnergy - 5);
     
     console.log('Energy deduction: ' + currentEnergy + ' -> ' + newEnergy);
+    showToast('⚡ Energy: ' + currentEnergy + ' → ' + newEnergy);
     
     var updateRes = await supabaseClient
       .from('user_pets')
       .update({ energy: newEnergy })
       .eq('id', petId);
     
+    console.log('Energy update result:', updateRes);
+    
     if (updateRes.error) {
       console.error('Energy update error:', updateRes.error);
+      showToast('❌ Energy update failed!');
     } else {
       console.log('Energy updated successfully!');
+      showToast('✅ Energy updated to ' + newEnergy);
     }
+  } else {
+    console.error('Failed to fetch pet energy!');
   }
+  console.log('=== END ENERGY DEBUG ===');
   
   // Simulate the battle
   var battleResult = simulateBattle(playerStats, enemyStats);
