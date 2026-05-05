@@ -2421,30 +2421,40 @@ async function loadLeaderboard(type) {
     
     else if (type === 'badges') {
       // Top players by badge count
+      // Query both tables separately to avoid foreign key issues
       var badgesRes = await supabaseClient
         .from('user_badges')
-        .select('user_id, players(username)');
+        .select('user_id');
       
       if (badgesRes.error) throw badgesRes.error;
       
-      var counts = {};
+      // Count badges per user
+      var badgeCounts = {};
       badgesRes.data.forEach(function(badge) {
-        var username = badge.players.username;
-        if (username) {
-          counts[username] = (counts[username] || 0) + 1;
-        }
+        badgeCounts[badge.user_id] = (badgeCounts[badge.user_id] || 0) + 1;
       });
       
-      data = Object.entries(counts)
-        .sort(function(a, b) { return b[1] - a[1]; })
-        .slice(0, 10)
-        .map(function(entry) {
+      // Get usernames for users with badges
+      var userIds = Object.keys(badgeCounts);
+      var usersRes = await supabaseClient
+        .from('players')
+        .select('id, username')
+        .in('id', userIds);
+      
+      if (usersRes.error) throw usersRes.error;
+      
+      // Build leaderboard data
+      data = usersRes.data
+        .map(function(user) {
           return {
-            username: entry[0],
-            value: entry[1] + ' badges',
-            stat: entry[1] + ' badges earned'
+            username: user.username,
+            count: badgeCounts[user.id],
+            value: badgeCounts[user.id] + ' badges',
+            stat: badgeCounts[user.id] + ' badges earned'
           };
-        });
+        })
+        .sort(function(a, b) { return b.count - a.count; })
+        .slice(0, 10);
     }
     
     // Cache the data
