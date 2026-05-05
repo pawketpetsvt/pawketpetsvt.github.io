@@ -137,6 +137,11 @@ function showTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   
+  // Update sidebar buttons
+  document.querySelectorAll('.sidebar-nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  var sidebarBtn = el('sidebar-btn-' + tab); 
+  if (sidebarBtn) sidebarBtn.classList.add('active');
+  
   // Special cases: some tabs need to initialize every time
   if (tab === 'leaderboard') {
     initLeaderboardTab();
@@ -163,6 +168,7 @@ function loadTab(tab) {
   else if (tab === 'mypets') loadMyPets();
   else if (tab === 'shop') { loadShop(); loadInventory(); }
   else if (tab === 'minigames') initMinigames();
+  else if (tab === 'battle') loadBattlePets();
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
@@ -805,6 +811,30 @@ function makeMyPetCard(pet) {
   moodDisplay.style.cssText = 'text-align:center;padding:8px;margin:10px 0;background:' + mood.color + '20;border:2px solid ' + mood.color + ';border-radius:12px;font-weight:bold;color:' + mood.color + ';';
   moodDisplay.innerHTML = mood.emoji + ' Mood: ' + mood.mood;
   body.appendChild(moodDisplay);
+
+  // Battle Stats (if they exist)
+  if (pet.base_hp || pet.base_attack || pet.base_defense || pet.base_speed) {
+    var battleStats = makeEl('div', {class:'pet-battle-stats'});
+    battleStats.style.cssText = 'display:flex;justify-content:space-around;padding:12px;margin:10px 0;background:rgba(176,106,255,0.1);border:2px solid var(--purple-light);border-radius:12px;';
+    
+    var hpStat = makeEl('div', {class:'battle-stat-mini'});
+    hpStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">HP</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_hp || 30) + '</div>';
+    battleStats.appendChild(hpStat);
+    
+    var atkStat = makeEl('div', {class:'battle-stat-mini'});
+    atkStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">ATK</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_attack || 5) + '</div>';
+    battleStats.appendChild(atkStat);
+    
+    var defStat = makeEl('div', {class:'battle-stat-mini'});
+    defStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">DEF</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_defense || 3) + '</div>';
+    battleStats.appendChild(defStat);
+    
+    var spdStat = makeEl('div', {class:'battle-stat-mini'});
+    spdStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_speed || 4) + '</div>';
+    battleStats.appendChild(spdStat);
+    
+    body.appendChild(battleStats);
+  }
 
   // Warning if neglected
   if (pet.happiness <= 20 || pet.hunger <= 10) {
@@ -3839,14 +3869,23 @@ async function loadBattlePets() {
   var grid = el('battle-pet-select');
   grid.innerHTML = '<div class="spinner"></div>';
   
-  if (!currentUser) return;
+  if (!currentUser) {
+    grid.innerHTML = '<div class="empty-state"><p>Please log in first! 🐾</p></div>';
+    return;
+  }
   
   var res = await supabaseClient
     .from('user_pets')
-    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, pets(name, image_file)')
+    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, pet_id, pets!inner(name, image_file)')
     .eq('user_id', currentUser.id);
   
-  if (res.error || !res.data || res.data.length === 0) {
+  if (res.error) {
+    console.error('Battle pets query error:', res.error);
+    grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + res.error.message + '</p></div>';
+    return;
+  }
+  
+  if (!res.data || res.data.length === 0) {
     grid.innerHTML = '<div class="empty-state"><p>You need a pet to battle! Adopt one first. 🐾</p></div>';
     return;
   }
@@ -3928,10 +3967,6 @@ async function findBattle() {
 }
 
 // Load battle pets when tab is opened
-tabsLoaded.battle = function() {
-  loadBattlePets();
-};
-
 /**
  * Get random enemy from zone
  */
