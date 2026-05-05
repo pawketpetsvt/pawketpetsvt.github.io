@@ -609,11 +609,25 @@ async function loadMyPets() {
     return;
   }
   res.data.forEach(function(pet) {
+    var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
+    var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
+    var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
+    
     petState[pet.id] = Object.assign({}, pet, {
-      energy: calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played),
-      hunger: calculateHungerDecay(pet.hunger, pet.last_fed),
-      happiness: calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played)
+      energy: decayedEnergy,
+      hunger: decayedHunger,
+      happiness: decayedHappiness
     });
+    
+    // Save decayed stats back to database so they persist
+    supabaseClient
+      .from('user_pets')
+      .update({
+        energy: decayedEnergy,
+        hunger: decayedHunger,
+        happiness: decayedHappiness
+      })
+      .eq('id', pet.id);
   });
   var grid = document.createElement('div');
   grid.className = 'mypets-grid';
