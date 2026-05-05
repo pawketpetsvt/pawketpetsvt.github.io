@@ -1084,10 +1084,27 @@ function showFlash(petId,msg,color) {
 
 // ── SHOP TAB ─────────────────────────────
 function showShopTab(tab) {
-  el('shop-items-panel').style.display=tab==='items'?'block':'none';
-  el('shop-inv-panel').style.display=tab==='inventory'?'block':'none';
-  el('shop-tab-btn').classList.toggle('active',tab==='items');
-  el('inv-tab-btn').classList.toggle('active',tab==='inventory');
+  // Update tab buttons
+  el('shop-tab-btn').classList.remove('active');
+  el('equip-tab-btn').classList.remove('active');
+  el('inv-tab-btn').classList.remove('active');
+  
+  // Hide all panels
+  el('shop-items-panel').style.display = 'none';
+  el('shop-equipment-panel').style.display = 'none';
+  el('shop-inv-panel').style.display = 'none';
+  
+  if (tab === 'items') {
+    el('shop-tab-btn').classList.add('active');
+    el('shop-items-panel').style.display = 'block';
+  } else if (tab === 'equipment') {
+    el('equip-tab-btn').classList.add('active');
+    el('shop-equipment-panel').style.display = 'block';
+    loadEquipmentShop();
+  } else if (tab === 'inventory') {
+    el('inv-tab-btn').classList.add('active');
+    el('shop-inv-panel').style.display = 'block';
+  }
 }
 
 function itemEmoji(type) { 
@@ -3047,4 +3064,377 @@ async function loadProfileBadges(userId) {
     
     badgesGrid.appendChild(card);
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EQUIPMENT SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var currentEquipmentFilter = 'all';
+
+async function loadEquipmentShop() {
+  var grid = el('equipment-shop-grid');
+  grid.innerHTML = '<div class="spinner"></div>';
+  
+  var query = supabaseClient
+    .from('equipment')
+    .select('*')
+    .order('tier', { ascending: true })
+    .order('price', { ascending: true });
+  
+  if (currentEquipmentFilter !== 'all') {
+    query = query.eq('equipment_type', currentEquipmentFilter);
+  }
+  
+  var res = await query;
+  
+  if (res.error) {
+    grid.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading equipment</p>';
+    return;
+  }
+  
+  if (res.data.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><p>No equipment available! 🗡️</p></div>';
+    return;
+  }
+  
+  grid.innerHTML = '';
+  
+  res.data.forEach(function(item) {
+    var card = makeEl('div', { class: 'equipment-card' });
+    
+    // Tier badge
+    var tierBadge = makeEl('div', { class: 'equipment-tier' });
+    tierBadge.textContent = 'Tier ' + item.tier;
+    card.appendChild(tierBadge);
+    
+    // Weight class badge
+    var weightBadge = makeEl('div', { class: 'equipment-weight weight-' + item.weight_class });
+    weightBadge.textContent = item.weight_class;
+    card.appendChild(weightBadge);
+    
+    // Icon (weapon or armor emoji)
+    var icon = makeEl('div', { class: 'equipment-icon' });
+    icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
+    card.appendChild(icon);
+    
+    // Name
+    var name = makeEl('div', { class: 'equipment-name' });
+    name.textContent = item.name;
+    card.appendChild(name);
+    
+    // Description
+    var desc = makeEl('div', { class: 'equipment-desc' });
+    desc.textContent = item.description;
+    card.appendChild(desc);
+    
+    // Stats
+    var statsDiv = makeEl('div', { class: 'equipment-stats' });
+    if (item.attack_bonus !== 0) {
+      var attackStat = makeEl('div', { class: 'equipment-stat' });
+      attackStat.innerHTML = '<span>Attack:</span><span class="' + (item.attack_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.attack_bonus > 0 ? '+' : '') + item.attack_bonus + '</span>';
+      statsDiv.appendChild(attackStat);
+    }
+    if (item.defense_bonus !== 0) {
+      var defStat = makeEl('div', { class: 'equipment-stat' });
+      defStat.innerHTML = '<span>Defense:</span><span class="' + (item.defense_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.defense_bonus > 0 ? '+' : '') + item.defense_bonus + '</span>';
+      statsDiv.appendChild(defStat);
+    }
+    if (item.speed_bonus !== 0) {
+      var speedStat = makeEl('div', { class: 'equipment-stat' });
+      speedStat.innerHTML = '<span>Speed:</span><span class="' + (item.speed_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.speed_bonus > 0 ? '+' : '') + item.speed_bonus + '</span>';
+      statsDiv.appendChild(speedStat);
+    }
+    if (item.hp_bonus !== 0) {
+      var hpStat = makeEl('div', { class: 'equipment-stat' });
+      hpStat.innerHTML = '<span>HP:</span><span class="' + (item.hp_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.hp_bonus > 0 ? '+' : '') + item.hp_bonus + '</span>';
+      statsDiv.appendChild(hpStat);
+    }
+    card.appendChild(statsDiv);
+    
+    // Price
+    var price = makeEl('div', { class: 'equipment-price' });
+    price.textContent = item.price + ' PP';
+    card.appendChild(price);
+    
+    // Buy button
+    var buyBtn = makeEl('button', { class: 'btn btn-primary' });
+    buyBtn.textContent = 'Buy';
+    buyBtn.onclick = function() { buyEquipment(item.id, item.name, item.price); };
+    card.appendChild(buyBtn);
+    
+    grid.appendChild(card);
+  });
+}
+
+async function buyEquipment(equipmentId, equipmentName, price) {
+  if (!currentUser) return;
+  if (currentPoints < price) {
+    showToast('Not enough PawketPoints!');
+    return;
+  }
+  
+  // Deduct points
+  var newPoints = currentPoints - price;
+  
+  // Get current total_spent
+  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id', currentUser.id).single();
+  var newTotalSpent = (playerRes.data?.total_spent || 0) + price;
+  
+  var updateRes = await supabaseClient
+    .from('players')
+    .update({ 
+      pawketpoints: newPoints,
+      total_spent: newTotalSpent
+    })
+    .eq('id', currentUser.id);
+  
+  if (updateRes.error) {
+    showToast('Error deducting points!');
+    return;
+  }
+  
+  // Check spending badges
+  if (newTotalSpent >= 500) {
+    await awardBadge('mega_spender');
+  } else if (newTotalSpent >= 100) {
+    await awardBadge('big_spender');
+  }
+  
+  // Add to player equipment
+  var existingRes = await supabaseClient
+    .from('player_equipment')
+    .select('id, quantity')
+    .eq('user_id', currentUser.id)
+    .eq('equipment_id', equipmentId)
+    .limit(1);
+  
+  if (existingRes.data && existingRes.data.length > 0) {
+    // Already owns - increase quantity
+    await supabaseClient
+      .from('player_equipment')
+      .update({ quantity: existingRes.data[0].quantity + 1 })
+      .eq('id', existingRes.data[0].id);
+  } else {
+    // New purchase
+    var insertRes = await supabaseClient
+      .from('player_equipment')
+      .insert([{ 
+        user_id: currentUser.id, 
+        equipment_id: equipmentId,
+        quantity: 1
+      }]);
+    
+    if (insertRes.error) {
+      showToast('Purchase failed!');
+      return;
+    }
+  }
+  
+  updateAllPoints(newPoints);
+  showToast('Bought ' + equipmentName + '!');
+  loadEquipmentShop();
+}
+
+function filterEquipment(type) {
+  currentEquipmentFilter = type;
+  
+  // Update active tab
+  var tabs = document.querySelectorAll('.filter-tab');
+  tabs.forEach(function(tab) {
+    tab.classList.remove('active');
+  });
+  event.target.classList.add('active');
+  
+  loadEquipmentShop();
+}
+
+async function loadPetEquipment(petId) {
+  // Get equipped items for this pet
+  var res = await supabaseClient
+    .from('player_equipment')
+    .select('equipment_id, equipped_slot, equipment(*)')
+    .eq('user_id', currentUser.id)
+    .eq('is_equipped', true);
+  
+  if (res.error) return { weapon: null, armor: null };
+  
+  var weapon = null;
+  var armor = null;
+  
+  res.data.forEach(function(item) {
+    if (item.equipped_slot === 'weapon') {
+      weapon = item.equipment;
+    } else if (item.equipped_slot === 'armor') {
+      armor = item.equipment;
+    }
+  });
+  
+  return { weapon: weapon, armor: armor };
+}
+
+async function showEquipmentModal(petId) {
+  // Get pet's current equipment
+  var equipped = await loadPetEquipment(petId);
+  
+  // Get all owned equipment
+  var allEquipRes = await supabaseClient
+    .from('player_equipment')
+    .select('*, equipment(*)')
+    .eq('user_id', currentUser.id)
+    .gt('quantity', 0);
+  
+  if (allEquipRes.error) {
+    showToast('Error loading equipment!');
+    return;
+  }
+  
+  // Create modal (simplified for now - will expand later)
+  var modal = makeEl('div', { class: 'modal-overlay' });
+  modal.onclick = function() { document.body.removeChild(modal); };
+  
+  var modalContent = makeEl('div', { class: 'modal' });
+  modalContent.onclick = function(e) { e.stopPropagation(); };
+  
+  var title = makeEl('h2');
+  title.textContent = 'Manage Equipment';
+  modalContent.appendChild(title);
+  
+  // Equipment slots display
+  var slotsDiv = makeEl('div', { class: 'equipment-slots' });
+  
+  // Weapon slot
+  var weaponSlot = makeEl('div', { class: 'equipment-slot' + (equipped.weapon ? ' equipped' : '') });
+  var weaponLabel = makeEl('div', { class: 'equipment-slot-label' });
+  weaponLabel.textContent = '⚔️ Weapon';
+  weaponSlot.appendChild(weaponLabel);
+  
+  if (equipped.weapon) {
+    var weaponIcon = makeEl('div', { class: 'equipment-slot-icon' });
+    weaponIcon.textContent = '⚔️';
+    weaponSlot.appendChild(weaponIcon);
+    
+    var weaponName = makeEl('div', { class: 'equipment-slot-name' });
+    weaponName.textContent = equipped.weapon.name;
+    weaponSlot.appendChild(weaponName);
+    
+    var unequipBtn = makeEl('button', { class: 'btn btn-sm btn-unequip' });
+    unequipBtn.textContent = 'Unequip';
+    unequipBtn.onclick = function() { 
+      unequipItem('weapon');
+      document.body.removeChild(modal);
+    };
+    weaponSlot.appendChild(unequipBtn);
+  } else {
+    var emptyText = makeEl('div', { class: 'equipment-slot-empty' });
+    emptyText.textContent = 'No weapon equipped';
+    weaponSlot.appendChild(emptyText);
+  }
+  slotsDiv.appendChild(weaponSlot);
+  
+  // Armor slot
+  var armorSlot = makeEl('div', { class: 'equipment-slot' + (equipped.armor ? ' equipped' : '') });
+  var armorLabel = makeEl('div', { class: 'equipment-slot-label' });
+  armorLabel.textContent = '🛡️ Armor';
+  armorSlot.appendChild(armorLabel);
+  
+  if (equipped.armor) {
+    var armorIcon = makeEl('div', { class: 'equipment-slot-icon' });
+    armorIcon.textContent = '🛡️';
+    armorSlot.appendChild(armorIcon);
+    
+    var armorName = makeEl('div', { class: 'equipment-slot-name' });
+    armorName.textContent = equipped.armor.name;
+    armorSlot.appendChild(armorName);
+    
+    var unequipBtn2 = makeEl('button', { class: 'btn btn-sm btn-unequip' });
+    unequipBtn2.textContent = 'Unequip';
+    unequipBtn2.onclick = function() { 
+      unequipItem('armor');
+      document.body.removeChild(modal);
+    };
+    armorSlot.appendChild(unequipBtn2);
+  } else {
+    var emptyText2 = makeEl('div', { class: 'equipment-slot-empty' });
+    emptyText2.textContent = 'No armor equipped';
+    armorSlot.appendChild(emptyText2);
+  }
+  slotsDiv.appendChild(armorSlot);
+  
+  modalContent.appendChild(slotsDiv);
+  
+  // List available equipment to equip
+  var availableTitle = makeEl('h3');
+  availableTitle.textContent = 'Available Equipment';
+  availableTitle.style.marginTop = '20px';
+  modalContent.appendChild(availableTitle);
+  
+  var equipGrid = makeEl('div', { class: 'shop-grid' });
+  
+  allEquipRes.data.forEach(function(playerEquip) {
+    var item = playerEquip.equipment;
+    var card = makeEl('div', { class: 'equipment-card' });
+    card.style.fontSize = '0.85rem';
+    
+    var icon = makeEl('div', { class: 'equipment-icon' });
+    icon.style.fontSize = '2rem';
+    icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
+    card.appendChild(icon);
+    
+    var name = makeEl('div', { class: 'equipment-name' });
+    name.textContent = item.name;
+    card.appendChild(name);
+    
+    var equipBtn = makeEl('button', { class: 'btn btn-sm btn-primary' });
+    equipBtn.textContent = 'Equip';
+    equipBtn.onclick = function() { 
+      equipItem(playerEquip.id, item.equipment_type);
+      document.body.removeChild(modal);
+    };
+    card.appendChild(equipBtn);
+    
+    equipGrid.appendChild(card);
+  });
+  
+  modalContent.appendChild(equipGrid);
+  
+  var closeBtn = makeEl('button', { class: 'btn btn-outline' });
+  closeBtn.textContent = 'Close';
+  closeBtn.style.marginTop = '20px';
+  closeBtn.onclick = function() { document.body.removeChild(modal); };
+  modalContent.appendChild(closeBtn);
+  
+  modal.appendChild(modalContent);
+  document.body.appendChild(modal);
+}
+
+async function equipItem(playerEquipmentId, equipmentType) {
+  // Unequip any existing item in that slot
+  await supabaseClient
+    .from('player_equipment')
+    .update({ is_equipped: false, equipped_slot: null })
+    .eq('user_id', currentUser.id)
+    .eq('equipped_slot', equipmentType);
+  
+  // Equip new item
+  await supabaseClient
+    .from('player_equipment')
+    .update({ is_equipped: true, equipped_slot: equipmentType })
+    .eq('id', playerEquipmentId);
+  
+  showToast('Equipment equipped!');
+  tabsLoaded['mypets'] = false;
+  loadMyPets();
+}
+
+async function unequipItem(slot) {
+  await supabaseClient
+    .from('player_equipment')
+    .update({ is_equipped: false, equipped_slot: null })
+    .eq('user_id', currentUser.id)
+    .eq('equipped_slot', slot);
+  
+  showToast('Equipment unequipped!');
+  tabsLoaded['mypets'] = false;
+  loadMyPets();
 }

@@ -236,10 +236,22 @@
       <div class="page-hero"><div class="sparkle-row">&#128717; &#10022; &#128717;</div><h1>The PawketShop</h1><p>Spend your PawketPoints! &#129689;</p></div>
       <div class="points-banner"><span class="pb-label">Your PawketPoints</span><span class="pb-amount" id="shop-points">0 PP</span></div>
       <div class="shop-tabs">
-        <button class="shop-tab active" id="shop-tab-btn" onclick="showShopTab('items')">Shop</button>
+        <button class="shop-tab active" id="shop-tab-btn" onclick="showShopTab('items')">Items</button>
+        <button class="shop-tab" id="equip-tab-btn" onclick="showShopTab('equipment')">⚔️ Equipment</button>
         <button class="shop-tab" id="inv-tab-btn" onclick="showShopTab('inventory')">My Inventory</button>
       </div>
       <div id="shop-items-panel"><div id="shop-grid" class="shop-grid"><div class="spinner"></div></div></div>
+      
+      <!-- EQUIPMENT SHOP PANEL -->
+      <div id="shop-equipment-panel" style="display:none">
+        <div class="equipment-filter-tabs">
+          <button class="filter-tab active" onclick="filterEquipment('all')">All</button>
+          <button class="filter-tab" onclick="filterEquipment('weapon')">⚔️ Weapons</button>
+          <button class="filter-tab" onclick="filterEquipment('armor')">🛡️ Armor</button>
+        </div>
+        <div id="equipment-shop-grid" class="shop-grid"><div class="spinner"></div></div>
+      </div>
+      
       <div id="shop-inv-panel" style="display:none"><div id="inventory-grid" class="inventory-grid"><div class="spinner"></div></div></div>
     </div>
   </div>
