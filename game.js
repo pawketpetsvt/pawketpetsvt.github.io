@@ -665,29 +665,122 @@ function previewItem(petId) {
 }
 
 async function useItem(petId) {
-  var sel = el('sel-'+petId); if (!sel || !sel.value) return;
-  var idx = inventoryItems.findIndex(function(i){ return i.invId === sel.value; }); if (idx===-1) return;
-  var item = inventoryItems[idx]; var pet = petState[petId]; if (!pet) return;
-  var btn = el('usebtn-'+petId); btn.disabled=true; btn.textContent='...';
+  var sel = el('sel-'+petId); 
+  if (!sel || !sel.value) return;
+  
+  var idx = inventoryItems.findIndex(function(i){ return i.invId === sel.value; }); 
+  if (idx === -1) return;
+  
+  var item = inventoryItems[idx]; 
+  var pet = petState[petId]; 
+  if (!pet) return;
+  
+  var btn = el('usebtn-'+petId); 
+  btn.disabled = true; 
+  btn.textContent = '...';
+  
   var updates = {};
-  if (item.h>0) updates.hunger=Math.min(pet.hunger+item.h, pet.max_hunger);
-  if (item.e>0) updates.energy=Math.min(pet.energy+item.e, pet.max_energy);
-  if (item.hap>0) updates.happiness=Math.min(pet.happiness+item.hap, pet.max_happiness);
-  if (item.xp>0) updates.xp=pet.xp+item.xp;
-  if (!Object.keys(updates).length) { showToast('No effects configured.'); btn.disabled=false; btn.textContent='Use'; return; }
+  
+  // Handle healing items (HP restoration)
+  if (item.effect === 'healing' && item.effect_value > 0) {
+    // Get current HP and max HP from database
+    var petRes = await supabaseClient
+      .from('user_pets')
+      .select('current_hp, max_hp, base_hp')
+      .eq('id', petId)
+      .single();
+    
+    if (petRes.error) {
+      showToast('Error: ' + petRes.error.message);
+      btn.disabled = false;
+      btn.textContent = 'Use';
+      return;
+    }
+    
+    var currentHP = petRes.data.current_hp || petRes.data.base_hp || 30;
+    var maxHP = petRes.data.max_hp || petRes.data.base_hp || 30;
+    
+    // Check if already at full HP
+    if (currentHP >= maxHP) {
+      showToast('❤️ Pet is already at full HP!');
+      btn.disabled = false;
+      btn.textContent = 'Use';
+      return;
+    }
+    
+    // Calculate new HP (can't exceed max)
+    var newHP = Math.min(currentHP + item.effect_value, maxHP);
+    var healedAmount = newHP - currentHP;
+    
+    updates.current_hp = newHP;
+    showToast('💚 Healed ' + healedAmount + ' HP! (' + newHP + '/' + maxHP + ')');
+  }
+  
+  // Handle other item effects
+  if (item.h > 0) updates.hunger = Math.min(pet.hunger + item.h, pet.max_hunger);
+  if (item.e > 0) updates.energy = Math.min(pet.energy + item.e, pet.max_energy);
+  if (item.hap > 0) updates.happiness = Math.min(pet.happiness + item.hap, pet.max_happiness);
+  if (item.xp > 0) updates.xp = pet.xp + item.xp;
+  
+  // Make sure we have some effect to apply
+  if (!Object.keys(updates).length) { 
+    showToast('No effects configured.'); 
+    btn.disabled = false; 
+    btn.textContent = 'Use'; 
+    return; 
+  }
+  
+  // Apply the updates
   var res = await supabaseClient.from('user_pets').update(updates).eq('id', petId);
-  if (res.error) { showToast('Error: '+res.error.message); btn.disabled=false; btn.textContent='Use'; return; }
-  if (item.qty <= 1) { await supabaseClient.from('user_inventory').delete().eq('id', item.invId); inventoryItems.splice(idx,1); }
-  else { await supabaseClient.from('user_inventory').update({quantity:item.qty-1}).eq('id', item.invId); inventoryItems[idx].qty=item.qty-1; }
-  if (updates.hunger!==undefined) { petState[petId].hunger=updates.hunger; updateBar(petId,'hunger',updates.hunger,pet.max_hunger); }
-  if (updates.energy!==undefined) { petState[petId].energy=updates.energy; updateBar(petId,'energy',updates.energy,pet.max_energy); }
-  if (updates.happiness!==undefined) { petState[petId].happiness=updates.happiness; updateBar(petId,'happiness',updates.happiness,pet.max_happiness); }
-  if (updates.xp!==undefined) { petState[petId].xp=updates.xp; updateXpBar(petId,updates.xp,pet.level); }
-  showFlash(petId, item.name+': '+getEffectText(item), '#b06aff');
-  showToast('Used '+item.name+'!');
-  var card = el('petcard-'+petId);
-  if (card) { var old=card.querySelector('.use-item-section'); if(old) old.replaceWith(makeDropdown(petId)); }
-  btn.disabled=false; btn.textContent='Use';
+  if (res.error) { 
+    showToast('Error: ' + res.error.message); 
+    btn.disabled = false; 
+    btn.textContent = 'Use'; 
+    return; 
+  }
+  
+  // Remove item from inventory
+  if (item.qty <= 1) { 
+    await supabaseClient.from('user_inventory').delete().eq('id', item.invId); 
+    inventoryItems.splice(idx, 1); 
+  } else { 
+    await supabaseClient.from('user_inventory').update({quantity: item.qty - 1}).eq('id', item.invId); 
+    inventoryItems[idx].qty = item.qty - 1; 
+  }
+  
+  // Update UI for non-healing effects
+  if (updates.hunger !== undefined) { 
+    petState[petId].hunger = updates.hunger; 
+    updateBar(petId, 'hunger', updates.hunger, pet.max_hunger); 
+  }
+  if (updates.energy !== undefined) { 
+    petState[petId].energy = updates.energy; 
+    updateBar(petId, 'energy', updates.energy, pet.max_energy); 
+  }
+  if (updates.happiness !== undefined) { 
+    petState[petId].happiness = updates.happiness; 
+    updateBar(petId, 'happiness', updates.happiness, pet.max_happiness); 
+  }
+  if (updates.xp !== undefined) { 
+    petState[petId].xp = updates.xp; 
+    updateXpBar(petId, updates.xp, pet.level); 
+  }
+  
+  // Show effect flash (skip for healing items since we already showed toast)
+  if (!updates.current_hp) {
+    showFlash(petId, item.name + ': ' + getEffectText(item), '#b06aff');
+    showToast('Used ' + item.name + '!');
+  }
+  
+  // Refresh the dropdown
+  var card = el('petcard-' + petId);
+  if (card) { 
+    var old = card.querySelector('.use-item-section'); 
+    if (old) old.replaceWith(makeDropdown(petId)); 
+  }
+  
+  btn.disabled = false; 
+  btn.textContent = 'Use';
 }
 
 function getMoodEmoji(happiness, hunger, energy, maxHappiness, maxHunger, maxEnergy) {
@@ -3480,19 +3573,16 @@ async function calculatePetStats(petId) {
   // Get pet base stats
   var petRes = await supabaseClient
     .from('user_pets')
-    .select('*')
+    .select('*, pets!inner(name, image_file)')
     .eq('id', petId)
     .single();
   
   if (petRes.error) return null;
   
   var pet = petRes.data;
-  var stats = {
-    hp: pet.base_hp || 30,
-    attack: pet.base_attack || 5,
-    defense: pet.base_defense || 3,
-    speed: pet.base_speed || 4
-  };
+  
+  // Calculate max HP from base + equipment
+  var maxHP = pet.base_hp || 30;
   
   // Get equipped items
   var equipRes = await supabaseClient
@@ -3504,18 +3594,57 @@ async function calculatePetStats(petId) {
   if (!equipRes.error && equipRes.data) {
     equipRes.data.forEach(function(item) {
       var equip = item.equipment;
+      maxHP += equip.hp_bonus || 0;
+    });
+  }
+  
+  // Update max_hp in database if changed
+  if (pet.max_hp !== maxHP) {
+    await supabaseClient
+      .from('user_pets')
+      .update({ max_hp: maxHP })
+      .eq('id', petId);
+  }
+  
+  // Use current_hp if available, otherwise use maxHP
+  var currentHP = pet.current_hp || maxHP;
+  
+  // Make sure current_hp doesn't exceed max_hp
+  if (currentHP > maxHP) {
+    currentHP = maxHP;
+    await supabaseClient
+      .from('user_pets')
+      .update({ current_hp: maxHP })
+      .eq('id', petId);
+  }
+  
+  var stats = {
+    hp: currentHP,  // Start battle with current HP, not full HP!
+    maxHP: maxHP,
+    attack: pet.base_attack || 5,
+    defense: pet.base_defense || 3,
+    speed: pet.base_speed || 4
+  };
+  
+  // Apply equipment bonuses
+  if (!equipRes.error && equipRes.data) {
+    equipRes.data.forEach(function(item) {
+      var equip = item.equipment;
       stats.attack += equip.attack_bonus || 0;
       stats.defense += equip.defense_bonus || 0;
       stats.speed += equip.speed_bonus || 0;
-      stats.hp += equip.hp_bonus || 0;
     });
   }
   
   return {
     id: pet.id,
-    name: pet.nickname || 'Your Pet',
+    name: pet.nickname || pet.pets.name || 'Your Pet',
+    imageFile: pet.pets.image_file,
     stats: stats,
-    currentHP: stats.hp
+    currentHP: currentHP,
+    maxHP: maxHP,
+    energy: pet.energy || 50,
+    maxEnergy: pet.max_energy || 100
   };
 }
 
@@ -3610,10 +3739,22 @@ function calculateDamage(attack, defense) {
 async function startBattle(petId, enemyId) {
   if (!currentUser) return;
   
-  // Get player pet stats
+  // Get player pet stats (includes current HP and energy)
   var playerStats = await calculatePetStats(petId);
   if (!playerStats) {
     showToast('Error loading pet stats!');
+    return;
+  }
+  
+  // Check if pet has enough energy (need at least 10)
+  if (playerStats.energy < 10) {
+    showToast('🥱 Your pet is too tired! Feed them to restore energy.');
+    return;
+  }
+  
+  // Check if pet has HP left
+  if (playerStats.currentHP <= 0) {
+    showToast('💔 Your pet is fainted! Use a healing item first!');
     return;
   }
   
@@ -3644,14 +3785,22 @@ async function startBattle(petId, enemyId) {
     sprite_frames: enemy.sprite_frames
   };
   
+  // Deduct 10 energy from pet BEFORE battle
+  await supabaseClient
+    .from('user_pets')
+    .update({
+      energy: supabaseClient.raw('GREATEST(energy - 10, 0)')
+    })
+    .eq('id', petId);
+  
   // Simulate the battle
   var battleResult = simulateBattle(playerStats, enemyStats);
   
   // Show battle UI and play it back
   showBattleUI(playerStats, enemyStats, battleResult);
   
-  // Save battle to history
-  await saveBattleHistory(petId, enemyId, battleResult, enemyStats);
+  // Save battle to history and get rewards
+  battleRewards = await saveBattleHistory(petId, enemyId, battleResult, enemyStats);
 }
 
 /**
@@ -3660,6 +3809,30 @@ async function startBattle(petId, enemyId) {
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
   var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
+  var itemDropped = null;
+  
+  // 10% chance for item drop on victory
+  if (battleResult.victory && Math.random() < 0.1) {
+    // Get random cheap item from shop (under 100 PP)
+    var itemsRes = await supabaseClient
+      .from('items')
+      .select('*')
+      .lte('price', 100)
+      .limit(20);
+    
+    if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
+      itemDropped = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
+      
+      // Add to player inventory
+      await supabaseClient
+        .from('user_inventory')
+        .insert([{
+          user_id: currentUser.id,
+          item_id: itemDropped.id,
+          quantity: 1
+        }]);
+    }
+  }
   
   // Save to battle_history
   await supabaseClient
@@ -3675,14 +3848,15 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       battle_log: battleResult.log
     }]);
   
-  // Update pet stats
+  // Update pet stats AND save current HP
   if (battleResult.victory) {
     await supabaseClient
       .from('user_pets')
       .update({
         experience: supabaseClient.raw('experience + ' + expGained),
         total_battles: supabaseClient.raw('total_battles + 1'),
-        battles_won: supabaseClient.raw('battles_won + 1')
+        battles_won: supabaseClient.raw('battles_won + 1'),
+        current_hp: battleResult.playerFinalHP  // SAVE HP!
       })
       .eq('id', petId);
     
@@ -3692,10 +3866,19 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     await supabaseClient
       .from('user_pets')
       .update({
-        total_battles: supabaseClient.raw('total_battles + 1')
+        total_battles: supabaseClient.raw('total_battles + 1'),
+        current_hp: battleResult.playerFinalHP  // SAVE HP even on loss!
       })
       .eq('id', petId);
   }
+  
+  // Store rewards for the modal
+  return {
+    victory: battleResult.victory,
+    expGained: expGained,
+    ppGained: ppGained,
+    itemDropped: itemDropped
+  };
 }
 
 /**
@@ -3705,6 +3888,7 @@ var currentBattleLog = [];
 var currentBattleIndex = 0;
 var battlePlaybackInterval = null;
 var selectedBattlePetId = null;
+var battleRewards = null;  // Store rewards globally
 
 function showBattleUI(playerStats, enemyStats, battleResult) {
   // Store battle data
@@ -3845,15 +4029,63 @@ function skipBattle() {
 
 function endBattlePlayback() {
   el('battle-skip-btn').style.display = 'none';
-  el('battle-continue-btn').style.display = 'inline-block';
+  el('battle-continue-btn').style.display = 'none';
   
-  // Show result toast
-  var lastEntry = currentBattleLog[currentBattleLog.length - 1];
-  if (lastEntry.text.includes('Victory')) {
-    showToast('Victory! Check your rewards!');
-  } else {
-    showToast('Defeat! Better luck next time!');
+  // Show rewards modal
+  showBattleRewardsModal();
+}
+
+function showBattleRewardsModal() {
+  if (!battleRewards) return;
+  
+  var modal = el('battle-rewards-modal');
+  if (!modal) {
+    console.error('Battle rewards modal not found in HTML!');
+    // Fallback to toast
+    if (battleRewards.victory) {
+      showToast('Victory! +' + battleRewards.expGained + ' EXP, +' + battleRewards.ppGained + ' PP!');
+    } else {
+      showToast('Defeat! Better luck next time!');
+    }
+    return;
   }
+  
+  // Update modal content
+  var title = el('rewards-title');
+  var expText = el('rewards-exp');
+  var ppText = el('rewards-pp');
+  var itemText = el('rewards-item');
+  
+  if (battleRewards.victory) {
+    title.textContent = '🎉 Victory!';
+    title.style.color = 'var(--green)';
+    expText.textContent = '+' + battleRewards.expGained + ' EXP';
+    ppText.textContent = '+' + battleRewards.ppGained + ' PP';
+    
+    if (battleRewards.itemDropped) {
+      itemText.textContent = '🎁 Bonus: Found ' + battleRewards.itemDropped.name + '!';
+      itemText.style.display = 'block';
+    } else {
+      itemText.style.display = 'none';
+    }
+  } else {
+    title.textContent = '💀 Defeat!';
+    title.style.color = 'var(--red)';
+    expText.textContent = 'No EXP gained';
+    ppText.textContent = 'No PP gained';
+    itemText.style.display = 'none';
+  }
+  
+  modal.classList.add('show');
+}
+
+function closeBattleRewardsModal() {
+  var modal = el('battle-rewards-modal');
+  if (modal) modal.classList.remove('show');
+  
+  // Reset battle state
+  battleRewards = null;
+  closeBattle();
 }
 
 function closeBattle() {
@@ -3876,7 +4108,7 @@ async function loadBattlePets() {
   
   var res = await supabaseClient
     .from('user_pets')
-    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, pet_id, pets!inner(name, image_file)')
+    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, current_hp, max_hp, energy, max_energy, pet_id, pets!inner(name, image_file)')
     .eq('user_id', currentUser.id);
   
   if (res.error) {
@@ -3913,7 +4145,9 @@ async function loadBattlePets() {
     var stats = makeEl('div', { class: 'battle-pet-card-stats' });
     
     var hpStat = makeEl('div', { class: 'battle-pet-stat' });
-    hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + userPet.base_hp + '</div>';
+    var currentHP = userPet.current_hp || userPet.base_hp || 30;
+    var maxHP = userPet.max_hp || userPet.base_hp || 30;
+    hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + currentHP + '/' + maxHP + '</div>';
     stats.appendChild(hpStat);
     
     var atkStat = makeEl('div', { class: 'battle-pet-stat' });

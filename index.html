@@ -584,6 +584,32 @@
         
       </div>
       
+      <!-- Battle Rewards Modal -->
+      <div class="modal-overlay" id="battle-rewards-modal">
+        <div class="modal">
+          <div style="font-size: 4rem; margin-bottom: 12px;">🎉</div>
+          <h2 id="rewards-title" style="color: var(--green); margin-bottom: 16px;">Victory!</h2>
+          
+          <div style="background: var(--cream); border: 2px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
+            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 1.1rem;">
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="color: var(--text-light);">Experience Gained:</span>
+                <strong id="rewards-exp" style="color: var(--purple-dark); font-size: 1.2rem;">+0 EXP</strong>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="color: var(--text-light);">PawketPoints Earned:</span>
+                <strong id="rewards-pp" style="color: var(--purple-dark); font-size: 1.2rem;">+0 PP</strong>
+              </div>
+              <div id="rewards-item" style="color: var(--green); font-weight: 700; text-align: center; padding-top: 8px; border-top: 2px solid var(--border); display: none;">
+                🎁 Bonus: Found item!
+              </div>
+            </div>
+          </div>
+          
+          <button class="btn btn-primary" onclick="closeBattleRewardsModal()">Continue</button>
+        </div>
+      </div>
+      
       <!-- Forest Exploration (main view) -->
       <div id="forest-exploration">
         <div class="page-hero">
