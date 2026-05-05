@@ -142,13 +142,14 @@ a:hover { color: var(--pink) !important; }
   border-radius: 0 0 32px 32px !important;
 }
 .navbar-inner { 
-  max-width: 1200px !important; 
+  max-width: 1400px !important; 
   margin: 0 auto !important; 
-  padding: 0 20px !important; 
+  padding: 0 24px !important; 
   display: flex !important; 
   align-items: center !important; 
-  height: 64px !important; 
-  gap: 12px !important; 
+  justify-content: space-between !important;
+  height: 70px !important; 
+  gap: 16px !important; 
 }
 .navbar-logo { 
   font-family: 'Chewy', cursive !important; 
@@ -213,35 +214,36 @@ a:hover { color: var(--pink) !important; }
 .navbar-user { 
   display: flex !important; 
   align-items: center !important; 
-  gap: 10px !important; 
-  font-size: 0.9rem !important; 
+  gap: 14px !important; 
+  font-size: 1.05rem !important; 
   color: var(--white) !important; 
   font-weight: 700 !important; 
   white-space: nowrap !important; 
   flex-shrink: 0 !important;
-  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.3) !important;
+  margin-left: auto !important;
 }
 #nav-points { 
-  background: rgba(255,255,255,0.25) !important; 
-  padding: 6px 14px !important; 
-  border-radius: 25px !important; 
+  background: rgba(255,255,255,0.35) !important; 
+  padding: 8px 18px !important; 
+  border-radius: 30px !important; 
   font-family: 'Chewy', cursive !important; 
-  font-size: 0.9rem !important;
-  border: 2px solid rgba(255,255,255,0.4) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+  font-size: 1.1rem !important;
+  border: 2px solid rgba(255,255,255,0.5) !important;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2) !important;
 }
 .btn-nav-action { 
   background: var(--yellow) !important; 
   color: var(--purple-dark) !important; 
   font-family: 'Chewy', cursive !important; 
-  font-size: 0.9rem !important; 
-  padding: 6px 18px !important; 
-  border-radius: 25px !important; 
-  border: 2px solid rgba(255,255,255,0.5) !important;
+  font-size: 1.05rem !important; 
+  padding: 10px 24px !important; 
+  border-radius: 30px !important; 
+  border: 3px solid rgba(255,255,255,0.6) !important;
   cursor: pointer !important; 
   transition: all 0.2s !important;
-  font-weight: 600 !important;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
 }
 .btn-nav-action:hover { 
   background: var(--white) !important;
@@ -3331,3 +3333,58 @@ body::after {
   font-size: 2.5rem;
 }
 
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BADGE NOTIFICATIONS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.badge-notification {
+  position: fixed;
+  top: 80px;
+  right: -400px;
+  width: 350px;
+  background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 8px 32px rgba(176, 106, 255, 0.4);
+  transition: right 0.3s ease-out;
+  z-index: 10000;
+  border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.badge-notification.show {
+  right: 20px;
+}
+
+.badge-notif-icon {
+  font-size: 3rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.badge-notif-content {
+  flex: 1;
+}
+
+.badge-notif-title {
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.8);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+
+.badge-notif-name {
+  font-size: 1.2rem;
+  color: white;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.badge-notif-desc {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.9);
+}

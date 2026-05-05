@@ -224,6 +224,12 @@ async function showApp(user) {
     el('nav-user').textContent = '\u2B50 ' + pr.data.username;
     updateAllPoints(pr.data.pawketpoints);
   }
+  
+  // Load user's badges
+  await loadUserBadges();
+  
+  // Award welcome badge if new user
+  await awardBadge('welcome');
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -548,6 +554,10 @@ async function confirmAdopt() {
     await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
     updateAllPoints(np);
   }
+  
+  // Award first pet badge
+  await awardBadge('first_pet');
+  
   closeAdoptModal();
   el('success-message').textContent = nickname + ' has joined your collection!';
   el('success-modal').classList.add('show');
@@ -994,7 +1004,15 @@ async function feed(petId) {
   // Mark as used today
   localStorage.setItem(feedKey, 'done');
   
-  if(lu.leveled){showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');updateLvl(petId,lu.level,lu.maxHunger);}
+  if(lu.leveled){
+    showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');
+    updateLvl(petId,lu.level,lu.maxHunger);
+    
+    // Award level badges
+    if (lu.level === 5) await awardBadge('level_5');
+    if (lu.level === 10) await awardBadge('level_10');
+    if (lu.level === 20) await awardBadge('level_20');
+  }
   else showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
   
   // Update button to show already used
@@ -1028,7 +1046,15 @@ async function play(petId) {
   // Mark as used today
   localStorage.setItem(playKey, 'done');
   
-  if(lu.leveled){showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');updateLvl(petId,lu.level,lu.maxHunger);}
+  if(lu.leveled){
+    showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');
+    updateLvl(petId,lu.level,lu.maxHunger);
+    
+    // Award level badges
+    if (lu.level === 5) await awardBadge('level_5');
+    if (lu.level === 10) await awardBadge('level_10');
+    if (lu.level === 20) await awardBadge('level_20');
+  }
   else showFlash(petId,'-10 Energy +15 Happiness +15 XP','#5dde7a');
   
   // Update button to show already used
@@ -1195,6 +1221,100 @@ async function useOnPet(petId,petNickname) {
   await loadInventory(); tabsLoaded['mypets']=false;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// BADGES SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+var earnedBadges = []; // Cache of user's earned badge keys
+
+async function loadUserBadges() {
+  if (!currentUser) return;
+  
+  var res = await supabaseClient
+    .from('user_badges')
+    .select('badge_id, badges(badge_key, name, icon)')
+    .eq('user_id', currentUser.id);
+  
+  if (res.error) {
+    console.error('[Badges] Error loading badges:', res.error);
+    return;
+  }
+  
+  earnedBadges = res.data.map(b => b.badges.badge_key);
+  console.log('[Badges] User has earned:', earnedBadges);
+}
+
+async function awardBadge(badgeKey, showNotification = true) {
+  if (!currentUser) return;
+  
+  // Check if already earned
+  if (earnedBadges.includes(badgeKey)) {
+    console.log('[Badges] Already earned:', badgeKey);
+    return;
+  }
+  
+  // Get badge info
+  var badgeRes = await supabaseClient
+    .from('badges')
+    .select('*')
+    .eq('badge_key', badgeKey)
+    .single();
+  
+  if (badgeRes.error || !badgeRes.data) {
+    console.error('[Badges] Badge not found:', badgeKey);
+    return;
+  }
+  
+  var badge = badgeRes.data;
+  
+  // Award badge
+  var res = await supabaseClient
+    .from('user_badges')
+    .insert([{
+      user_id: currentUser.id,
+      badge_id: badge.id
+    }]);
+  
+  if (res.error) {
+    // Might be duplicate - that's ok
+    console.log('[Badges] Error awarding (probably duplicate):', res.error);
+    return;
+  }
+  
+  // Add to cache
+  earnedBadges.push(badgeKey);
+  
+  // Show notification
+  if (showNotification) {
+    showBadgeNotification(badge);
+  }
+  
+  console.log('[Badges] Awarded:', badgeKey);
+}
+
+function showBadgeNotification(badge) {
+  var notification = makeEl('div', {class: 'badge-notification'});
+  notification.innerHTML = `
+    <div class="badge-notif-icon">${badge.icon}</div>
+    <div class="badge-notif-content">
+      <div class="badge-notif-title">Badge Earned!</div>
+      <div class="badge-notif-name">${badge.name}</div>
+      <div class="badge-notif-desc">${badge.description || ''}</div>
+    </div>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Animate in
+  setTimeout(() => notification.classList.add('show'), 10);
+  
+  // Remove after 5 seconds
+  setTimeout(() => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  }, 5000);
+}
+
 // ── MINIGAMES ────────────────────────────
 function gck(game){return 'game_'+game+'_'+(currentUser?currentUser.id:'')+'_'+today;}
 function isCD(game){return localStorage.getItem(gck(game))==='done';}
@@ -1229,6 +1349,15 @@ async function rollDice() {
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
     var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
     await awardPP(earned); setCD('dice');
+    
+    // Award badges
+    await awardBadge('dice_first_play'); // First time playing
+    if (isDouble) {
+      await awardBadge('lucky_doubles'); // Any doubles
+      if (v1 === 1) await awardBadge('snake_eyes'); // Double 1s
+      if (v1 === 6) await awardBadge('boxcars'); // Double 6s
+    }
+    
     res.style.opacity='1';
     res.textContent=isDouble?'DOUBLE '+v1+'s! +'+earned+' PP!':'Rolled '+v1+'+'+v2+'='+total+'! +'+earned+' PP!';
     res.style.color=isDouble?'#b06aff':'#5dde7a';
@@ -1236,19 +1365,40 @@ async function rollDice() {
   },1200);
 }
 
-function initGuess(){secretNumber=Math.floor(Math.random()*10)+1;guessesLeft=3;el('guess-input').value='';el('guess-result').textContent='';el('attempts-left').textContent='3 guesses remaining';}
+var guessAttempts = 0; // Track attempts for badge
+
+function initGuess(){
+  secretNumber=Math.floor(Math.random()*10)+1;
+  guessesLeft=3;
+  guessAttempts=0;
+  el('guess-input').value='';
+  el('guess-result').textContent='';
+  el('attempts-left').textContent='3 guesses remaining';
+}
+
 async function makeGuess() {
   if(isCD('guess'))return;
   var input=el('guess-input'); var guess=parseInt(input.value);
   var result=el('guess-result'); var attEl=el('attempts-left');
   if(!guess||guess<1||guess>10){result.textContent='Enter a number 1-10!';result.style.color='#ff6eb4';return;}
+  
   guessesLeft--;
+  guessAttempts++;
+  
   if(guess===secretNumber){
     await awardPP(25); setCD('guess');
+    
+    // Award badges
+    await awardBadge('guess_first_play'); // First time playing
+    if (guessAttempts === 1) {
+      await awardBadge('first_try'); // Got it on first try!
+    }
+    
     result.textContent='Correct! +25 PP!'; result.style.color='#5dde7a';
     el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
   } else if(guessesLeft===0){
     setCD('guess');
+    await awardBadge('guess_first_play'); // Award badge even if lost
     result.textContent='The number was '+secretNumber+'. Better luck tomorrow!'; result.style.color='#ff6eb4';
     el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
   } else {
@@ -1282,13 +1432,33 @@ function flipCard(btn) {
       matchedPairs++; memoryEarned+=5;
       el('match-count').textContent=matchedPairs; el('memory-earned').textContent=memoryEarned;
       flippedCards=[]; memoryLocked=false;
-      if(matchedPairs===6){awardPP(memoryEarned);setCD('memory');var r=el('memory-result');r.textContent='All matched! +'+memoryEarned+' PP!';r.style.color='#5dde7a';el('memory-cooldown').style.display='block';}
+      
+      if(matchedPairs===6){
+        // Game complete!
+        awardPP(memoryEarned);setCD('memory');
+        
+        // Award badges
+        awardBadge('memory_first_play'); // First time playing
+        var usedTries = 15 - triesLeft;
+        if (usedTries === 6) {
+          awardBadge('perfect_memory'); // Perfect game (no mistakes)
+        }
+        if (usedTries <= 10) {
+          awardBadge('speed_matcher'); // Completed in 10 tries or less
+        }
+        
+        var r=el('memory-result');r.textContent='All matched! +'+memoryEarned+' PP!';r.style.color='#5dde7a';el('memory-cooldown').style.display='block';
+      }
     } else {
       setTimeout(function(){
         flippedCards[0].innerHTML=''; flippedCards[0].classList.remove('flipped');
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
-        if(triesLeft===0&&matchedPairs<6){awardPP(memoryEarned);setCD('memory');var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});}
+        if(triesLeft===0&&matchedPairs<6){
+          awardPP(memoryEarned);setCD('memory');
+          awardBadge('memory_first_play'); // Award badge even if lost
+          var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
+        }
       },900);
     }
   }
