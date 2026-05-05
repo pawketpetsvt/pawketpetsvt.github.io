@@ -682,7 +682,8 @@ async function useItem(petId) {
   var updates = {};
   
   // Handle healing items (HP restoration)
-  if (item.effect === 'healing' && item.effect_value > 0) {
+  var healValue = item.value || item.effect_value || 0;
+  if (item.effect === 'healing' && healValue > 0) {
     // Get current HP and max HP from database
     var petRes = await supabaseClient
       .from('user_pets')
@@ -709,7 +710,7 @@ async function useItem(petId) {
     }
     
     // Calculate new HP (can't exceed max)
-    var newHP = Math.min(currentHP + item.effect_value, maxHP);
+    var newHP = Math.min(currentHP + healValue, maxHP);
     var healedAmount = newHP - currentHP;
     
     updates.current_hp = newHP;
@@ -3786,11 +3787,10 @@ async function startBattle(petId, enemyId) {
   };
   
   // Deduct 10 energy from pet BEFORE battle
+  var newEnergy = Math.max(0, playerStats.energy - 10);
   await supabaseClient
     .from('user_pets')
-    .update({
-      energy: supabaseClient.raw('GREATEST(energy - 10, 0)')
-    })
+    .update({ energy: newEnergy })
     .eq('id', petId);
   
   // Simulate the battle
@@ -3850,26 +3850,44 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   // Update pet stats AND save current HP
   if (battleResult.victory) {
-    await supabaseClient
+    // Get current stats first
+    var petData = await supabaseClient
       .from('user_pets')
-      .update({
-        experience: supabaseClient.raw('experience + ' + expGained),
-        total_battles: supabaseClient.raw('total_battles + 1'),
-        battles_won: supabaseClient.raw('battles_won + 1'),
-        current_hp: battleResult.playerFinalHP  // SAVE HP!
-      })
-      .eq('id', petId);
+      .select('experience, total_battles, battles_won')
+      .eq('id', petId)
+      .single();
+    
+    if (petData.data) {
+      await supabaseClient
+        .from('user_pets')
+        .update({
+          experience: (petData.data.experience || 0) + expGained,
+          total_battles: (petData.data.total_battles || 0) + 1,
+          battles_won: (petData.data.battles_won || 0) + 1,
+          current_hp: battleResult.playerFinalHP  // SAVE HP!
+        })
+        .eq('id', petId);
+    }
     
     // Award PP to player
     await awardPP(ppGained);
   } else {
-    await supabaseClient
+    // Get current stats first
+    var petData = await supabaseClient
       .from('user_pets')
-      .update({
-        total_battles: supabaseClient.raw('total_battles + 1'),
-        current_hp: battleResult.playerFinalHP  // SAVE HP even on loss!
-      })
-      .eq('id', petId);
+      .select('total_battles')
+      .eq('id', petId)
+      .single();
+    
+    if (petData.data) {
+      await supabaseClient
+        .from('user_pets')
+        .update({
+          total_battles: (petData.data.total_battles || 0) + 1,
+          current_hp: battleResult.playerFinalHP  // SAVE HP even on loss!
+        })
+        .eq('id', petId);
+    }
   }
   
   // Store rewards for the modal
