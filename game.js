@@ -1693,10 +1693,16 @@ async function claimDailyBonus() {
 
 // ── NEWS ─────────────────────────────────
 async function loadSidebarNews() {
-  var widget = document.querySelector('.right-sidebar .news-widget-content');
-  if (!widget) return;
+  var widget = el('sidebar-news-container');
+  if (!widget) {
+    console.error('[loadSidebarNews] Widget not found!');
+    return;
+  }
   
+  console.log('[loadSidebarNews] Loading news...');
   var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
+  
+  console.log('[loadSidebarNews] Result:', res);
   
   if (res.error || !res.data || !res.data.length) {
     widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
@@ -2371,11 +2377,15 @@ async function loadProfile(username) {
     var petsGrid = el('profile-pets-grid');
     petsGrid.innerHTML = '<div class="spinner"></div>';
     
+    console.log('[loadProfile] Loading pets for user_id:', profile.id);
+    
     var petsRes = await supabaseClient
       .from('user_pets')
       .select('*, pets(name, image_file, vtuber_name)')
       .eq('user_id', profile.id)
       .order('adopted_at', { ascending: true });
+    
+    console.log('[loadProfile] Pets query result:', petsRes);
     
     if (petsRes.error) throw petsRes.error;
     
