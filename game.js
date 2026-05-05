@@ -137,9 +137,11 @@ function showTab(tab) {
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   
-  // Special case: leaderboard needs to initialize every time
+  // Special cases: some tabs need to initialize every time
   if (tab === 'leaderboard') {
     initLeaderboardTab();
+  } else if (tab === 'myprofile') {
+    loadMyProfile();
   } else if (!tabsLoaded[tab]) { 
     tabsLoaded[tab] = true; 
     loadTab(tab); 
@@ -161,8 +163,7 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
-  else if (tab === 'myprofile') { loadMyProfile(); }
-  // Note: leaderboard handled by initLeaderboardTab() in showTab
+  // Note: leaderboard and myprofile handled in showTab()
 }
 
 // ── AUTH GATE ────────────────────────────
