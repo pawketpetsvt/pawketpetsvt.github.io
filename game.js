@@ -3787,11 +3787,22 @@ async function startBattle(petId, enemyId) {
   };
   
   // Deduct 10 energy from pet BEFORE battle
-  var newEnergy = Math.max(0, playerStats.energy - 10);
-  await supabaseClient
+  // Get fresh energy value from database to be sure
+  var freshPet = await supabaseClient
     .from('user_pets')
-    .update({ energy: newEnergy })
-    .eq('id', petId);
+    .select('energy')
+    .eq('id', petId)
+    .single();
+  
+  if (freshPet.data) {
+    var currentEnergy = freshPet.data.energy || 100;
+    var newEnergy = Math.max(0, currentEnergy - 10);
+    
+    await supabaseClient
+      .from('user_pets')
+      .update({ energy: newEnergy })
+      .eq('id', petId);
+  }
   
   // Simulate the battle
   var battleResult = simulateBattle(playerStats, enemyStats);
