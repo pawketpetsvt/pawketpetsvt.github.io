@@ -518,6 +518,101 @@
   </div>
 
   <!-- ═══════════════════════════════════════════════════════════
+       BATTLE ARENA
+       ═══════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-battle">
+    <div class="page-wrap">
+      
+      <!-- Battle Screen (hidden by default) -->
+      <div id="battle-screen" style="display:none;">
+        <div class="battle-container">
+          
+          <!-- Player Side -->
+          <div class="battle-side battle-player">
+            <div class="battle-sprite-container">
+              <div class="battle-sprite player-sprite" id="player-battle-sprite">
+                🐾
+              </div>
+            </div>
+            <div class="battle-name" id="player-battle-name">Your Pet</div>
+            <div class="battle-hp-container">
+              <div class="battle-hp-label">
+                <span>HP</span>
+                <span id="player-hp-text">30/30</span>
+              </div>
+              <div class="battle-hp-bar">
+                <div class="battle-hp-fill" id="player-hp-fill" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- VS Text -->
+          <div class="battle-vs">VS</div>
+          
+          <!-- Enemy Side -->
+          <div class="battle-side battle-enemy">
+            <div class="battle-sprite-container">
+              <div class="battle-sprite enemy-sprite" id="enemy-battle-sprite"></div>
+            </div>
+            <div class="battle-name" id="enemy-battle-name">Wild Animal</div>
+            <div class="battle-hp-container">
+              <div class="battle-hp-label">
+                <span>HP</span>
+                <span id="enemy-hp-text">20/20</span>
+              </div>
+              <div class="battle-hp-bar">
+                <div class="battle-hp-fill" id="enemy-hp-fill" style="width: 100%"></div>
+              </div>
+            </div>
+          </div>
+          
+        </div>
+        
+        <!-- Battle Log -->
+        <div class="battle-log-container">
+          <div class="battle-log" id="battle-log">
+            <div class="battle-log-entry">Battle starting...</div>
+          </div>
+        </div>
+        
+        <!-- Battle Controls -->
+        <div class="battle-controls">
+          <button class="btn btn-outline" id="battle-skip-btn" onclick="skipBattle()">Skip Animation</button>
+          <button class="btn btn-primary" id="battle-continue-btn" onclick="closeBattle()" style="display:none">Continue</button>
+        </div>
+        
+      </div>
+      
+      <!-- Forest Exploration (main view) -->
+      <div id="forest-exploration">
+        <div class="page-hero">
+          <div class="sparkle-row">🌲 ⚔️ 🌲</div>
+          <h1>Wildwood Forest</h1>
+          <p>Explore and battle wild creatures!</p>
+        </div>
+        
+        <!-- Select Pet -->
+        <div class="battle-pet-selector">
+          <h3>Choose Your Fighter</h3>
+          <div id="battle-pet-select" class="battle-pet-grid">
+            <div class="spinner"></div>
+          </div>
+        </div>
+        
+        <!-- Encounter Button -->
+        <div style="text-align: center; margin-top: 30px;">
+          <button class="btn btn-primary btn-large" onclick="findBattle()" id="find-battle-btn" disabled>
+            🔍 Search for Wild Creature
+          </button>
+          <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;">Select a pet first</p>
+        </div>
+        
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════════════
        LEADERBOARDS
        ═══════════════════════════════════════════════════════════ -->
   <div class="page-section" id="section-leaderboard">

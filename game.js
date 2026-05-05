@@ -3671,27 +3671,266 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
 /**
  * Show battle UI (will be expanded in Chunk 3)
  */
+var currentBattleLog = [];
+var currentBattleIndex = 0;
+var battlePlaybackInterval = null;
+var selectedBattlePetId = null;
+
 function showBattleUI(playerStats, enemyStats, battleResult) {
-  console.log('=== BATTLE START ===');
-  console.log('Player:', playerStats);
-  console.log('Enemy:', enemyStats);
-  console.log('Result:', battleResult);
-  console.log('Battle Log:');
-  battleResult.log.forEach(function(entry) {
-    console.log('  ' + entry.text + ' (Player: ' + entry.playerHP + ' HP, Enemy: ' + entry.enemyHP + ' HP)');
-  });
-  console.log('=== BATTLE END ===');
+  // Store battle data
+  currentBattleLog = battleResult.log;
+  currentBattleIndex = 0;
   
-  // TODO: Implement visual battle UI in Chunk 3
-  // For now, just show result
-  setTimeout(function() {
-    if (battleResult.victory) {
-      showToast('Victory! +' + enemyStats.exp_reward + ' EXP, +' + enemyStats.pp_reward + ' PP');
-    } else {
-      showToast('Defeat! Your pet fainted!');
-    }
-  }, 1000);
+  // Hide forest, show battle
+  el('forest-exploration').style.display = 'none';
+  el('battle-screen').style.display = 'block';
+  
+  // Set up player side
+  el('player-battle-name').textContent = playerStats.name;
+  el('player-hp-text').textContent = playerStats.currentHP + '/' + playerStats.currentHP;
+  el('player-hp-fill').style.width = '100%';
+  
+  // Set up enemy side with sprite
+  el('enemy-battle-name').textContent = enemyStats.name;
+  el('enemy-hp-text').textContent = enemyStats.hp + '/' + enemyStats.hp;
+  el('enemy-hp-fill').style.width = '100%';
+  
+  // Set enemy sprite based on species
+  var enemySprite = el('enemy-battle-sprite');
+  var spriteFile = getSpriteFile(enemyStats.species);
+  enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
+  enemySprite.style.backgroundPosition = '0 0'; // idle animation top row
+  
+  // Clear battle log
+  el('battle-log').innerHTML = '';
+  
+  // Start playback
+  el('battle-skip-btn').style.display = 'inline-block';
+  el('battle-continue-btn').style.display = 'none';
+  
+  playBattleTurn();
 }
+
+function getSpriteFile(species) {
+  var spriteMap = {
+    'bird': 'MiniBird.png',
+    'bunny': 'MiniBunny.png',
+    'rabbit': 'MiniBunny.png',
+    'squirrel': 'MiniBunny.png', // using bunny as placeholder
+    'fox': 'MiniFox.png',
+    'raccoon': 'MiniFox.png', // using fox as placeholder
+    'boar': 'MiniBoar.png',
+    'wolf': 'MiniWolf.png',
+    'bear': 'MiniB earng',
+    'deer': 'MiniDeer1.png'
+  };
+  return spriteMap[species] || 'MiniBird.png';
+}
+
+function playBattleTurn() {
+  if (currentBattleIndex >= currentBattleLog.length) {
+    // Battle finished
+    endBattlePlayback();
+    return;
+  }
+  
+  var entry = currentBattleLog[currentBattleIndex];
+  
+  // Add log entry
+  var logEntry = makeEl('div', { class: 'battle-log-entry' });
+  if (entry.type === 'player_attack') {
+    logEntry.classList.add('player-attack');
+  } else if (entry.type === 'enemy_attack') {
+    logEntry.classList.add('enemy-attack');
+  } else if (entry.type === 'end') {
+    logEntry.classList.add(entry.text.includes('Victory') ? 'victory' : 'defeat');
+  }
+  logEntry.textContent = entry.text;
+  el('battle-log').appendChild(logEntry);
+  el('battle-log').scrollTop = el('battle-log').scrollHeight;
+  
+  // Update HP bars
+  updateHPBar('player', entry.playerHP, currentBattleLog[0].playerHP);
+  updateHPBar('enemy', entry.enemyHP, currentBattleLog[0].enemyHP);
+  
+  // Animate hit
+  if (entry.type === 'player_attack') {
+    animateHit('enemy');
+  } else if (entry.type === 'enemy_attack') {
+    animateHit('player');
+  }
+  
+  currentBattleIndex++;
+  
+  // Continue to next turn
+  battlePlaybackInterval = setTimeout(playBattleTurn, 1200);
+}
+
+function updateHPBar(side, currentHP, maxHP) {
+  var hpFill = el(side + '-hp-fill');
+  var hpText = el(side + '-hp-text');
+  
+  var percentage = Math.max(0, (currentHP / maxHP) * 100);
+  hpFill.style.width = percentage + '%';
+  hpText.textContent = Math.max(0, currentHP) + '/' + maxHP;
+  
+  // Color based on HP percentage
+  hpFill.classList.remove('low', 'critical');
+  if (percentage <= 25) {
+    hpFill.classList.add('critical');
+  } else if (percentage <= 50) {
+    hpFill.classList.add('low');
+  }
+}
+
+function animateHit(side) {
+  var sprite = el(side + '-battle-sprite');
+  sprite.classList.add('hit');
+  setTimeout(function() {
+    sprite.classList.remove('hit');
+  }, 300);
+}
+
+function skipBattle() {
+  if (battlePlaybackInterval) {
+    clearTimeout(battlePlaybackInterval);
+  }
+  
+  // Jump to end
+  currentBattleIndex = currentBattleLog.length - 1;
+  var lastEntry = currentBattleLog[currentBattleIndex];
+  
+  // Update final HP
+  updateHPBar('player', lastEntry.playerHP, currentBattleLog[0].playerHP);
+  updateHPBar('enemy', lastEntry.enemyHP, currentBattleLog[0].enemyHP);
+  
+  // Show final message
+  var logEntry = makeEl('div', { class: 'battle-log-entry' });
+  logEntry.classList.add(lastEntry.text.includes('Victory') ? 'victory' : 'defeat');
+  logEntry.textContent = lastEntry.text;
+  el('battle-log').appendChild(logEntry);
+  
+  endBattlePlayback();
+}
+
+function endBattlePlayback() {
+  el('battle-skip-btn').style.display = 'none';
+  el('battle-continue-btn').style.display = 'inline-block';
+  
+  // Show result toast
+  var lastEntry = currentBattleLog[currentBattleLog.length - 1];
+  if (lastEntry.text.includes('Victory')) {
+    showToast('Victory! Check your rewards!');
+  } else {
+    showToast('Defeat! Better luck next time!');
+  }
+}
+
+function closeBattle() {
+  el('battle-screen').style.display = 'none';
+  el('forest-exploration').style.display = 'block';
+  
+  // Reload pet selector to show updated stats
+  loadBattlePets();
+}
+
+// Load pets for battle selection
+async function loadBattlePets() {
+  var grid = el('battle-pet-select');
+  grid.innerHTML = '<div class="spinner"></div>';
+  
+  if (!currentUser) return;
+  
+  var res = await supabaseClient
+    .from('user_pets')
+    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, pets(name, image_file)')
+    .eq('user_id', currentUser.id);
+  
+  if (res.error || !res.data || res.data.length === 0) {
+    grid.innerHTML = '<div class="empty-state"><p>You need a pet to battle! Adopt one first. 🐾</p></div>';
+    return;
+  }
+  
+  grid.innerHTML = '';
+  
+  res.data.forEach(function(userPet) {
+    var pet = userPet.pets;
+    var card = makeEl('div', { class: 'battle-pet-card' });
+    card.onclick = function() { selectBattlePet(userPet.id, card); };
+    
+    var img = makeEl('img');
+    img.src = 'images/pets/' + pet.image_file;
+    img.alt = pet.name;
+    card.appendChild(img);
+    
+    var name = makeEl('div', { class: 'battle-pet-card-name' });
+    name.textContent = userPet.nickname || pet.name;
+    card.appendChild(name);
+    
+    var level = makeEl('div', { class: 'battle-pet-card-level' });
+    level.textContent = 'Level ' + userPet.level;
+    card.appendChild(level);
+    
+    var stats = makeEl('div', { class: 'battle-pet-card-stats' });
+    
+    var hpStat = makeEl('div', { class: 'battle-pet-stat' });
+    hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + userPet.base_hp + '</div>';
+    stats.appendChild(hpStat);
+    
+    var atkStat = makeEl('div', { class: 'battle-pet-stat' });
+    atkStat.innerHTML = '<div class="battle-pet-stat-label">ATK</div><div class="battle-pet-stat-value">' + userPet.base_attack + '</div>';
+    stats.appendChild(atkStat);
+    
+    var defStat = makeEl('div', { class: 'battle-pet-stat' });
+    defStat.innerHTML = '<div class="battle-pet-stat-label">DEF</div><div class="battle-pet-stat-value">' + userPet.base_defense + '</div>';
+    stats.appendChild(defStat);
+    
+    var spdStat = makeEl('div', { class: 'battle-pet-stat' });
+    spdStat.innerHTML = '<div class="battle-pet-stat-label">SPD</div><div class="battle-pet-stat-value">' + userPet.base_speed + '</div>';
+    stats.appendChild(spdStat);
+    
+    card.appendChild(stats);
+    
+    grid.appendChild(card);
+  });
+}
+
+function selectBattlePet(petId, cardElement) {
+  selectedBattlePetId = petId;
+  
+  // Update visual selection
+  var cards = document.querySelectorAll('.battle-pet-card');
+  cards.forEach(function(card) {
+    card.classList.remove('selected');
+  });
+  cardElement.classList.add('selected');
+  
+  // Enable battle button
+  el('find-battle-btn').disabled = false;
+}
+
+async function findBattle() {
+  if (!selectedBattlePetId) {
+    showToast('Select a pet first!');
+    return;
+  }
+  
+  // Get random enemy
+  var enemy = await getRandomEnemy('wildwood', 1);
+  
+  if (!enemy) {
+    showToast('No enemies found!');
+    return;
+  }
+  
+  // Start battle!
+  await startBattle(selectedBattlePetId, enemy.id);
+}
+
+// Load battle pets when tab is opened
+tabsLoaded.battle = function() {
+  loadBattlePets();
+};
 
 /**
  * Get random enemy from zone
