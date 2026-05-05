@@ -3930,8 +3930,18 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   
   // Set up player side
   el('player-battle-name').textContent = playerStats.name;
-  el('player-hp-text').textContent = playerStats.currentHP + '/' + playerStats.currentHP;
-  el('player-hp-fill').style.width = '100%';
+  el('player-hp-text').textContent = playerStats.currentHP + '/' + playerStats.maxHP;
+  var playerHPPercent = (playerStats.currentHP / playerStats.maxHP) * 100;
+  el('player-hp-fill').style.width = playerHPPercent + '%';
+  
+  // Set HP bar color based on percentage
+  var playerHPFill = el('player-hp-fill');
+  playerHPFill.classList.remove('low', 'critical');
+  if (playerHPPercent <= 25) {
+    playerHPFill.classList.add('critical');
+  } else if (playerHPPercent <= 50) {
+    playerHPFill.classList.add('low');
+  }
   
   // Set up enemy side with sprite
   el('enemy-battle-name').textContent = enemyStats.name;
