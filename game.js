@@ -1138,8 +1138,26 @@ async function loadShop() {
 async function buyItem(itemId,itemName,price) {
   if(currentPoints<price||!currentUser)return;
   var np=currentPoints-price;
-  var r1=await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
+  
+  // Get current total_spent first
+  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id',currentUser.id).single();
+  var newTotalSpent = (playerRes.data?.total_spent || 0) + price;
+  
+  // Update points AND total_spent
+  var r1=await supabaseClient.from('players').update({
+    pawketpoints:np,
+    total_spent: newTotalSpent
+  }).eq('id',currentUser.id);
+  
   if(r1.error){showToast('Error deducting points.');return;}
+  
+  // Check spending badges
+  if (newTotalSpent >= 500) {
+    await awardBadge('mega_spender');
+  } else if (newTotalSpent >= 100) {
+    await awardBadge('big_spender');
+  }
+  
   var existing=await supabaseClient.from('user_inventory').select('id,quantity').eq('user_id',currentUser.id).eq('item_id',itemId).limit(1);
   if(existing.data&&existing.data.length>0){
     await supabaseClient.from('user_inventory').update({quantity:existing.data[0].quantity+1}).eq('id',existing.data[0].id);
@@ -1333,6 +1351,26 @@ async function awardPP(amount) {
   var np=currentPoints+amount;
   await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
   updateAllPoints(np);
+  
+  // Check if user is now in top 10
+  await checkTop10Badge();
+}
+
+async function checkTop10Badge() {
+  if (!currentUser) return;
+  
+  var rankRes = await supabaseClient
+    .from('players')
+    .select('id')
+    .order('pawketpoints', { ascending: false })
+    .limit(10);
+  
+  if (rankRes.data) {
+    var top10Ids = rankRes.data.map(function(p) { return p.id; });
+    if (top10Ids.includes(currentUser.id)) {
+      await awardBadge('top_10');
+    }
+  }
 }
 
 var diceFaces=['&#9856;','&#9857;','&#9858;','&#9859;','&#9860;','&#9861;'];
@@ -1392,6 +1430,15 @@ async function makeGuess() {
     await awardBadge('guess_first_play'); // First time playing
     if (guessAttempts === 1) {
       await awardBadge('first_try'); // Got it on first try!
+      
+      // Track first-try wins for Mind Reader badge
+      var playerRes = await supabaseClient.from('players').select('first_try_wins').eq('id',currentUser.id).single();
+      var newCount = (playerRes.data?.first_try_wins || 0) + 1;
+      await supabaseClient.from('players').update({first_try_wins: newCount}).eq('id',currentUser.id);
+      
+      if (newCount >= 5) {
+        await awardBadge('mind_reader'); // 5 first-try wins!
+      }
     }
     
     result.textContent='Correct! +25 PP!'; result.style.color='#5dde7a';
