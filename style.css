@@ -3388,3 +3388,109 @@ body::after {
   font-size: 0.85rem;
   color: rgba(255,255,255,0.9);
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BADGES GRID
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+}
+
+.badge-card {
+  background: white;
+  border: 3px solid var(--purple-light);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.badge-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(176, 106, 255, 0.2);
+  border-color: var(--purple);
+}
+
+.badge-card.locked {
+  opacity: 0.5;
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+
+.badge-card.locked:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.badge-icon {
+  font-size: 3rem;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
+}
+
+.badge-card.locked .badge-icon {
+  filter: grayscale(100%) opacity(0.5);
+}
+
+.badge-name {
+  font-weight: bold;
+  color: var(--purple-dark);
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.badge-card.locked .badge-name {
+  color: #999;
+}
+
+.badge-description {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  line-height: 1.3;
+}
+
+.badge-rarity {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 0.65rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.badge-rarity.common {
+  background: #e0e0e0;
+  color: #666;
+}
+
+.badge-rarity.rare {
+  background: #b3e5fc;
+  color: #0277bd;
+}
+
+.badge-rarity.epic {
+  background: #e1bee7;
+  color: #7b1fa2;
+}
+
+.badge-rarity.legendary {
+  background: linear-gradient(135deg, #ffd700, #ffed4e);
+  color: #b8860b;
+}
+
+.badge-earned-date {
+  font-size: 0.7rem;
+  color: var(--text-light);
+  margin-top: 6px;
+  font-style: italic;
+}

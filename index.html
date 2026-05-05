@@ -521,6 +521,7 @@
         <button class="leaderboard-tab active" onclick="switchLeaderboard('points')">💰 Most Points</button>
         <button class="leaderboard-tab" onclick="switchLeaderboard('pets')">🐾 Most Pets</button>
         <button class="leaderboard-tab" onclick="switchLeaderboard('levels')">⭐ Highest Levels</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('badges')">🎖️ Most Badges</button>
       </div>
 
       <!-- Leaderboard Content -->
@@ -532,6 +533,9 @@
           <div class="spinner"></div>
         </div>
         <div id="leaderboard-levels" class="leaderboard-list">
+          <div class="spinner"></div>
+        </div>
+        <div id="leaderboard-badges" class="leaderboard-list">
           <div class="spinner"></div>
         </div>
       </div>
@@ -581,6 +585,20 @@
           <div class="profile-stat-value" id="profile-rank">-</div>
           <div class="profile-stat-label">Rank</div>
         </div>
+        <div class="profile-stat-card">
+          <div class="profile-stat-icon">🎖️</div>
+          <div class="profile-stat-value" id="profile-badge-count">0</div>
+          <div class="profile-stat-label">Badges</div>
+        </div>
+      </div>
+      
+      <!-- Badges Display -->
+      <div class="section-header" style="margin-top: 40px;">
+        <h2>Badges</h2>
+        <div class="section-line"></div>
+      </div>
+      <div id="profile-badges-grid" class="badges-grid">
+        <div class="spinner"></div>
       </div>
 
       <!-- Pet Collection -->
@@ -670,12 +688,20 @@
           <div class="stat-value" id="myprofile-rank">-</div>
           <div class="stat-label">Leaderboard Rank</div>
         </div>
-        <div class="profile-stat-card coming-soon">
+        <div class="profile-stat-card">
           <div class="stat-icon">🎖️</div>
-          <div class="stat-value">0</div>
+          <div class="stat-value" id="myprofile-badges">0</div>
           <div class="stat-label">Badges</div>
-          <small>Coming Soon!</small>
         </div>
+      </div>
+      
+      <!-- Badges Display -->
+      <div class="section-header" style="margin-top: 40px;">
+        <h2>Your Badges</h2>
+        <div class="section-line"></div>
+      </div>
+      <div id="myprofile-badges-grid" class="badges-grid">
+        <div class="spinner"></div>
       </div>
 
     </div>

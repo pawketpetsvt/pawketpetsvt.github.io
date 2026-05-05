@@ -2419,6 +2419,34 @@ async function loadLeaderboard(type) {
       }
     }
     
+    else if (type === 'badges') {
+      // Top players by badge count
+      var badgesRes = await supabaseClient
+        .from('user_badges')
+        .select('user_id, players(username)');
+      
+      if (badgesRes.error) throw badgesRes.error;
+      
+      var counts = {};
+      badgesRes.data.forEach(function(badge) {
+        var username = badge.players.username;
+        if (username) {
+          counts[username] = (counts[username] || 0) + 1;
+        }
+      });
+      
+      data = Object.entries(counts)
+        .sort(function(a, b) { return b[1] - a[1]; })
+        .slice(0, 10)
+        .map(function(entry) {
+          return {
+            username: entry[0],
+            value: entry[1] + ' badges',
+            stat: entry[1] + ' badges earned'
+          };
+        });
+    }
+    
     // Cache the data
     leaderboardCache[type] = data;
     
@@ -2630,6 +2658,9 @@ async function loadProfile(username) {
     
     petsGrid.innerHTML = html;
     
+    // Load badges
+    await loadProfileBadges(profile.id);
+    
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
     el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + err.message + '</p></div>';
@@ -2709,11 +2740,81 @@ async function loadMyProfile() {
       el('myprofile-rank').textContent = rank > 0 ? '#' + rank : '-';
     }
     
+    // Load badges
+    await loadMyProfileBadges();
+    
   } catch (err) {
     console.error('Error loading profile:', err);
     el('myprofile-username-preview').textContent = 'Error loading profile';
     el('myprofile-joined-preview').textContent = 'Please refresh the page';
   }
+}
+
+async function loadMyProfileBadges() {
+  var badgesGrid = el('myprofile-badges-grid');
+  badgesGrid.innerHTML = '<div class="spinner"></div>';
+  
+  // Get all badges
+  var allBadgesRes = await supabaseClient
+    .from('badges')
+    .select('*')
+    .order('sort_order', { ascending: true });
+  
+  // Get user's earned badges
+  var earnedRes = await supabaseClient
+    .from('user_badges')
+    .select('badge_id, earned_at, badges(*)')
+    .eq('user_id', currentUser.id);
+  
+  if (allBadgesRes.error || earnedRes.error) {
+    badgesGrid.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading badges</p>';
+    return;
+  }
+  
+  var allBadges = allBadgesRes.data;
+  var earnedBadgeIds = earnedRes.data.map(b => b.badge_id);
+  var earnedBadgesMap = {};
+  earnedRes.data.forEach(b => {
+    earnedBadgesMap[b.badge_id] = b.earned_at;
+  });
+  
+  // Update badge count
+  el('myprofile-badges').textContent = earnedBadgeIds.length;
+  
+  badgesGrid.innerHTML = '';
+  
+  allBadges.forEach(function(badge) {
+    var isEarned = earnedBadgeIds.includes(badge.id);
+    var card = makeEl('div', { class: 'badge-card' + (isEarned ? '' : ' locked') });
+    
+    if (badge.rarity && badge.rarity !== 'common') {
+      var rarityBadge = makeEl('div', { class: 'badge-rarity ' + badge.rarity });
+      rarityBadge.textContent = badge.rarity;
+      card.appendChild(rarityBadge);
+    }
+    
+    var icon = makeEl('div', { class: 'badge-icon' });
+    icon.textContent = badge.icon;
+    card.appendChild(icon);
+    
+    var name = makeEl('div', { class: 'badge-name' });
+    name.textContent = isEarned ? badge.name : '???';
+    card.appendChild(name);
+    
+    var desc = makeEl('div', { class: 'badge-description' });
+    desc.textContent = isEarned ? badge.description : 'Not yet earned';
+    card.appendChild(desc);
+    
+    if (isEarned && earnedBadgesMap[badge.id]) {
+      var earnedDate = new Date(earnedBadgesMap[badge.id]);
+      var dateStr = earnedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      var dateEl = makeEl('div', { class: 'badge-earned-date' });
+      dateEl.textContent = 'Earned ' + dateStr;
+      card.appendChild(dateEl);
+    }
+    
+    badgesGrid.appendChild(card);
+  });
 }
 
 async function saveProfile() {
@@ -2820,3 +2921,59 @@ tabsLoaded.myprofile = function() {
 };
 
 initApp();
+
+async function loadProfileBadges(userId) {
+  var badgesGrid = el('profile-badges-grid');
+  badgesGrid.innerHTML = '<div class="spinner"></div>';
+  
+  var earnedRes = await supabaseClient
+    .from('user_badges')
+    .select('badge_id, earned_at, badges(*)')
+    .eq('user_id', userId)
+    .order('earned_at', { ascending: false});
+  
+  if (earnedRes.error) {
+    badgesGrid.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading badges</p>';
+    return;
+  }
+  
+  el('profile-badge-count').textContent = earnedRes.data.length;
+  
+  if (earnedRes.data.length === 0) {
+    badgesGrid.innerHTML = '<div class="empty-state"><p>No badges earned yet! 🎖️</p></div>';
+    return;
+  }
+  
+  badgesGrid.innerHTML = '';
+  
+  earnedRes.data.forEach(function(userBadge) {
+    var badge = userBadge.badges;
+    var card = makeEl('div', { class: 'badge-card' });
+    
+    if (badge.rarity && badge.rarity !== 'common') {
+      var rarityBadge = makeEl('div', { class: 'badge-rarity ' + badge.rarity });
+      rarityBadge.textContent = badge.rarity;
+      card.appendChild(rarityBadge);
+    }
+    
+    var icon = makeEl('div', { class: 'badge-icon' });
+    icon.textContent = badge.icon;
+    card.appendChild(icon);
+    
+    var name = makeEl('div', { class: 'badge-name' });
+    name.textContent = badge.name;
+    card.appendChild(name);
+    
+    var desc = makeEl('div', { class: 'badge-description' });
+    desc.textContent = badge.description;
+    card.appendChild(desc);
+    
+    var earnedDate = new Date(userBadge.earned_at);
+    var dateStr = earnedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    var dateEl = makeEl('div', { class: 'badge-earned-date' });
+    dateEl.textContent = 'Earned ' + dateStr;
+    card.appendChild(dateEl);
+    
+    badgesGrid.appendChild(card);
+  });
+}
