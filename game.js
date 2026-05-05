@@ -3438,3 +3438,281 @@ async function unequipItem(slot) {
   tabsLoaded['mypets'] = false;
   loadMyPets();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATTLE SYSTEM - Auto-Battle Engine
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Calculate pet's total stats including equipment bonuses
+ */
+async function calculatePetStats(petId) {
+  // Get pet base stats
+  var petRes = await supabaseClient
+    .from('user_pets')
+    .select('*')
+    .eq('id', petId)
+    .single();
+  
+  if (petRes.error) return null;
+  
+  var pet = petRes.data;
+  var stats = {
+    hp: pet.base_hp || 30,
+    attack: pet.base_attack || 5,
+    defense: pet.base_defense || 3,
+    speed: pet.base_speed || 4
+  };
+  
+  // Get equipped items
+  var equipRes = await supabaseClient
+    .from('player_equipment')
+    .select('equipment(*)')
+    .eq('user_id', currentUser.id)
+    .eq('is_equipped', true);
+  
+  if (!equipRes.error && equipRes.data) {
+    equipRes.data.forEach(function(item) {
+      var equip = item.equipment;
+      stats.attack += equip.attack_bonus || 0;
+      stats.defense += equip.defense_bonus || 0;
+      stats.speed += equip.speed_bonus || 0;
+      stats.hp += equip.hp_bonus || 0;
+    });
+  }
+  
+  return {
+    id: pet.id,
+    name: pet.nickname || 'Your Pet',
+    stats: stats,
+    currentHP: stats.hp
+  };
+}
+
+/**
+ * Simulate an entire battle and return the log
+ * Returns: { victory: boolean, log: [...], playerFinalHP: number, enemyFinalHP: number }
+ */
+function simulateBattle(playerStats, enemyStats) {
+  var log = [];
+  var playerHP = playerStats.currentHP;
+  var enemyHP = enemyStats.hp;
+  var turn = 0;
+  var maxTurns = 50; // prevent infinite loops
+  
+  // Determine who goes first based on speed
+  var playerFirst = playerStats.stats.speed >= enemyStats.speed;
+  
+  log.push({
+    type: 'start',
+    text: 'Battle begins! ' + playerStats.name + ' vs ' + enemyStats.name + '!',
+    playerHP: playerHP,
+    enemyHP: enemyHP
+  });
+  
+  while (playerHP > 0 && enemyHP > 0 && turn < maxTurns) {
+    turn++;
+    
+    // Player's turn
+    if (playerFirst || turn > 1) {
+      var playerDamage = calculateDamage(playerStats.stats.attack, enemyStats.defense);
+      enemyHP -= playerDamage;
+      
+      log.push({
+        type: 'player_attack',
+        attacker: 'player',
+        damage: playerDamage,
+        text: playerStats.name + ' attacks for ' + playerDamage + ' damage!',
+        playerHP: playerHP,
+        enemyHP: Math.max(0, enemyHP)
+      });
+      
+      if (enemyHP <= 0) break;
+    }
+    
+    // Enemy's turn
+    var enemyDamage = calculateDamage(enemyStats.attack, playerStats.stats.defense);
+    playerHP -= enemyDamage;
+    
+    log.push({
+      type: 'enemy_attack',
+      attacker: 'enemy',
+      damage: enemyDamage,
+      text: enemyStats.name + ' attacks for ' + enemyDamage + ' damage!',
+      playerHP: Math.max(0, playerHP),
+      enemyHP: Math.max(0, enemyHP)
+    });
+    
+    if (playerHP <= 0) break;
+  }
+  
+  var victory = playerHP > 0;
+  
+  log.push({
+    type: 'end',
+    text: victory ? 'Victory! ' + playerStats.name + ' wins!' : 'Defeat! ' + playerStats.name + ' fainted!',
+    playerHP: Math.max(0, playerHP),
+    enemyHP: Math.max(0, enemyHP)
+  });
+  
+  return {
+    victory: victory,
+    log: log,
+    turns: turn,
+    playerFinalHP: Math.max(0, playerHP),
+    enemyFinalHP: Math.max(0, enemyHP)
+  };
+}
+
+/**
+ * Calculate damage with variance
+ */
+function calculateDamage(attack, defense) {
+  var baseDamage = attack - defense;
+  var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+  var damage = Math.max(1, baseDamage + variance);
+  return damage;
+}
+
+/**
+ * Start a battle against an enemy
+ */
+async function startBattle(petId, enemyId) {
+  if (!currentUser) return;
+  
+  // Get player pet stats
+  var playerStats = await calculatePetStats(petId);
+  if (!playerStats) {
+    showToast('Error loading pet stats!');
+    return;
+  }
+  
+  // Get enemy stats
+  var enemyRes = await supabaseClient
+    .from('enemy_pets')
+    .select('*')
+    .eq('id', enemyId)
+    .single();
+  
+  if (enemyRes.error) {
+    showToast('Error loading enemy!');
+    return;
+  }
+  
+  var enemy = enemyRes.data;
+  var enemyStats = {
+    id: enemy.id,
+    name: enemy.name,
+    species: enemy.species,
+    hp: enemy.base_hp,
+    attack: enemy.base_attack,
+    defense: enemy.base_defense,
+    speed: enemy.base_speed,
+    exp_reward: enemy.exp_reward,
+    pp_reward: enemy.pp_reward,
+    sprite_sheet: enemy.sprite_sheet,
+    sprite_frames: enemy.sprite_frames
+  };
+  
+  // Simulate the battle
+  var battleResult = simulateBattle(playerStats, enemyStats);
+  
+  // Show battle UI and play it back
+  showBattleUI(playerStats, enemyStats, battleResult);
+  
+  // Save battle to history
+  await saveBattleHistory(petId, enemyId, battleResult, enemyStats);
+}
+
+/**
+ * Save battle to database
+ */
+async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
+  var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
+  var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
+  
+  // Save to battle_history
+  await supabaseClient
+    .from('battle_history')
+    .insert([{
+      user_id: currentUser.id,
+      pet_id: petId,
+      enemy_id: enemyId,
+      victory: battleResult.victory,
+      turns_taken: battleResult.turns,
+      exp_gained: expGained,
+      pp_gained: ppGained,
+      battle_log: battleResult.log
+    }]);
+  
+  // Update pet stats
+  if (battleResult.victory) {
+    await supabaseClient
+      .from('user_pets')
+      .update({
+        experience: supabaseClient.raw('experience + ' + expGained),
+        total_battles: supabaseClient.raw('total_battles + 1'),
+        battles_won: supabaseClient.raw('battles_won + 1')
+      })
+      .eq('id', petId);
+    
+    // Award PP to player
+    await awardPP(ppGained);
+  } else {
+    await supabaseClient
+      .from('user_pets')
+      .update({
+        total_battles: supabaseClient.raw('total_battles + 1')
+      })
+      .eq('id', petId);
+  }
+}
+
+/**
+ * Show battle UI (will be expanded in Chunk 3)
+ */
+function showBattleUI(playerStats, enemyStats, battleResult) {
+  console.log('=== BATTLE START ===');
+  console.log('Player:', playerStats);
+  console.log('Enemy:', enemyStats);
+  console.log('Result:', battleResult);
+  console.log('Battle Log:');
+  battleResult.log.forEach(function(entry) {
+    console.log('  ' + entry.text + ' (Player: ' + entry.playerHP + ' HP, Enemy: ' + entry.enemyHP + ' HP)');
+  });
+  console.log('=== BATTLE END ===');
+  
+  // TODO: Implement visual battle UI in Chunk 3
+  // For now, just show result
+  setTimeout(function() {
+    if (battleResult.victory) {
+      showToast('Victory! +' + enemyStats.exp_reward + ' EXP, +' + enemyStats.pp_reward + ' PP');
+    } else {
+      showToast('Defeat! Your pet fainted!');
+    }
+  }, 1000);
+}
+
+/**
+ * Get random enemy from zone
+ */
+async function getRandomEnemy(zone, difficultyTier) {
+  var query = supabaseClient
+    .from('enemy_pets')
+    .select('*')
+    .eq('forest_zone', zone || 'wildwood');
+  
+  if (difficultyTier) {
+    query = query.eq('difficulty_tier', difficultyTier);
+  }
+  
+  var res = await query;
+  
+  if (res.error || !res.data || res.data.length === 0) {
+    return null;
+  }
+  
+  // Pick random enemy
+  var randomIndex = Math.floor(Math.random() * res.data.length);
+  return res.data[randomIndex];
+}
