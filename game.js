@@ -1007,8 +1007,8 @@ function makeMyPetCard(pet) {
     var battleStats = makeEl('div', {class:'pet-battle-stats'});
     battleStats.style.cssText = 'display:flex;justify-content:space-around;padding:12px;margin:10px 0;background:rgba(176,106,255,0.1);border:2px solid var(--purple-light);border-radius:12px;';
     
-    // HP with current/max display
-    var currentHP = pet.current_hp || pet.base_hp || 30;
+    // HP with current/max display - FIX: Respect 0 HP!
+    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
     var maxHP = pet.max_hp || pet.base_hp || 30;
     var hpPercent = Math.round((currentHP / maxHP) * 100);
     var hpColor = hpPercent > 50 ? '#5dde7a' : hpPercent > 25 ? '#ffaa00' : '#ff6b6b';
