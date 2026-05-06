@@ -4387,7 +4387,7 @@ function simulateBattle(playerStats, enemyStats) {
     
     // Player's turn
     if (playerFirst || turn > 1) {
-      var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense);
+      var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false);
       enemyHP -= playerDamageResult.damage;
       
       log.push({
@@ -4404,7 +4404,8 @@ function simulateBattle(playerStats, enemyStats) {
     }
     
     // Enemy's turn
-    var enemyDamageResult = calculateDamage(enemyStats.attack, playerStats.stats.defense);
+    var isBossAttack = enemyStats.is_boss || false;
+    var enemyDamageResult = calculateDamage(enemyStats.attack, playerStats.stats.defense, isBossAttack);
     playerHP -= enemyDamageResult.damage;
     
     log.push({
@@ -4441,40 +4442,74 @@ function simulateBattle(playerStats, enemyStats) {
 /**
  * Calculate damage with variance
  */
-function calculateDamage(attack, defense) {
+function calculateDamage(attack, defense, isBossAttack) {
   var baseDamage = attack - defense;
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
   var damage = Math.max(1, baseDamage + variance);
   
   // Flavor text based on variance
   var flavor = '';
-  if (variance === -1) {
-    var lowHitFlavors = [
-      'Barely scratched them!',
-      'A glancing blow!',
-      'Just grazed them!',
-      'Wasn\'t very effective...',
-      'A weak hit!'
-    ];
-    flavor = lowHitFlavors[Math.floor(Math.random() * lowHitFlavors.length)];
-  } else if (variance === 0) {
-    var normalHitFlavors = [
-      'A solid hit!',
-      'Good wallop!',
-      'Nice strike!',
-      'Connected cleanly!',
-      'That hurt!'
-    ];
-    flavor = normalHitFlavors[Math.floor(Math.random() * normalHitFlavors.length)];
-  } else { // variance === +1
-    var critHitFlavors = [
-      'Critical hit!',
-      'A devastating blow!',
-      'Super effective!',
-      'Absolutely crushed them!',
-      'WHAM! Direct hit!'
-    ];
-    flavor = critHitFlavors[Math.floor(Math.random() * critHitFlavors.length)];
+  
+  // Special boss flavor text!
+  if (isBossAttack) {
+    if (variance === -1) {
+      var bosLowFlavors = [
+        'Piper\'s flute makes your head spin...',
+        'The haunting melody disorients you!',
+        'A distant note echoes in your mind...',
+        'The sound barely reaches you...',
+        'A faint whistle brushes past you...'
+      ];
+      flavor = bosLowFlavors[Math.floor(Math.random() * bosLowFlavors.length)];
+    } else if (variance === 0) {
+      var bossNormalFlavors = [
+        'Piper\'s flute makes you feel sick!',
+        'The melody pierces through you!',
+        'Reality wavers to the tune!',
+        'The haunting song grips your mind!',
+        'The flute\'s cry echoes in your bones!'
+      ];
+      flavor = bossNormalFlavors[Math.floor(Math.random() * bossNormalFlavors.length)];
+    } else { // variance === +1
+      var bossCritFlavors = [
+        'Piper\'s flute distorts reality itself!',
+        'The melody SHATTERS your senses!',
+        'Reality BREAKS under the song!',
+        'The flute\'s scream tears through existence!',
+        'The haunting tune OVERWHELMS everything!'
+      ];
+      flavor = bossCritFlavors[Math.floor(Math.random() * bossCritFlavors.length)];
+    }
+  } else {
+    // Normal flavor text
+    if (variance === -1) {
+      var lowHitFlavors = [
+        'Barely scratched them!',
+        'A glancing blow!',
+        'Just grazed them!',
+        'Wasn\'t very effective...',
+        'A weak hit!'
+      ];
+      flavor = lowHitFlavors[Math.floor(Math.random() * lowHitFlavors.length)];
+    } else if (variance === 0) {
+      var normalHitFlavors = [
+        'A solid hit!',
+        'Good wallop!',
+        'Nice strike!',
+        'Connected cleanly!',
+        'That hurt!'
+      ];
+      flavor = normalHitFlavors[Math.floor(Math.random() * normalHitFlavors.length)];
+    } else { // variance === +1
+      var critHitFlavors = [
+        'Critical hit!',
+        'A devastating blow!',
+        'Super effective!',
+        'Absolutely crushed them!',
+        'WHAM! Direct hit!'
+      ];
+      flavor = critHitFlavors[Math.floor(Math.random() * critHitFlavors.length)];
+    }
   }
   
   return { damage: damage, flavor: flavor, variance: variance };
@@ -5045,24 +5080,30 @@ function playBattleTurn() {
     logEntry.classList.add(entry.text.includes('Victory') ? 'victory' : 'defeat');
   }
   logEntry.textContent = entry.text;
-  el('battle-log').appendChild(logEntry);
-  
-  // AGGRESSIVE autoscroll - try multiple methods to ensure it works
   var battleLog = el('battle-log');
-  if (battleLog) {
-    // Method 1: Immediate scroll
+  battleLog.appendChild(logEntry);
+  
+  // SUPER AGGRESSIVE autoscroll - force scroll IMMEDIATELY and repeatedly
+  battleLog.scrollTop = battleLog.scrollHeight;
+  battleLog.scrollTop = 999999; // Force to max
+  
+  // Force again after render
+  setTimeout(function() {
     battleLog.scrollTop = battleLog.scrollHeight;
-    
-    // Method 2: RequestAnimationFrame (after DOM paint)
-    requestAnimationFrame(function() {
-      battleLog.scrollTop = battleLog.scrollHeight;
-      
-      // Method 3: Slight delay to ensure content is rendered
-      setTimeout(function() {
-        battleLog.scrollTop = battleLog.scrollHeight;
-      }, 50);
-    });
-  }
+    battleLog.scrollTop = 999999;
+  }, 0);
+  
+  // And one more time to be absolutely sure
+  setTimeout(function() {
+    battleLog.scrollTop = battleLog.scrollHeight;
+    battleLog.scrollTop = 999999;
+  }, 50);
+  
+  // Use requestAnimationFrame too
+  requestAnimationFrame(function() {
+    battleLog.scrollTop = battleLog.scrollHeight;
+    battleLog.scrollTop = 999999;
+  });
   
   // Update HP bars
   updateHPBar('player', entry.playerHP, currentBattleLog[0].playerHP);
