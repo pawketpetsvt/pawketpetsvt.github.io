@@ -5179,17 +5179,13 @@ function triggerBossEntrance() {
   window.bossThemeAudio.volume = 0.25;  // Ensure volume is set
   window.bossThemeAudio.play();
   
-  // Add screen glitch effect
+  // Add screen glitch effect - STAYS FOR ENTIRE FIGHT!
   var glitchOverlay = document.createElement('div');
   glitchOverlay.className = 'screen-glitch';
   glitchOverlay.id = 'boss-glitch-overlay';
   document.body.appendChild(glitchOverlay);
   
-  // Remove glitch after 3 seconds
-  setTimeout(function() {
-    var overlay = document.getElementById('boss-glitch-overlay');
-    if (overlay) overlay.remove();
-  }, 3000);
+  // DON'T remove the glitch - it stays until battle ends!
   
   // Add boss entrance class to battle screen
   var battleScreen = el('battle-tab');
