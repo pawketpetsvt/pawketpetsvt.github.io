@@ -1281,17 +1281,42 @@ function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappines
 // PET ACTIONS (Feed, Play)
 // ══════════════════════════════════════════════════════════════════════════
 
-function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness) {
+function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness, currentHP, currentAtk, currentDef, currentSpd) {
   var xpNeeded = currentLevel * 100;
   
   if (newXp >= xpNeeded) {
-    // Level up!
+    // Level up! Calculate stat increases
+    var statIncreases = {
+      hp: 3, // Always get +3 HP minimum
+      atk: 0,
+      def: 0,
+      spd: 0
+    };
+    
+    // Pick ONE random stat to increase by +1 (guaranteed)
+    var stats = ['atk', 'def', 'spd'];
+    var primaryStat = stats[Math.floor(Math.random() * stats.length)];
+    statIncreases[primaryStat] = 1;
+    
+    // 40% chance for a second +1 to a DIFFERENT stat
+    if (Math.random() < 0.4) {
+      var remainingStats = stats.filter(function(s) { return s !== primaryStat; });
+      var secondaryStat = remainingStats[Math.floor(Math.random() * remainingStats.length)];
+      statIncreases[secondaryStat] = 1;
+    }
+    
     return {
       xp: newXp - xpNeeded, // Carry over excess XP
       level: currentLevel + 1,
       maxHunger: currentMaxHunger + 5,
       maxEnergy: currentMaxEnergy + 5,
       maxHappiness: currentMaxHappiness + 5,
+      // Combat stat increases
+      base_hp: currentHP + statIncreases.hp,
+      base_attack: currentAtk + statIncreases.atk,
+      base_defense: currentDef + statIncreases.def,
+      base_speed: currentSpd + statIncreases.spd,
+      statIncreases: statIncreases, // Return what increased for display
       leveled: true
     };
   } else {
@@ -1321,9 +1346,28 @@ async function feed(petId) {
   var btn = el('feed-'+petId); btn.disabled=true; btn.textContent='...';
   var nh=Math.min(pet.hunger+20,pet.max_hunger);
   var nhap=Math.min(pet.happiness+5,pet.max_happiness);
-  var lu=calculateLevelUp(pet.xp+10,pet.level,pet.max_hunger,pet.max_energy,pet.max_happiness);
+  var lu=calculateLevelUp(
+    pet.xp+10,
+    pet.level,
+    pet.max_hunger,
+    pet.max_energy,
+    pet.max_happiness,
+    pet.base_hp || 25,
+    pet.base_attack || 4,
+    pet.base_defense || 2,
+    pet.base_speed || 3
+  );
   var upd={hunger:nh,happiness:nhap,xp:lu.xp,level:lu.level,last_fed:new Date().toISOString()};
-  if(lu.leveled){upd.max_hunger=lu.maxHunger;upd.max_energy=lu.maxEnergy;upd.max_happiness=lu.maxHappiness;}
+  if(lu.leveled){
+    upd.max_hunger=lu.maxHunger;
+    upd.max_energy=lu.maxEnergy;
+    upd.max_happiness=lu.maxHappiness;
+    upd.base_hp=lu.base_hp;
+    upd.base_attack=lu.base_attack;
+    upd.base_defense=lu.base_defense;
+    upd.base_speed=lu.base_speed;
+    upd.max_hp=lu.base_hp; // Update max_hp to match new base_hp
+  }
   var res=await supabaseClient.from('user_pets').update(upd).eq('id',petId);
   if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Feed';return;}
   Object.assign(petState[petId],upd);
@@ -1333,8 +1377,18 @@ async function feed(petId) {
   localStorage.setItem(feedKey, 'done');
   
   if(lu.leveled){
-    showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');
+    // Build stat increase message
+    var statMsg = 'Level '+lu.level+'! +5 Max Stats';
+    if (lu.statIncreases.hp) statMsg += ', +' + lu.statIncreases.hp + ' HP';
+    if (lu.statIncreases.atk) statMsg += ', +' + lu.statIncreases.atk + ' ATK';
+    if (lu.statIncreases.def) statMsg += ', +' + lu.statIncreases.def + ' DEF';
+    if (lu.statIncreases.spd) statMsg += ', +' + lu.statIncreases.spd + ' SPD';
+    
+    showFlash(petId, statMsg, '#b06aff');
     updateLvl(petId,lu.level,lu.maxHunger);
+    
+    // Reload the pet card to show new stats
+    tabsLoaded['mypets'] = false;
     
     // Award level badges
     if (lu.level === 5) await awardBadge('level_5');
@@ -1363,9 +1417,28 @@ async function play(petId) {
   var btn=el('play-'+petId); btn.disabled=true; btn.textContent='...';
   var ne=Math.max(pet.energy-10,0);
   var nhap=Math.min(pet.happiness+15,pet.max_happiness);
-  var lu=calculateLevelUp(pet.xp+15,pet.level,pet.max_hunger,pet.max_energy,pet.max_happiness);
+  var lu=calculateLevelUp(
+    pet.xp+15,
+    pet.level,
+    pet.max_hunger,
+    pet.max_energy,
+    pet.max_happiness,
+    pet.base_hp || 25,
+    pet.base_attack || 4,
+    pet.base_defense || 2,
+    pet.base_speed || 3
+  );
   var upd={energy:ne,happiness:nhap,xp:lu.xp,level:lu.level,last_played:new Date().toISOString()};
-  if(lu.leveled){upd.max_hunger=lu.maxHunger;upd.max_energy=lu.maxEnergy;upd.max_happiness=lu.maxHappiness;}
+  if(lu.leveled){
+    upd.max_hunger=lu.maxHunger;
+    upd.max_energy=lu.maxEnergy;
+    upd.max_happiness=lu.maxHappiness;
+    upd.base_hp=lu.base_hp;
+    upd.base_attack=lu.base_attack;
+    upd.base_defense=lu.base_defense;
+    upd.base_speed=lu.base_speed;
+    upd.max_hp=lu.base_hp;
+  }
   var res=await supabaseClient.from('user_pets').update(upd).eq('id',petId);
   if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Play';return;}
   Object.assign(petState[petId],upd);
@@ -1375,8 +1448,18 @@ async function play(petId) {
   localStorage.setItem(playKey, 'done');
   
   if(lu.leveled){
-    showFlash(petId,'Level '+lu.level+'! Max stats +5!','#b06aff');
+    // Build stat increase message
+    var statMsg = 'Level '+lu.level+'! +5 Max Stats';
+    if (lu.statIncreases.hp) statMsg += ', +' + lu.statIncreases.hp + ' HP';
+    if (lu.statIncreases.atk) statMsg += ', +' + lu.statIncreases.atk + ' ATK';
+    if (lu.statIncreases.def) statMsg += ', +' + lu.statIncreases.def + ' DEF';
+    if (lu.statIncreases.spd) statMsg += ', +' + lu.statIncreases.spd + ' SPD';
+    
+    showFlash(petId, statMsg, '#b06aff');
     updateLvl(petId,lu.level,lu.maxHunger);
+    
+    // Reload the pet card to show new stats
+    tabsLoaded['mypets'] = false;
     
     // Award level badges
     if (lu.level === 5) await awardBadge('level_5');
@@ -4067,6 +4150,59 @@ async function startBattle(petId, enemyId) {
     sprite_frames: enemy.sprite_frames
   };
   
+  // Continue with battle logic...
+  await executeBattle(playerStats, enemyStats, petId);
+}
+
+/**
+ * Start battle with pre-generated enemy (for level-scaled enemies)
+ */
+async function startBattleWithEnemy(petId, enemy) {
+  if (!currentUser) return;
+  
+  // Get player pet stats (includes current HP and energy)
+  var playerStats = await calculatePetStats(petId);
+  if (!playerStats) {
+    showToast('Error loading pet stats!');
+    return;
+  }
+  
+  // Check if pet has enough energy (need at least 5)
+  if (playerStats.energy < 5) {
+    showToast('🥱 Your pet is too tired! Feed them to restore energy.');
+    return;
+  }
+  
+  // Check if pet has HP left
+  if (playerStats.currentHP <= 0) {
+    showToast('💔 Your pet is fainted! Use a healing item first!');
+    return;
+  }
+  
+  // Use the pre-scaled enemy stats
+  var enemyStats = {
+    id: enemy.id,
+    name: enemy.name + ' (Lv.' + enemy.level + ')',
+    species: enemy.species,
+    level: enemy.level,
+    hp: enemy.base_hp,
+    attack: enemy.base_attack,
+    defense: enemy.base_defense,
+    speed: enemy.base_speed,
+    exp_reward: Math.floor((enemy.level || 1) * 15), // Scale XP with level
+    pp_reward: Math.floor((enemy.level || 1) * 10), // Scale PP with level
+    sprite_sheet: enemy.sprite_sheet || null,
+    sprite_frames: enemy.sprite_frames || null
+  };
+  
+  // Continue with battle logic...
+  await executeBattle(playerStats, enemyStats, petId);
+}
+
+/**
+ * Common battle execution logic (extracted to avoid duplication)
+ */
+async function executeBattle(playerStats, enemyStats, petId) {
   // Deduct 5 energy from pet BEFORE battle
   // Get fresh energy value from database to be sure
   var freshPet = await supabaseClient
@@ -4112,7 +4248,8 @@ async function startBattle(petId, enemyId) {
   showBattleUI(playerStats, enemyStats, battleResult);
   
   // Save battle to history and get rewards
-  battleRewards = await saveBattleHistory(petId, enemyId, battleResult, enemyStats);
+  // For dynamically scaled enemies, use the base enemy ID
+  battleRewards = await saveBattleHistory(petId, enemyStats.id, battleResult, enemyStats);
 }
 
 /**
@@ -4162,29 +4299,67 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   // Update pet stats AND save current HP
   if (battleResult.victory) {
-    // Get current stats first
+    // Get current stats first to check for level up
     var petData = await supabaseClient
       .from('user_pets')
-      .select('experience, total_battles, battles_won')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, total_battles, battles_won')
       .eq('id', petId)
       .single();
     
     if (petData.data) {
+      var pet = petData.data;
+      var newXp = (pet.xp || 0) + expGained;
+      
+      // Check for level up with combat stat scaling
+      var lu = calculateLevelUp(
+        newXp,
+        pet.level,
+        pet.max_hunger,
+        pet.max_energy,
+        pet.max_happiness,
+        pet.base_hp || 25,
+        pet.base_attack || 4,
+        pet.base_defense || 2,
+        pet.base_speed || 3
+      );
+      
+      var updates = {
+        xp: lu.xp,
+        level: lu.level,
+        total_battles: (pet.total_battles || 0) + 1,
+        battles_won: (pet.battles_won || 0) + 1,
+        current_hp: battleResult.playerFinalHP  // SAVE HP!
+      };
+      
+      // If leveled up, add the stat increases
+      if (lu.leveled) {
+        updates.max_hunger = lu.maxHunger;
+        updates.max_energy = lu.maxEnergy;
+        updates.max_happiness = lu.maxHappiness;
+        updates.base_hp = lu.base_hp;
+        updates.base_attack = lu.base_attack;
+        updates.base_defense = lu.base_defense;
+        updates.base_speed = lu.base_speed;
+        updates.max_hp = lu.base_hp;
+      }
+      
       await supabaseClient
         .from('user_pets')
-        .update({
-          experience: (petData.data.experience || 0) + expGained,
-          total_battles: (petData.data.total_battles || 0) + 1,
-          battles_won: (petData.data.battles_won || 0) + 1,
-          current_hp: battleResult.playerFinalHP  // SAVE HP!
-        })
+        .update(updates)
         .eq('id', petId);
+      
+      // Store level up info for the rewards modal
+      if (lu.leveled) {
+        battleRewards.leveledUp = true;
+        battleRewards.newLevel = lu.level;
+        battleRewards.statIncreases = lu.statIncreases;
+      }
     }
     
     // Award PP to player
     await awardPP(ppGained);
   } else {
-    // Get current stats first
+    // Loss - just update battle count and HP
     var petData = await supabaseClient
       .from('user_pets')
       .select('total_battles')
@@ -4428,6 +4603,25 @@ function showBattleRewardsModal() {
     expText.textContent = '+' + battleRewards.expGained + ' EXP';
     ppText.textContent = '+' + battleRewards.ppGained + ' PP';
     
+    // Check for level up
+    if (battleRewards.leveledUp) {
+      var levelUpText = '⭐ LEVEL UP! Now Level ' + battleRewards.newLevel + '!\n';
+      var stats = battleRewards.statIncreases;
+      if (stats.hp) levelUpText += '+' + stats.hp + ' HP ';
+      if (stats.atk) levelUpText += '+' + stats.atk + ' ATK ';
+      if (stats.def) levelUpText += '+' + stats.def + ' DEF ';
+      if (stats.spd) levelUpText += '+' + stats.spd + ' SPD';
+      
+      expText.textContent = levelUpText;
+      expText.style.color = 'var(--purple)';
+      expText.style.fontWeight = 'bold';
+      expText.style.fontSize = '1.1rem';
+    } else {
+      expText.style.color = '';
+      expText.style.fontWeight = '';
+      expText.style.fontSize = '';
+    }
+    
     if (battleRewards.itemDropped) {
       itemText.textContent = '🎁 Bonus: Found ' + battleRewards.itemDropped.name + '!';
       itemText.style.display = 'block';
@@ -4448,6 +4642,11 @@ function showBattleRewardsModal() {
 function closeBattleRewardsModal() {
   var modal = el('battle-rewards-modal');
   if (modal) modal.classList.remove('show');
+  
+  // If pet leveled up, reload the My Pets tab to show new stats
+  if (battleRewards && battleRewards.leveledUp) {
+    tabsLoaded['mypets'] = false;
+  }
   
   // Reset battle state
   battleRewards = null;
@@ -4554,23 +4753,58 @@ async function findBattle() {
     return;
   }
   
-  // Get random enemy from selected zone
-  var enemy = await getRandomEnemy(selectedBattleZone);
+  // Get player pet level
+  var playerPetRes = await supabaseClient
+    .from('user_pets')
+    .select('level')
+    .eq('id', selectedBattlePetId)
+    .single();
+  
+  if (playerPetRes.error || !playerPetRes.data) {
+    showToast('Error loading your pet!');
+    return;
+  }
+  
+  var playerLevel = playerPetRes.data.level || 1;
+  
+  // Get random enemy from selected zone with level variance
+  var enemy = await getRandomEnemy(selectedBattleZone, playerLevel);
   
   if (!enemy) {
     showToast('No enemies found in this zone!');
     return;
   }
   
-  // Start battle!
-  await startBattle(selectedBattlePetId, enemy.id);
+  // Start battle with the scaled enemy (pass the enemy object directly, not ID)
+  await startBattleWithEnemy(selectedBattlePetId, enemy);
 }
 
 // Load battle pets when tab is opened
 /**
- * Get random enemy from zone
+ * Get random enemy from zone with level scaling
  */
-async function getRandomEnemy(zone) {
+async function getRandomEnemy(zone, playerLevel) {
+  // Determine level range based on zone
+  var minLevel, maxLevel;
+  
+  if (zone === 'outskirts') {
+    // City Outskirts: -1 to +1 of player level (easier, more forgiving)
+    minLevel = Math.max(1, playerLevel - 1);
+    maxLevel = playerLevel + 1;
+  } else if (zone === 'glade') {
+    // Forest Glade: +0 to +2 of player level (harder)
+    minLevel = playerLevel;
+    maxLevel = playerLevel + 2;
+  } else if (zone === 'deepwoods') {
+    // Deep Woods: +1 to +3 of player level (very hard)
+    minLevel = playerLevel + 1;
+    maxLevel = playerLevel + 3;
+  } else {
+    // Default
+    minLevel = playerLevel;
+    maxLevel = playerLevel;
+  }
+  
   var res = await supabaseClient
     .from('enemy_pets')
     .select('*')
@@ -4583,5 +4817,34 @@ async function getRandomEnemy(zone) {
   
   // Pick random enemy
   var randomIndex = Math.floor(Math.random() * res.data.length);
-  return res.data[randomIndex];
+  var baseEnemy = res.data[randomIndex];
+  
+  // Pick random level within range
+  var enemyLevel = minLevel + Math.floor(Math.random() * (maxLevel - minLevel + 1));
+  
+  // Scale stats based on level (base stats + scaling per level)
+  // Each level above 1: +2 HP, +1 ATK, +0.5 DEF (rounded), +0.5 SPD (rounded)
+  var levelBonus = enemyLevel - 1;
+  var scaledEnemy = {
+    id: baseEnemy.id,
+    species: baseEnemy.species,
+    name: baseEnemy.name,
+    level: enemyLevel,
+    base_hp: baseEnemy.base_hp + (levelBonus * 2),
+    base_attack: baseEnemy.base_attack + levelBonus,
+    base_defense: baseEnemy.base_defense + Math.floor(levelBonus * 0.5),
+    base_speed: baseEnemy.base_speed + Math.floor(levelBonus * 0.5),
+    image_file: baseEnemy.image_file,
+    forest_zone: baseEnemy.forest_zone,
+    difficulty_tier: baseEnemy.difficulty_tier
+  };
+  
+  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Stats:', {
+    hp: scaledEnemy.base_hp,
+    atk: scaledEnemy.base_attack,
+    def: scaledEnemy.base_defense,
+    spd: scaledEnemy.base_speed
+  });
+  
+  return scaledEnemy;
 }
