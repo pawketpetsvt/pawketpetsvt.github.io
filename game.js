@@ -4913,3 +4913,60 @@ async function getRandomEnemy(zone, playerLevel) {
   
   return scaledEnemy;
 }
+
+// ========================================
+// MELON MASCOT SPOOKY DIALOGUE SYSTEM
+// ========================================
+
+var melonDialogueTimeout = null;
+
+function initMelonDialogue() {
+  var dialogueEl = document.getElementById('melon-dialogue');
+  if (!dialogueEl) return;
+  
+  // 10% chance for spooky dialogue
+  var isSpooky = Math.random() < 0.1;
+  
+  if (isSpooky) {
+    showSpookyDialogue();
+  } else {
+    showNormalDialogue();
+  }
+}
+
+function showNormalDialogue() {
+  var dialogueEl = document.getElementById('melon-dialogue');
+  if (!dialogueEl) return;
+  
+  dialogueEl.innerHTML = "Welcome to the Shop! I'm Melon! Buy whatever you need!";
+  dialogueEl.style.animation = 'bubble-bounce 0.3s ease-out';
+}
+
+function showSpookyDialogue() {
+  var dialogueEl = document.getElementById('melon-dialogue');
+  if (!dialogueEl) return;
+  
+  // Spooky message with glitchy "Piper"
+  dialogueEl.innerHTML = 'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing';
+  dialogueEl.style.animation = 'bubble-bounce 0.3s ease-out';
+  
+  // Revert back to normal dialogue after 5-6 seconds
+  var revertTime = 5000 + Math.random() * 1000; // 5-6 seconds
+  
+  clearTimeout(melonDialogueTimeout);
+  melonDialogueTimeout = setTimeout(function() {
+    showNormalDialogue();
+  }, revertTime);
+}
+
+// Initialize Melon dialogue when shop tab is shown
+var originalShowTab = showTab;
+showTab = function(tabName) {
+  originalShowTab(tabName);
+  
+  if (tabName === 'shop') {
+    // Small delay to ensure DOM is ready
+    setTimeout(initMelonDialogue, 100);
+  }
+};
+
