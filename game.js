@@ -1227,8 +1227,8 @@ function calculateHungerDecay(currentHunger, lastFedTimestamp) {
   var lastFed = new Date(lastFedTimestamp);
   var hoursPassed = (now - lastFed) / (1000 * 60 * 60);
   
-  // Hunger decreases 10 points per hour
-  var decayRate = 10; // points per hour
+  // Hunger decreases 2.5 points per hour (60 points per day)
+  var decayRate = 2.5; // points per hour
   var decayAmount = Math.floor(decayRate * hoursPassed);
   
   var newHunger = Math.max(currentHunger - decayAmount, 0);
@@ -1251,8 +1251,8 @@ function calculateHappinessDecay(currentHappiness, lastFedTimestamp, lastPlayedT
   var lastTime = new Date(lastInteraction);
   var hoursPassed = (now - lastTime) / (1000 * 60 * 60);
   
-  // Happiness decreases 8 points per hour
-  var decayRate = 8; // points per hour
+  // Happiness decreases 2 points per hour (48 points per day)
+  var decayRate = 2; // points per hour
   var decayAmount = Math.floor(decayRate * hoursPassed);
   
   var newHappiness = Math.max(currentHappiness - decayAmount, 0);
