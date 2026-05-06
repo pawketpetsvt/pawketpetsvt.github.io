@@ -4208,5 +4208,40 @@ body, button, a, input, textarea, select {
 .sparkle-cyan { background: radial-gradient(circle, #00E5FF, #00B8D4); }
 .sparkle-yellow { background: radial-gradient(circle, #FFD700, #FFA500); }
 .sparkle-white { background: radial-gradient(circle, #FFFFFF, #E0E0E0); }
+<!-- Add this to the games-grid in the Minigames section -->
+
+<!-- SLOT MACHINE -->
+<div class="game-card">
+  <div class="game-title">🎰 Slot Machine</div>
+  <div class="game-desc">Bet your PP! Match 2 = get bet back. Match 3 = 4x profit!</div>
+  <span class="game-reward" style="color: var(--orange);">High risk, high reward!</span>
+  
+  <div class="game-area">
+    <!-- Bet selector -->
+    <div class="slot-bet-selector">
+      <label style="font-weight: bold; color: var(--purple);">Choose Your Bet:</label>
+      <div class="bet-buttons">
+        <button class="btn bet-btn" data-bet="10" onclick="selectSlotBet(10)">10 PP</button>
+        <button class="btn bet-btn active" data-bet="50" onclick="selectSlotBet(50)">50 PP</button>
+        <button class="btn bet-btn" data-bet="100" onclick="selectSlotBet(100)">100 PP</button>
+      </div>
+    </div>
+    
+    <!-- Slot machine display -->
+    <div class="slot-machine">
+      <div class="slot-reel" id="slot-reel-1">🍉</div>
+      <div class="slot-reel" id="slot-reel-2">🍉</div>
+      <div class="slot-reel" id="slot-reel-3">🍉</div>
+    </div>
+    
+    <!-- Spin button -->
+    <button class="btn btn-primary btn-lg" id="slot-spin-btn" onclick="spinSlots()">
+      🎰 Spin! (50 PP)
+    </button>
+    
+    <!-- Result message -->
+    <div class="game-result" id="slot-result"></div>
+  </div>
+</div>
 
 
