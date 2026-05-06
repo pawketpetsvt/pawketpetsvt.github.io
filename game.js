@@ -1002,6 +1002,30 @@ function makeMyPetCard(pet) {
     body.appendChild(battleStats);
   }
 
+  // Equipped Items Display (NEW!)
+  var equipSection = makeEl('div', {class:'equipped-items-section'});
+  equipSection.style.cssText = 'margin:10px 0;padding:10px;background:rgba(93,222,122,0.1);border:2px solid #5dde7a;border-radius:12px;';
+  
+  var equipTitle = makeEl('div', {style:'font-weight:bold;color:var(--purple);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;'});
+  equipTitle.innerHTML = '<span>⚔️ Equipment</span>';
+  
+  var manageBtn = makeEl('button', {class:'btn-sm', style:'font-size:0.7rem;padding:4px 8px;'});
+  manageBtn.textContent = 'Manage';
+  manageBtn.onclick = function() { showEquipmentModal(pet.id); };
+  equipTitle.appendChild(manageBtn);
+  
+  equipSection.appendChild(equipTitle);
+  
+  // Show equipped weapon and armor (we'll load this async)
+  var equipDisplay = makeEl('div', {id:'equip-display-'+pet.id, style:'font-size:0.85rem;color:var(--text);'});
+  equipDisplay.innerHTML = '<div style="opacity:0.6;">Loading equipment...</div>';
+  equipSection.appendChild(equipDisplay);
+  
+  body.appendChild(equipSection);
+  
+  // Load equipped items for this pet (async)
+  loadEquippedItems(pet.id);
+
   // Warning if neglected
   if (pet.happiness <= 20 || pet.hunger <= 10) {
     body.appendChild(makeEl('div', {class:'sadness-warning'}, moodEmoji + ' Your pet needs attention!'));
@@ -1067,6 +1091,67 @@ function makeStatRow(stat, petId, val, max, pct, label) {
   row.appendChild(wrap);
   row.appendChild(makeEl('span', {class:'stat-value', id:stat+'-val-'+petId}, val+'/'+max));
   return row;
+}
+
+async function loadEquippedItems(petId) {
+  var display = el('equip-display-' + petId);
+  if (!display) return;
+  
+  // Get equipped items for this pet
+  var equipRes = await supabaseClient
+    .from('player_equipment')
+    .select('equipment(*), equipped_slot')
+    .eq('user_id', currentUser.id)
+    .eq('is_equipped', true);
+  
+  if (equipRes.error || !equipRes.data || equipRes.data.length === 0) {
+    display.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;">No equipment equipped</div>';
+    return;
+  }
+  
+  var weapon = equipRes.data.find(function(e) { return e.equipped_slot === 'weapon'; });
+  var armor = equipRes.data.find(function(e) { return e.equipped_slot === 'armor'; });
+  
+  var html = '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
+  
+  if (weapon && weapon.equipment) {
+    var w = weapon.equipment;
+    var bonuses = [];
+    if (w.attack_bonus) bonuses.push('+' + w.attack_bonus + ' ATK');
+    if (w.defense_bonus) bonuses.push('+' + w.defense_bonus + ' DEF');
+    if (w.speed_bonus) bonuses.push('+' + w.speed_bonus + ' SPD');
+    if (w.hp_bonus) bonuses.push('+' + w.hp_bonus + ' HP');
+    
+    html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.5);border-radius:8px;">';
+    html += '<div style="font-weight:bold;color:#ff6b6b;">⚔️ ' + w.name + '</div>';
+    html += '<div style="font-size:0.75rem;color:var(--text-light);">' + bonuses.join(', ') + '</div>';
+    html += '</div>';
+  } else {
+    html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.3);border-radius:8px;opacity:0.6;">';
+    html += '<div style="font-size:0.8rem;">⚔️ No weapon</div>';
+    html += '</div>';
+  }
+  
+  if (armor && armor.equipment) {
+    var a = armor.equipment;
+    var bonuses = [];
+    if (a.attack_bonus) bonuses.push('+' + a.attack_bonus + ' ATK');
+    if (a.defense_bonus) bonuses.push('+' + a.defense_bonus + ' DEF');
+    if (a.speed_bonus) bonuses.push('+' + a.speed_bonus + ' SPD');
+    if (a.hp_bonus) bonuses.push('+' + a.hp_bonus + ' HP');
+    
+    html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.5);border-radius:8px;">';
+    html += '<div style="font-weight:bold;color:#5dde7a;">🛡️ ' + a.name + '</div>';
+    html += '<div style="font-size:0.75rem;color:var(--text-light);">' + bonuses.join(', ') + '</div>';
+    html += '</div>';
+  } else {
+    html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.3);border-radius:8px;opacity:0.6;">';
+    html += '<div style="font-size:0.8rem;">🛡️ No armor</div>';
+    html += '</div>';
+  }
+  
+  html += '</div>';
+  display.innerHTML = html;
 }
 
 // ══════════════════════════════════════════════════════════════════════════
