@@ -5188,6 +5188,9 @@ async function getBossEnemy(zone, playerLevel) {
 function triggerBossEntrance() {
   console.log('🔥 Triggering boss entrance sequence...');
   
+  // Add UI fragmentation effect to entire page
+  document.body.classList.add('boss-ui-glitch');
+  
   // Stop ALL audio on the page (normal music, any other sounds)
   document.querySelectorAll('audio').forEach(function(audio) {
     audio.pause();
@@ -5235,6 +5238,9 @@ function clearBossEffects() {
   if (battleScreen) {
     battleScreen.classList.remove('boss-entrance', 'boss-battle-bg');
   }
+  
+  // Remove UI fragmentation effect
+  document.body.classList.remove('boss-ui-glitch');
   
   var indicator = document.getElementById('boss-indicator');
   if (indicator) indicator.remove();
