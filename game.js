@@ -608,10 +608,29 @@ async function loadMyPets() {
     container.innerHTML='<div class="empty-state"><div style="font-size:3rem;margin-bottom:14px;">&#128062;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No pets yet!</h2><p style="color:var(--text-light);margin-bottom:18px;">Head to the adoption centre!</p><button class="btn btn-primary btn-lg" onclick="showTab(\'adopt\')">Adopt a Pet</button></div>';
     return;
   }
-  res.data.forEach(function(pet) {
+  // Process pets sequentially to ensure database updates complete
+  for (var i = 0; i < res.data.length; i++) {
+    var pet = res.data[i];
+    
+    console.log('=== PET DECAY DEBUG ===');
+    console.log('Pet:', pet.nickname || pet.id);
+    console.log('Original stats:', {
+      hunger: pet.hunger,
+      happiness: pet.happiness,
+      energy: pet.energy,
+      last_fed: pet.last_fed,
+      last_played: pet.last_played
+    });
+    
     var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
     var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
     var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
+    
+    console.log('After decay:', {
+      energy: decayedEnergy,
+      hunger: decayedHunger,
+      happiness: decayedHappiness
+    });
     
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
@@ -620,7 +639,7 @@ async function loadMyPets() {
     });
     
     // Save decayed stats back to database so they persist
-    supabaseClient
+    var updateRes = await supabaseClient
       .from('user_pets')
       .update({
         energy: decayedEnergy,
@@ -628,7 +647,10 @@ async function loadMyPets() {
         happiness: decayedHappiness
       })
       .eq('id', pet.id);
-  });
+    
+    console.log('Database update result:', updateRes);
+    console.log('=== END DECAY DEBUG ===');
+  }
   var grid = document.createElement('div');
   grid.className = 'mypets-grid';
   Object.values(petState).forEach(function(pet) { grid.appendChild(makeMyPetCard(pet)); });
