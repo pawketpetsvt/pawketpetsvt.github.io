@@ -4939,16 +4939,26 @@ function showNormalDialogue() {
   if (!dialogueEl) return;
   
   dialogueEl.innerHTML = "Welcome to the Shop! I'm Melon! Buy whatever you need!";
-  dialogueEl.style.animation = 'bubble-bounce 0.3s ease-out';
+  dialogueEl.style.animation = 'bubble-float 3s ease-in-out infinite';
 }
 
 function showSpookyDialogue() {
   var dialogueEl = document.getElementById('melon-dialogue');
   if (!dialogueEl) return;
   
+  // TRIGGER PAGE GLITCH EFFECT!
+  var shopSection = document.getElementById('section-shop');
+  if (shopSection) {
+    shopSection.classList.add('page-glitch');
+    // Remove glitch class after animation completes
+    setTimeout(function() {
+      shopSection.classList.remove('page-glitch');
+    }, 800);
+  }
+  
   // Spooky message with glitchy "Piper"
   dialogueEl.innerHTML = 'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing';
-  dialogueEl.style.animation = 'bubble-bounce 0.3s ease-out';
+  dialogueEl.style.animation = 'bubble-float 3s ease-in-out infinite';
   
   // Revert back to normal dialogue after 5-6 seconds
   var revertTime = 5000 + Math.random() * 1000; // 5-6 seconds
