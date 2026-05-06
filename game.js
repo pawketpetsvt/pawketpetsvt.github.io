@@ -5083,27 +5083,23 @@ function playBattleTurn() {
   var battleLog = el('battle-log');
   battleLog.appendChild(logEntry);
   
-  // SUPER AGGRESSIVE autoscroll - force scroll IMMEDIATELY and repeatedly
-  battleLog.scrollTop = battleLog.scrollHeight;
-  battleLog.scrollTop = 999999; // Force to max
+  // COMPLETELY NEW APPROACH - Use scrollIntoView which forces the element into view
+  // This is MORE RELIABLE than scrollTop in many browsers
+  try {
+    logEntry.scrollIntoView({ behavior: 'instant', block: 'end', inline: 'nearest' });
+  } catch (e) {
+    // Fallback for older browsers
+    battleLog.scrollTop = battleLog.scrollHeight;
+  }
   
-  // Force again after render
+  // Double-check with a slight delay
   setTimeout(function() {
-    battleLog.scrollTop = battleLog.scrollHeight;
-    battleLog.scrollTop = 999999;
-  }, 0);
-  
-  // And one more time to be absolutely sure
-  setTimeout(function() {
-    battleLog.scrollTop = battleLog.scrollHeight;
-    battleLog.scrollTop = 999999;
-  }, 50);
-  
-  // Use requestAnimationFrame too
-  requestAnimationFrame(function() {
-    battleLog.scrollTop = battleLog.scrollHeight;
-    battleLog.scrollTop = 999999;
-  });
+    try {
+      logEntry.scrollIntoView({ behavior: 'instant', block: 'end', inline: 'nearest' });
+    } catch (e) {
+      battleLog.scrollTop = battleLog.scrollHeight;
+    }
+  }, 10);
   
   // Update HP bars
   updateHPBar('player', entry.playerHP, currentBattleLog[0].playerHP);
@@ -5113,10 +5109,16 @@ function playBattleTurn() {
   if (entry.type === 'player_attack') {
     animateHit('enemy');
     
-    // Play player attack sound
+    // Play player attack sound with volume based on variance
     if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('player', entry.variance);
-      playBattleSound(soundKey, 0.35);
+      var playerVolume = 0.35; // Default for light/normal
+      
+      if (entry.variance === 1) { // Crit - MUCH quieter!
+        playerVolume = 0.18; // 50% of default (was 0.35)
+      }
+      
+      playBattleSound(soundKey, playerVolume);
     }
   } else if (entry.type === 'enemy_attack') {
     animateHit('player');
