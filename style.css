@@ -4171,5 +4171,42 @@ body::after {
     transform: translateY(-5px);
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   CURSOR UPGRADES - Bigger Paw + Glitter Trail
+   ═══════════════════════════════════════════════════════════════════════ */
+ 
+/* Bigger paw cursor (32x32 instead of default 16x16) */
+body, button, a, input, textarea, select {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="20" r="8" fill="%23FF69B4"/><circle cx="10" cy="12" r="4" fill="%23FF69B4"/><circle cx="22" cy="12" r="4" fill="%23FF69B4"/><circle cx="8" cy="18" r="3" fill="%23FF69B4"/><circle cx="24" cy="18" r="3" fill="%23FF69B4"/></svg>'), auto;
+}
+ 
+/* Sparkle trail particles */
+.cursor-sparkle {
+  position: fixed;
+  pointer-events: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  z-index: 9999;
+  animation: sparkle-fade 0.8s ease-out forwards;
+}
+ 
+@keyframes sparkle-fade {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0);
+  }
+}
+ 
+/* Different sparkle colors */
+.sparkle-pink { background: radial-gradient(circle, #FF69B4, #FF1493); }
+.sparkle-purple { background: radial-gradient(circle, #B06AFF, #8B3FFF); }
+.sparkle-cyan { background: radial-gradient(circle, #00E5FF, #00B8D4); }
+.sparkle-yellow { background: radial-gradient(circle, #FFD700, #FFA500); }
+.sparkle-white { background: radial-gradient(circle, #FFFFFF, #E0E0E0); }
 
 
