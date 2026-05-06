@@ -4429,12 +4429,20 @@ async function executeBattle(playerStats, enemyStats, petId) {
   // Save battle to history and get rewards
   // For dynamically scaled enemies, use the base enemy ID
   battleRewards = await saveBattleHistory(petId, enemyStats.id, battleResult, enemyStats);
+  
+  // CRITICAL: Force reload pet data AFTER HP is saved
+  console.log('🔄 Forcing pet data reload after battle...');
+  await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure DB write completes
+  tabsLoaded['mypets'] = false;
+  tabsLoaded['battle'] = false;
 }
 
 /**
  * Save battle to database
  */
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
+  console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
+  
   var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
   var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
   var itemDropped = null;
@@ -4549,6 +4557,8 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     await awardPP(ppGained);
   } else {
     // Loss - just update battle count and HP
+    console.log('🔴 DEFEAT - Saving HP:', battleResult.playerFinalHP);
+    
     var petData = await supabaseClient
       .from('user_pets')
       .select('total_battles')
@@ -4556,13 +4566,15 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       .single();
     
     if (petData.data) {
-      await supabaseClient
+      var updateResult = await supabaseClient
         .from('user_pets')
         .update({
           total_battles: (petData.data.total_battles || 0) + 1,
           current_hp: battleResult.playerFinalHP  // SAVE HP even on loss!
         })
         .eq('id', petId);
+      
+      console.log('💾 HP Update Result:', updateResult.error || 'Success!', 'New HP:', battleResult.playerFinalHP);
     }
   }
   
@@ -5037,7 +5049,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -5173,10 +5185,10 @@ function triggerBossEntrance() {
   if (!window.bossThemeAudio) {
     window.bossThemeAudio = new Audio('/boss-theme.mp3');
     window.bossThemeAudio.loop = true;
-    window.bossThemeAudio.volume = 0.25;  // REDUCED from 0.7 to 0.25 (60% quieter)
+    window.bossThemeAudio.volume = 0.20;  // REDUCED AGAIN from 0.25 to 0.20 (another 20% quieter)
   }
   window.bossThemeAudio.currentTime = 0;  // Restart from beginning
-  window.bossThemeAudio.volume = 0.25;  // Ensure volume is set
+  window.bossThemeAudio.volume = 0.20;  // Ensure volume is set
   window.bossThemeAudio.play();
   
   // Add screen glitch effect - STAYS FOR ENTIRE FIGHT!
