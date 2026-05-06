@@ -3721,6 +3721,10 @@ async function showEquipmentModal(petId) {
   
   modal.appendChild(modalContent);
   document.body.appendChild(modal);
+  } catch (error) {
+    console.error('Error in showEquipmentModal:', error);
+    showToast('Error opening equipment manager!');
+  }
 }
 
 async function equipItem(playerEquipmentId, equipmentType) {
