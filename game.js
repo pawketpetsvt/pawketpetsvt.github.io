@@ -782,8 +782,11 @@ async function useItem(petId) {
       return;
     }
     
-    var currentHP = petRes.data.current_hp || petRes.data.base_hp || 30;
+    // FIX: Respect 0 HP! Don't use base_hp as fallback for 0
+    var currentHP = (petRes.data.current_hp !== null && petRes.data.current_hp !== undefined) ? petRes.data.current_hp : (petRes.data.base_hp || 30);
     var maxHP = petRes.data.max_hp || petRes.data.base_hp || 30;
+    
+    console.log('🩹 Healing - Current HP:', currentHP, 'Max HP:', maxHP, 'Heal amount:', healValue);
     
     // Check if already at full HP
     if (currentHP >= maxHP) {
