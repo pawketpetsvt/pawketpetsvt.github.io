@@ -3604,8 +3604,12 @@ async function showEquipmentModal(petId) {
       return;
     }
   
+  console.log('Creating modal...');
+  
   // Create modal (simplified for now - will expand later)
   var modal = makeEl('div', { class: 'modal-overlay' });
+  console.log('Modal overlay created:', modal);
+  
   modal.onclick = function() { document.body.removeChild(modal); };
   
   var modalContent = makeEl('div', { class: 'modal' });
@@ -3614,6 +3618,8 @@ async function showEquipmentModal(petId) {
   var title = makeEl('h2');
   title.textContent = 'Manage Equipment';
   modalContent.appendChild(title);
+  
+  console.log('Modal content created');
   
   // Equipment slots display
   var slotsDiv = makeEl('div', { class: 'equipment-slots' });
@@ -3719,8 +3725,10 @@ async function showEquipmentModal(petId) {
   closeBtn.onclick = function() { document.body.removeChild(modal); };
   modalContent.appendChild(closeBtn);
   
+  console.log('About to append modal to body...');
   modal.appendChild(modalContent);
   document.body.appendChild(modal);
+  console.log('Modal appended! Should be visible now.');
   } catch (error) {
     console.error('Error in showEquipmentModal:', error);
     showToast('Error opening equipment manager!');
