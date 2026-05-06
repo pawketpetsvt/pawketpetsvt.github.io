@@ -4091,3 +4091,156 @@ body::after {
 #section-shop:not(.active) .shop-mascot {
   display: none;
 }
+/* ===========================================
+   MELON PROMO SECTION - Home Page
+   =========================================== */
+
+.melon-promo {
+  margin: 40px 0;
+  padding: 40px;
+  background: linear-gradient(135deg, #fff5e6 0%, #ffe8f5 100%);
+  border-radius: 24px;
+  border: 4px solid var(--purple);
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.melon-promo:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 32px rgba(138, 43, 226, 0.3);
+}
+
+.melon-promo-text {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1.4;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Each word gets a different color! */
+.melon-word {
+  display: inline-block;
+  margin: 0 8px;
+  animation: word-bounce 2s ease-in-out infinite;
+}
+
+.melon-word-1 {
+  color: #ff6b9d;
+  animation-delay: 0s;
+}
+
+.melon-word-2 {
+  color: #c44569;
+  animation-delay: 0.1s;
+}
+
+.melon-word-3 {
+  color: #ffa502;
+  animation-delay: 0.2s;
+}
+
+.melon-word-4 {
+  color: #26de81;
+  animation-delay: 0.3s;
+}
+
+.melon-word-5 {
+  color: #20bf6b;
+  animation-delay: 0.4s;
+}
+
+.melon-word-6 {
+  color: #4b7bec;
+  animation-delay: 0.5s;
+}
+
+@keyframes word-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.melon-promo-image {
+  text-align: center;
+  padding: 20px;
+  cursor: pointer;
+}
+
+.melon-promo-image img {
+  max-width: 300px;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.2));
+  transition: transform 0.3s ease;
+}
+
+.melon-promo:hover .melon-promo-image img {
+  transform: scale(1.05) rotate(-2deg);
+}
+
+/* Decorative sparkles around the promo */
+.melon-promo::before {
+  content: '✨';
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  font-size: 2rem;
+  animation: sparkle-float 3s ease-in-out infinite;
+}
+
+.melon-promo::after {
+  content: '🍉';
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  font-size: 2rem;
+  animation: sparkle-float 3s ease-in-out infinite;
+  animation-delay: 1.5s;
+}
+
+@keyframes sparkle-float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0.7;
+  }
+  50% {
+    transform: translateY(-10px) rotate(10deg);
+    opacity: 1;
+  }
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .melon-promo {
+    padding: 24px;
+  }
+  
+  .melon-promo-text {
+    font-size: 1.5rem;
+  }
+  
+  .melon-word {
+    margin: 0 4px;
+  }
+  
+  .melon-promo-image img {
+    max-width: 200px;
+  }
+}
+
+@media (max-width: 480px) {
+  .melon-promo-text {
+    font-size: 1.2rem;
+  }
+  
+  .melon-promo-image img {
+    max-width: 150px;
+  }
+}
