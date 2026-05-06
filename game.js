@@ -5036,9 +5036,10 @@ async function findBattle() {
 async function getRandomEnemy(zone, playerLevel) {
   // ═══════════════════════════════════════════════════════════════════════
   // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
+  // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles)
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -5113,12 +5114,21 @@ async function getRandomEnemy(zone, playerLevel) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function getBossEnemy(zone, playerLevel) {
+  // Convert zone shorthand to full name for database lookup
+  var zoneNameMap = {
+    'outskirts': 'City Outskirts',
+    'glade': 'Forest Glade',
+    'deepwoods': 'Deep Woods'
+  };
+  
+  var fullZoneName = zoneNameMap[zone] || zone;
+  
   // Fetch the boss from database
   var res = await supabaseClient
-    .from('enemy_pets')  // FIXED: was 'enemies', should be 'enemy_pets'
+    .from('enemy_pets')
     .select('*')
     .eq('is_boss', true)
-    .eq('forest_zone', zone)
+    .eq('forest_zone', fullZoneName)
     .single();
   
   if (res.error || !res.data) {
@@ -5308,182 +5318,4 @@ if (document.readyState === 'loading') {
 } else {
   setupMelonDialogueWatcher();
 }
-// ═══════════════════════════════════════════════════════════════════════
-// SLOT MACHINE GAME
-// ═══════════════════════════════════════════════════════════════════════
-
-var currentSlotBet = 50; // Default bet
-var slotSymbols = ['🍉', '🎰', '🐾', '⭐', '💎']; // 5 symbols
-var isSpinning = false;
-
-function selectSlotBet(amount) {
-  if (isSpinning) return;
-  
-  currentSlotBet = amount;
-  
-  // Update button states
-  document.querySelectorAll('.bet-btn').forEach(function(btn) {
-    btn.classList.remove('active');
-    if (parseInt(btn.dataset.bet) === amount) {
-      btn.classList.add('active');
-    }
-  });
-  
-  // Update spin button text
-  el('slot-spin-btn').textContent = '🎰 Spin! (' + amount + ' PP)';
-}
-
-async function spinSlots() {
-  if (isSpinning || !currentUser) return;
-  
-  // Check if player has enough PP
-  if (currentPoints < currentSlotBet) {
-    el('slot-result').innerHTML = '<span style="color: var(--red);">❌ Not enough PawketPoints!</span>';
-    return;
-  }
-  
-  isSpinning = true;
-  var btn = el('slot-spin-btn');
-  btn.disabled = true;
-  btn.textContent = 'Spinning...';
-  el('slot-result').textContent = '';
-  
-  // Deduct bet immediately
-  var newPoints = currentPoints - currentSlotBet;
-  await supabaseClient
-    .from('players')
-    .update({ pawketpoints: newPoints })
-    .eq('id', currentUser.id);
-  updateAllPoints(newPoints);
-  
-  // Animate reels
-  var reel1 = el('slot-reel-1');
-  var reel2 = el('slot-reel-2');
-  var reel3 = el('slot-reel-3');
-  
-  reel1.classList.add('spinning');
-  reel2.classList.add('spinning');
-  reel3.classList.add('spinning');
-  
-  // Randomly cycle symbols during spin
-  var spinDuration = 2000; // 2 seconds
-  var spinInterval = 100;
-  var elapsed = 0;
-  
-  var spinTimer = setInterval(function() {
-    reel1.textContent = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-    reel2.textContent = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-    reel3.textContent = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-    
-    elapsed += spinInterval;
-    if (elapsed >= spinDuration) {
-      clearInterval(spinTimer);
-      stopReels();
-    }
-  }, spinInterval);
-}
-
-async function stopReels() {
-  // Determine final symbols
-  var result1 = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-  var result2 = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-  var result3 = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-  
-  // Weighted odds:
-  // - 3 matches: ~10% chance (jackpot)
-  // - 2 matches: ~30% chance (break even)
-  // - 0 matches: ~60% chance (lose)
-  var rand = Math.random();
-  if (rand < 0.1) {
-    // Force 3 match (jackpot)
-    result1 = result2 = result3 = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-  } else if (rand < 0.4) {
-    // Force 2 match (break even)
-    result1 = result2 = slotSymbols[Math.floor(Math.random() * slotSymbols.length)];
-  }
-  
-  // Stop reels with slight delay for dramatic effect
-  setTimeout(function() {
-    el('slot-reel-1').textContent = result1;
-    el('slot-reel-1').classList.remove('spinning');
-  }, 200);
-  
-  setTimeout(function() {
-    el('slot-reel-2').textContent = result2;
-    el('slot-reel-2').classList.remove('spinning');
-  }, 400);
-  
-  setTimeout(function() {
-    el('slot-reel-3').textContent = result3;
-    el('slot-reel-3').classList.remove('spinning');
-    calculateSlotWin(result1, result2, result3);
-  }, 600);
-}
-
-async function calculateSlotWin(r1, r2, r3) {
-  var resultEl = el('slot-result');
-  var winAmount = 0;
-  var message = '';
-  
-  // Check for matches
-  if (r1 === r2 && r2 === r3) {
-    // 3 MATCH - JACKPOT!
-    winAmount = currentSlotBet * 4; // 4x bet (300% profit)
-    message = '<span style="color: var(--green); font-size: 1.3rem; font-weight: bold;">🎉 JACKPOT! 3 MATCH! 🎉<br>Won ' + winAmount + ' PP!</span>';
-    
-    // Win animation
-    el('slot-reel-1').classList.add('win');
-    el('slot-reel-2').classList.add('win');
-    el('slot-reel-3').classList.add('win');
-    
-  } else if (r1 === r2 || r2 === r3 || r1 === r3) {
-    // 2 MATCH - Break even
-    winAmount = currentSlotBet;
-    message = '<span style="color: var(--orange); font-weight: bold;">✨ 2 Match! Got your bet back! (' + winAmount + ' PP)</span>';
-    
-    // Highlight matching reels
-    if (r1 === r2) {
-      el('slot-reel-1').classList.add('win');
-      el('slot-reel-2').classList.add('win');
-    } else if (r2 === r3) {
-      el('slot-reel-2').classList.add('win');
-      el('slot-reel-3').classList.add('win');
-    } else {
-      el('slot-reel-1').classList.add('win');
-      el('slot-reel-3').classList.add('win');
-    }
-    
-  } else {
-    // NO MATCH - Lose
-    winAmount = 0;
-    message = '<span style="color: var(--red);">💔 No match... Lost ' + currentSlotBet + ' PP</span>';
-  }
-  
-  // Award winnings if any
-  if (winAmount > 0) {
-    var newPoints = currentPoints + winAmount;
-    await supabaseClient
-      .from('players')
-      .update({ pawketpoints: newPoints })
-      .eq('id', currentUser.id);
-    updateAllPoints(newPoints);
-    showToast('Won ' + winAmount + ' PP!');
-  }
-  
-  resultEl.innerHTML = message;
-  
-  // Reset button
-  setTimeout(function() {
-    el('slot-spin-btn').disabled = false;
-    el('slot-spin-btn').textContent = '🎰 Spin! (' + currentSlotBet + ' PP)';
-    isSpinning = false;
-    
-    // Clear win animations
-    document.querySelectorAll('.slot-reel').forEach(function(reel) {
-      reel.classList.remove('win');
-    });
-  }, 3000);
-}
-
-console.log('🎰 Slot machine loaded!');
 
