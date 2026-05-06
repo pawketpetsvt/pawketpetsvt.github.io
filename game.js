@@ -3038,7 +3038,7 @@ async function loadProfile(username) {
       // Fallback if RPC doesn't exist
       var playerRes = await supabaseClient
         .from('players')
-        .select('id, username, pawketpoints, created_at')
+        .select('id, username, pawketpoints, created_at, bio')
         .ilike('username', username)
         .single();
       
@@ -3065,6 +3065,7 @@ async function loadProfile(username) {
         username: player.username,
         pawketpoints: player.pawketpoints,
         created_at: player.created_at,
+        bio: player.bio,
         total_pets: totalPets,
         total_levels: totalLevels,
         highest_level: highestLevel
@@ -3091,6 +3092,7 @@ async function loadProfile(username) {
     // Update UI
     el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
     el('profile-username').textContent = profile.username;
+    el('profile-bio').textContent = profile.bio || 'No bio yet';
     
     var joinDate = new Date(profile.created_at);
     el('profile-joined').textContent = 'Joined: ' + joinDate.toLocaleDateString('en-US', { 
@@ -3217,6 +3219,7 @@ async function loadMyProfile() {
     var username = player.username || 'User';
     el('myprofile-avatar-preview').textContent = username.charAt(0).toUpperCase();
     el('myprofile-username-preview').textContent = username;
+    el('myprofile-bio-preview').textContent = player.bio || 'No bio yet';
     
     var joinDate = new Date(player.created_at).toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -3400,6 +3403,7 @@ async function saveProfile() {
     // Update preview
     el('myprofile-username-preview').textContent = newUsername;
     el('myprofile-avatar-preview').textContent = newUsername.charAt(0).toUpperCase();
+    el('myprofile-bio-preview').textContent = newBio || 'No bio yet';
     
     // Update header
     el('nav-user').textContent = newUsername;
