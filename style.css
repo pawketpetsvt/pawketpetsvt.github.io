@@ -4805,14 +4805,14 @@ body.boss-ui-glitch header {
     opacity: 0;
     transform: scale(0.8);
   }
-  10% {
+  8% {
     opacity: 1;
     transform: scale(1.1);
   }
-  15% {
+  12% {
     transform: scale(1);
   }
-  80% {
+  85% {
     opacity: 1;
   }
   100% {
