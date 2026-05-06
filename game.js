@@ -579,12 +579,24 @@ async function loadInventoryData() {
   var invRes = await supabaseClient.from('user_inventory').select('id,item_id,quantity').eq('user_id',currentUser.id).gt('quantity',0);
   if (invRes.error || !invRes.data || !invRes.data.length) return;
   var itemIds = invRes.data.map(function(r){ return r.item_id; });
-  var itemsRes = await supabaseClient.from('items').select('id,name,hunger_effect,energy_effect,happiness_effect,xp_effect').in('id',itemIds);
+  var itemsRes = await supabaseClient.from('items').select('id,name,effect,value,effect_value,hunger_effect,energy_effect,happiness_effect,xp_effect').in('id',itemIds);
   var itemMap = {};
   if (itemsRes.data) itemsRes.data.forEach(function(i){ itemMap[i.id]=i; });
   invRes.data.forEach(function(row) {
     var item = itemMap[row.item_id] || {};
-    inventoryItems.push({invId:row.id, itemId:row.item_id, name:item.name||'Item', qty:row.quantity, h:item.hunger_effect||0, e:item.energy_effect||0, hap:item.happiness_effect||0, xp:item.xp_effect||0});
+    inventoryItems.push({
+      invId: row.id, 
+      itemId: row.item_id, 
+      name: item.name || 'Item', 
+      qty: row.quantity, 
+      effect: item.effect,
+      value: item.value,
+      effect_value: item.effect_value,
+      h: item.hunger_effect || 0, 
+      e: item.energy_effect || 0, 
+      hap: item.happiness_effect || 0, 
+      xp: item.xp_effect || 0
+    });
   });
 }
 
