@@ -4960,13 +4960,34 @@ function showSpookyDialogue() {
 }
 
 // Initialize Melon dialogue when shop tab is shown
-var originalShowTab = showTab;
-showTab = function(tabName) {
-  originalShowTab(tabName);
+// Use MutationObserver to detect when shop section becomes active
+function setupMelonDialogueWatcher() {
+  var shopSection = document.getElementById('section-shop');
+  if (!shopSection) return;
   
-  if (tabName === 'shop') {
-    // Small delay to ensure DOM is ready
+  // Check if shop is already active on load
+  if (shopSection.classList.contains('active')) {
     setTimeout(initMelonDialogue, 100);
   }
-};
+  
+  // Watch for class changes to detect when shop becomes active
+  var observer = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+        if (shopSection.classList.contains('active')) {
+          setTimeout(initMelonDialogue, 100);
+        }
+      }
+    });
+  });
+  
+  observer.observe(shopSection, { attributes: true });
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupMelonDialogueWatcher);
+} else {
+  setupMelonDialogueWatcher();
+}
 
