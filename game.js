@@ -4125,8 +4125,15 @@ async function calculatePetStats(petId) {
       .eq('id', petId);
   }
   
-  // Use current_hp if available, otherwise use maxHP
-  var currentHP = pet.current_hp || maxHP;
+  // Use current_hp if available (even if 0!), otherwise use maxHP for new pets
+  var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : maxHP;
+  
+  console.log('📊 Pet HP loaded:', {
+    petId: petId,
+    current_hp_from_db: pet.current_hp,
+    maxHP: maxHP,
+    currentHP_calculated: currentHP
+  });
   
   // Make sure current_hp doesn't exceed max_hp
   if (currentHP > maxHP) {
@@ -4314,12 +4321,16 @@ async function startBattle(petId, enemyId) {
 async function startBattleWithEnemy(petId, enemy) {
   if (!currentUser) return;
   
+  console.log('⚔️ BATTLE START - Pet ID:', petId, 'Enemy:', enemy.name);
+  
   // Get player pet stats (includes current HP and energy)
   var playerStats = await calculatePetStats(petId);
   if (!playerStats) {
     showToast('Error loading pet stats!');
     return;
   }
+  
+  console.log('👤 Player HP at battle start:', playerStats.currentHP);
   
   // Check if pet has enough energy (need at least 5)
   if (playerStats.energy < 5) {
@@ -4423,13 +4434,23 @@ async function executeBattle(playerStats, enemyStats, petId) {
   // Simulate the battle
   var battleResult = simulateBattle(playerStats, enemyStats);
   
+  console.log('🎲 BATTLE RESULT:', {
+    victory: battleResult.victory,
+    playerFinalHP: battleResult.playerFinalHP,
+    enemyFinalHP: battleResult.enemyFinalHP,
+    turns: battleResult.turns
+  });
+  
   // Show battle UI and play it back
   isBossBattle = enemyStats.is_boss || false;  // Track if this is a boss battle
   showBattleUI(playerStats, enemyStats, battleResult);
   
   // Save battle to history and get rewards
   // For dynamically scaled enemies, use the base enemy ID
+  console.log('💾 About to save battle - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   battleRewards = await saveBattleHistory(petId, enemyStats.id, battleResult, enemyStats);
+  
+  console.log('✅ saveBattleHistory completed. Rewards:', battleRewards);
   
   // CRITICAL: Force reload pet data AFTER HP is saved
   console.log('🔄 Forcing pet data reload after battle...');
@@ -5106,7 +5127,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -5309,9 +5330,13 @@ function spawnWarningText() {
   warning.className = 'boss-warning-text';
   warning.textContent = 'YOU SHOULDN\'T BE HERE';
   
-  // Random position (avoiding edges)
-  var x = Math.random() * (window.innerWidth - 400) + 50;
-  var y = Math.random() * (window.innerHeight - 200) + 50;
+  // Calculate safe bounds to keep text fully visible (20% smaller font = ~600px width)
+  var maxX = window.innerWidth - 650;  // Leave room for text width
+  var maxY = window.innerHeight - 150; // Leave room for text height
+  
+  // Random position within safe bounds
+  var x = Math.max(50, Math.random() * maxX);
+  var y = Math.max(50, Math.random() * maxY);
   
   warning.style.left = x + 'px';
   warning.style.top = y + 'px';
@@ -5321,10 +5346,10 @@ function spawnWarningText() {
   
   document.body.appendChild(warning);
   
-  // Remove after fade completes (4 seconds)
+  // Remove after fade completes (4 seconds) - FIXED BUG!
   setTimeout(function() {
-    if (warning.parentNode) {
-      warning.parentNode.remove(warning);
+    if (warning && warning.parentNode) {
+      warning.remove();  // CORRECT method!
     }
   }, 4000);
 }
