@@ -620,49 +620,18 @@ async function loadMyPets() {
     container.innerHTML='<div class="empty-state"><div style="font-size:3rem;margin-bottom:14px;">&#128062;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No pets yet!</h2><p style="color:var(--text-light);margin-bottom:18px;">Head to the adoption centre!</p><button class="btn btn-primary btn-lg" onclick="showTab(\'adopt\')">Adopt a Pet</button></div>';
     return;
   }
-  // Process pets sequentially to ensure database updates complete
-  for (var i = 0; i < res.data.length; i++) {
-    var pet = res.data[i];
-    
-    console.log('=== PET DECAY DEBUG ===');
-    console.log('Pet:', pet.nickname || pet.id);
-    console.log('Original stats:', {
-      hunger: pet.hunger,
-      happiness: pet.happiness,
-      energy: pet.energy,
-      last_fed: pet.last_fed,
-      last_played: pet.last_played
-    });
-    
+  // Process pets and calculate decay for DISPLAY ONLY (don't save back to DB!)
+  res.data.forEach(function(pet) {
     var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
     var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
     var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
-    
-    console.log('After decay:', {
-      energy: decayedEnergy,
-      hunger: decayedHunger,
-      happiness: decayedHappiness
-    });
     
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
       hunger: decayedHunger,
       happiness: decayedHappiness
     });
-    
-    // Save decayed stats back to database so they persist
-    var updateRes = await supabaseClient
-      .from('user_pets')
-      .update({
-        energy: decayedEnergy,
-        hunger: decayedHunger,
-        happiness: decayedHappiness
-      })
-      .eq('id', pet.id);
-    
-    console.log('Database update result:', updateRes);
-    console.log('=== END DECAY DEBUG ===');
-  }
+  });
   var grid = document.createElement('div');
   grid.className = 'mypets-grid';
   Object.values(petState).forEach(function(pet) { grid.appendChild(makeMyPetCard(pet)); });
@@ -3606,15 +3575,21 @@ async function showEquipmentModal(petId) {
   
   console.log('Creating modal...');
   
-  // Create modal with inline styles
-  var modal = makeEl('div', { class: 'modal-overlay' });
-  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  // Create modal with !important inline styles to override any CSS
+  var modal = makeEl('div', { class: 'equipment-modal-dynamic' });
+  modal.style.cssText = 'position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;background:rgba(0,0,0,0.8) !important;display:flex !important;align-items:center !important;justify-content:center !important;z-index:999999 !important;';
+  modal.id = 'equipment-modal-' + Date.now();
   console.log('Modal overlay created:', modal);
+  console.log('Modal styles:', modal.style.cssText);
   
-  modal.onclick = function() { document.body.removeChild(modal); };
+  modal.onclick = function(e) { 
+    if (e.target === modal) {
+      document.body.removeChild(modal); 
+    }
+  };
   
-  var modalContent = makeEl('div', { class: 'modal' });
-  modalContent.style.cssText = 'background:white;border-radius:16px;padding:30px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.3);';
+  var modalContent = makeEl('div', { class: 'equipment-modal-content' });
+  modalContent.style.cssText = 'background:white !important;border-radius:16px !important;padding:30px !important;max-width:600px !important;width:90% !important;max-height:80vh !important;overflow-y:auto !important;box-shadow:0 8px 32px rgba(0,0,0,0.3) !important;position:relative !important;z-index:1000000 !important;display:block !important;';
   modalContent.onclick = function(e) { e.stopPropagation(); };
   
   var title = makeEl('h2');
@@ -3731,6 +3706,9 @@ async function showEquipmentModal(petId) {
   modal.appendChild(modalContent);
   document.body.appendChild(modal);
   console.log('Modal appended! Should be visible now.');
+  console.log('Modal element in DOM:', document.getElementById(modal.id));
+  console.log('Modal computed style display:', window.getComputedStyle(modal).display);
+  console.log('Modal computed style z-index:', window.getComputedStyle(modal).zIndex);
   } catch (error) {
     console.error('Error in showEquipmentModal:', error);
     showToast('Error opening equipment manager!');
