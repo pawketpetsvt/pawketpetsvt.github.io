@@ -3344,8 +3344,16 @@ async function saveProfile() {
   
   var errorEl = el('profile-edit-error');
   var successEl = el('profile-edit-success');
+  var saveBtn = el('save-profile-btn');
+  
   errorEl.style.display = 'none';
   successEl.style.display = 'none';
+  
+  // Show loading state
+  var originalBtnText = saveBtn.innerHTML;
+  saveBtn.innerHTML = '⏳ Saving...';
+  saveBtn.disabled = true;
+  saveBtn.style.opacity = '0.6';
   
   var newUsername = el('edit-username').value.trim();
   var newBio = el('edit-bio').value.trim();
@@ -3354,24 +3362,36 @@ async function saveProfile() {
   if (!newUsername) {
     errorEl.textContent = 'Username cannot be empty!';
     errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
     return;
   }
   
   if (newUsername.length > 20) {
     errorEl.textContent = 'Username must be 20 characters or less!';
     errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
     return;
   }
   
   if (!/^[a-zA-Z0-9_]+$/.test(newUsername)) {
     errorEl.textContent = 'Username can only contain letters, numbers, and underscores!';
     errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
     return;
   }
   
   if (newBio.length > 200) {
     errorEl.textContent = 'Bio must be 200 characters or less!';
     errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
     return;
   }
   
@@ -3388,6 +3408,9 @@ async function saveProfile() {
       if (checkRes.data && checkRes.data.length > 0) {
         errorEl.textContent = 'Username "' + newUsername + '" is already taken!';
         errorEl.style.display = 'block';
+        saveBtn.innerHTML = originalBtnText;
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
         return;
       }
     }
@@ -3408,18 +3431,46 @@ async function saveProfile() {
     // Update header
     el('nav-user').textContent = newUsername;
     
-    successEl.textContent = '✅ Profile saved successfully!';
-    successEl.style.display = 'block';
+    // Restore button state
+    saveBtn.innerHTML = '✅ Saved!';
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
     
-    // Hide success message after 3 seconds
+    // Reset button after 2 seconds
     setTimeout(function() {
-      successEl.style.display = 'none';
-    }, 3000);
+      saveBtn.innerHTML = originalBtnText;
+    }, 2000);
+    
+    // Show success message with animation
+    successEl.innerHTML = '✅ <strong>Profile saved successfully!</strong> Your changes are now visible.';
+    successEl.style.display = 'block';
+    successEl.style.animation = 'none';
+    setTimeout(function() {
+      successEl.style.animation = 'slideInDown 0.3s ease-out';
+    }, 10);
+    
+    // Scroll to success message
+    successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    // Hide success message after 5 seconds
+    setTimeout(function() {
+      successEl.style.opacity = '0';
+      successEl.style.transition = 'opacity 0.3s ease-out';
+      setTimeout(function() {
+        successEl.style.display = 'none';
+        successEl.style.opacity = '1';
+      }, 300);
+    }, 5000);
     
   } catch (err) {
     console.error('Error saving profile:', err);
     errorEl.textContent = 'Failed to save profile: ' + err.message;
     errorEl.style.display = 'block';
+    
+    // Restore button state
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
   }
 }
 
