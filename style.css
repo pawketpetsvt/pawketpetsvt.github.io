@@ -4527,21 +4527,43 @@ body, button, a, input, textarea, select {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   UI FRAGMENTATION - Sidebars drift and fragment during boss battles
+   UI FRAGMENTATION - ALL UI elements drift and fragment during boss battles
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Apply drift to left sidebar (nav menu) */
-body.boss-ui-glitch .sidebar:first-of-type,
-body.boss-ui-glitch nav:first-of-type,
-body.boss-ui-glitch aside:first-of-type {
+/* Target EVERY sidebar, panel, and UI element - make them ALL move! */
+body.boss-ui-glitch nav,
+body.boss-ui-glitch aside,
+body.boss-ui-glitch .sidebar,
+body.boss-ui-glitch .panel,
+body.boss-ui-glitch .left-sidebar,
+body.boss-ui-glitch .right-sidebar,
+body.boss-ui-glitch [class*="sidebar"],
+body.boss-ui-glitch [class*="panel"],
+body.boss-ui-glitch header:not(.battle-header) {
+  animation: ui-drift-chaos 10s ease-in-out infinite;
+  animation-delay: calc(var(--drift-delay, 0) * 1s);
+}
+
+/* Different drift patterns for variety */
+body.boss-ui-glitch nav:nth-of-type(1),
+body.boss-ui-glitch .sidebar:nth-of-type(1),
+body.boss-ui-glitch aside:first-child {
   animation: ui-drift-left 8s ease-in-out infinite;
 }
 
-/* Apply drift to right sidebar (streamers, news, etc) */
-body.boss-ui-glitch .sidebar:last-of-type,
-body.boss-ui-glitch aside:last-of-type,
-body.boss-ui-glitch .right-panel {
-  animation: ui-drift-right 10s ease-in-out infinite;
+body.boss-ui-glitch nav:nth-of-type(2),
+body.boss-ui-glitch aside:nth-of-type(2),
+body.boss-ui-glitch [class*="right"] {
+  animation: ui-drift-right 9s ease-in-out infinite;
+}
+
+body.boss-ui-glitch .panel:nth-child(odd),
+body.boss-ui-glitch aside:nth-of-type(3) {
+  animation: ui-drift-diagonal 11s ease-in-out infinite;
+}
+
+body.boss-ui-glitch header {
+  animation: ui-drift-header 7s ease-in-out infinite;
 }
 
 /* Drift animations - slow, unsettling movement */
@@ -4551,16 +4573,16 @@ body.boss-ui-glitch .right-panel {
     opacity: 1;
   }
   25% {
-    transform: translate(-30px, 15px) rotate(-1deg);
-    opacity: 0.95;
+    transform: translate(-40px, 20px) rotate(-2deg);
+    opacity: 0.92;
   }
   50% {
-    transform: translate(-45px, -10px) rotate(-0.5deg);
-    opacity: 0.9;
+    transform: translate(-60px, -15px) rotate(-1deg);
+    opacity: 0.88;
   }
   75% {
-    transform: translate(-20px, 25px) rotate(-1.5deg);
-    opacity: 0.93;
+    transform: translate(-30px, 35px) rotate(-2.5deg);
+    opacity: 0.90;
   }
 }
 
@@ -4570,20 +4592,151 @@ body.boss-ui-glitch .right-panel {
     opacity: 1;
   }
   20% {
-    transform: translate(35px, -20px) rotate(1deg);
-    opacity: 0.94;
-  }
-  40% {
-    transform: translate(50px, 10px) rotate(0.5deg);
-    opacity: 0.88;
-  }
-  60% {
-    transform: translate(40px, 30px) rotate(1.2deg);
+    transform: translate(45px, -25px) rotate(1.5deg);
     opacity: 0.91;
   }
+  40% {
+    transform: translate(65px, 15px) rotate(1deg);
+    opacity: 0.85;
+  }
+  60% {
+    transform: translate(50px, 40px) rotate(2deg);
+    opacity: 0.88;
+  }
   80% {
-    transform: translate(25px, -15px) rotate(0.8deg);
+    transform: translate(35px, -20px) rotate(1.2deg);
+    opacity: 0.93;
+  }
+}
+
+@keyframes ui-drift-diagonal {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  33% {
+    transform: translate(-35px, -30px) rotate(-1.5deg);
+    opacity: 0.89;
+  }
+  66% {
+    transform: translate(40px, 35px) rotate(1.8deg);
+    opacity: 0.86;
+  }
+}
+
+@keyframes ui-drift-header {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-15px) rotate(-0.5deg);
+    opacity: 0.93;
+  }
+}
+
+@keyframes ui-drift-chaos {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  16% {
+    transform: translate(-20px, 25px) rotate(-1deg);
+    opacity: 0.94;
+  }
+  33% {
+    transform: translate(30px, -20px) rotate(0.8deg);
+    opacity: 0.90;
+  }
+  50% {
+    transform: translate(-35px, 10px) rotate(-1.5deg);
+    opacity: 0.87;
+  }
+  66% {
+    transform: translate(25px, 30px) rotate(1.2deg);
+    opacity: 0.91;
+  }
+  83% {
+    transform: translate(-15px, -25px) rotate(-0.8deg);
     opacity: 0.95;
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   CREEPY WARNING TEXT - "YOU SHOULDN'T BE HERE"
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.boss-warning-text {
+  position: fixed;
+  font-size: 3.2rem;  /* 20% smaller (was 4rem) */
+  font-weight: 900;
+  color: #FF0000;
+  text-shadow: 
+    0 0 10px #FF0000,
+    0 0 20px #FF0000,
+    0 0 30px #FF0000,
+    3px 3px 0 #000000,
+    -2px -2px 0 rgba(0, 255, 255, 0.5);  /* RGB split effect */
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  animation: warning-shake 0.1s infinite, warning-fade 4s ease-in-out infinite;
+  opacity: 0;
+  font-family: 'Arial Black', sans-serif;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  /* CRT scan line effect */
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    rgba(0, 0, 0, 0.3) 1px,
+    transparent 2px
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+@keyframes warning-shake {
+  0% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
+  10% { transform: translate(-5px, 3px) rotate(-2deg) skew(-1deg); }
+  20% { transform: translate(5px, -3px) rotate(2deg) skew(1deg); }
+  30% { transform: translate(-4px, 4px) rotate(-1deg) skew(-2deg); }
+  40% { transform: translate(4px, -4px) rotate(1deg) skew(2deg); }
+  50% { transform: translate(-6px, -3px) rotate(-2deg) skew(-1deg); }
+  60% { transform: translate(6px, 3px) rotate(2deg) skew(1deg); }
+  70% { transform: translate(-3px, -5px) rotate(-1deg) skew(-2deg); }
+  80% { transform: translate(3px, 5px) rotate(1deg) skew(2deg); }
+  90% { transform: translate(-5px, 4px) rotate(-2deg) skew(-1deg); }
+  100% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
+}
+
+@keyframes warning-fade {
+  0%, 100% {
+    opacity: 0;
+    filter: brightness(1);
+  }
+  5% {
+    opacity: 0.95;
+    filter: brightness(1.5);
+  }
+  10% {
+    opacity: 0.9;
+    filter: brightness(1.2);
+  }
+  40% {
+    opacity: 0.95;
+    filter: brightness(1.3);
+  }
+  70% {
+    opacity: 0.85;
+    filter: brightness(1.1);
+  }
+  85% {
+    opacity: 0.4;
+    filter: brightness(0.8);
+  }
+  95% {
+    opacity: 0;
+    filter: brightness(0.5);
+  }
+}
