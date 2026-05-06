@@ -3059,12 +3059,22 @@ function viewProfile(username) {
 }
 
 async function loadProfile(username) {
-  console.log('Loading profile for:', username);
+  console.log('[loadProfile] Starting for username:', username);
+  
+  // Set loading states immediately
+  el('profile-username').textContent = 'Loading...';
+  el('profile-pet-count').textContent = '...';
+  el('profile-total-level').textContent = '...';
+  el('profile-rank').textContent = '...';
+  el('profile-badge-count').textContent = '...';
+  el('profile-pets-grid').innerHTML = '<div class="spinner"></div>';
+  
   try {
     // Get profile data
+    console.log('[loadProfile] Calling RPC get_player_profile...');
     var profileRes = await supabaseClient.rpc('get_player_profile', { p_username: username });
     
-    console.log('RPC result:', profileRes);
+    console.log('[loadProfile] RPC result:', profileRes);
     
     if (profileRes.error || !profileRes.data || profileRes.data.length === 0) {
       console.log('Using fallback query, RPC error:', profileRes.error);
@@ -3130,6 +3140,7 @@ async function loadProfile(username) {
     }
     
     // Update UI
+    console.log('[loadProfile] Updating UI with profile data:', profile);
     el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
     el('profile-username').textContent = profile.username;
     el('profile-bio').textContent = profile.bio || 'No bio yet';
@@ -3141,6 +3152,7 @@ async function loadProfile(username) {
       year: 'numeric' 
     });
     
+    console.log('[loadProfile] Setting stats - Points:', profile.pawketpoints, 'Pets:', profile.total_pets, 'Levels:', profile.total_levels);
     el('profile-points').textContent = (profile.pawketpoints || 0).toLocaleString();
     el('profile-pet-count').textContent = profile.total_pets || 0;
     el('profile-total-level').textContent = profile.total_levels || 0;
@@ -3550,6 +3562,9 @@ async function loadProfileBadges(userId) {
     badgesGrid.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading badges</p>';
     return;
   }
+  
+  console.log('[loadProfileBadges] Loading badges for userId:', userId);
+  console.log('[loadProfileBadges] Found', earnedRes.data.length, 'badges');
   
   el('profile-badge-count').textContent = earnedRes.data.length;
   
