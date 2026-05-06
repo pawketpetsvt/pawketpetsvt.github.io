@@ -626,10 +626,15 @@ async function loadMyPets() {
     var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
     var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
     
+    // HP regenerates over time (3 HP per hour)
+    // Use updated_at as the "last activity" timestamp for HP regen
+    var regenedHP = calculateHPRegen(pet.current_hp || pet.base_hp || 25, pet.max_hp || pet.base_hp || 25, pet.updated_at);
+    
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
       hunger: decayedHunger,
-      happiness: decayedHappiness
+      happiness: decayedHappiness,
+      current_hp: regenedHP
     });
   });
   var grid = document.createElement('div');
@@ -869,7 +874,7 @@ function getLastSeenText(lastFed, lastPlayed) {
 
 function makeMyPetCard(pet) {
   var info = pet.pets || {};
-  var xpNext = pet.level * 100;
+  var xpNext = pet.level * 120;
   var hPct = Math.round(pet.hunger/pet.max_hunger*100);
   var hapPct = Math.round(pet.happiness/pet.max_happiness*100);
   var ePct = Math.round(pet.energy/pet.max_energy*100);
@@ -1220,6 +1225,21 @@ function calculateEnergyRegen(currentEnergy, maxEnergy, lastPlayedTimestamp) {
   return newEnergy;
 }
 
+function calculateHPRegen(currentHP, maxHP, lastBattleTimestamp) {
+  if (!lastBattleTimestamp) return currentHP;
+  
+  var now = new Date();
+  var lastBattle = new Date(lastBattleTimestamp);
+  var hoursPassed = (now - lastBattle) / (1000 * 60 * 60);
+  
+  // Regenerate 3 HP per hour while resting
+  var regenRate = 3; // HP per hour
+  var regenAmount = Math.floor(regenRate * hoursPassed);
+  
+  var newHP = Math.min(currentHP + regenAmount, maxHP);
+  return newHP;
+}
+
 function calculateHungerDecay(currentHunger, lastFedTimestamp) {
   if (!lastFedTimestamp) return currentHunger;
   
@@ -1282,7 +1302,7 @@ function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappines
 // ══════════════════════════════════════════════════════════════════════════
 
 function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness, currentHP, currentAtk, currentDef, currentSpd) {
-  var xpNeeded = currentLevel * 100;
+  var xpNeeded = currentLevel * 120; // Increased from 100 to 120 for slower leveling
   
   if (newXp >= xpNeeded) {
     // Level up! Calculate stat increases
@@ -1480,7 +1500,7 @@ function updateBar(petId,stat,val,max) {
   var v=el(stat+'-val-'+petId); if(v)v.textContent=val+'/'+max;
 }
 function updateXpBar(petId,xp,level) {
-  var next=level*100; var pct=Math.min(xp/next*100,100);
+  var next=level*120; var pct=Math.min(xp/next*100,100);
   var b=el('xp-bar-'+petId); if(b)b.style.width=pct+'%';
   var v=el('xp-val-'+petId); if(v)v.textContent=xp+'/'+next;
 }
@@ -4189,14 +4209,33 @@ async function startBattleWithEnemy(petId, enemy) {
     attack: enemy.base_attack,
     defense: enemy.base_defense,
     speed: enemy.base_speed,
-    exp_reward: Math.floor((enemy.level || 1) * 15), // Scale XP with level
-    pp_reward: Math.floor((enemy.level || 1) * 10), // Scale PP with level
+    exp_reward: calculateReward(enemy.level, enemy.forest_zone, 'xp'),
+    pp_reward: calculateReward(enemy.level, enemy.forest_zone, 'pp'),
     sprite_sheet: enemy.sprite_sheet || null,
     sprite_frames: enemy.sprite_frames || null
   };
   
   // Continue with battle logic...
   await executeBattle(playerStats, enemyStats, petId);
+}
+
+/**
+ * Calculate rewards with zone multipliers
+ */
+function calculateReward(enemyLevel, zone, type) {
+  var baseAmount = type === 'xp' ? 8 : 10; // Reduced XP from 15 to 8 for slower leveling
+  
+  // Zone multipliers - harder zones give MORE rewards
+  var zoneMultiplier = 1.0;
+  if (zone === 'glade') {
+    zoneMultiplier = 1.5; // Forest Glade: 50% more rewards
+  } else if (zone === 'deepwoods') {
+    zoneMultiplier = 2.0; // Deep Woods: 2x rewards
+  }
+  // outskirts stays at 1.0x
+  
+  var reward = Math.floor(enemyLevel * baseAmount * zoneMultiplier);
+  return reward;
 }
 
 /**
@@ -4766,6 +4805,16 @@ async function findBattle() {
     return;
   }
   
+  // Check daily energy cap (100 energy = 20 battles per day)
+  var today = new Date().toISOString().split('T')[0];
+  var energyKey = 'energy_used_' + today;
+  var energyUsedToday = parseInt(localStorage.getItem(energyKey)) || 0;
+  
+  if (energyUsedToday >= 100) {
+    showToast('⚡ Daily battle limit reached! Your pet needs rest. Come back tomorrow!');
+    return;
+  }
+  
   // Get player pet level
   var playerPetRes = await supabaseClient
     .from('user_pets')
@@ -4787,6 +4836,9 @@ async function findBattle() {
     showToast('No enemies found in this zone!');
     return;
   }
+  
+  // Track energy used today
+  localStorage.setItem(energyKey, energyUsedToday + 5);
   
   // Start battle with the scaled enemy (pass the enemy object directly, not ID)
   await startBattleWithEnemy(selectedBattlePetId, enemy);
