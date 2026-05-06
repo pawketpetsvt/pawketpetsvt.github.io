@@ -4924,8 +4924,8 @@ function initMelonDialogue() {
   var dialogueEl = document.getElementById('melon-dialogue');
   if (!dialogueEl) return;
   
-  // 10% chance for spooky dialogue
-  var isSpooky = Math.random() < 0.1;
+  // 3% chance for spooky dialogue (was 10%, now much rarer!)
+  var isSpooky = Math.random() < 0.03;
   
   if (isSpooky) {
     showSpookyDialogue();
