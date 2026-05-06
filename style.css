@@ -4307,12 +4307,12 @@ body, button, a, input, textarea, select {
 /* ═══════════════════════════════════════════════════════════════════════
    SHADOW OF PIPER - BOSS BATTLE EFFECTS
    ═══════════════════════════════════════════════════════════════════════ */
- 
+
 /* Boss entrance fade-in */
 .boss-entrance {
   animation: boss-fade-in 3s ease-in-out;
 }
- 
+
 @keyframes boss-fade-in {
   0% { 
     opacity: 0;
@@ -4339,7 +4339,7 @@ body, button, a, input, textarea, select {
     filter: brightness(1);
   }
 }
- 
+
 /* Screen glitch/artifact effect - MORE INTENSE VERSION */
 .screen-glitch {
   position: fixed;
@@ -4358,7 +4358,7 @@ body, button, a, input, textarea, select {
   );
   animation: glitch-scan 0.15s infinite, glitch-shift 0.4s infinite, glitch-distort 0.8s infinite;
 }
- 
+
 @keyframes glitch-scan {
   0%, 100% { 
     transform: translateY(0) scaleY(1);
@@ -4369,7 +4369,7 @@ body, button, a, input, textarea, select {
     opacity: 0.5;  /* Increased from 0.4 */
   }
 }
- 
+
 @keyframes glitch-shift {
   0%, 100% {
     filter: hue-rotate(0deg);
@@ -4384,7 +4384,7 @@ body, button, a, input, textarea, select {
     filter: hue-rotate(270deg) saturate(3);
   }
 }
- 
+
 /* New: Random horizontal distortion */
 @keyframes glitch-distort {
   0%, 100% {
@@ -4406,7 +4406,7 @@ body, button, a, input, textarea, select {
     background-position: 0 0;
   }
 }
- 
+
 /* Boss indicator on battle screen */
 .boss-battle-indicator {
   position: absolute;
@@ -4424,7 +4424,7 @@ body, button, a, input, textarea, select {
   animation: boss-pulse 1s infinite;
   z-index: 100;
 }
- 
+
 @keyframes boss-pulse {
   0%, 100% {
     box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
@@ -4435,7 +4435,7 @@ body, button, a, input, textarea, select {
     transform: translateX(-50%) scale(1.05);
   }
 }
- 
+
 /* Shadow of Piper sprite - glitchy question mark */
 .boss-sprite {
   position: relative;
@@ -4446,7 +4446,7 @@ body, button, a, input, textarea, select {
     0 0 20px rgba(139, 0, 0, 0.6);
   animation: boss-sprite-glitch 2s infinite;
 }
- 
+
 @keyframes boss-sprite-glitch {
   0%, 90%, 100% {
     color: #1a1a1a;
@@ -4474,14 +4474,14 @@ body, button, a, input, textarea, select {
     transform: translate(0, 0);
   }
 }
- 
+
 /* Boss HP bar styling */
 .boss-hp-bar {
   background: linear-gradient(90deg, #8B0000, #FF0000);
   box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
   animation: hp-bar-pulse 1.5s infinite;
 }
- 
+
 @keyframes hp-bar-pulse {
   0%, 100% {
     box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
@@ -4490,12 +4490,12 @@ body, button, a, input, textarea, select {
     box-shadow: 0 0 30px rgba(255, 0, 0, 1);
   }
 }
- 
+
 /* Boss name glitch effect */
 .boss-name-glitch {
   animation: name-glitch 0.3s infinite;
 }
- 
+
 @keyframes name-glitch {
   0%, 90%, 100% {
     transform: translate(0, 0);
@@ -4510,13 +4510,13 @@ body, button, a, input, textarea, select {
     text-shadow: 2px -2px 0 rgba(255, 0, 255, 0.7);
   }
 }
- 
+
 /* Background darkening during boss fight */
 .boss-battle-bg {
   background: linear-gradient(135deg, #1a0000 0%, #000000 50%, #1a0000 100%) !important;
   animation: bg-flicker 3s infinite;
 }
- 
+
 @keyframes bg-flicker {
   0%, 100% {
     filter: brightness(0.7);
@@ -4526,4 +4526,64 @@ body, button, a, input, textarea, select {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   UI FRAGMENTATION - Sidebars drift and fragment during boss battles
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Apply drift to left sidebar (nav menu) */
+body.boss-ui-glitch .sidebar:first-of-type,
+body.boss-ui-glitch nav:first-of-type,
+body.boss-ui-glitch aside:first-of-type {
+  animation: ui-drift-left 8s ease-in-out infinite;
+}
+
+/* Apply drift to right sidebar (streamers, news, etc) */
+body.boss-ui-glitch .sidebar:last-of-type,
+body.boss-ui-glitch aside:last-of-type,
+body.boss-ui-glitch .right-panel {
+  animation: ui-drift-right 10s ease-in-out infinite;
+}
+
+/* Drift animations - slow, unsettling movement */
+@keyframes ui-drift-left {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(-30px, 15px) rotate(-1deg);
+    opacity: 0.95;
+  }
+  50% {
+    transform: translate(-45px, -10px) rotate(-0.5deg);
+    opacity: 0.9;
+  }
+  75% {
+    transform: translate(-20px, 25px) rotate(-1.5deg);
+    opacity: 0.93;
+  }
+}
+
+@keyframes ui-drift-right {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  20% {
+    transform: translate(35px, -20px) rotate(1deg);
+    opacity: 0.94;
+  }
+  40% {
+    transform: translate(50px, 10px) rotate(0.5deg);
+    opacity: 0.88;
+  }
+  60% {
+    transform: translate(40px, 30px) rotate(1.2deg);
+    opacity: 0.91;
+  }
+  80% {
+    transform: translate(25px, -15px) rotate(0.8deg);
+    opacity: 0.95;
+  }
+}
 
