@@ -4304,6 +4304,204 @@ body, button, a, input, textarea, select {
   opacity: 0.5;
   cursor: not-allowed;
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   SHADOW OF PIPER - BOSS BATTLE EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
 
+/* Boss entrance fade-in */
+.boss-entrance {
+  animation: boss-fade-in 3s ease-in-out;
+}
+
+@keyframes boss-fade-in {
+  0% { 
+    opacity: 0;
+    filter: brightness(0);
+  }
+  20% {
+    opacity: 0.3;
+    filter: brightness(0.3) hue-rotate(90deg);
+  }
+  40% {
+    opacity: 0;
+    filter: brightness(0);
+  }
+  60% {
+    opacity: 0.7;
+    filter: brightness(0.7) hue-rotate(-90deg);
+  }
+  80% {
+    opacity: 0.5;
+    filter: brightness(0.5);
+  }
+  100% { 
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+/* Screen glitch/artifact effect during entrance */
+.screen-glitch {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(255, 0, 0, 0.1) 0px,
+    rgba(0, 255, 0, 0.1) 1px,
+    rgba(0, 0, 255, 0.1) 2px,
+    transparent 3px
+  );
+  animation: glitch-scan 0.2s infinite, glitch-shift 0.5s infinite;
+}
+
+@keyframes glitch-scan {
+  0%, 100% { 
+    transform: translateY(0) scaleY(1);
+    opacity: 0.8;
+  }
+  50% { 
+    transform: translateY(-100vh) scaleY(1.2);
+    opacity: 0.4;
+  }
+}
+
+@keyframes glitch-shift {
+  0%, 100% {
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    filter: hue-rotate(90deg) saturate(3);
+  }
+  50% {
+    filter: hue-rotate(180deg) saturate(1.5);
+  }
+  75% {
+    filter: hue-rotate(270deg) saturate(2);
+  }
+}
+
+/* Boss indicator on battle screen */
+.boss-battle-indicator {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(139, 0, 0, 0.9);
+  color: #FF0000;
+  padding: 10px 30px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: 2px solid #FF0000;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+  animation: boss-pulse 1s infinite;
+  z-index: 100;
+}
+
+@keyframes boss-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 0, 0, 1);
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
+/* Shadow of Piper sprite - glitchy question mark */
+.boss-sprite {
+  position: relative;
+  font-size: 8rem;
+  color: #1a1a1a;
+  text-shadow: 
+    0 0 10px rgba(255, 0, 0, 0.8),
+    0 0 20px rgba(139, 0, 0, 0.6);
+  animation: boss-sprite-glitch 2s infinite;
+}
+
+@keyframes boss-sprite-glitch {
+  0%, 90%, 100% {
+    color: #1a1a1a;
+    text-shadow: 
+      0 0 10px rgba(255, 0, 0, 0.8),
+      0 0 20px rgba(139, 0, 0, 0.6);
+    transform: translate(0, 0);
+  }
+  10% {
+    color: #000000;
+    text-shadow: 
+      -5px 0 10px rgba(255, 0, 0, 1),
+      5px 0 10px rgba(0, 255, 255, 1);
+    transform: translate(-5px, 2px);
+  }
+  20% {
+    color: #0a0a0a;
+    text-shadow: 
+      5px 0 10px rgba(255, 0, 255, 1),
+      -5px 0 10px rgba(0, 255, 0, 1);
+    transform: translate(5px, -2px);
+  }
+  30% {
+    color: #1a1a1a;
+    transform: translate(0, 0);
+  }
+}
+
+/* Boss HP bar styling */
+.boss-hp-bar {
+  background: linear-gradient(90deg, #8B0000, #FF0000);
+  box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+  animation: hp-bar-pulse 1.5s infinite;
+}
+
+@keyframes hp-bar-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(255, 0, 0, 1);
+  }
+}
+
+/* Boss name glitch effect */
+.boss-name-glitch {
+  animation: name-glitch 0.3s infinite;
+}
+
+@keyframes name-glitch {
+  0%, 90%, 100% {
+    transform: translate(0, 0);
+    text-shadow: 2px 2px 0 rgba(255, 0, 0, 0.7);
+  }
+  10% {
+    transform: translate(-2px, 1px);
+    text-shadow: -2px -2px 0 rgba(0, 255, 255, 0.7);
+  }
+  20% {
+    transform: translate(2px, -1px);
+    text-shadow: 2px -2px 0 rgba(255, 0, 255, 0.7);
+  }
+}
+
+/* Background darkening during boss fight */
+.boss-battle-bg {
+  background: linear-gradient(135deg, #1a0000 0%, #000000 50%, #1a0000 100%) !important;
+  animation: bg-flicker 3s infinite;
+}
+
+@keyframes bg-flicker {
+  0%, 100% {
+    filter: brightness(0.7);
+  }
+  50% {
+    filter: brightness(0.4);
+  }
+}
 
 
