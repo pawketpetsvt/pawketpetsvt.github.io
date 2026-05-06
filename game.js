@@ -1615,8 +1615,18 @@ function itemEmoji(type) {
 
 async function loadShop() {
   var grid = el('shop-grid');
-  var res = await supabaseClient.from('items').select('*').order('price',{ascending:true});
-  if (res.error||!res.data||!res.data.length) { grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">No items yet!</div>'; return; }
+  
+  // Exclude boss drops from shop! Boss items can only be obtained by defeating bosses
+  var res = await supabaseClient
+    .from('items')
+    .select('*')
+    .or('is_boss_drop.is.null,is_boss_drop.eq.false')
+    .order('price', {ascending: true});
+  
+  if (res.error||!res.data||!res.data.length) { 
+    grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">No items yet!</div>'; 
+    return; 
+  }
   var seen={}, deduped=[];
   res.data.forEach(function(item){ var k=item.name.toLowerCase().trim(); if(!seen[k]||item.price<seen[k].price)seen[k]=item; });
   Object.values(seen).sort(function(a,b){return a.price-b.price;}).forEach(function(i){deduped.push(i);});
@@ -5136,7 +5146,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -5309,29 +5319,25 @@ function triggerBossEntrance() {
   startBossWarningText();
 }
 
-// Spawn creepy "YOU SHOULDN'T BE HERE" text at random positions
+// Spawn creepy "YOU SHOULDN'T BE HERE" text that scrolls across screen
 var bossWarningInterval = null;
+var activeWarnings = []; // Track active warning positions to prevent overlap
 
 function startBossWarningText() {
   // Clear any existing interval
   if (bossWarningInterval) clearInterval(bossWarningInterval);
   
-  // Spawn 2-3 warnings immediately
-  for (var i = 0; i < Math.floor(Math.random() * 2) + 2; i++) {
+  // Spawn 1-2 warnings immediately
+  for (var i = 0; i < Math.floor(Math.random() * 2) + 1; i++) {
     setTimeout(function() {
       spawnWarningText();
-    }, i * 500);
+    }, i * 2000); // Stagger by 2 seconds
   }
   
-  // Keep spawning warnings every 4-5 seconds during boss fight
+  // Keep spawning warnings every 3-4 seconds during boss fight
   bossWarningInterval = setInterval(function() {
-    var count = Math.floor(Math.random() * 2) + 2; // 2-3 texts
-    for (var i = 0; i < count; i++) {
-      setTimeout(function() {
-        spawnWarningText();
-      }, i * 300);
-    }
-  }, 4500);
+    spawnWarningText();
+  }, 3500);
 }
 
 function spawnWarningText() {
@@ -5339,28 +5345,64 @@ function spawnWarningText() {
   warning.className = 'boss-warning-text';
   warning.textContent = 'YOU SHOULDN\'T BE HERE';
   
-  // Calculate safe bounds to keep text fully visible (20% smaller font = ~600px width)
-  var maxX = window.innerWidth - 650;  // Leave room for text width
-  var maxY = window.innerHeight - 150; // Leave room for text height
+  // Random direction: left-to-right or right-to-left
+  var scrollRight = Math.random() > 0.5;
   
-  // Random position within safe bounds
-  var x = Math.max(50, Math.random() * maxX);
-  var y = Math.max(50, Math.random() * maxY);
+  // Find a Y position that doesn't overlap with existing warnings
+  var y = findNonOverlappingY();
   
-  warning.style.left = x + 'px';
   warning.style.top = y + 'px';
   
-  // Random slight rotation
-  warning.style.transform = 'rotate(' + (Math.random() * 10 - 5) + 'deg)';
+  if (scrollRight) {
+    warning.classList.add('boss-warning-scroll-right');
+    warning.style.right = '-100%';
+  } else {
+    warning.classList.add('boss-warning-scroll-left');
+    warning.style.left = '-100%';
+  }
+  
+  // Track this warning's position
+  var warningData = { element: warning, y: y, height: 100 }; // Approximate height
+  activeWarnings.push(warningData);
   
   document.body.appendChild(warning);
   
-  // Remove after fade completes (4 seconds) - FIXED BUG!
+  // Remove after animation completes (6 seconds)
   setTimeout(function() {
     if (warning && warning.parentNode) {
-      warning.remove();  // CORRECT method!
+      warning.remove();
     }
-  }, 4000);
+    // Remove from active warnings array
+    var idx = activeWarnings.indexOf(warningData);
+    if (idx > -1) activeWarnings.splice(idx, 1);
+  }, 6000);
+}
+
+function findNonOverlappingY() {
+  var maxAttempts = 20;
+  var minGap = 120; // Minimum vertical gap between warnings
+  
+  for (var attempt = 0; attempt < maxAttempts; attempt++) {
+    // Random Y position (leaving margins)
+    var y = Math.random() * (window.innerHeight - 200) + 50;
+    
+    // Check if this Y overlaps with any active warnings
+    var overlaps = false;
+    for (var i = 0; i < activeWarnings.length; i++) {
+      var existing = activeWarnings[i];
+      if (Math.abs(y - existing.y) < minGap) {
+        overlaps = true;
+        break;
+      }
+    }
+    
+    if (!overlaps) {
+      return y;
+    }
+  }
+  
+  // If we can't find a spot, just use a random position
+  return Math.random() * (window.innerHeight - 200) + 50;
 }
 
 function stopBossWarningText() {
@@ -5373,6 +5415,9 @@ function stopBossWarningText() {
   document.querySelectorAll('.boss-warning-text').forEach(function(warning) {
     warning.remove();
   });
+  
+  // Clear active warnings array
+  activeWarnings = [];
 }
 
 function clearBossEffects() {
