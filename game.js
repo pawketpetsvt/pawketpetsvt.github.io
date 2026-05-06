@@ -4218,6 +4218,32 @@ var currentBattleLog = [];
 var currentBattleIndex = 0;
 var battlePlaybackInterval = null;
 var selectedBattlePetId = null;
+var selectedBattleZone = 'outskirts'; // Default to easy zone
+
+function selectZone(zone) {
+  selectedBattleZone = zone;
+  
+  // Update UI - remove selected class from all
+  var allZones = document.querySelectorAll('.zone-btn');
+  allZones.forEach(function(btn) {
+    btn.classList.remove('zone-selected');
+    btn.style.border = '3px solid var(--purple-light)';
+    btn.style.transform = 'scale(1)';
+  });
+  
+  // Add selected class to clicked zone
+  var selectedBtn = document.getElementById('zone-' + zone);
+  if (selectedBtn && !selectedBtn.classList.contains('zone-locked')) {
+    selectedBtn.classList.add('zone-selected');
+    selectedBtn.style.border = '3px solid var(--green)';
+    selectedBtn.style.transform = 'scale(1.02)';
+    
+    var helperText = document.getElementById('battle-helper-text');
+    if (helperText && selectedBattlePetId) {
+      helperText.textContent = 'Ready to battle in ' + (zone === 'outskirts' ? 'City Outskirts' : 'Forest Glade') + '!';
+    }
+  }
+}
 var battleRewards = null;  // Store rewards globally
 
 function showBattleUI(playerStats, enemyStats, battleResult) {
@@ -4528,11 +4554,11 @@ async function findBattle() {
     return;
   }
   
-  // Get random enemy
-  var enemy = await getRandomEnemy('wildwood', 1);
+  // Get random enemy from selected zone
+  var enemy = await getRandomEnemy(selectedBattleZone);
   
   if (!enemy) {
-    showToast('No enemies found!');
+    showToast('No enemies found in this zone!');
     return;
   }
   
@@ -4544,19 +4570,14 @@ async function findBattle() {
 /**
  * Get random enemy from zone
  */
-async function getRandomEnemy(zone, difficultyTier) {
-  var query = supabaseClient
+async function getRandomEnemy(zone) {
+  var res = await supabaseClient
     .from('enemy_pets')
     .select('*')
-    .eq('forest_zone', zone || 'wildwood');
-  
-  if (difficultyTier) {
-    query = query.eq('difficulty_tier', difficultyTier);
-  }
-  
-  var res = await query;
+    .eq('forest_zone', zone || 'outskirts');
   
   if (res.error || !res.data || res.data.length === 0) {
+    console.error('No enemies found for zone:', zone, res.error);
     return null;
   }
   

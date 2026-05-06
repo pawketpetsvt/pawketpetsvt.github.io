@@ -584,38 +584,44 @@
         
       </div>
       
-      <!-- Battle Rewards Modal -->
-      <div class="modal-overlay" id="battle-rewards-modal">
-        <div class="modal">
-          <div style="font-size: 4rem; margin-bottom: 12px;">🎉</div>
-          <h2 id="rewards-title" style="color: var(--green); margin-bottom: 16px;">Victory!</h2>
-          
-          <div style="background: var(--cream); border: 2px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 20px;">
-            <div style="display: flex; flex-direction: column; gap: 12px; font-size: 1.1rem;">
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="color: var(--text-light);">Experience Gained:</span>
-                <strong id="rewards-exp" style="color: var(--purple-dark); font-size: 1.2rem;">+0 EXP</strong>
-              </div>
-              <div style="display: flex; align-items: center; justify-content: space-between;">
-                <span style="color: var(--text-light);">PawketPoints Earned:</span>
-                <strong id="rewards-pp" style="color: var(--purple-dark); font-size: 1.2rem;">+0 PP</strong>
-              </div>
-              <div id="rewards-item" style="color: var(--green); font-weight: 700; text-align: center; padding-top: 8px; border-top: 2px solid var(--border); display: none;">
-                🎁 Bonus: Found item!
-              </div>
-            </div>
-          </div>
-          
-          <button class="btn btn-primary" onclick="closeBattleRewardsModal()">Continue</button>
-        </div>
-      </div>
-      
       <!-- Forest Exploration (main view) -->
       <div id="forest-exploration">
         <div class="page-hero">
           <div class="sparkle-row">🌲 ⚔️ 🌲</div>
           <h1>Wildwood Forest</h1>
           <p>Explore and battle wild creatures!</p>
+        </div>
+        
+        <!-- Zone Selection -->
+        <div class="zone-selector" style="margin: 20px 0;">
+          <h3 style="text-align: center; color: var(--purple); margin-bottom: 15px;">Choose Your Destination</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+            
+            <button class="zone-btn zone-selected" id="zone-outskirts" onclick="selectZone('outskirts')" style="padding: 20px; border: 3px solid var(--green); border-radius: 16px; background: linear-gradient(135deg, rgba(93,222,122,0.1), rgba(93,222,122,0.2)); cursor: pointer; transition: all 0.3s;">
+              <div style="font-size: 2rem; margin-bottom: 8px;">🏘️</div>
+              <div style="font-weight: bold; color: var(--purple); font-size: 1.1rem; margin-bottom: 4px;">City Outskirts</div>
+              <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">Perfect for beginners</div>
+              <div style="font-size: 0.75rem; color: var(--green); font-weight: bold;">⭐ EASY</div>
+              <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Birds, Bunnies, Squirrels</div>
+            </button>
+            
+            <button class="zone-btn" id="zone-glade" onclick="selectZone('glade')" style="padding: 20px; border: 3px solid var(--purple-light); border-radius: 16px; background: linear-gradient(135deg, rgba(176,106,255,0.05), rgba(176,106,255,0.1)); cursor: pointer; transition: all 0.3s;">
+              <div style="font-size: 2rem; margin-bottom: 8px;">🌳</div>
+              <div style="font-weight: bold; color: var(--purple); font-size: 1.1rem; margin-bottom: 4px;">Forest Glade</div>
+              <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">For experienced pets</div>
+              <div style="font-size: 0.75rem; color: #ffaa00; font-weight: bold;">⭐⭐ MEDIUM</div>
+              <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Foxes, Raccoons, Boars</div>
+            </button>
+            
+            <button class="zone-btn zone-locked" id="zone-deepwoods" onclick="showToast('Coming soon! Level up your pets first.')" style="padding: 20px; border: 3px solid #999; border-radius: 16px; background: linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.1)); cursor: not-allowed; opacity: 0.5; transition: all 0.3s;">
+              <div style="font-size: 2rem; margin-bottom: 8px;">🌲</div>
+              <div style="font-weight: bold; color: #666; font-size: 1.1rem; margin-bottom: 4px;">Deep Woods</div>
+              <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">For champions only</div>
+              <div style="font-size: 0.75rem; color: #ff6b6b; font-weight: bold;">⭐⭐⭐ HARD</div>
+              <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">🔒 Coming Soon!</div>
+            </button>
+            
+          </div>
         </div>
         
         <!-- Select Pet -->
@@ -631,7 +637,7 @@
           <button class="btn btn-primary btn-large" onclick="findBattle()" id="find-battle-btn" disabled>
             🔍 Search for Wild Creature
           </button>
-          <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;">Select a pet first</p>
+          <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;" id="battle-helper-text">Select a pet first</p>
         </div>
         
       </div>
