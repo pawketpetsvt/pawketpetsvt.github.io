@@ -3978,29 +3978,29 @@ body::after {
 .shop-mascot {
   position: fixed;
   right: 20px;
-  bottom: 0; /* Changed from top: 50% to bottom: 0 */
-  z-index: 9999; /* Above everything including sidebars */
-  pointer-events: none; /* Doesn't block clicks */
+  bottom: 0;
+  z-index: 9999;
+  pointer-events: none;
 }
 
 .mascot-image {
-  width: 450px; /* Increased from 300px (another 50% bigger) */
+  width: 350px; /* Reduced from 450px to 350px */
   height: auto;
   display: block;
   filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
-  pointer-events: all; /* Image is clickable if needed */
+  pointer-events: all;
 }
 
 .mascot-speech-bubble {
   position: absolute;
-  right: 490px; /* Moved further left from 330px to avoid blocking item cards */
-  bottom: 120px; /* Adjusted from 80px to match larger Melon */
+  right: 380px; /* Reduced from 490px to 380px (matches smaller Melon) */
+  bottom: 100px; /* Reduced from 120px to 100px */
   background: white;
   border: 3px solid var(--purple);
   border-radius: 16px;
-  padding: 18px 24px;
-  max-width: 330px;
-  font-size: 1.35rem;
+  padding: 16px 20px; /* Slightly smaller padding */
+  max-width: 280px; /* Reduced from 330px */
+  font-size: 1.15rem; /* Reduced from 1.35rem */
   font-weight: 600;
   color: var(--text-dark);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
