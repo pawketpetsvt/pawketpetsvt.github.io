@@ -1627,32 +1627,127 @@ async function loadShop() {
     grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">No items yet!</div>'; 
     return; 
   }
+  
+  // Dedupe items
   var seen={}, deduped=[];
   res.data.forEach(function(item){ var k=item.name.toLowerCase().trim(); if(!seen[k]||item.price<seen[k].price)seen[k]=item; });
-  Object.values(seen).sort(function(a,b){return a.price-b.price;}).forEach(function(i){deduped.push(i);});
-  grid.innerHTML='';
+  Object.values(seen).forEach(function(i){deduped.push(i);});
+  
+  // Categorize items
+  var categories = {
+    food: [],
+    toys: [],
+    energy: [],
+    healing: [],
+    equipment: [],
+    other: []
+  };
+  
   deduped.forEach(function(item) {
-    var card=makeEl('div',{class:'shop-card'});
-    var iconDiv=makeEl('div',{class:'shop-item-icon'});
-    if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};iconDiv.appendChild(img);}
-    else iconDiv.innerHTML=itemEmoji(item.item_type);
-    card.appendChild(iconDiv);
-    card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
-    card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
-    var tags=makeEl('div',{class:'shop-effects'});
-    if(item.hunger_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hunger_effect+' Hunger'));
-    if(item.energy_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.energy_effect+' Energy'));
-    if(item.happiness_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.happiness_effect+' Happiness'));
-    if(item.xp_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.xp_effect+' XP'));
-    if(tags.children.length)card.appendChild(tags);
-    card.appendChild(makeEl('div',{class:'shop-item-price'},'\uD83E\uDE99 '+item.price+' PP'));
-    var canAfford=currentPoints>=item.price;
-    var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+item.price+' PP');
-    if(!canAfford)buyBtn.disabled=true;
-    buyBtn.onclick=function(){buyItem(item.id,item.name,item.price);};
-    card.appendChild(buyBtn);
-    grid.appendChild(card);
+    // Categorize based on primary effect
+    if (item.effect === 'healing' || item.name.toLowerCase().includes('heal') || item.name.toLowerCase().includes('ointment') || item.name.toLowerCase().includes('potion')) {
+      categories.healing.push(item);
+    } else if (item.item_type === 'equipment') {
+      categories.equipment.push(item);
+    } else if (item.energy_effect > 0 && (item.hunger_effect === 0 || item.energy_effect > item.hunger_effect)) {
+      categories.energy.push(item);
+    } else if (item.happiness_effect > 0 && (item.hunger_effect === 0 || item.happiness_effect > item.hunger_effect)) {
+      categories.toys.push(item);
+    } else if (item.hunger_effect > 0) {
+      categories.food.push(item);
+    } else {
+      categories.other.push(item);
+    }
   });
+  
+  // Sort each category by price
+  Object.keys(categories).forEach(function(cat) {
+    categories[cat].sort(function(a,b){return a.price-b.price;});
+  });
+  
+  grid.innerHTML='';
+  
+  // Render categories with headers
+  var categoryConfig = [
+    { key: 'food', title: '🍕 Food', desc: 'Keep your pet well-fed and happy!' },
+    { key: 'toys', title: '🎾 Toys', desc: 'Fun items to boost happiness!' },
+    { key: 'energy', title: '⚡ Energy', desc: 'Restore energy for more activities!' },
+    { key: 'healing', title: '💚 Healing', desc: 'Restore HP after battles!' },
+    { key: 'equipment', title: '⚔️ Equipment', desc: 'Battle gear to make your pet stronger!' }
+  ];
+  
+  categoryConfig.forEach(function(config) {
+    var items = categories[config.key];
+    if (items.length === 0) return; // Skip empty categories
+    
+    // Category header
+    var header = makeEl('div', {class: 'shop-category-header'});
+    header.style.cssText = 'grid-column: 1 / -1; padding: 20px 10px 10px; border-bottom: 3px solid var(--purple-light); margin-bottom: 10px;';
+    
+    var title = makeEl('div', {style: 'font-size: 1.4rem; font-weight: bold; color: var(--purple); margin-bottom: 5px;'});
+    title.textContent = config.title;
+    
+    var desc = makeEl('div', {style: 'font-size: 0.9rem; color: var(--text-light);'});
+    desc.textContent = config.desc;
+    
+    header.appendChild(title);
+    header.appendChild(desc);
+    grid.appendChild(header);
+    
+    // Render items in this category
+    items.forEach(function(item) {
+      var card=makeEl('div',{class:'shop-card'});
+      var iconDiv=makeEl('div',{class:'shop-item-icon'});
+      if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};iconDiv.appendChild(img);}
+      else iconDiv.innerHTML=itemEmoji(item.item_type);
+      card.appendChild(iconDiv);
+      card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
+      card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
+      var tags=makeEl('div',{class:'shop-effects'});
+      if(item.hunger_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hunger_effect+' Hunger'));
+      if(item.energy_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.energy_effect+' Energy'));
+      if(item.happiness_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.happiness_effect+' Happiness'));
+      if(item.xp_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.xp_effect+' XP'));
+      if(item.effect === 'healing' && item.effect_value > 0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.effect_value+' HP'));
+      if(item.attack_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.attack_bonus+' ATK'));
+      if(item.defense_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.defense_bonus+' DEF'));
+      if(item.hp_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hp_bonus+' HP'));
+      if(item.speed_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.speed_bonus+' SPD'));
+      if(tags.children.length)card.appendChild(tags);
+      card.appendChild(makeEl('div',{class:'shop-item-price'},'🪙 '+item.price+' PP'));
+      var canAfford=currentPoints>=item.price;
+      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+item.price+' PP');
+      if(!canAfford)buyBtn.disabled=true;
+      buyBtn.onclick=function(){buyItem(item.id,item.name,item.price);};
+      card.appendChild(buyBtn);
+      grid.appendChild(card);
+    });
+  });
+  
+  // Add any uncategorized items at the end
+  if (categories.other.length > 0) {
+    var header = makeEl('div', {class: 'shop-category-header'});
+    header.style.cssText = 'grid-column: 1 / -1; padding: 20px 10px 10px; border-bottom: 3px solid var(--purple-light); margin-bottom: 10px;';
+    header.innerHTML = '<div style="font-size: 1.4rem; font-weight: bold; color: var(--purple);">📦 Other Items</div>';
+    grid.appendChild(header);
+    
+    categories.other.forEach(function(item) {
+      var card=makeEl('div',{class:'shop-card'});
+      var iconDiv=makeEl('div',{class:'shop-item-icon'});
+      if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};iconDiv.appendChild(img);}
+      else iconDiv.innerHTML=itemEmoji(item.item_type);
+      card.appendChild(iconDiv);
+      card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
+      card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
+      card.appendChild(makeEl('div',{class:'shop-item-price'},'🪙 '+item.price+' PP'));
+      var canAfford=currentPoints>=item.price;
+      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+item.price+' PP');
+      if(!canAfford)buyBtn.disabled=true;
+      buyBtn.onclick=function(){buyItem(item.id,item.name,item.price);};
+      card.appendChild(buyBtn);
+      grid.appendChild(card);
+    });
+  }
 }
 
 async function buyItem(itemId,itemName,price) {
