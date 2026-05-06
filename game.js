@@ -4343,11 +4343,17 @@ async function startBattleWithEnemy(petId, enemy) {
     attack: enemy.base_attack,
     defense: enemy.base_defense,
     speed: enemy.base_speed,
-    exp_reward: calculateReward(enemy.level, enemy.forest_zone, 'xp'),
-    pp_reward: calculateReward(enemy.level, enemy.forest_zone, 'pp'),
+    exp_reward: enemy.exp_reward || calculateReward(enemy.level, enemy.forest_zone, 'xp'),
+    pp_reward: enemy.pp_reward || calculateReward(enemy.level, enemy.forest_zone, 'pp'),
     sprite_sheet: enemy.sprite_sheet || null,
-    sprite_frames: enemy.sprite_frames || null
+    sprite_frames: enemy.sprite_frames || null,
+    is_boss: enemy.is_boss || false
   };
+  
+  // BOSS ENTRANCE SEQUENCE!
+  if (enemy.is_boss) {
+    triggerBossEntrance();
+  }
   
   // Continue with battle logic...
   await executeBattle(playerStats, enemyStats, petId);
@@ -4642,15 +4648,40 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   }
   
   // Set up enemy side with sprite
-  el('enemy-battle-name').textContent = enemyStats.name;
+  var enemyNameEl = el('enemy-battle-name');
+  enemyNameEl.textContent = enemyStats.name;
+  
+  // Boss name gets glitch effect
+  if (enemyStats.is_boss) {
+    enemyNameEl.classList.add('boss-name-glitch');
+  } else {
+    enemyNameEl.classList.remove('boss-name-glitch');
+  }
+  
   el('enemy-hp-text').textContent = enemyStats.hp + '/' + enemyStats.hp;
   el('enemy-hp-fill').style.width = '100%';
   
+  // Boss HP bar gets special styling
+  var enemyHPBar = el('enemy-hp-fill');
+  if (enemyStats.is_boss) {
+    enemyHPBar.classList.add('boss-hp-bar');
+  } else {
+    enemyHPBar.classList.remove('boss-hp-bar');
+  }
+  
   // Set enemy sprite based on species
   var enemySprite = el('enemy-battle-sprite');
-  var spriteFile = getSpriteFile(enemyStats.species);
-  enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
-  enemySprite.style.backgroundPosition = '0 0'; // idle animation top row
+  
+  // BOSS SPRITE - Show glitchy question mark
+  if (enemyStats.is_boss) {
+    enemySprite.style.backgroundImage = 'none';
+    enemySprite.innerHTML = '<div class="boss-sprite">?</div>';
+  } else {
+    enemySprite.innerHTML = '';
+    var spriteFile = getSpriteFile(enemyStats.species);
+    enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
+    enemySprite.style.backgroundPosition = '0 0'; // idle animation top row
+  }
   
   // Clear battle log
   el('battle-log').innerHTML = '';
@@ -4767,6 +4798,9 @@ function skipBattle() {
 function endBattlePlayback() {
   el('battle-skip-btn').style.display = 'none';
   el('battle-continue-btn').style.display = 'none';
+  
+  // Clean up boss effects
+  clearBossEffects();
   
   // Show rewards modal
   showBattleRewardsModal();
@@ -5000,6 +5034,15 @@ async function findBattle() {
  * Get random enemy from zone with level scaling
  */
 async function getRandomEnemy(zone, playerLevel) {
+  // ═══════════════════════════════════════════════════════════════════════
+  // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
+  // ═══════════════════════════════════════════════════════════════════════
+  var bossRoll = Math.random();
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles)
+    console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
+    return await getBossEnemy(zone, playerLevel);
+  }
+  
   // Determine level range based on zone
   var minLevel, maxLevel;
   
@@ -5063,6 +5106,120 @@ async function getRandomEnemy(zone, playerLevel) {
   });
   
   return scaledEnemy;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// BOSS ENCOUNTER SYSTEM - Shadow of Piper
+// ═══════════════════════════════════════════════════════════════════════
+
+async function getBossEnemy(zone, playerLevel) {
+  // Fetch the boss from database
+  var res = await supabaseClient
+    .from('enemy_pets')  // FIXED: was 'enemies', should be 'enemy_pets'
+    .select('*')
+    .eq('is_boss', true)
+    .eq('forest_zone', zone)
+    .single();
+  
+  if (res.error || !res.data) {
+    console.error('Boss not found, falling back to normal enemy');
+    return null;
+  }
+  
+  var boss = res.data;
+  
+  // Scale boss level to player (+2 levels to make it scary)
+  var bossLevel = playerLevel + 2;
+  
+  // Boss already has massive HP, just add level scaling
+  var levelBonus = bossLevel - 1;
+  
+  return {
+    id: boss.id,
+    species: boss.species,
+    name: boss.name,
+    level: bossLevel,
+    base_hp: boss.base_hp + (levelBonus * 15),  // Bosses scale faster!
+    base_attack: boss.base_attack + levelBonus,
+    base_defense: boss.base_defense + Math.floor(levelBonus * 0.5),
+    base_speed: boss.base_speed + Math.floor(levelBonus * 0.5),
+    image_file: boss.image_file,
+    forest_zone: boss.forest_zone,
+    difficulty_tier: boss.difficulty_tier,
+    is_boss: true,
+    exp_reward: boss.exp_reward,
+    pp_reward: boss.pp_reward
+  };
+}
+
+function triggerBossEntrance() {
+  console.log('🔥 Triggering boss entrance sequence...');
+  
+  // Stop normal music (if playing)
+  if (window.normalMusicAudio) {
+    window.normalMusicAudio.pause();
+  }
+  
+  // Play boss theme
+  if (!window.bossThemeAudio) {
+    window.bossThemeAudio = new Audio('/boss-theme.mp3');  // Upload your boss music here
+    window.bossThemeAudio.loop = true;
+    window.bossThemeAudio.volume = 0.7;
+  }
+  window.bossThemeAudio.play();
+  
+  // Add screen glitch effect
+  var glitchOverlay = document.createElement('div');
+  glitchOverlay.className = 'screen-glitch';
+  glitchOverlay.id = 'boss-glitch-overlay';
+  document.body.appendChild(glitchOverlay);
+  
+  // Remove glitch after 3 seconds
+  setTimeout(function() {
+    var overlay = document.getElementById('boss-glitch-overlay');
+    if (overlay) overlay.remove();
+  }, 3000);
+  
+  // Add boss entrance class to battle screen
+  var battleScreen = el('battle-tab');
+  if (battleScreen) {
+    battleScreen.classList.add('boss-entrance', 'boss-battle-bg');
+  }
+  
+  // Add BOSS BATTLE indicator
+  var battleArea = el('battle-area');
+  if (battleArea && !document.getElementById('boss-indicator')) {
+    var indicator = document.createElement('div');
+    indicator.id = 'boss-indicator';
+    indicator.className = 'boss-battle-indicator';
+    indicator.innerHTML = '⚠️ BOSS BATTLE ⚠️';
+    battleArea.insertBefore(indicator, battleArea.firstChild);
+  }
+}
+
+function clearBossEffects() {
+  // Remove boss effects after battle
+  var battleScreen = el('battle-tab');
+  if (battleScreen) {
+    battleScreen.classList.remove('boss-entrance', 'boss-battle-bg');
+  }
+  
+  var indicator = document.getElementById('boss-indicator');
+  if (indicator) indicator.remove();
+  
+  var glitch = document.getElementById('boss-glitch-overlay');
+  if (glitch) glitch.remove();
+  
+  // Stop boss music
+  if (window.bossThemeAudio) {
+    window.bossThemeAudio.pause();
+    window.bossThemeAudio.currentTime = 0;
+  }
+  
+  // Resume normal music
+  if (window.normalMusicAudio) {
+    window.normalMusicAudio.play();
+  }
 }
 
 // ========================================
