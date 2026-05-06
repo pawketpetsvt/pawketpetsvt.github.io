@@ -4762,3 +4762,61 @@ body.boss-ui-glitch header {
     filter: brightness(0.5);
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   DEATH SCREEN - "WE WARNED YOU" messages
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes death-warning-shake {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  10% {
+    transform: translate(-8px, 5px) rotate(-3deg);
+  }
+  20% {
+    transform: translate(8px, -5px) rotate(3deg);
+  }
+  30% {
+    transform: translate(-7px, 6px) rotate(-2.5deg);
+  }
+  40% {
+    transform: translate(7px, -6px) rotate(2.5deg);
+  }
+  50% {
+    transform: translate(-9px, -5px) rotate(-3.5deg);
+  }
+  60% {
+    transform: translate(9px, 5px) rotate(3.5deg);
+  }
+  70% {
+    transform: translate(-6px, -7px) rotate(-2deg);
+  }
+  80% {
+    transform: translate(6px, 7px) rotate(2deg);
+  }
+  90% {
+    transform: translate(-8px, 6px) rotate(-3deg);
+  }
+}
+
+@keyframes death-warning-fade {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+  15% {
+    transform: scale(1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
