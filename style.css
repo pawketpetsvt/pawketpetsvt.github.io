@@ -4307,12 +4307,12 @@ body, button, a, input, textarea, select {
 /* ═══════════════════════════════════════════════════════════════════════
    SHADOW OF PIPER - BOSS BATTLE EFFECTS
    ═══════════════════════════════════════════════════════════════════════ */
-
+ 
 /* Boss entrance fade-in */
 .boss-entrance {
   animation: boss-fade-in 3s ease-in-out;
 }
-
+ 
 @keyframes boss-fade-in {
   0% { 
     opacity: 0;
@@ -4339,8 +4339,8 @@ body, button, a, input, textarea, select {
     filter: brightness(1);
   }
 }
-
-/* Screen glitch/artifact effect during entrance */
+ 
+/* Screen glitch/artifact effect - MORE INTENSE VERSION */
 .screen-glitch {
   position: fixed;
   top: 0;
@@ -4351,40 +4351,62 @@ body, button, a, input, textarea, select {
   z-index: 9998;
   background: repeating-linear-gradient(
     0deg,
-    rgba(255, 0, 0, 0.1) 0px,
-    rgba(0, 255, 0, 0.1) 1px,
-    rgba(0, 0, 255, 0.1) 2px,
+    rgba(255, 0, 0, 0.15) 0px,     /* Increased from 0.1 to 0.15 */
+    rgba(0, 255, 0, 0.15) 1px,     /* More visible RGB split */
+    rgba(0, 0, 255, 0.15) 2px,
     transparent 3px
   );
-  animation: glitch-scan 0.2s infinite, glitch-shift 0.5s infinite;
+  animation: glitch-scan 0.15s infinite, glitch-shift 0.4s infinite, glitch-distort 0.8s infinite;
 }
-
+ 
 @keyframes glitch-scan {
   0%, 100% { 
     transform: translateY(0) scaleY(1);
-    opacity: 0.8;
+    opacity: 0.9;  /* Increased from 0.8 */
   }
   50% { 
-    transform: translateY(-100vh) scaleY(1.2);
-    opacity: 0.4;
+    transform: translateY(-100vh) scaleY(1.3);  /* More exaggerated */
+    opacity: 0.5;  /* Increased from 0.4 */
   }
 }
-
+ 
 @keyframes glitch-shift {
   0%, 100% {
     filter: hue-rotate(0deg);
   }
   25% {
-    filter: hue-rotate(90deg) saturate(3);
+    filter: hue-rotate(90deg) saturate(4);  /* Increased saturation */
   }
   50% {
-    filter: hue-rotate(180deg) saturate(1.5);
+    filter: hue-rotate(180deg) saturate(2);
   }
   75% {
-    filter: hue-rotate(270deg) saturate(2);
+    filter: hue-rotate(270deg) saturate(3);
   }
 }
-
+ 
+/* New: Random horizontal distortion */
+@keyframes glitch-distort {
+  0%, 100% {
+    background-position: 0 0;
+  }
+  10% {
+    background-position: 5px 0;
+  }
+  20% {
+    background-position: -5px 0;
+  }
+  30% {
+    background-position: 3px 0;
+  }
+  40% {
+    background-position: -3px 0;
+  }
+  50% {
+    background-position: 0 0;
+  }
+}
+ 
 /* Boss indicator on battle screen */
 .boss-battle-indicator {
   position: absolute;
@@ -4402,7 +4424,7 @@ body, button, a, input, textarea, select {
   animation: boss-pulse 1s infinite;
   z-index: 100;
 }
-
+ 
 @keyframes boss-pulse {
   0%, 100% {
     box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
@@ -4413,7 +4435,7 @@ body, button, a, input, textarea, select {
     transform: translateX(-50%) scale(1.05);
   }
 }
-
+ 
 /* Shadow of Piper sprite - glitchy question mark */
 .boss-sprite {
   position: relative;
@@ -4424,7 +4446,7 @@ body, button, a, input, textarea, select {
     0 0 20px rgba(139, 0, 0, 0.6);
   animation: boss-sprite-glitch 2s infinite;
 }
-
+ 
 @keyframes boss-sprite-glitch {
   0%, 90%, 100% {
     color: #1a1a1a;
@@ -4452,14 +4474,14 @@ body, button, a, input, textarea, select {
     transform: translate(0, 0);
   }
 }
-
+ 
 /* Boss HP bar styling */
 .boss-hp-bar {
   background: linear-gradient(90deg, #8B0000, #FF0000);
   box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
   animation: hp-bar-pulse 1.5s infinite;
 }
-
+ 
 @keyframes hp-bar-pulse {
   0%, 100% {
     box-shadow: 0 0 15px rgba(255, 0, 0, 0.6);
@@ -4468,12 +4490,12 @@ body, button, a, input, textarea, select {
     box-shadow: 0 0 30px rgba(255, 0, 0, 1);
   }
 }
-
+ 
 /* Boss name glitch effect */
 .boss-name-glitch {
   animation: name-glitch 0.3s infinite;
 }
-
+ 
 @keyframes name-glitch {
   0%, 90%, 100% {
     transform: translate(0, 0);
@@ -4488,13 +4510,13 @@ body, button, a, input, textarea, select {
     text-shadow: 2px -2px 0 rgba(255, 0, 255, 0.7);
   }
 }
-
+ 
 /* Background darkening during boss fight */
 .boss-battle-bg {
   background: linear-gradient(135deg, #1a0000 0%, #000000 50%, #1a0000 100%) !important;
   animation: bg-flicker 3s infinite;
 }
-
+ 
 @keyframes bg-flicker {
   0%, 100% {
     filter: brightness(0.7);
