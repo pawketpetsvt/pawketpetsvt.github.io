@@ -3971,3 +3971,123 @@ body::after {
   font-size: 1.1rem;
   padding: 16px 32px;
 }
+/* ===========================================
+   MELON MASCOT - Shop Page
+   =========================================== */
+
+.shop-mascot {
+  position: fixed;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9999; /* Above everything including sidebars */
+  pointer-events: none; /* Doesn't block clicks */
+}
+
+.mascot-image {
+  width: 200px;
+  height: auto;
+  display: block;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15));
+  pointer-events: all; /* Image is clickable if needed */
+}
+
+.mascot-speech-bubble {
+  position: absolute;
+  right: 220px; /* To the left of Melon */
+  top: 20px;
+  background: white;
+  border: 3px solid var(--purple);
+  border-radius: 16px;
+  padding: 12px 16px;
+  max-width: 220px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  pointer-events: all;
+  animation: bubble-bounce 0.3s ease-out;
+}
+
+/* Speech bubble pointer (triangle pointing right toward Melon) */
+.mascot-speech-bubble::after {
+  content: '';
+  position: absolute;
+  right: -12px;
+  top: 20px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid var(--purple);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+}
+
+.mascot-speech-bubble::before {
+  content: '';
+  position: absolute;
+  right: -8px;
+  top: 22px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid white;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  z-index: 1;
+}
+
+@keyframes bubble-bounce {
+  0% {
+    transform: scale(0.8) translateY(10px);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Glitchy red text for spooky dialogue */
+.glitch-text {
+  color: #ff0000;
+  font-weight: 800;
+  animation: glitch 0.3s infinite;
+  text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+}
+
+@keyframes glitch {
+  0% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
+  25% {
+    text-shadow: -2px 0 #ff0000, 2px 0 #00ff00;
+    transform: translateX(2px);
+  }
+  50% {
+    text-shadow: 2px 0 #00ff00, -2px 0 #ff0000;
+    transform: translateX(-2px);
+  }
+  75% {
+    text-shadow: -2px 0 #00ff00, 2px 0 #ff0000;
+    transform: translateX(2px);
+  }
+  100% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
+}
+
+/* Hide Melon on mobile/small screens */
+@media (max-width: 1200px) {
+  .shop-mascot {
+    display: none;
+  }
+}
+
+/* Only show Melon on the shop page */
+#section-shop:not(.active) .shop-mascot {
+  display: none;
+}
