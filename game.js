@@ -717,8 +717,17 @@ async function useItem(petId) {
   
   var updates = {};
   
+  console.log('=== USE ITEM DEBUG ===');
+  console.log('Item:', item);
+  console.log('Item effect:', item.effect);
+  console.log('Item value:', item.value);
+  console.log('Item effect_value:', item.effect_value);
+  
   // Handle healing items (HP restoration)
   var healValue = item.value || item.effect_value || 0;
+  console.log('Heal value calculated:', healValue);
+  console.log('Is healing item?', item.effect === 'healing', healValue > 0);
+  
   if (item.effect === 'healing' && healValue > 0) {
     // Get current HP and max HP from database
     var petRes = await supabaseClient
