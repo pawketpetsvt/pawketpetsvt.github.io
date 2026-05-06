@@ -7,6 +7,74 @@ var SUPABASE_URL = 'https://hqzugbxutgefjilgmxqu.supabase.co';
 var SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxenVnYnh1dGdlZmppbGdteHF1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5MTE5NjEsImV4cCI6MjA5MDQ4Nzk2MX0.A3bQMriwY8j9GasUywq_8hKlnkEQQNMyB2ykSaQR68c';
 
 // Initialize supabaseClient - wait for library to load
+/* ═══════════════════════════════════════════════════════════════════════
+   BATTLE SOUND EFFECTS SYSTEM
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var battleSounds = {
+  playerLight: '/sounds/hit-light.mp3',
+  playerNormal: '/sounds/hit-normal.mp3',
+  playerCrit: '/sounds/hit-crit.mp3',
+  enemyLight: '/sounds/enemy-hit-light.mp3',
+  enemyNormal: '/sounds/enemy-hit-normal.mp3',
+  enemyCrit: '/sounds/enemy-hit-crit.mp3',
+  bossAttack: '/sounds/piper-flute-attack.mp3',
+  victory: '/sounds/victory.mp3',
+  defeat: '/sounds/defeat.mp3'
+};
+
+var audioCache = {};
+var lastSoundTime = 0;
+var soundCooldown = 300; // Minimum 300ms between sounds to avoid spam
+
+function playBattleSound(soundKey, volume, forceBoss) {
+  // Rate limiting - prevent sound spam
+  var now = Date.now();
+  if (!forceBoss && now - lastSoundTime < soundCooldown) {
+    return; // Skip this sound
+  }
+  lastSoundTime = now;
+  
+  // Check if file exists by trying to load it
+  if (!audioCache[soundKey]) {
+    var audio = new Audio(battleSounds[soundKey]);
+    audio.volume = volume || 0.35;
+    audio.onerror = function() {
+      console.log('Sound file not found:', battleSounds[soundKey]);
+      audioCache[soundKey] = null; // Mark as missing
+    };
+    audioCache[soundKey] = audio;
+  }
+  
+  if (audioCache[soundKey] === null) {
+    return; // File doesn't exist, skip silently
+  }
+  
+  // Clone to allow overlapping sounds
+  var sound = audioCache[soundKey].cloneNode();
+  sound.volume = volume || 0.35;
+  
+  sound.play().catch(function(err) {
+    // Silently fail if sound can't play
+  });
+}
+
+function getBattleSoundKey(attacker, variance) {
+  var prefix = attacker === 'player' ? 'player' : 'enemy';
+  
+  if (variance === -1) {
+    return prefix + 'Light';
+  } else if (variance === 0) {
+    return prefix + 'Normal';
+  } else {
+    return prefix + 'Crit';
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MAIN GAME CODE
+   ═══════════════════════════════════════════════════════════════════════ */
+
 var supabaseClient;
 if (typeof supabase !== 'undefined') {
   supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -4321,6 +4389,7 @@ function simulateBattle(playerStats, enemyStats) {
         type: 'player_attack',
         attacker: 'player',
         damage: playerDamageResult.damage,
+        variance: playerDamageResult.variance,
         text: playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
         playerHP: playerHP,
         enemyHP: Math.max(0, enemyHP)
@@ -4337,6 +4406,7 @@ function simulateBattle(playerStats, enemyStats) {
       type: 'enemy_attack',
       attacker: 'enemy',
       damage: enemyDamageResult.damage,
+      variance: enemyDamageResult.variance,
       text: enemyStats.name + ' attacks for ' + enemyDamageResult.damage + ' damage! ' + enemyDamageResult.flavor,
       playerHP: Math.max(0, playerHP),
       enemyHP: Math.max(0, enemyHP)
@@ -4402,7 +4472,7 @@ function calculateDamage(attack, defense) {
     flavor = critHitFlavors[Math.floor(Math.random() * critHitFlavors.length)];
   }
   
-  return { damage: damage, flavor: flavor };
+  return { damage: damage, flavor: flavor, variance: variance };
 }
 
 /**
@@ -4996,8 +5066,29 @@ function playBattleTurn() {
   // Animate hit
   if (entry.type === 'player_attack') {
     animateHit('enemy');
+    
+    // Play player attack sound
+    if (entry.variance !== undefined) {
+      var soundKey = getBattleSoundKey('player', entry.variance);
+      playBattleSound(soundKey, 0.35);
+    }
   } else if (entry.type === 'enemy_attack') {
     animateHit('player');
+    
+    // Play enemy attack sound - special sound for boss!
+    if (isBossBattle) {
+      playBattleSound('bossAttack', 0.30, true); // Boss flute sound
+    } else if (entry.variance !== undefined) {
+      var soundKey = getBattleSoundKey('enemy', entry.variance);
+      playBattleSound(soundKey, 0.30);
+    }
+  } else if (entry.type === 'end') {
+    // Play victory/defeat sound
+    if (entry.text.includes('Victory')) {
+      playBattleSound('victory', 0.40);
+    } else {
+      playBattleSound('defeat', 0.35);
+    }
   }
   
   currentBattleIndex++;
