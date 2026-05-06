@@ -48,6 +48,33 @@ var STREAMER_IDS = {
 var currentUser = null;
 var currentPoints = 0;
 var tabsLoaded = {};
+
+// ══════════════════════════════════════════════════════════════════════════
+// EVOLUTION SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+function getEvolutionStage(level) {
+  if (level >= 10) return 'adult';
+  if (level >= 5) return 'teen';
+  return 'baby';
+}
+
+function getEvolutionEmoji(stage) {
+  if (stage === 'adult') return '🐺';
+  if (stage === 'teen') return '🦊';
+  return '🐣';
+}
+
+function getEvolutionBonuses(stage) {
+  // Cumulative bonuses based on stage
+  if (stage === 'adult') {
+    return { hp: 5, attack: 3, defense: 2, speed: 1 }; // Total bonuses at adult
+  }
+  if (stage === 'teen') {
+    return { hp: 2, attack: 1, defense: 1, speed: 0 }; // Bonuses at teen
+  }
+  return { hp: 0, attack: 0, defense: 0, speed: 0 }; // No bonuses as baby
+}
 var selectedPet = null;
 var ownedPetIds = [];
 var totalOwnedCount = 0;
@@ -910,7 +937,13 @@ function makeMyPetCard(pet) {
 
   // Name and info
   var headerInfo = makeEl('div', {class:'pet-card-header-info'});
-  headerInfo.appendChild(makeEl('div', {class:'pet-card-nickname'}, pet.nickname));
+  
+  // Add evolution stage emoji
+  var evolutionStage = getEvolutionStage(pet.level);
+  var evolutionEmoji = getEvolutionEmoji(evolutionStage);
+  var stageName = evolutionStage.charAt(0).toUpperCase() + evolutionStage.slice(1);
+  
+  headerInfo.appendChild(makeEl('div', {class:'pet-card-nickname'}, evolutionEmoji + ' ' + pet.nickname + ' (' + stageName + ')'));
   var speciesEl = makeEl('div', {class:'pet-card-species'});
   if (info.vtuber_name) speciesEl.textContent = info.vtuber_name;
   if (info.twitch_url) {
@@ -1307,7 +1340,7 @@ function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnerg
   if (newXp >= xpNeeded) {
     // Level up! Calculate stat increases
     var statIncreases = {
-      hp: 3, // Always get +3 HP minimum
+      hp: 6, // Always get +6 HP minimum (doubled from +3 for longer battles)
       atk: 0,
       def: 0,
       spd: 0
@@ -4021,8 +4054,12 @@ async function calculatePetStats(petId) {
   
   var pet = petRes.data;
   
-  // Calculate max HP from base + equipment
-  var maxHP = pet.base_hp || 30;
+  // Determine evolution stage based on level
+  var evolutionStage = getEvolutionStage(pet.level);
+  var evolutionBonuses = getEvolutionBonuses(evolutionStage);
+  
+  // Calculate max HP from base + evolution + equipment
+  var maxHP = (pet.base_hp || 30) + evolutionBonuses.hp;
   
   // Get equipped items
   var equipRes = await supabaseClient
@@ -4061,9 +4098,9 @@ async function calculatePetStats(petId) {
   var stats = {
     hp: currentHP,  // Start battle with current HP, not full HP!
     maxHP: maxHP,
-    attack: pet.base_attack || 5,
-    defense: pet.base_defense || 3,
-    speed: pet.base_speed || 4
+    attack: (pet.base_attack || 5) + evolutionBonuses.attack,
+    defense: (pet.base_defense || 3) + evolutionBonuses.defense,
+    speed: (pet.base_speed || 4) + evolutionBonuses.speed
   };
   
   // Apply equipment bonuses
@@ -4444,9 +4481,19 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       
       // Store level up info for the rewards modal
       if (lu.leveled) {
+        var oldStage = getEvolutionStage(pet.level);
+        var newStage = getEvolutionStage(lu.level);
+        
         battleRewards.leveledUp = true;
         battleRewards.newLevel = lu.level;
         battleRewards.statIncreases = lu.statIncreases;
+        
+        // Check if pet evolved to a new stage
+        if (oldStage !== newStage) {
+          battleRewards.evolved = true;
+          battleRewards.evolutionStage = newStage;
+          battleRewards.evolutionEmoji = getEvolutionEmoji(newStage);
+        }
       }
     }
     
@@ -4713,6 +4760,13 @@ function showBattleRewardsModal() {
     // Check for level up
     if (battleRewards.leveledUp) {
       var levelUpText = '⭐ LEVEL UP! Now Level ' + battleRewards.newLevel + '!\n';
+      
+      // Check for evolution!
+      if (battleRewards.evolved) {
+        levelUpText = battleRewards.evolutionEmoji + ' EVOLUTION! ' + battleRewards.evolutionStage.toUpperCase() + ' STAGE!\n';
+        levelUpText += 'Your pet is now Level ' + battleRewards.newLevel + '!\n';
+      }
+      
       var stats = battleRewards.statIncreases;
       if (stats.hp) levelUpText += '+' + stats.hp + ' HP ';
       if (stats.atk) levelUpText += '+' + stats.atk + ' ATK ';
@@ -4720,9 +4774,9 @@ function showBattleRewardsModal() {
       if (stats.spd) levelUpText += '+' + stats.spd + ' SPD';
       
       expText.textContent = levelUpText;
-      expText.style.color = 'var(--purple)';
+      expText.style.color = battleRewards.evolved ? 'var(--pink)' : 'var(--purple)';
       expText.style.fontWeight = 'bold';
-      expText.style.fontSize = '1.1rem';
+      expText.style.fontSize = battleRewards.evolved ? '1.2rem' : '1.1rem';
     } else {
       expText.style.color = '';
       expText.style.fontWeight = '';
@@ -4943,14 +4997,14 @@ async function getRandomEnemy(zone, playerLevel) {
   var enemyLevel = minLevel + Math.floor(Math.random() * (maxLevel - minLevel + 1));
   
   // Scale stats based on level (base stats + scaling per level)
-  // Each level above 1: +2 HP, +1 ATK, +0.5 DEF (rounded), +0.5 SPD (rounded)
+  // Each level above 1: +8 HP, +1 ATK, +0.5 DEF (rounded), +0.5 SPD (rounded)
   var levelBonus = enemyLevel - 1;
   var scaledEnemy = {
     id: baseEnemy.id,
     species: baseEnemy.species,
     name: baseEnemy.name,
     level: enemyLevel,
-    base_hp: baseEnemy.base_hp + (levelBonus * 2),
+    base_hp: baseEnemy.base_hp + (levelBonus * 8),  // 4x more HP scaling!
     base_attack: baseEnemy.base_attack + levelBonus,
     base_defense: baseEnemy.base_defense + Math.floor(levelBonus * 0.5),
     base_speed: baseEnemy.base_speed + Math.floor(levelBonus * 0.5),
