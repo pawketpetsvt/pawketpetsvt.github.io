@@ -3616,6 +3616,19 @@ async function showEquipmentModal(petId) {
     weaponName.textContent = equipped.weapon.name;
     weaponSlot.appendChild(weaponName);
     
+    // Show stat bonuses
+    var bonuses = [];
+    if (equipped.weapon.attack_bonus) bonuses.push('+' + equipped.weapon.attack_bonus + ' ATK');
+    if (equipped.weapon.defense_bonus) bonuses.push('+' + equipped.weapon.defense_bonus + ' DEF');
+    if (equipped.weapon.speed_bonus) bonuses.push('+' + equipped.weapon.speed_bonus + ' SPD');
+    if (equipped.weapon.hp_bonus) bonuses.push('+' + equipped.weapon.hp_bonus + ' HP');
+    if (bonuses.length > 0) {
+      var bonusText = makeEl('div', { class: 'equipment-slot-bonus' });
+      bonusText.style.cssText = 'font-size:0.75rem;color:#666;margin-top:4px;';
+      bonusText.textContent = bonuses.join(', ');
+      weaponSlot.appendChild(bonusText);
+    }
+    
     var unequipBtn = makeEl('button', { class: 'btn btn-sm btn-unequip' });
     unequipBtn.textContent = 'Unequip';
     unequipBtn.onclick = function() { 
@@ -3645,6 +3658,19 @@ async function showEquipmentModal(petId) {
     armorName.textContent = equipped.armor.name;
     armorSlot.appendChild(armorName);
     
+    // Show stat bonuses
+    var bonuses = [];
+    if (equipped.armor.attack_bonus) bonuses.push('+' + equipped.armor.attack_bonus + ' ATK');
+    if (equipped.armor.defense_bonus) bonuses.push('+' + equipped.armor.defense_bonus + ' DEF');
+    if (equipped.armor.speed_bonus) bonuses.push('+' + equipped.armor.speed_bonus + ' SPD');
+    if (equipped.armor.hp_bonus) bonuses.push('+' + equipped.armor.hp_bonus + ' HP');
+    if (bonuses.length > 0) {
+      var bonusText = makeEl('div', { class: 'equipment-slot-bonus' });
+      bonusText.style.cssText = 'font-size:0.75rem;color:#666;margin-top:4px;';
+      bonusText.textContent = bonuses.join(', ');
+      armorSlot.appendChild(bonusText);
+    }
+    
     var unequipBtn2 = makeEl('button', { class: 'btn btn-sm btn-unequip' });
     unequipBtn2.textContent = 'Unequip';
     unequipBtn2.onclick = function() { 
@@ -3672,19 +3698,34 @@ async function showEquipmentModal(petId) {
   allEquipRes.data.forEach(function(playerEquip) {
     var item = playerEquip.equipment;
     var card = makeEl('div', { class: 'equipment-card' });
-    card.style.fontSize = '0.85rem';
+    card.style.cssText = 'font-size:0.85rem;padding:15px;border:2px solid var(--purple-light);border-radius:12px;text-align:center;';
     
     var icon = makeEl('div', { class: 'equipment-icon' });
-    icon.style.fontSize = '2rem';
+    icon.style.fontSize = '2.5rem';
     icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
     card.appendChild(icon);
     
     var name = makeEl('div', { class: 'equipment-name' });
+    name.style.cssText = 'font-weight:bold;color:var(--purple);margin:8px 0;';
     name.textContent = item.name;
     card.appendChild(name);
     
+    // Show stat bonuses
+    var bonuses = [];
+    if (item.attack_bonus) bonuses.push('+' + item.attack_bonus + ' ATK');
+    if (item.defense_bonus) bonuses.push('+' + item.defense_bonus + ' DEF');
+    if (item.speed_bonus) bonuses.push('+' + item.speed_bonus + ' SPD');
+    if (item.hp_bonus) bonuses.push('+' + item.hp_bonus + ' HP');
+    if (bonuses.length > 0) {
+      var bonusDiv = makeEl('div', { class: 'equipment-bonuses' });
+      bonusDiv.style.cssText = 'font-size:0.75rem;color:#5dde7a;margin:8px 0;';
+      bonusDiv.textContent = bonuses.join(', ');
+      card.appendChild(bonusDiv);
+    }
+    
     var equipBtn = makeEl('button', { class: 'btn btn-sm btn-primary' });
     equipBtn.textContent = 'Equip';
+    equipBtn.style.marginTop = '10px';
     equipBtn.onclick = function() { 
       equipItem(playerEquip.id, item.equipment_type);
       document.body.removeChild(modal);
