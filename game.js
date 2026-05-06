@@ -5084,7 +5084,14 @@ function playBattleTurn() {
     if (isBossBattle && entry.variance !== undefined) {
       // Boss uses different flute sounds based on hit strength
       var bossSoundKey = 'boss' + (entry.variance === -1 ? 'Light' : entry.variance === 0 ? 'Normal' : 'Crit');
-      playBattleSound(bossSoundKey, 0.35, true); // Allow boss sounds to overlap
+      
+      // Volume adjustments: Light/Normal +20% louder, Crit 25% quieter
+      var bossVolume = 0.42; // Default for light/normal (was 0.35, now +20%)
+      if (entry.variance === 1) { // Crit
+        bossVolume = 0.26; // Crit quieter (was 0.35, now -25%)
+      }
+      
+      playBattleSound(bossSoundKey, bossVolume, true); // Allow boss sounds to overlap
     } else if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('enemy', entry.variance);
       playBattleSound(soundKey, 0.30);
@@ -5551,14 +5558,14 @@ function triggerBossEntrance() {
   if (!window.bossThemeAudio) {
     window.bossThemeAudio = new Audio('/boss-theme.mp3');
     window.bossThemeAudio.loop = true;
-    window.bossThemeAudio.volume = 0.20;
+    window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
     window.bossThemeAudio.onerror = function() {
       console.log('⚠️ Boss music file not found: /boss-theme.mp3');
       console.log('💡 Upload boss-theme.mp3 to your repo root to enable boss music!');
     };
   }
   window.bossThemeAudio.currentTime = 0;
-  window.bossThemeAudio.volume = 0.20;
+  window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
   
   window.bossThemeAudio.play().then(function() {
     console.log('🎵 Boss music playing!');
