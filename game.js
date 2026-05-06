@@ -18,7 +18,12 @@ var battleSounds = {
   enemyLight: '/sounds/enemy-hit-light.mp3',
   enemyNormal: '/sounds/enemy-hit-normal.mp3',
   enemyCrit: '/sounds/enemy-hit-crit.mp3',
-  bossAttack: '/sounds/piper-flute-attack.mp3',
+  
+  // Boss attack sounds with variance (creepy flute variants)
+  bossLight: '/sounds/piper-flute-light.mp3',    // Soft, eerie flute
+  bossNormal: '/sounds/piper-flute-normal.mp3',  // Main creepy flute
+  bossCrit: '/sounds/piper-flute-crit.mp3',      // Intense/distorted flute
+  
   victory: '/sounds/victory.mp3',
   defeat: '/sounds/defeat.mp3'
 };
@@ -5075,9 +5080,11 @@ function playBattleTurn() {
   } else if (entry.type === 'enemy_attack') {
     animateHit('player');
     
-    // Play enemy attack sound - special sound for boss!
-    if (isBossBattle) {
-      playBattleSound('bossAttack', 0.30, true); // Boss flute sound
+    // Play enemy attack sound - special sounds for boss with variance!
+    if (isBossBattle && entry.variance !== undefined) {
+      // Boss uses different flute sounds based on hit strength
+      var bossSoundKey = 'boss' + (entry.variance === -1 ? 'Light' : entry.variance === 0 ? 'Normal' : 'Crit');
+      playBattleSound(bossSoundKey, 0.35, true); // Allow boss sounds to overlap
     } else if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('enemy', entry.variance);
       playBattleSound(soundKey, 0.30);
@@ -5093,8 +5100,15 @@ function playBattleTurn() {
   
   currentBattleIndex++;
   
+  // Dynamic turn speed - give boss attacks more time for long sound effects
+  var turnDelay = 1200; // Default 1.2 seconds
+  
+  if (isBossBattle && entry.type === 'enemy_attack') {
+    turnDelay = 4500; // 4.5 seconds for boss attacks (allows 4s sound to finish)
+  }
+  
   // Continue to next turn
-  battlePlaybackInterval = setTimeout(playBattleTurn, 1200);
+  battlePlaybackInterval = setTimeout(playBattleTurn, turnDelay);
 }
 
 function updateHPBar(side, currentHP, maxHP) {
