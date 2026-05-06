@@ -5551,11 +5551,20 @@ function triggerBossEntrance() {
   if (!window.bossThemeAudio) {
     window.bossThemeAudio = new Audio('/boss-theme.mp3');
     window.bossThemeAudio.loop = true;
-    window.bossThemeAudio.volume = 0.20;  // REDUCED AGAIN from 0.25 to 0.20 (another 20% quieter)
+    window.bossThemeAudio.volume = 0.20;
+    window.bossThemeAudio.onerror = function() {
+      console.log('⚠️ Boss music file not found: /boss-theme.mp3');
+      console.log('💡 Upload boss-theme.mp3 to your repo root to enable boss music!');
+    };
   }
-  window.bossThemeAudio.currentTime = 0;  // Restart from beginning
-  window.bossThemeAudio.volume = 0.20;  // Ensure volume is set
-  window.bossThemeAudio.play();
+  window.bossThemeAudio.currentTime = 0;
+  window.bossThemeAudio.volume = 0.20;
+  
+  window.bossThemeAudio.play().then(function() {
+    console.log('🎵 Boss music playing!');
+  }).catch(function(err) {
+    console.log('⚠️ Boss music failed to play:', err.message);
+  });
   
   // Add screen glitch effect - STAYS FOR ENTIRE FIGHT!
   var glitchOverlay = document.createElement('div');
