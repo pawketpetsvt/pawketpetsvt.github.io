@@ -4528,138 +4528,114 @@ body, button, a, input, textarea, select {
 
 /* ═══════════════════════════════════════════════════════════════════════
    UI FRAGMENTATION - ALL UI elements drift and fragment during boss battles
+   EACH ELEMENT HAS UNIQUE, RANDOMIZED TIMING FOR MAXIMUM CHAOS
    ═══════════════════════════════════════════════════════════════════════ */
 
-/* Target EVERY sidebar, panel, and UI element - make them ALL move! */
-body.boss-ui-glitch nav,
-body.boss-ui-glitch aside,
-body.boss-ui-glitch .sidebar,
-body.boss-ui-glitch .panel,
-body.boss-ui-glitch .left-sidebar,
-body.boss-ui-glitch .right-sidebar,
-body.boss-ui-glitch [class*="sidebar"],
-body.boss-ui-glitch [class*="panel"],
+/* Target EVERY sidebar, panel, and UI element - give each unique animation */
+body.boss-ui-glitch nav:nth-child(1) {
+  animation: ui-drift-1 7.3s ease-in-out infinite;
+}
+
+body.boss-ui-glitch nav:nth-child(2) {
+  animation: ui-drift-2 9.7s ease-in-out infinite;
+}
+
+body.boss-ui-glitch aside:nth-child(1),
+body.boss-ui-glitch .sidebar:nth-child(1) {
+  animation: ui-drift-3 8.1s ease-in-out infinite;
+}
+
+body.boss-ui-glitch aside:nth-child(2),
+body.boss-ui-glitch .sidebar:nth-child(2) {
+  animation: ui-drift-4 11.3s ease-in-out infinite;
+}
+
+body.boss-ui-glitch aside:nth-child(3),
+body.boss-ui-glitch .sidebar:nth-child(3) {
+  animation: ui-drift-5 6.8s ease-in-out infinite;
+}
+
 body.boss-ui-glitch header:not(.battle-header) {
-  animation: ui-drift-chaos 10s ease-in-out infinite;
-  animation-delay: calc(var(--drift-delay, 0) * 1s);
+  animation: ui-drift-6 5.9s ease-in-out infinite;
 }
 
-/* Different drift patterns for variety */
-body.boss-ui-glitch nav:nth-of-type(1),
-body.boss-ui-glitch .sidebar:nth-of-type(1),
-body.boss-ui-glitch aside:first-child {
-  animation: ui-drift-left 8s ease-in-out infinite;
-}
-
-body.boss-ui-glitch nav:nth-of-type(2),
-body.boss-ui-glitch aside:nth-of-type(2),
 body.boss-ui-glitch [class*="right"] {
-  animation: ui-drift-right 9s ease-in-out infinite;
+  animation: ui-drift-7 10.2s ease-in-out infinite;
 }
 
-body.boss-ui-glitch .panel:nth-child(odd),
-body.boss-ui-glitch aside:nth-of-type(3) {
-  animation: ui-drift-diagonal 11s ease-in-out infinite;
+body.boss-ui-glitch [class*="panel"]:nth-child(odd) {
+  animation: ui-drift-8 7.6s ease-in-out infinite;
 }
 
-body.boss-ui-glitch header {
-  animation: ui-drift-header 7s ease-in-out infinite;
+body.boss-ui-glitch [class*="panel"]:nth-child(even) {
+  animation: ui-drift-9 9.1s ease-in-out infinite;
 }
 
-/* Drift animations - slow, unsettling movement */
-@keyframes ui-drift-left {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 1;
-  }
-  25% {
-    transform: translate(-40px, 20px) rotate(-2deg);
-    opacity: 0.92;
-  }
-  50% {
-    transform: translate(-60px, -15px) rotate(-1deg);
-    opacity: 0.88;
-  }
-  75% {
-    transform: translate(-30px, 35px) rotate(-2.5deg);
-    opacity: 0.90;
-  }
+/* Nine completely different drift patterns - no two are the same! */
+@keyframes ui-drift-1 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  23% { transform: translate(-35px, 18px) rotate(-1.8deg); opacity: 0.91; }
+  47% { transform: translate(-52px, -12px) rotate(-0.9deg); opacity: 0.87; }
+  71% { transform: translate(-28px, 31px) rotate(-2.1deg); opacity: 0.89; }
 }
 
-@keyframes ui-drift-right {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 1;
-  }
-  20% {
-    transform: translate(45px, -25px) rotate(1.5deg);
-    opacity: 0.91;
-  }
-  40% {
-    transform: translate(65px, 15px) rotate(1deg);
-    opacity: 0.85;
-  }
-  60% {
-    transform: translate(50px, 40px) rotate(2deg);
-    opacity: 0.88;
-  }
-  80% {
-    transform: translate(35px, -20px) rotate(1.2deg);
-    opacity: 0.93;
-  }
+@keyframes ui-drift-2 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  19% { transform: translate(42px, -23px) rotate(1.6deg); opacity: 0.93; }
+  41% { transform: translate(58px, 14px) rotate(0.8deg); opacity: 0.86; }
+  63% { transform: translate(47px, 36px) rotate(1.9deg); opacity: 0.88; }
+  84% { transform: translate(31px, -19px) rotate(1.1deg); opacity: 0.92; }
 }
 
-@keyframes ui-drift-diagonal {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 1;
-  }
-  33% {
-    transform: translate(-35px, -30px) rotate(-1.5deg);
-    opacity: 0.89;
-  }
-  66% {
-    transform: translate(40px, 35px) rotate(1.8deg);
-    opacity: 0.86;
-  }
+@keyframes ui-drift-3 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  28% { transform: translate(-41px, -27px) rotate(-1.4deg); opacity: 0.89; }
+  54% { transform: translate(39px, 29px) rotate(1.7deg); opacity: 0.85; }
+  79% { transform: translate(-18px, 41px) rotate(-2.3deg); opacity: 0.90; }
 }
 
-@keyframes ui-drift-header {
-  0%, 100% {
-    transform: translateY(0) rotate(0deg);
-    opacity: 1;
-  }
-  50% {
-    transform: translateY(-15px) rotate(-0.5deg);
-    opacity: 0.93;
-  }
+@keyframes ui-drift-4 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  16% { transform: translate(-26px, 33px) rotate(-1.2deg); opacity: 0.94; }
+  37% { transform: translate(48px, -16px) rotate(0.7deg); opacity: 0.88; }
+  59% { transform: translate(-33px, -28px) rotate(-1.9deg); opacity: 0.86; }
+  82% { transform: translate(29px, 37px) rotate(1.5deg); opacity: 0.91; }
 }
 
-@keyframes ui-drift-chaos {
-  0%, 100% {
-    transform: translate(0, 0) rotate(0deg);
-    opacity: 1;
-  }
-  16% {
-    transform: translate(-20px, 25px) rotate(-1deg);
-    opacity: 0.94;
-  }
-  33% {
-    transform: translate(30px, -20px) rotate(0.8deg);
-    opacity: 0.90;
-  }
-  50% {
-    transform: translate(-35px, 10px) rotate(-1.5deg);
-    opacity: 0.87;
-  }
-  66% {
-    transform: translate(25px, 30px) rotate(1.2deg);
-    opacity: 0.91;
-  }
-  83% {
-    transform: translate(-15px, -25px) rotate(-0.8deg);
-    opacity: 0.95;
-  }
+@keyframes ui-drift-5 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  31% { transform: translate(51px, 22px) rotate(2.1deg); opacity: 0.87; }
+  61% { transform: translate(-44px, -19px) rotate(-1.6deg); opacity: 0.84; }
+  88% { transform: translate(36px, -31px) rotate(0.9deg); opacity: 0.90; }
+}
+
+@keyframes ui-drift-6 {
+  0%, 100% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  33% { transform: translateY(-22px) rotate(-0.6deg); opacity: 0.92; }
+  67% { transform: translateY(18px) rotate(0.8deg); opacity: 0.89; }
+}
+
+@keyframes ui-drift-7 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  21% { transform: translate(63px, -29px) rotate(2.4deg); opacity: 0.85; }
+  44% { transform: translate(38px, 41px) rotate(1.1deg); opacity: 0.88; }
+  68% { transform: translate(55px, -14px) rotate(1.8deg); opacity: 0.86; }
+  89% { transform: translate(44px, 27px) rotate(2.2deg); opacity: 0.91; }
+}
+
+@keyframes ui-drift-8 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  26% { transform: translate(-48px, 24px) rotate(-2.2deg); opacity: 0.90; }
+  52% { transform: translate(42px, -33px) rotate(1.4deg); opacity: 0.87; }
+  76% { transform: translate(-29px, -21px) rotate(-1.7deg); opacity: 0.89; }
+}
+
+@keyframes ui-drift-9 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  18% { transform: translate(37px, 28px) rotate(1.3deg); opacity: 0.92; }
+  39% { transform: translate(-51px, -17px) rotate(-2.0deg); opacity: 0.86; }
+  62% { transform: translate(45px, -38px) rotate(0.9deg); opacity: 0.88; }
+  83% { transform: translate(-33px, 34px) rotate(-1.5deg); opacity: 0.90; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -4680,7 +4656,6 @@ body.boss-ui-glitch header {
   pointer-events: none;
   z-index: 9999;
   white-space: nowrap;
-  animation: warning-shake 0.1s infinite, warning-fade 4s ease-in-out infinite;
   opacity: 0;
   font-family: 'Arial Black', sans-serif;
   letter-spacing: 3px;
@@ -4696,46 +4671,69 @@ body.boss-ui-glitch header {
   background-clip: text;
 }
 
-@keyframes warning-shake {
+/* Scroll from left animation */
+.boss-warning-scroll-left {
+  animation: warning-shake-intense 0.08s infinite, warning-scroll-left 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
+}
+
+/* Scroll from right animation */
+.boss-warning-scroll-right {
+  animation: warning-shake-intense 0.08s infinite, warning-scroll-right 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
+}
+
+@keyframes warning-shake-intense {
   0% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
-  10% { transform: translate(-5px, 3px) rotate(-2deg) skew(-1deg); }
-  20% { transform: translate(5px, -3px) rotate(2deg) skew(1deg); }
-  30% { transform: translate(-4px, 4px) rotate(-1deg) skew(-2deg); }
-  40% { transform: translate(4px, -4px) rotate(1deg) skew(2deg); }
-  50% { transform: translate(-6px, -3px) rotate(-2deg) skew(-1deg); }
-  60% { transform: translate(6px, 3px) rotate(2deg) skew(1deg); }
-  70% { transform: translate(-3px, -5px) rotate(-1deg) skew(-2deg); }
-  80% { transform: translate(3px, 5px) rotate(1deg) skew(2deg); }
-  90% { transform: translate(-5px, 4px) rotate(-2deg) skew(-1deg); }
+  8% { transform: translate(-7px, 4px) rotate(-2.5deg) skew(-2deg); }
+  16% { transform: translate(7px, -4px) rotate(2.5deg) skew(2deg); }
+  24% { transform: translate(-6px, 5px) rotate(-2deg) skew(-1.5deg); }
+  32% { transform: translate(6px, -5px) rotate(2deg) skew(1.5deg); }
+  40% { transform: translate(-8px, -4px) rotate(-3deg) skew(-2.5deg); }
+  48% { transform: translate(8px, 4px) rotate(3deg) skew(2.5deg); }
+  56% { transform: translate(-5px, -6px) rotate(-2deg) skew(-2deg); }
+  64% { transform: translate(5px, 6px) rotate(2deg) skew(2deg); }
+  72% { transform: translate(-7px, 5px) rotate(-2.5deg) skew(-1.5deg); }
+  80% { transform: translate(7px, -5px) rotate(2.5deg) skew(1.5deg); }
+  88% { transform: translate(-6px, 4px) rotate(-2deg) skew(-2deg); }
+  96% { transform: translate(6px, -4px) rotate(2deg) skew(2deg); }
   100% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
 }
 
-@keyframes warning-fade {
-  0%, 100% {
+@keyframes warning-scroll-left {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes warning-scroll-right {
+  0% {
+    right: -100%;
+  }
+  100% {
+    right: 100%;
+  }
+}
+
+@keyframes warning-fade-scroll {
+  0% {
     opacity: 0;
-    filter: brightness(1);
+    filter: brightness(0.5);
   }
   5% {
     opacity: 0.95;
     filter: brightness(1.5);
   }
-  10% {
-    opacity: 0.9;
-    filter: brightness(1.2);
-  }
-  40% {
+  10%, 85% {
     opacity: 0.95;
     filter: brightness(1.3);
   }
-  70% {
-    opacity: 0.85;
-    filter: brightness(1.1);
+  90% {
+    opacity: 0.6;
+    filter: brightness(0.9);
   }
-  85% {
-    opacity: 0.4;
-    filter: brightness(0.8);
-  }
-  95% {
+  100% {
     opacity: 0;
     filter: brightness(0.5);
   }
