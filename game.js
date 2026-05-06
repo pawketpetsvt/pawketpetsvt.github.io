@@ -3077,7 +3077,14 @@ async function loadProfile(username) {
       
       console.log('Player query result:', playerRes);
       
-      if (playerRes.error) throw new Error('Player not found: ' + playerRes.error.message);
+      if (playerRes.error) {
+        console.error('Player query failed:', playerRes.error);
+        throw new Error('Player "' + username + '" not found. Error: ' + playerRes.error.message);
+      }
+      
+      if (!playerRes.data) {
+        throw new Error('Player "' + username + '" does not exist in the database.');
+      }
       
       var player = playerRes.data;
       
