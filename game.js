@@ -956,19 +956,22 @@ function makeMyPetCard(pet) {
       '<div style="width:' + hpPercent + '%;height:100%;background:' + hpColor + ';transition:width 0.3s;"></div></div>';
     battleStats.appendChild(hpStat);
     
-    var atkStat = makeEl('div', {class:'battle-stat-mini'});
+    var atkStat = makeEl('div', {class:'battle-stat-mini', id:'atk-stat-'+pet.id});
     atkStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">ATK</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_attack || 5) + '</div>';
     battleStats.appendChild(atkStat);
     
-    var defStat = makeEl('div', {class:'battle-stat-mini'});
+    var defStat = makeEl('div', {class:'battle-stat-mini', id:'def-stat-'+pet.id});
     defStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">DEF</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_defense || 3) + '</div>';
     battleStats.appendChild(defStat);
     
-    var spdStat = makeEl('div', {class:'battle-stat-mini'});
+    var spdStat = makeEl('div', {class:'battle-stat-mini', id:'spd-stat-'+pet.id});
     spdStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_speed || 4) + '</div>';
     battleStats.appendChild(spdStat);
     
     body.appendChild(battleStats);
+    
+    // Update stats with equipment bonuses (async)
+    updatePetStatsDisplay(pet.id, pet.base_attack || 5, pet.base_defense || 3, pet.base_speed || 4);
   }
 
   // Equipped Items Display (NEW!)
@@ -1140,6 +1143,60 @@ async function loadEquippedItems(petId) {
       if (display) {
         display.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;">Error loading equipment</div>';
       }
+    }
+  }, 100);
+}
+
+async function updatePetStatsDisplay(petId, baseAtk, baseDef, baseSpd) {
+  // Fetch equipment and update stat display
+  setTimeout(async function() {
+    try {
+      var equipRes = await supabaseClient
+        .from('player_equipment')
+        .select('equipment(*)')
+        .eq('user_id', currentUser.id)
+        .eq('is_equipped', true);
+      
+      if (equipRes.error || !equipRes.data) return;
+      
+      var totalAtk = baseAtk;
+      var totalDef = baseDef;
+      var totalSpd = baseSpd;
+      
+      equipRes.data.forEach(function(item) {
+        var equip = item.equipment;
+        totalAtk += equip.attack_bonus || 0;
+        totalDef += equip.defense_bonus || 0;
+        totalSpd += equip.speed_bonus || 0;
+      });
+      
+      // Update the display
+      var atkEl = el('atk-stat-' + petId);
+      var defEl = el('def-stat-' + petId);
+      var spdEl = el('spd-stat-' + petId);
+      
+      if (atkEl) {
+        var atkBonus = totalAtk - baseAtk;
+        atkEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">ATK</div>' +
+          '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + totalAtk + 
+          (atkBonus > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + atkBonus + ')</span>' : '') + '</div>';
+      }
+      
+      if (defEl) {
+        var defBonus = totalDef - baseDef;
+        defEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">DEF</div>' +
+          '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + totalDef + 
+          (defBonus > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + defBonus + ')</span>' : '') + '</div>';
+      }
+      
+      if (spdEl) {
+        var spdBonus = totalSpd - baseSpd;
+        spdEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div>' +
+          '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + totalSpd + 
+          (spdBonus > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + spdBonus + ')</span>' : '') + '</div>';
+      }
+    } catch (error) {
+      console.error('Error updating pet stats display:', error);
     }
   }, 100);
 }
