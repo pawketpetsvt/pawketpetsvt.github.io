@@ -4424,6 +4424,7 @@ async function executeBattle(playerStats, enemyStats, petId) {
   var battleResult = simulateBattle(playerStats, enemyStats);
   
   // Show battle UI and play it back
+  isBossBattle = enemyStats.is_boss || false;  // Track if this is a boss battle
   showBattleUI(playerStats, enemyStats, battleResult);
   
   // Save battle to history and get rewards
@@ -4593,6 +4594,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
 var currentBattleLog = [];
 var currentBattleIndex = 0;
 var battlePlaybackInterval = null;
+var isBossBattle = false;  // Track if current battle is against a boss
 var selectedBattlePetId = null;
 var selectedBattleZone = 'outskirts'; // Default to easy zone
 
@@ -4670,7 +4672,12 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     enemyNameEl.classList.remove('boss-name-glitch');
   }
   
-  el('enemy-hp-text').textContent = enemyStats.hp + '/' + enemyStats.hp;
+  // Set enemy HP display - BOSSES SHOW ???
+  if (enemyStats.is_boss) {
+    el('enemy-hp-text').textContent = '???/???';
+  } else {
+    el('enemy-hp-text').textContent = enemyStats.hp + '/' + enemyStats.hp;
+  }
   el('enemy-hp-fill').style.width = '100%';
   
   // Boss HP bar gets special styling
@@ -4766,7 +4773,13 @@ function updateHPBar(side, currentHP, maxHP) {
   
   var percentage = Math.max(0, (currentHP / maxHP) * 100);
   hpFill.style.width = percentage + '%';
-  hpText.textContent = Math.max(0, currentHP) + '/' + maxHP;
+  
+  // Boss HP stays as ??? throughout battle
+  if (side === 'enemy' && isBossBattle) {
+    hpText.textContent = '???/???';
+  } else {
+    hpText.textContent = Math.max(0, currentHP) + '/' + maxHP;
+  }
   
   // Color based on HP percentage
   hpFill.classList.remove('low', 'critical');
@@ -5228,6 +5241,9 @@ function clearBossEffects() {
   
   var glitch = document.getElementById('boss-glitch-overlay');
   if (glitch) glitch.remove();
+  
+  // Reset boss battle flag
+  isBossBattle = false;
   
   // Stop boss music
   if (window.bossThemeAudio) {
