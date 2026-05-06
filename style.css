@@ -4075,6 +4075,54 @@ body::after {
   }
 }
 
+/* Full page glitch effect when spooky dialogue appears */
+.page-glitch {
+  animation: page-glitch-effect 0.8s ease-in-out;
+}
+
+@keyframes page-glitch-effect {
+  0%, 100% {
+    transform: translate(0, 0);
+    filter: none;
+  }
+  10% {
+    transform: translate(-5px, 2px);
+    filter: hue-rotate(90deg) saturate(2);
+  }
+  20% {
+    transform: translate(3px, -3px);
+    filter: hue-rotate(-90deg) saturate(3);
+  }
+  30% {
+    transform: translate(-2px, 4px);
+    filter: hue-rotate(45deg) contrast(1.5);
+  }
+  40% {
+    transform: translate(4px, -2px);
+    filter: hue-rotate(-45deg) invert(0.1);
+  }
+  50% {
+    transform: translate(-3px, 3px);
+    filter: hue-rotate(180deg) saturate(4);
+  }
+  60% {
+    transform: translate(2px, -4px);
+    filter: hue-rotate(-180deg) brightness(1.3);
+  }
+  70% {
+    transform: translate(-4px, 2px);
+    filter: hue-rotate(90deg) contrast(2);
+  }
+  80% {
+    transform: translate(3px, -1px);
+    filter: hue-rotate(-90deg) saturate(2);
+  }
+  90% {
+    transform: translate(-1px, 2px);
+    filter: none;
+  }
+}
+
 /* Hide Melon on mobile/small screens */
 @media (max-width: 1200px) {
   .shop-mascot {
