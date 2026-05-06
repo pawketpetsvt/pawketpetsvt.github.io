@@ -4669,13 +4669,18 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     // Get current stats first to check for level up
     var petData = await supabaseClient
       .from('user_pets')
-      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, total_battles, battles_won')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, total_battles, battles_won, energy')
       .eq('id', petId)
       .single();
     
     if (petData.data) {
       var pet = petData.data;
       var newXp = (pet.xp || 0) + expGained;
+      
+      // Deduct 5 energy for the battle
+      var newEnergy = Math.max((pet.energy || 0) - 5, 0);
+      
+      console.log('⚡ Energy deducted - Was:', pet.energy, 'Now:', newEnergy);
       
       // Check for level up with combat stat scaling
       var lu = calculateLevelUp(
@@ -4695,7 +4700,8 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         level: lu.level,
         total_battles: (pet.total_battles || 0) + 1,
         battles_won: (pet.battles_won || 0) + 1,
-        current_hp: battleResult.playerFinalHP  // SAVE HP!
+        current_hp: battleResult.playerFinalHP,  // SAVE HP!
+        energy: newEnergy  // SAVE reduced energy!
       };
       
       // If leveled up, add the stat increases
@@ -4736,25 +4742,31 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     // Award PP to player
     await awardPP(ppGained);
   } else {
-    // Loss - just update battle count and HP
+    // Loss - just update battle count, HP, and deduct energy
     console.log('🔴 DEFEAT - Saving HP:', battleResult.playerFinalHP);
     
     var petData = await supabaseClient
       .from('user_pets')
-      .select('total_battles')
+      .select('total_battles, energy')
       .eq('id', petId)
       .single();
     
     if (petData.data) {
+      // Deduct 5 energy even on loss
+      var newEnergy = Math.max((petData.data.energy || 0) - 5, 0);
+      
+      console.log('⚡ Energy deducted (loss) - Was:', petData.data.energy, 'Now:', newEnergy);
+      
       var updateResult = await supabaseClient
         .from('user_pets')
         .update({
           total_battles: (petData.data.total_battles || 0) + 1,
-          current_hp: battleResult.playerFinalHP  // SAVE HP even on loss!
+          current_hp: battleResult.playerFinalHP,  // SAVE HP even on loss!
+          energy: newEnergy  // SAVE reduced energy!
         })
         .eq('id', petId);
       
-      console.log('💾 HP Update Result:', updateResult.error || 'Success!', 'New HP:', battleResult.playerFinalHP);
+      console.log('💾 HP Update Result:', updateResult.error || 'Success!', 'New HP:', battleResult.playerFinalHP, 'New Energy:', newEnergy);
     }
   }
   
@@ -5192,12 +5204,12 @@ async function findBattle() {
     return;
   }
   
-  // Check daily energy cap (100 energy = 20 battles per day)
+  // Check daily energy cap (250 energy = 50 battles per day)
   var today = new Date().toISOString().split('T')[0];
   var energyKey = 'energy_used_' + today;
   var energyUsedToday = parseInt(localStorage.getItem(energyKey)) || 0;
   
-  if (energyUsedToday >= 100) {
+  if (energyUsedToday >= 250) {
     showToast('⚡ Daily battle limit reached! Your pet needs rest. Come back tomorrow!');
     return;
   }
@@ -5241,7 +5253,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -5422,17 +5434,22 @@ function startBossWarningText() {
   // Clear any existing interval
   if (bossWarningInterval) clearInterval(bossWarningInterval);
   
-  // Spawn 1-2 warnings immediately
-  for (var i = 0; i < Math.floor(Math.random() * 2) + 1; i++) {
+  // Spawn 3-4 warnings immediately
+  for (var i = 0; i < Math.floor(Math.random() * 2) + 3; i++) { // 3-4 texts
     setTimeout(function() {
       spawnWarningText();
-    }, i * 2000); // Stagger by 2 seconds
+    }, i * 800); // Stagger by 0.8 seconds
   }
   
-  // Keep spawning warnings every 3-4 seconds during boss fight
+  // Keep spawning 3-4 warnings every 4 seconds during boss fight
   bossWarningInterval = setInterval(function() {
-    spawnWarningText();
-  }, 3500);
+    var count = Math.floor(Math.random() * 2) + 3; // 3-4 texts
+    for (var i = 0; i < count; i++) {
+      setTimeout(function() {
+        spawnWarningText();
+      }, i * 800);
+    }
+  }, 4000);
 }
 
 function spawnWarningText() {
