@@ -4314,14 +4314,14 @@ function simulateBattle(playerStats, enemyStats) {
     
     // Player's turn
     if (playerFirst || turn > 1) {
-      var playerDamage = calculateDamage(playerStats.stats.attack, enemyStats.defense);
-      enemyHP -= playerDamage;
+      var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense);
+      enemyHP -= playerDamageResult.damage;
       
       log.push({
         type: 'player_attack',
         attacker: 'player',
-        damage: playerDamage,
-        text: playerStats.name + ' attacks for ' + playerDamage + ' damage!',
+        damage: playerDamageResult.damage,
+        text: playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
         playerHP: playerHP,
         enemyHP: Math.max(0, enemyHP)
       });
@@ -4330,14 +4330,14 @@ function simulateBattle(playerStats, enemyStats) {
     }
     
     // Enemy's turn
-    var enemyDamage = calculateDamage(enemyStats.attack, playerStats.stats.defense);
-    playerHP -= enemyDamage;
+    var enemyDamageResult = calculateDamage(enemyStats.attack, playerStats.stats.defense);
+    playerHP -= enemyDamageResult.damage;
     
     log.push({
       type: 'enemy_attack',
       attacker: 'enemy',
-      damage: enemyDamage,
-      text: enemyStats.name + ' attacks for ' + enemyDamage + ' damage!',
+      damage: enemyDamageResult.damage,
+      text: enemyStats.name + ' attacks for ' + enemyDamageResult.damage + ' damage! ' + enemyDamageResult.flavor,
       playerHP: Math.max(0, playerHP),
       enemyHP: Math.max(0, enemyHP)
     });
@@ -4370,7 +4370,39 @@ function calculateDamage(attack, defense) {
   var baseDamage = attack - defense;
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
   var damage = Math.max(1, baseDamage + variance);
-  return damage;
+  
+  // Flavor text based on variance
+  var flavor = '';
+  if (variance === -1) {
+    var lowHitFlavors = [
+      'Barely scratched them!',
+      'A glancing blow!',
+      'Just grazed them!',
+      'Wasn\'t very effective...',
+      'A weak hit!'
+    ];
+    flavor = lowHitFlavors[Math.floor(Math.random() * lowHitFlavors.length)];
+  } else if (variance === 0) {
+    var normalHitFlavors = [
+      'A solid hit!',
+      'Good wallop!',
+      'Nice strike!',
+      'Connected cleanly!',
+      'That hurt!'
+    ];
+    flavor = normalHitFlavors[Math.floor(Math.random() * normalHitFlavors.length)];
+  } else { // variance === +1
+    var critHitFlavors = [
+      'Critical hit!',
+      'A devastating blow!',
+      'Super effective!',
+      'Absolutely crushed them!',
+      'WHAM! Direct hit!'
+    ];
+    flavor = critHitFlavors[Math.floor(Math.random() * critHitFlavors.length)];
+  }
+  
+  return { damage: damage, flavor: flavor };
 }
 
 /**
@@ -4939,7 +4971,14 @@ function playBattleTurn() {
   }
   logEntry.textContent = entry.text;
   el('battle-log').appendChild(logEntry);
-  el('battle-log').scrollTop = el('battle-log').scrollHeight;
+  
+  // Force autoscroll to bottom - use requestAnimationFrame to ensure DOM has updated
+  requestAnimationFrame(function() {
+    var battleLog = el('battle-log');
+    if (battleLog) {
+      battleLog.scrollTop = battleLog.scrollHeight;
+    }
+  });
   
   // Update HP bars
   updateHPBar('player', entry.playerHP, currentBattleLog[0].playerHP);
@@ -5014,6 +5053,12 @@ function skipBattle() {
 function endBattlePlayback() {
   el('battle-skip-btn').style.display = 'none';
   el('battle-continue-btn').style.display = 'none';
+  
+  // Check if player lost to a boss - trigger special death screen!
+  if (isBossBattle && battleRewards && !battleRewards.victory) {
+    triggerBossDeathScreen();
+    return; // Don't show normal rewards modal
+  }
   
   // Clean up boss effects
   clearBossEffects();
@@ -5530,6 +5575,202 @@ function stopBossWarningText() {
   
   // Clear active warnings array
   activeWarnings = [];
+}
+
+function triggerBossDeathScreen() {
+  console.log('💀 Boss death screen triggered...');
+  
+  // Stop scrolling warnings
+  stopBossWarningText();
+  
+  // Start glitchy music fade-out effect
+  startBossMusicGlitchFade();
+  
+  // Create fade to black overlay
+  var fadeOverlay = document.createElement('div');
+  fadeOverlay.id = 'boss-death-fade';
+  fadeOverlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; opacity: 0; z-index: 99999; pointer-events: none; transition: opacity 3s ease-in;';
+  document.body.appendChild(fadeOverlay);
+  
+  // Spawn "WE WARNED YOU" messages
+  setTimeout(function() {
+    for (var i = 0; i < 3; i++) {
+      setTimeout(function() {
+        spawnDeathWarning();
+      }, i * 600);
+    }
+  }, 500);
+  
+  // Start fade to black
+  setTimeout(function() {
+    fadeOverlay.style.opacity = '1';
+  }, 100);
+  
+  // After fade completes, clean up and go home
+  setTimeout(function() {
+    // Remove all boss effects
+    clearBossEffects();
+    
+    // Remove death warnings
+    document.querySelectorAll('.boss-death-warning').forEach(function(w) {
+      w.remove();
+    });
+    
+    // Remove fade overlay
+    fadeOverlay.remove();
+    
+    // Stop boss music and resume normal
+    resumeNormalMusic();
+    
+    // Go to home tab
+    showTab('home');
+    
+    // Show defeat toast
+    showToast('💀 You were defeated by Shadow of Piper...');
+  }, 3500); // 3.5 seconds for full fade
+}
+
+function startBossMusicGlitchFade() {
+  if (!window.bossThemeAudio) return;
+  
+  var audio = window.bossThemeAudio;
+  var startTime = Date.now();
+  var fadeDuration = 3500; // 3.5 seconds to match the fade
+  var startVolume = audio.volume;
+  
+  // Create audio context for pitch/distortion effects
+  if (!window.audioContext) {
+    try {
+      window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Web Audio API not supported, falling back to simple fade');
+      simpleMusicFade(audio, startVolume, fadeDuration);
+      return;
+    }
+  }
+  
+  var ctx = window.audioContext;
+  
+  // Only create source once
+  if (!window.bossAudioSource) {
+    var source = ctx.createMediaElementSource(audio);
+    var gainNode = ctx.createGain();
+    var filter = ctx.createBiquadFilter();
+    
+    // Set up filter for distortion effect
+    filter.type = 'lowpass';
+    filter.frequency.value = 1000;
+    
+    // Connect: source -> filter -> gain -> destination
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    window.bossAudioSource = source;
+    window.bossGainNode = gainNode;
+    window.bossFilterNode = filter;
+  }
+  
+  var gainNode = window.bossGainNode;
+  var filter = window.bossFilterNode;
+  
+  // Glitchy fade-out animation
+  var glitchInterval = setInterval(function() {
+    var elapsed = Date.now() - startTime;
+    var progress = Math.min(elapsed / fadeDuration, 1);
+    
+    if (progress >= 1) {
+      clearInterval(glitchInterval);
+      audio.pause();
+      return;
+    }
+    
+    // Volume fade (smooth exponential curve)
+    var volumeFade = Math.pow(1 - progress, 2);
+    gainNode.gain.value = volumeFade;
+    
+    // Pitch distortion (slow down playback)
+    audio.playbackRate = 1 - (progress * 0.5); // Slow down to 0.5x speed
+    
+    // Filter sweep (muffle the sound)
+    filter.frequency.value = 1000 - (progress * 900); // 1000Hz -> 100Hz
+    
+    // Random glitch stutters
+    if (Math.random() < 0.15) {
+      audio.playbackRate = 0.3 + Math.random() * 0.4; // Random slow stutters
+      setTimeout(function() {
+        audio.playbackRate = Math.max(0.5, 1 - (progress * 0.5));
+      }, 100);
+    }
+  }, 50); // Update every 50ms
+}
+
+function simpleMusicFade(audio, startVolume, duration) {
+  // Fallback for browsers without Web Audio API
+  var startTime = Date.now();
+  var fadeInterval = setInterval(function() {
+    var elapsed = Date.now() - startTime;
+    var progress = Math.min(elapsed / duration, 1);
+    
+    if (progress >= 1) {
+      clearInterval(fadeInterval);
+      audio.pause();
+      return;
+    }
+    
+    // Simple volume fade
+    audio.volume = startVolume * (1 - progress);
+    
+    // Slow down playback
+    audio.playbackRate = 1 - (progress * 0.5);
+  }, 50);
+}
+
+function spawnDeathWarning() {
+  var warning = document.createElement('div');
+  warning.className = 'boss-death-warning';
+  warning.textContent = 'WE WARNED YOU';
+  
+  // Random position
+  var x = Math.random() * (window.innerWidth - 500) + 100;
+  var y = Math.random() * (window.innerHeight - 200) + 100;
+  
+  warning.style.position = 'fixed';
+  warning.style.left = x + 'px';
+  warning.style.top = y + 'px';
+  warning.style.fontSize = '4rem';
+  warning.style.fontWeight = '900';
+  warning.style.color = '#FF0000';
+  warning.style.textShadow = '0 0 20px #FF0000, 0 0 40px #FF0000, 5px 5px 0 #000';
+  warning.style.zIndex = '100000';
+  warning.style.fontFamily = 'Arial Black, sans-serif';
+  warning.style.opacity = '0';
+  warning.style.animation = 'death-warning-shake 0.15s infinite, death-warning-fade 2.5s ease-in-out forwards';
+  
+  document.body.appendChild(warning);
+}
+
+function resumeNormalMusic() {
+  // Stop boss music
+  if (window.bossThemeAudio) {
+    window.bossThemeAudio.pause();
+    window.bossThemeAudio.currentTime = 0;
+    window.bossThemeAudio.playbackRate = 1.0; // Reset playback rate
+    window.bossThemeAudio.volume = 0.20; // Reset volume
+  }
+  
+  // Clean up audio nodes
+  window.bossAudioSource = null;
+  window.bossGainNode = null;
+  window.bossFilterNode = null;
+  
+  // Resume normal background music if it exists
+  var bgMusic = document.querySelector('audio[loop]');
+  if (bgMusic) {
+    bgMusic.volume = 0.3; // Reset to normal volume
+    bgMusic.playbackRate = 1.0; // Ensure normal speed
+    bgMusic.play();
+  }
 }
 
 function clearBossEffects() {
