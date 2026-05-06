@@ -673,9 +673,15 @@ async function loadMyPets() {
     var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
     var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
     
-    // HP regenerates over time (3 HP per hour)
+    // HP regenerates over time (3 HP per hour) - BUT respect 0 HP (fainted)!
     // Use updated_at as the "last activity" timestamp for HP regen
-    var regenedHP = calculateHPRegen(pet.current_hp || pet.base_hp || 25, pet.max_hp || pet.base_hp || 25, pet.updated_at);
+    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 25);
+    var maxHP = pet.max_hp || pet.base_hp || 25;
+    
+    // Only regenerate if HP > 0 (don't auto-revive fainted pets!)
+    var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, pet.updated_at) : 0;
+    
+    console.log('🐾 Loading pet:', pet.nickname, 'DB HP:', pet.current_hp, 'Displayed HP:', regenedHP);
     
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
