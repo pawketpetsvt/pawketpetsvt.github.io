@@ -823,6 +823,12 @@ async function useItem(petId) {
     petState[petId].xp = updates.xp; 
     updateXpBar(petId, updates.xp, pet.level); 
   }
+  if (updates.current_hp !== undefined) {
+    // Update petState and reload the entire card to show new HP
+    petState[petId].current_hp = updates.current_hp;
+    tabsLoaded['mypets'] = false;
+    loadMyPets();
+  }
   
   // Show effect flash (skip for healing items since we already showed toast)
   if (!updates.current_hp) {
@@ -968,8 +974,17 @@ function makeMyPetCard(pet) {
     var battleStats = makeEl('div', {class:'pet-battle-stats'});
     battleStats.style.cssText = 'display:flex;justify-content:space-around;padding:12px;margin:10px 0;background:rgba(176,106,255,0.1);border:2px solid var(--purple-light);border-radius:12px;';
     
+    // HP with current/max display
+    var currentHP = pet.current_hp || pet.base_hp || 30;
+    var maxHP = pet.max_hp || pet.base_hp || 30;
+    var hpPercent = Math.round((currentHP / maxHP) * 100);
+    var hpColor = hpPercent > 50 ? '#5dde7a' : hpPercent > 25 ? '#ffaa00' : '#ff6b6b';
+    
     var hpStat = makeEl('div', {class:'battle-stat-mini'});
-    hpStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">HP</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_hp || 30) + '</div>';
+    hpStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">HP</div>' +
+      '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + currentHP + '/' + maxHP + '</div>' +
+      '<div style="width:60px;height:4px;background:#e0e0e0;border-radius:2px;margin-top:4px;overflow:hidden;">' +
+      '<div style="width:' + hpPercent + '%;height:100%;background:' + hpColor + ';transition:width 0.3s;"></div></div>';
     battleStats.appendChild(hpStat);
     
     var atkStat = makeEl('div', {class:'battle-stat-mini'});
