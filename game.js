@@ -4972,13 +4972,22 @@ function playBattleTurn() {
   logEntry.textContent = entry.text;
   el('battle-log').appendChild(logEntry);
   
-  // Force autoscroll to bottom - use requestAnimationFrame to ensure DOM has updated
-  requestAnimationFrame(function() {
-    var battleLog = el('battle-log');
-    if (battleLog) {
+  // AGGRESSIVE autoscroll - try multiple methods to ensure it works
+  var battleLog = el('battle-log');
+  if (battleLog) {
+    // Method 1: Immediate scroll
+    battleLog.scrollTop = battleLog.scrollHeight;
+    
+    // Method 2: RequestAnimationFrame (after DOM paint)
+    requestAnimationFrame(function() {
       battleLog.scrollTop = battleLog.scrollHeight;
-    }
-  });
+      
+      // Method 3: Slight delay to ensure content is rendered
+      setTimeout(function() {
+        battleLog.scrollTop = battleLog.scrollHeight;
+      }, 50);
+    });
+  }
   
   // Update HP bars
   updateHPBar('player', entry.playerHP, currentBattleLog[0].playerHP);
