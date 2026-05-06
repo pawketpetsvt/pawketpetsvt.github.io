@@ -578,8 +578,28 @@ async function confirmAdopt() {
   var nickname = el('nickname-input').value.trim() || selectedPet.name;
   btn.textContent='Adopting...'; btn.disabled=true;
   var res = await supabaseClient.from('user_pets').insert([{
-    user_id:currentUser.id, pet_id:selectedPet.id, nickname:nickname,
-    level:1, xp:0, hunger:50, energy:50, happiness:50, max_hunger:100, max_energy:100, max_happiness:100
+    user_id: currentUser.id, 
+    pet_id: selectedPet.id, 
+    nickname: nickname,
+    level: 1, 
+    xp: 0, 
+    hunger: 80,  // Start well-fed
+    energy: 80,  // Start energized
+    happiness: 80,  // Start happy
+    max_hunger: 100, 
+    max_energy: 100, 
+    max_happiness: 100,
+    // Battle stats - CRITICAL for new pets!
+    base_hp: 60,  // Our new doubled starting HP
+    max_hp: 60,
+    current_hp: 60,  // Start at full HP
+    base_attack: 5,
+    base_defense: 3,
+    base_speed: 4,
+    total_battles: 0,
+    battles_won: 0,
+    last_fed: new Date().toISOString(),
+    last_played: new Date().toISOString()
   }]);
   if (res.error) { showToast('Error: '+res.error.message); btn.textContent='Adopt!'; btn.disabled=false; return; }
   if (selectedPet.price > 0) {
