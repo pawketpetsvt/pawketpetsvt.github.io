@@ -4208,40 +4208,102 @@ body, button, a, input, textarea, select {
 .sparkle-cyan { background: radial-gradient(circle, #00E5FF, #00B8D4); }
 .sparkle-yellow { background: radial-gradient(circle, #FFD700, #FFA500); }
 .sparkle-white { background: radial-gradient(circle, #FFFFFF, #E0E0E0); }
-<!-- Add this to the games-grid in the Minigames section -->
 
-<!-- SLOT MACHINE -->
-<div class="game-card">
-  <div class="game-title">🎰 Slot Machine</div>
-  <div class="game-desc">Bet your PP! Match 2 = get bet back. Match 3 = 4x profit!</div>
-  <span class="game-reward" style="color: var(--orange);">High risk, high reward!</span>
-  
-  <div class="game-area">
-    <!-- Bet selector -->
-    <div class="slot-bet-selector">
-      <label style="font-weight: bold; color: var(--purple);">Choose Your Bet:</label>
-      <div class="bet-buttons">
-        <button class="btn bet-btn" data-bet="10" onclick="selectSlotBet(10)">10 PP</button>
-        <button class="btn bet-btn active" data-bet="50" onclick="selectSlotBet(50)">50 PP</button>
-        <button class="btn bet-btn" data-bet="100" onclick="selectSlotBet(100)">100 PP</button>
-      </div>
-    </div>
-    
-    <!-- Slot machine display -->
-    <div class="slot-machine">
-      <div class="slot-reel" id="slot-reel-1">🍉</div>
-      <div class="slot-reel" id="slot-reel-2">🍉</div>
-      <div class="slot-reel" id="slot-reel-3">🍉</div>
-    </div>
-    
-    <!-- Spin button -->
-    <button class="btn btn-primary btn-lg" id="slot-spin-btn" onclick="spinSlots()">
-      🎰 Spin! (50 PP)
-    </button>
-    
-    <!-- Result message -->
-    <div class="game-result" id="slot-result"></div>
-  </div>
-</div>
+/* ═══════════════════════════════════════════════════════════════════════
+   SLOT MACHINE STYLING
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.slot-bet-selector {
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.bet-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.bet-btn {
+  padding: 10px 20px;
+  border: 2px solid var(--purple-light);
+  background: white;
+  color: var(--purple);
+  font-weight: bold;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.bet-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(176, 106, 255, 0.3);
+}
+
+.bet-btn.active {
+  background: var(--purple);
+  color: white;
+  border-color: var(--purple);
+  box-shadow: 0 4px 12px rgba(176, 106, 255, 0.4);
+}
+
+.slot-machine {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  padding: 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  margin: 20px 0;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+
+.slot-reel {
+  width: 80px;
+  height: 80px;
+  background: white;
+  border: 4px solid #FFD700;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.1s;
+}
+
+.slot-reel.spinning {
+  animation: reel-spin 0.1s infinite;
+}
+
+@keyframes reel-spin {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.slot-reel.win {
+  animation: reel-win 0.6s ease-out;
+  border-color: #FFD700;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+}
+
+@keyframes reel-win {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.1) rotate(-5deg); }
+  75% { transform: scale(1.1) rotate(5deg); }
+}
+
+#slot-spin-btn {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  padding: 15px 40px;
+}
+
+#slot-spin-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 
 
