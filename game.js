@@ -4436,6 +4436,19 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   var playerHPPercent = (playerStats.currentHP / playerStats.maxHP) * 100;
   el('player-hp-fill').style.width = playerHPPercent + '%';
   
+  // Set player sprite (pet image)
+  var playerSprite = el('player-battle-sprite');
+  if (playerStats.imageFile) {
+    // Use the pet's actual image
+    playerSprite.style.backgroundImage = 'url(images/' + playerStats.imageFile + ')';
+    playerSprite.style.backgroundSize = 'cover';
+    playerSprite.style.backgroundPosition = 'center';
+    playerSprite.textContent = ''; // Remove emoji fallback
+  } else {
+    // Fallback to paw prints if no image
+    playerSprite.textContent = '🐾';
+  }
+  
   // Set HP bar color based on percentage
   var playerHPFill = el('player-hp-fill');
   playerHPFill.classList.remove('low', 'critical');
