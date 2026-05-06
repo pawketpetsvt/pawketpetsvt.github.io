@@ -4005,7 +4005,16 @@ body::after {
   color: var(--text-dark);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   pointer-events: all;
-  animation: bubble-bounce 0.3s ease-out;
+  animation: bubble-float 3s ease-in-out infinite;
+}
+ 
+@keyframes bubble-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
 }
  
 /* Speech bubble pointer (triangle pointing down-right toward Melon) */
@@ -4034,19 +4043,6 @@ body::after {
   z-index: 1;
 }
  
-@keyframes bubble-bounce {
-  0% {
-    transform: scale(0.8) translateY(10px);
-    opacity: 0;
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1) translateY(0);
-    opacity: 1;
-  }
-}
  
 /* Glitchy red text for spooky dialogue */
 .glitch-text {
@@ -4127,4 +4123,5 @@ body::after {
     transform: translateY(-5px);
   }
 }
+
 
