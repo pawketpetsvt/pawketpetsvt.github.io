@@ -5133,7 +5133,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
