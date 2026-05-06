@@ -4448,8 +4448,52 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
   var itemDropped = null;
   
-  // 10% chance for item drop on victory
-  if (battleResult.victory && Math.random() < 0.1) {
+  // BOSS DROP - Guaranteed item if you beat a boss!
+  if (battleResult.victory && enemyStats.is_boss) {
+    console.log('🎁 Boss defeated! Rolling for exclusive drop...');
+    
+    // Get boss drops for this specific boss zone
+    var bossDropRes = await supabaseClient
+      .from('items')
+      .select('*')
+      .eq('is_boss_drop', true)
+      .ilike('boss_source', '%' + enemyStats.forest_zone + '%');
+    
+    if (!bossDropRes.error && bossDropRes.data && bossDropRes.data.length > 0) {
+      // Random drop from this boss's loot table
+      itemDropped = bossDropRes.data[Math.floor(Math.random() * bossDropRes.data.length)];
+      
+      console.log('🎉 Boss dropped:', itemDropped.name);
+      
+      // Check if player already has this item
+      var existingItem = await supabaseClient
+        .from('user_inventory')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .eq('item_id', itemDropped.id)
+        .single();
+      
+      if (existingItem.data) {
+        // Increase quantity
+        await supabaseClient
+          .from('user_inventory')
+          .update({ quantity: existingItem.data.quantity + 1 })
+          .eq('id', existingItem.data.id);
+      } else {
+        // Add new item to inventory
+        await supabaseClient
+          .from('user_inventory')
+          .insert([{
+            user_id: currentUser.id,
+            item_id: itemDropped.id,
+            quantity: 1
+          }]);
+      }
+    }
+  }
+  
+  // Normal 10% chance for item drop on victory (only if not boss)
+  if (battleResult.victory && !enemyStats.is_boss && Math.random() < 0.1) {
     // Get random cheap item from shop (under 100 PP)
     var itemsRes = await supabaseClient
       .from('items')
@@ -5230,6 +5274,71 @@ function triggerBossEntrance() {
     indicator.innerHTML = '⚠️ BOSS BATTLE ⚠️';
     battleArea.insertBefore(indicator, battleArea.firstChild);
   }
+  
+  // Start spawning creepy warning text
+  startBossWarningText();
+}
+
+// Spawn creepy "YOU SHOULDN'T BE HERE" text at random positions
+var bossWarningInterval = null;
+
+function startBossWarningText() {
+  // Clear any existing interval
+  if (bossWarningInterval) clearInterval(bossWarningInterval);
+  
+  // Spawn 2-3 warnings immediately
+  for (var i = 0; i < Math.floor(Math.random() * 2) + 2; i++) {
+    setTimeout(function() {
+      spawnWarningText();
+    }, i * 500);
+  }
+  
+  // Keep spawning warnings every 4-5 seconds during boss fight
+  bossWarningInterval = setInterval(function() {
+    var count = Math.floor(Math.random() * 2) + 2; // 2-3 texts
+    for (var i = 0; i < count; i++) {
+      setTimeout(function() {
+        spawnWarningText();
+      }, i * 300);
+    }
+  }, 4500);
+}
+
+function spawnWarningText() {
+  var warning = document.createElement('div');
+  warning.className = 'boss-warning-text';
+  warning.textContent = 'YOU SHOULDN\'T BE HERE';
+  
+  // Random position (avoiding edges)
+  var x = Math.random() * (window.innerWidth - 400) + 50;
+  var y = Math.random() * (window.innerHeight - 200) + 50;
+  
+  warning.style.left = x + 'px';
+  warning.style.top = y + 'px';
+  
+  // Random slight rotation
+  warning.style.transform = 'rotate(' + (Math.random() * 10 - 5) + 'deg)';
+  
+  document.body.appendChild(warning);
+  
+  // Remove after fade completes (4 seconds)
+  setTimeout(function() {
+    if (warning.parentNode) {
+      warning.parentNode.remove(warning);
+    }
+  }, 4000);
+}
+
+function stopBossWarningText() {
+  if (bossWarningInterval) {
+    clearInterval(bossWarningInterval);
+    bossWarningInterval = null;
+  }
+  
+  // Remove all existing warning texts
+  document.querySelectorAll('.boss-warning-text').forEach(function(warning) {
+    warning.remove();
+  });
 }
 
 function clearBossEffects() {
@@ -5250,6 +5359,9 @@ function clearBossEffects() {
   
   // Reset boss battle flag
   isBossBattle = false;
+  
+  // Stop creepy warning text
+  stopBossWarningText();
   
   // Stop boss music
   if (window.bossThemeAudio) {
