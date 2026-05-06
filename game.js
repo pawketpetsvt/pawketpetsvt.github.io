@@ -4880,10 +4880,8 @@ function closeBattleRewardsModal() {
   var modal = el('battle-rewards-modal');
   if (modal) modal.classList.remove('show');
   
-  // If pet leveled up, reload the My Pets tab to show new stats
-  if (battleRewards && battleRewards.leveledUp) {
-    tabsLoaded['mypets'] = false;
-  }
+  // Always reload My Pets tab to show updated HP and stats
+  tabsLoaded['mypets'] = false;
   
   // Reset battle state
   battleRewards = null;
@@ -5165,17 +5163,20 @@ async function getBossEnemy(zone, playerLevel) {
 function triggerBossEntrance() {
   console.log('🔥 Triggering boss entrance sequence...');
   
-  // Stop normal music (if playing)
-  if (window.normalMusicAudio) {
-    window.normalMusicAudio.pause();
-  }
+  // Stop ALL audio on the page (normal music, any other sounds)
+  document.querySelectorAll('audio').forEach(function(audio) {
+    audio.pause();
+    audio.volume = 0;
+  });
   
-  // Play boss theme
+  // Play boss theme at lower volume
   if (!window.bossThemeAudio) {
-    window.bossThemeAudio = new Audio('/boss-theme.mp3');  // Upload your boss music here
+    window.bossThemeAudio = new Audio('/boss-theme.mp3');
     window.bossThemeAudio.loop = true;
-    window.bossThemeAudio.volume = 0.7;
+    window.bossThemeAudio.volume = 0.25;  // REDUCED from 0.7 to 0.25 (60% quieter)
   }
+  window.bossThemeAudio.currentTime = 0;  // Restart from beginning
+  window.bossThemeAudio.volume = 0.25;  // Ensure volume is set
   window.bossThemeAudio.play();
   
   // Add screen glitch effect
@@ -5226,10 +5227,13 @@ function clearBossEffects() {
     window.bossThemeAudio.currentTime = 0;
   }
   
-  // Resume normal music
-  if (window.normalMusicAudio) {
-    window.normalMusicAudio.play();
-  }
+  // Resume ALL audio on page (restore normal music)
+  document.querySelectorAll('audio').forEach(function(audio) {
+    if (audio !== window.bossThemeAudio) {
+      audio.volume = 0.5;  // Set to normal volume
+      audio.play().catch(function() {}); // Silently fail if can't autoplay
+    }
+  });
 }
 
 // ========================================
