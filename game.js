@@ -3576,20 +3576,33 @@ async function loadPetEquipment(petId) {
 }
 
 async function showEquipmentModal(petId) {
-  // Get pet's current equipment
-  var equipped = await loadPetEquipment(petId);
+  console.log('=== EQUIPMENT MODAL DEBUG ===');
+  console.log('Opening equipment modal for pet:', petId);
   
-  // Get all owned equipment
-  var allEquipRes = await supabaseClient
-    .from('player_equipment')
-    .select('*, equipment(*)')
-    .eq('user_id', currentUser.id)
-    .gt('quantity', 0);
-  
-  if (allEquipRes.error) {
-    showToast('Error loading equipment!');
-    return;
-  }
+  try {
+    // Get pet's current equipment
+    var equipped = await loadPetEquipment(petId);
+    console.log('Currently equipped:', equipped);
+    
+    // Get all owned equipment
+    var allEquipRes = await supabaseClient
+      .from('player_equipment')
+      .select('*, equipment(*)')
+      .eq('user_id', currentUser.id)
+      .gt('quantity', 0);
+    
+    console.log('All owned equipment:', allEquipRes);
+    
+    if (allEquipRes.error) {
+      console.error('Error loading equipment:', allEquipRes.error);
+      showToast('Error loading equipment!');
+      return;
+    }
+    
+    if (!allEquipRes.data || allEquipRes.data.length === 0) {
+      showToast('You don\'t own any equipment yet! Visit the shop to buy some.');
+      return;
+    }
   
   // Create modal (simplified for now - will expand later)
   var modal = makeEl('div', { class: 'modal-overlay' });
