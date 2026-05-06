@@ -5707,8 +5707,8 @@ function spawnWarningText() {
 }
 
 function findNonOverlappingY() {
-  var maxAttempts = 20;
-  var minGap = 120; // Minimum vertical gap between warnings
+  var maxAttempts = 30; // Increased from 20 to handle more warnings
+  var minGap = 140; // Increased gap for better spacing
   
   for (var attempt = 0; attempt < maxAttempts; attempt++) {
     // Random Y position (leaving margins)
@@ -5729,8 +5729,31 @@ function findNonOverlappingY() {
     }
   }
   
-  // If we can't find a spot, just use a random position
-  return Math.random() * (window.innerHeight - 200) + 50;
+  // If we can't find a spot, try splitting the screen into zones
+  var zones = 5;
+  var zoneHeight = (window.innerHeight - 200) / zones;
+  var leastUsedZone = 0;
+  var leastUsedCount = 999;
+  
+  for (var z = 0; z < zones; z++) {
+    var zoneStart = 50 + (z * zoneHeight);
+    var zoneEnd = zoneStart + zoneHeight;
+    var count = 0;
+    
+    for (var i = 0; i < activeWarnings.length; i++) {
+      if (activeWarnings[i].y >= zoneStart && activeWarnings[i].y < zoneEnd) {
+        count++;
+      }
+    }
+    
+    if (count < leastUsedCount) {
+      leastUsedCount = count;
+      leastUsedZone = z;
+    }
+  }
+  
+  // Return a position in the least-used zone
+  return 50 + (leastUsedZone * zoneHeight) + Math.random() * (zoneHeight * 0.8);
 }
 
 function stopBossWarningText() {
@@ -5754,30 +5777,71 @@ function triggerBossDeathScreen() {
   // Stop scrolling warnings
   stopBossWarningText();
   
-  // Start glitchy music fade-out effect
+  // Start glitchy music fade-out effect (now 6 seconds)
   startBossMusicGlitchFade();
   
   // Create fade to black overlay
   var fadeOverlay = document.createElement('div');
   fadeOverlay.id = 'boss-death-fade';
-  fadeOverlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; opacity: 0; z-index: 99999; pointer-events: none; transition: opacity 3s ease-in;';
+  fadeOverlay.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; opacity: 0; z-index: 99999; pointer-events: none; transition: opacity 5s ease-in;';
   document.body.appendChild(fadeOverlay);
   
-  // Spawn "WE WARNED YOU" messages
+  // Wave 1: Initial warnings (0.5s) - 3-4 warnings
   setTimeout(function() {
-    for (var i = 0; i < 3; i++) {
+    var count1 = Math.floor(Math.random() * 2) + 3; // 3-4
+    for (var i = 0; i < count1; i++) {
       setTimeout(function() {
         spawnDeathWarning();
-      }, i * 600);
+      }, i * 400);
     }
   }, 500);
+  
+  // Wave 2: More warnings (1.5s) - 2-3 warnings
+  setTimeout(function() {
+    var count2 = Math.floor(Math.random() * 2) + 2; // 2-3
+    for (var i = 0; i < count2; i++) {
+      setTimeout(function() {
+        spawnDeathWarning();
+      }, i * 350);
+    }
+  }, 1500);
+  
+  // Wave 3: Even more (2.5s) - 3-4 warnings
+  setTimeout(function() {
+    var count3 = Math.floor(Math.random() * 2) + 3; // 3-4
+    for (var i = 0; i < count3; i++) {
+      setTimeout(function() {
+        spawnDeathWarning();
+      }, i * 450);
+    }
+  }, 2500);
+  
+  // Wave 4: Keep them coming (3.5s) - 2-3 warnings
+  setTimeout(function() {
+    var count4 = Math.floor(Math.random() * 2) + 2; // 2-3
+    for (var i = 0; i < count4; i++) {
+      setTimeout(function() {
+        spawnDeathWarning();
+      }, i * 400);
+    }
+  }, 3500);
+  
+  // Wave 5: Final wave (4.5s) - 2-3 warnings
+  setTimeout(function() {
+    var count5 = Math.floor(Math.random() * 2) + 2; // 2-3
+    for (var i = 0; i < count5; i++) {
+      setTimeout(function() {
+        spawnDeathWarning();
+      }, i * 500);
+    }
+  }, 4500);
   
   // Start fade to black
   setTimeout(function() {
     fadeOverlay.style.opacity = '1';
   }, 100);
   
-  // After fade completes, clean up and go home
+  // After fade completes, clean up and go home (now 6 seconds total)
   setTimeout(function() {
     // Remove all boss effects
     clearBossEffects();
@@ -5798,7 +5862,7 @@ function triggerBossDeathScreen() {
     
     // Show defeat toast
     showToast('💀 You were defeated by Shadow of Piper...');
-  }, 3500); // 3.5 seconds for full fade
+  }, 6000); // Extended from 3500ms to 6000ms (6 seconds)
 }
 
 function startBossMusicGlitchFade() {
@@ -5806,7 +5870,7 @@ function startBossMusicGlitchFade() {
   
   var audio = window.bossThemeAudio;
   var startTime = Date.now();
-  var fadeDuration = 3500; // 3.5 seconds to match the fade
+  var fadeDuration = 6000; // Extended to 6 seconds (was 3500)
   var startVolume = audio.volume;
   
   // Create audio context for pitch/distortion effects
@@ -5916,7 +5980,7 @@ function spawnDeathWarning() {
   warning.style.zIndex = '100000';
   warning.style.fontFamily = 'Arial Black, sans-serif';
   warning.style.opacity = '0';
-  warning.style.animation = 'death-warning-shake 0.15s infinite, death-warning-fade 2.5s ease-in-out forwards';
+  warning.style.animation = 'death-warning-shake 0.15s infinite, death-warning-fade 5s ease-in-out forwards';
   
   document.body.appendChild(warning);
 }
