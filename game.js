@@ -122,6 +122,35 @@ var currentUser = null;
 var currentPoints = 0;
 var tabsLoaded = {};
 
+// Daily tips array for home page
+var dailyTips = [
+  "Pets with higher happiness perform better in battles!",
+  "Play minigames daily to earn PawketPoints!",
+  "Your pet's level increases their battle stats!",
+  "Boss battles drop exclusive items!",
+  "Equipment boosts your pet's combat stats!",
+  "Ember's Flametail Strike deals 1.5x damage!",
+  "Pyxie's Raspberry Soda Stream heals while attacking!",
+  "Login daily to build your streak for bonus rewards!",
+  "Feed your pets to keep them happy and healthy!",
+  "Check the leaderboard to see top players!",
+  "Friend other players to see their activity!",
+  "Leave guestbook messages on profiles!",
+  "Evolving your pet changes their appearance!",
+  "Pets have 3 evolution stages: Baby, Teen, and Adult!",
+  "Win battles to earn XP and level up your pet!",
+  "The shop has items in different tiers - higher tiers cost more!",
+  "Shadow of Piper is the toughest boss in the forest!",
+  "Skills have a 30% chance to activate each turn!",
+  "You can earn badges by completing achievements!",
+  "Visit Melon's shop to buy treats and equipment!",
+  "Battle in different forest zones for varying rewards!",
+  "Your day streak is displayed in the sidebar!",
+  "Blocked users cannot view your profile!",
+  "Notifications appear when friends interact with you!",
+  "Check your activity feed to see what friends are up to!"
+];
+
 // ══════════════════════════════════════════════════════════════════════════
 // EVOLUTION SYSTEM
 // ══════════════════════════════════════════════════════════════════════════
@@ -7919,34 +7948,6 @@ showApp = async function(user) {
 // ═══════════════════════════════════════════════════════════════════════════
 // DAILY TIPS SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
-
-var dailyTips = [
-  "Pets with higher happiness perform better in battles!",
-  "Play minigames daily to earn PawketPoints!",
-  "Your pet's level increases their battle stats!",
-  "Boss battles drop exclusive items!",
-  "Equipment boosts your pet's combat stats!",
-  "Ember's Flametail Strike deals 1.5x damage!",
-  "Pyxie's Raspberry Soda Stream heals while attacking!",
-  "Login daily to build your streak for bonus rewards!",
-  "Feed your pets to keep them happy and healthy!",
-  "Check the leaderboard to see top players!",
-  "Friend other players to see their activity!",
-  "Leave guestbook messages on profiles!",
-  "Evolving your pet changes their appearance!",
-  "Pets have 3 evolution stages: Baby, Teen, and Adult!",
-  "Win battles to earn XP and level up your pet!",
-  "The shop has items in different tiers - higher tiers cost more!",
-  "Shadow of Piper is the toughest boss in the forest!",
-  "Skills have a 30% chance to activate each turn!",
-  "You can earn badges by completing achievements!",
-  "Visit Melon's shop to buy treats and equipment!",
-  "Battle in different forest zones for varying rewards!",
-  "Your day streak is displayed in the sidebar!",
-  "Blocked users cannot view your profile!",
-  "Notifications appear when friends interact with you!",
-  "Check your activity feed to see what friends are up to!"
-];
 
 function loadDailyTip() {
   console.log('🎯 loadDailyTip called!');
