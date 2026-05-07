@@ -140,7 +140,7 @@ var dailyTips = [
   "Pets have 3 evolution stages: Baby, Teen, and Adult!",
   "Win battles to earn XP and level up your pet!",
   "The shop has items in different tiers - higher tiers cost more!",
-  "Shadow of Piper is the toughest boss in the forest!",
+  "Boss battles are the ultimate challenge!",
   "Skills have a 30% chance to activate each turn!",
   "You can earn badges by completing achievements!",
   "Visit Melon's shop to buy treats and equipment!",
