@@ -4820,3 +4820,29 @@ body.boss-ui-glitch header {
     transform: scale(0.9);
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   BATTLE LOG - MAKE IT TALLER
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.battle-log-container {
+  max-height: 280px;
+  min-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.battle-log {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.battle-controls {
+  margin-top: 20px;
+}
+
+.battle-log-entry {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 6px;
+  line-height: 1.4;
+}
