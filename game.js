@@ -5283,7 +5283,7 @@ function selectZone(zone) {
         helperText.textContent = 'Ready to challenge the Shallow Cave!';
       }
       if (findBtn) {
-        findBtn.textContent = '🕳️ Enter Dungeon';
+        findBtn.textContent = '⛰️ Enter Dungeon';
         findBtn.onclick = startDungeon;
       }
     } else {
@@ -8450,7 +8450,7 @@ function showDungeonIntro() {
   var modal = document.getElementById('exploration-modal');
   var enemy = dungeonState.enemies[0];
   
-  document.getElementById('exploration-title').textContent = '🕳️ Shallow Cave - Wave 1/3';
+  document.getElementById('exploration-title').textContent = '⛰️ Shallow Cave - Wave 1/3';
   document.getElementById('exploration-result').innerHTML = 
     '<strong style="color: var(--purple);">Dungeon Challenge Started!</strong><br><br>' +
     'Fight 3 waves back-to-back. Your HP carries over between battles!<br><br>' +
@@ -8573,7 +8573,7 @@ function showNextWaveModal() {
   var enemy = dungeonState.enemies[dungeonState.currentWave - 1];
   
   document.getElementById('exploration-title').textContent = 
-    '🕳️ Wave ' + dungeonState.currentWave + '/3' + 
+    '⛰️ Wave ' + dungeonState.currentWave + '/3' + 
     (dungeonState.currentWave === 3 ? ' - BOSS!' : '');
   
   document.getElementById('exploration-result').innerHTML = 
