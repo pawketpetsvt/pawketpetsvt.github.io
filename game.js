@@ -5743,6 +5743,258 @@ function selectBattlePet(petId, cardElement) {
   el('find-battle-btn').disabled = false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// RANDOM ENCOUNTERS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var pendingBattleEnemy = null;
+
+async function goExploring() {
+  if (!selectedBattlePetId) {
+    showPixelToast('Select a pet first!', 'warning');
+    return;
+  }
+  
+  // Check daily energy cap
+  var today = new Date().toISOString().split('T')[0];
+  var energyKey = 'energy_used_' + today;
+  var energyUsedToday = parseInt(localStorage.getItem(energyKey)) || 0;
+  
+  if (energyUsedToday >= 250) {
+    showPixelToast('⚡ Daily battle limit reached! Come back tomorrow!', 'warning');
+    return;
+  }
+  
+  // Track energy used
+  localStorage.setItem(energyKey, energyUsedToday + 5);
+  
+  // Roll for encounter type
+  var roll = Math.random();
+  
+  if (roll < 0.70) {
+    // 70% - Normal Battle
+    await handleBattleEncounter();
+  } else if (roll < 0.85) {
+    // 15% - Found Item
+    await handleItemEncounter();
+  } else if (roll < 0.95) {
+    // 10% - Found Treasure
+    await handleTreasureEncounter();
+  } else {
+    // 5% - Flavor Event
+    await handleFlavorEncounter();
+  }
+}
+
+async function handleBattleEncounter() {
+  // Get player level
+  var playerPetRes = await supabaseClient
+    .from('user_pets')
+    .select('level')
+    .eq('id', selectedBattlePetId)
+    .single();
+  
+  if (playerPetRes.error || !playerPetRes.data) {
+    showPixelToast('Error loading your pet!', 'error');
+    return;
+  }
+  
+  var playerLevel = playerPetRes.data.level || 1;
+  
+  // Get random enemy
+  var enemy = await getRandomEnemy(selectedBattleZone, playerLevel);
+  
+  if (!enemy) {
+    showPixelToast('No enemies found in this zone!', 'error');
+    return;
+  }
+  
+  // Store enemy and show modal
+  pendingBattleEnemy = enemy;
+  
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = '⚔️ Wild Encounter!';
+  document.getElementById('exploration-result').innerHTML = 
+    'A wild <strong style="color: var(--purple);">' + enemy.name + '</strong> appears!';
+  document.getElementById('exploration-rewards').innerHTML = '';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Battle!';
+  continueBtn.onclick = async function() {
+    closeExplorationModal();
+    await startBattleWithEnemy(selectedBattlePetId, pendingBattleEnemy);
+  };
+  
+  modal.classList.add('show');
+}
+
+async function handleItemEncounter() {
+  // Get random common item
+  var itemsRes = await supabaseClient
+    .from('items')
+    .select('*')
+    .eq('tier', 1)
+    .limit(20);
+  
+  if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) {
+    // Fallback to battle if no items found
+    await handleBattleEncounter();
+    return;
+  }
+  
+  var randomItem = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
+  var ppReward = 10 + Math.floor(Math.random() * 11); // 10-20 PP
+  
+  // Add item to inventory
+  var existingItem = await supabaseClient
+    .from('user_inventory')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('item_id', randomItem.id)
+    .single();
+  
+  if (existingItem.data) {
+    await supabaseClient
+      .from('user_inventory')
+      .update({ quantity: existingItem.data.quantity + 1 })
+      .eq('id', existingItem.data.id);
+  } else {
+    await supabaseClient
+      .from('user_inventory')
+      .insert([{
+        user_id: currentUser.id,
+        item_id: randomItem.id,
+        quantity: 1
+      }]);
+  }
+  
+  // Award PP
+  await awardPP(ppReward);
+  
+  // Show result
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = '🎁 Item Found!';
+  document.getElementById('exploration-result').innerHTML = 
+    'You found a <strong style="color: var(--purple);">' + randomItem.name + '</strong> while exploring!';
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--green); font-weight: bold;">+' + ppReward + ' PP</div>' +
+    '<div style="color: var(--text-light); font-size: 0.9rem; margin-top: 8px;">Added to your inventory!</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Continue';
+  continueBtn.onclick = closeExplorationModal;
+  
+  modal.classList.add('show');
+}
+
+async function handleTreasureEncounter() {
+  // Get random rare item (tier 2 or 3)
+  var tier = Math.random() < 0.7 ? 2 : 3; // 70% tier 2, 30% tier 3
+  
+  var itemsRes = await supabaseClient
+    .from('items')
+    .select('*')
+    .eq('tier', tier)
+    .limit(15);
+  
+  if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) {
+    // Fallback to item encounter
+    await handleItemEncounter();
+    return;
+  }
+  
+  var randomItem = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
+  var ppReward = 30 + Math.floor(Math.random() * 21); // 30-50 PP
+  
+  // Add item to inventory
+  var existingItem = await supabaseClient
+    .from('user_inventory')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('item_id', randomItem.id)
+    .single();
+  
+  if (existingItem.data) {
+    await supabaseClient
+      .from('user_inventory')
+      .update({ quantity: existingItem.data.quantity + 1 })
+      .eq('id', existingItem.data.id);
+  } else {
+    await supabaseClient
+      .from('user_inventory')
+      .insert([{
+        user_id: currentUser.id,
+        item_id: randomItem.id,
+        quantity: 1
+      }]);
+  }
+  
+  // Award PP
+  await awardPP(ppReward);
+  
+  // Show result
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = '💎 Treasure Discovered!';
+  document.getElementById('exploration-result').innerHTML = 
+    'You discovered a hidden treasure chest!<br>' +
+    'Inside you found: <strong style="color: var(--purple);">' + randomItem.name + '</strong>!';
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem;">+' + ppReward + ' PP</div>' +
+    '<div style="color: var(--text-light); font-size: 0.9rem; margin-top: 8px;">Rare item added to inventory!</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Amazing!';
+  continueBtn.onclick = closeExplorationModal;
+  
+  modal.classList.add('show');
+}
+
+async function handleFlavorEncounter() {
+  var flavorEvents = [
+    { text: "Your pet chased a butterfly and got distracted!", pp: 5, emoji: "🦋" },
+    { text: "You found a cozy spot to rest. Your pet feels refreshed!", pp: 10, emoji: "🌸" },
+    { text: "A friendly traveler shared some snacks with you!", pp: 15, emoji: "🍞" },
+    { text: "You discovered some ancient markings on a tree... strange.", pp: 10, emoji: "🌳" },
+    { text: "A cool breeze blows through. Your pet seems energized!", pp: 8, emoji: "💨" },
+    { text: "You found some shiny pebbles along the path!", pp: 12, emoji: "✨" },
+    { text: "Your pet rolled in some flowers. They smell lovely now!", pp: 7, emoji: "🌺" },
+    { text: "You spotted a rainbow in the distance. How lucky!", pp: 15, emoji: "🌈" },
+    { text: "A small bird dropped a berry in front of you!", pp: 9, emoji: "🫐" },
+    { text: "You heard a mysterious melody in the wind...", pp: 11, emoji: "🎵" },
+    { text: "Your pet found a comfortable sunny spot and napped!", pp: 8, emoji: "☀️" },
+    { text: "You discovered a patch of four-leaf clovers!", pp: 13, emoji: "🍀" },
+    { text: "A firefly landed on your pet's nose. How magical!", pp: 10, emoji: "✨" },
+    { text: "You found an old coin half-buried in the dirt!", pp: 14, emoji: "🪙" }
+  ];
+  
+  var event = flavorEvents[Math.floor(Math.random() * flavorEvents.length)];
+  
+  // Award PP
+  await awardPP(event.pp);
+  
+  // Show result
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = event.emoji + ' Peaceful Moment';
+  document.getElementById('exploration-result').innerHTML = event.text;
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--green); font-weight: bold;">+' + event.pp + ' PP</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Nice!';
+  continueBtn.onclick = closeExplorationModal;
+  
+  modal.classList.add('show');
+}
+
+function closeExplorationModal() {
+  document.getElementById('exploration-modal').classList.remove('show');
+  pendingBattleEnemy = null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATTLE SYSTEM (Original findBattle function)
+// ═══════════════════════════════════════════════════════════════════════════
+
 async function findBattle() {
   if (!selectedBattlePetId) {
     showToast('Select a pet first!');
@@ -5795,7 +6047,6 @@ async function findBattle() {
 async function getRandomEnemy(zone, playerLevel) {
   // ═══════════════════════════════════════════════════════════════════════
   // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
-  // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
   if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles)
@@ -5824,6 +6075,7 @@ async function getRandomEnemy(zone, playerLevel) {
     maxLevel = playerLevel;
   }
   
+  // Get base enemies for this zone
   var res = await supabaseClient
     .from('enemy_pets')
     .select('*')
@@ -5834,31 +6086,106 @@ async function getRandomEnemy(zone, playerLevel) {
     return null;
   }
   
-  // Pick random enemy
+  // Pick random base enemy
   var randomIndex = Math.floor(Math.random() * res.data.length);
   var baseEnemy = res.data[randomIndex];
   
   // Pick random level within range
   var enemyLevel = minLevel + Math.floor(Math.random() * (maxLevel - minLevel + 1));
   
+  // ═══════════════════════════════════════════════════════════════════════
+  // VARIANT SYSTEM - Baby/Adult/Elder + Elemental
+  // ═══════════════════════════════════════════════════════════════════════
+  
+  var variant = 'baby';
+  var elementalType = null;
+  var statMultiplier = 1.0;
+  
+  if (zone === 'outskirts') {
+    // City Outskirts: 100% Baby, no elementals
+    variant = 'baby';
+    statMultiplier = 0.8;
+    
+  } else if (zone === 'glade') {
+    // Forest Glade: 50% Baby, 50% Adult, 10% chance of elemental
+    var roll = Math.random();
+    if (roll < 0.50) {
+      variant = 'baby';
+      statMultiplier = 0.8;
+    } else {
+      variant = 'adult';
+      statMultiplier = 1.5;
+    }
+    
+    // 10% chance for elemental variant
+    if (Math.random() < 0.10) {
+      var elementals = ['shadow', 'flame', 'frost'];
+      elementalType = elementals[Math.floor(Math.random() * elementals.length)];
+      statMultiplier *= 1.3; // Elementals are 30% stronger
+    }
+    
+  } else if (zone === 'deepwoods') {
+    // Deep Woods: 50% Adult, 50% Elder, 25% chance of elemental
+    var roll = Math.random();
+    if (roll < 0.50) {
+      variant = 'adult';
+      statMultiplier = 1.5;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.2;
+    }
+    
+    // 25% chance for elemental variant
+    if (Math.random() < 0.25) {
+      var elementals = ['shadow', 'flame', 'frost', 'storm'];
+      elementalType = elementals[Math.floor(Math.random() * elementals.length)];
+      statMultiplier *= 1.3; // Elementals are 30% stronger
+    }
+  }
+  
+  // Build variant name
+  var variantName = '';
+  if (elementalType) {
+    var elementalPrefix = {
+      'shadow': 'Shadow',
+      'flame': 'Flame',
+      'frost': 'Frost',
+      'storm': 'Storm'
+    };
+    variantName = elementalPrefix[elementalType] + ' ' + baseEnemy.name;
+  } else {
+    var variantPrefix = {
+      'baby': 'Baby',
+      'adult': 'Adult',
+      'elder': 'Elder'
+    };
+    variantName = variantPrefix[variant] + ' ' + baseEnemy.name;
+  }
+  
   // Scale stats based on level (base stats + scaling per level)
-  // Each level above 1: +8 HP, +1 ATK, +0.5 DEF (rounded), +0.5 SPD (rounded)
   var levelBonus = enemyLevel - 1;
+  var baseHP = Math.floor((baseEnemy.base_hp + (levelBonus * 8)) * statMultiplier);
+  var baseATK = Math.floor((baseEnemy.base_attack + levelBonus) * statMultiplier);
+  var baseDEF = Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier);
+  var baseSPD = Math.floor((baseEnemy.base_speed + Math.floor(levelBonus * 0.5)) * statMultiplier);
+  
   var scaledEnemy = {
     id: baseEnemy.id,
     species: baseEnemy.species,
-    name: baseEnemy.name,
+    name: variantName,
     level: enemyLevel,
-    base_hp: baseEnemy.base_hp + (levelBonus * 8),  // 4x more HP scaling!
-    base_attack: baseEnemy.base_attack + levelBonus,
-    base_defense: baseEnemy.base_defense + Math.floor(levelBonus * 0.5),
-    base_speed: baseEnemy.base_speed + Math.floor(levelBonus * 0.5),
+    base_hp: baseHP,
+    base_attack: baseATK,
+    base_defense: baseDEF,
+    base_speed: baseSPD,
     image_file: baseEnemy.image_file,
     forest_zone: baseEnemy.forest_zone,
-    difficulty_tier: baseEnemy.difficulty_tier
+    difficulty_tier: baseEnemy.difficulty_tier,
+    variant: variant,
+    elementalType: elementalType
   };
   
-  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Stats:', {
+  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Stats:', {
     hp: scaledEnemy.base_hp,
     atk: scaledEnemy.base_attack,
     def: scaledEnemy.base_defense,

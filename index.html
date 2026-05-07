@@ -674,6 +674,16 @@
         
       </div>
       
+      <!-- Exploration Result Modal -->
+      <div class="modal" id="exploration-modal">
+        <div class="modal-content">
+          <h2 id="exploration-title">🌲 Exploring...</h2>
+          <div id="exploration-result" style="font-size: 1.1rem; line-height: 1.8; margin: 20px 0;"></div>
+          <div id="exploration-rewards" style="margin: 15px 0;"></div>
+          <button class="btn btn-primary" id="exploration-continue-btn" onclick="closeExplorationModal()">Continue</button>
+        </div>
+      </div>
+      
       <!-- Forest Exploration (main view) -->
       <div id="forest-exploration">
         <div class="page-hero">
@@ -703,9 +713,9 @@
               <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">Foxes, Raccoons, Boars</div>
             </button>
             
-            <button class="zone-btn zone-locked" id="zone-deepwoods" onclick="showToast('Coming soon! Level up your pets first.')" style="padding: 20px; border: 3px solid #999; border-radius: 16px; background: linear-gradient(135deg, rgba(0,0,0,0.05), rgba(0,0,0,0.1)); cursor: not-allowed; opacity: 0.5; transition: all 0.3s;">
+            <button class="zone-btn zone-btn" id="zone-deepwoods" onclick="selectZone('deepwoods')" style="padding: 20px; border: 3px solid #ff6b6b; border-radius: 16px; background: linear-gradient(135deg, rgba(255,107,107,0.1), rgba(255,107,107,0.2)); cursor: pointer; transition: all 0.3s;">
               <div style="font-size: 2rem; margin-bottom: 8px;">🌲</div>
-              <div style="font-weight: bold; color: #666; font-size: 1.1rem; margin-bottom: 4px;">Deep Woods</div>
+              <div style="font-weight: bold; color: var(--purple); font-size: 1.1rem; margin-bottom: 4px;">Deep Woods</div>
               <div style="font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px;">For champions only</div>
               <div style="font-size: 0.75rem; color: #ff6b6b; font-weight: bold;">⭐⭐⭐ HARD</div>
               <div style="font-size: 0.7rem; color: var(--text-light); margin-top: 4px;">🔒 Coming Soon!</div>
@@ -724,8 +734,8 @@
         
         <!-- Encounter Button -->
         <div style="text-align: center; margin-top: 30px;">
-          <button class="btn btn-primary btn-large" onclick="findBattle()" id="find-battle-btn" disabled>
-            🔍 Search for Wild Creature
+          <button class="btn btn-primary btn-large" onclick="goExploring()" id="find-battle-btn" disabled>
+            🌲 Go Exploring
           </button>
           <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;" id="battle-helper-text">Select a pet first</p>
         </div>
