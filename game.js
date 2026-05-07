@@ -5029,6 +5029,28 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
   var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
+  
+  // Scale rewards based on enemy variant and level
+  if (battleResult.victory && enemyStats.variant) {
+    var variantMultiplier = 1.0;
+    
+    // Variant bonuses
+    if (enemyStats.variant === 'adult') variantMultiplier = 1.3;
+    else if (enemyStats.variant === 'elder') variantMultiplier = 1.6;
+    else if (enemyStats.variant === 'king') variantMultiplier = 2.0;
+    
+    // Elemental bonus
+    if (enemyStats.elementalType) {
+      variantMultiplier *= 1.2;
+    }
+    
+    // Apply multipliers
+    expGained = Math.floor(expGained * variantMultiplier);
+    ppGained = Math.floor(ppGained * variantMultiplier);
+    
+    console.log('💰 Rewards scaled by variant:', enemyStats.variant, 'Elemental:', enemyStats.elementalType, 'Multiplier:', variantMultiplier);
+  }
+  
   var itemDropped = null;
   
   // BOSS DROP - Guaranteed item if you beat a boss!
@@ -5291,7 +5313,8 @@ function selectZone(zone) {
       if (helperText && selectedBattlePetId) {
         var zoneName = zone === 'outskirts' ? 'City Outskirts' : 
                        zone === 'glade' ? 'Forest Glade' : 
-                       zone === 'deepwoods' ? 'Deep Woods' : 'this zone';
+                       zone === 'deepwoods' ? 'Deep Woods' : 
+                       zone === 'ruins' ? 'Outside The Ruins' : 'this zone';
         helperText.textContent = 'Ready to explore ' + zoneName + '!';
       }
       if (findBtn) {
@@ -6090,6 +6113,10 @@ async function getRandomEnemy(zone, playerLevel) {
     // Deep Woods: +1 to +3 of player level (very hard)
     minLevel = playerLevel + 1;
     maxLevel = playerLevel + 3;
+  } else if (zone === 'ruins') {
+    // Outside The Ruins: +2 to +5 of player level (extreme)
+    minLevel = playerLevel + 2;
+    maxLevel = playerLevel + 5;
   } else {
     // Default
     minLevel = playerLevel;
@@ -6162,6 +6189,24 @@ async function getRandomEnemy(zone, playerLevel) {
       elementalType = elementals[Math.floor(Math.random() * elementals.length)];
       statMultiplier *= 1.3; // Elementals are 30% stronger
     }
+    
+  } else if (zone === 'ruins') {
+    // Outside The Ruins: 50% Adult, 50% Elder, 35% chance of elemental
+    var roll = Math.random();
+    if (roll < 0.50) {
+      variant = 'adult';
+      statMultiplier = 1.5;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.2;
+    }
+    
+    // 35% chance for elemental variant (higher than Deep Woods)
+    if (Math.random() < 0.35) {
+      var elementals = ['shadow', 'flame', 'frost', 'storm', 'void'];
+      elementalType = elementals[Math.floor(Math.random() * elementals.length)];
+      statMultiplier *= 1.3; // Elementals are 30% stronger
+    }
   }
   
   // Build variant name
@@ -6171,7 +6216,8 @@ async function getRandomEnemy(zone, playerLevel) {
       'shadow': 'Shadow',
       'flame': 'Flame',
       'frost': 'Frost',
-      'storm': 'Storm'
+      'storm': 'Storm',
+      'void': 'Void'
     };
     variantName = elementalPrefix[elementalType] + ' ' + baseEnemy.name;
   } else {
@@ -8709,4 +8755,81 @@ function endDungeon(success) {
     loadBattlePets();
   }
 }
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY RANDOM EVENTS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var randomEvents = [
+  { text: "A wild creature dropped some coins in front of you!", pp: 25, icon: "🪙" },
+  { text: "Your pet found a shiny gem while exploring!", pp: 30, icon: "💎" },
+  { text: "A mysterious traveler gave you a gift!", pp: 20, icon: "🎁" },
+  { text: "You discovered a hidden stash of PawketPoints!", pp: 35, icon: "✨" },
+  { text: "A friendly bird dropped something shiny!", pp: 15, icon: "🐦" },
+  { text: "Your pet dug up a buried treasure!", pp: 40, icon: "🏴‍☠️" },
+  { text: "A lucky four-leaf clover appeared at your feet!", pp: 20, icon: "🍀" },
+  { text: "The forest spirits blessed you with a gift!", pp: 25, icon: "🧚" },
+  { text: "You found an old coin purse on the ground!", pp: 30, icon: "👛" },
+  { text: "A shooting star granted your wish!", pp: 35, icon: "🌠" },
+  { text: "Your pet made a new friend who shared their snacks!", pp: 15, icon: "🍪" },
+  { text: "A rainbow appeared! Good fortune is coming your way!", pp: 25, icon: "🌈" },
+  { text: "You stumbled upon an abandoned merchant cart!", pp: 45, icon: "🛒" },
+  { text: "A magical mushroom ring appeared around you!", pp: 20, icon: "🍄" },
+  { text: "The wind carried a pouch of coins to your feet!", pp: 30, icon: "💨" }
+];
+
+function checkForRandomEvent() {
+  // Get today's date for daily limit tracking
+  var today = new Date().toISOString().split('T')[0];
+  var eventsKey = 'random_events_' + today;
+  var eventsToday = parseInt(localStorage.getItem(eventsKey) || '0');
+  
+  // Max 10 events per day
+  if (eventsToday >= 10) {
+    return;
+  }
+  
+  // 8% chance per navigation (roughly 5-10 events per day with normal play)
+  var roll = Math.random();
+  if (roll < 0.08) {
+    triggerRandomEvent();
+    localStorage.setItem(eventsKey, (eventsToday + 1).toString());
+  }
+}
+
+function triggerRandomEvent() {
+  var event = randomEvents[Math.floor(Math.random() * randomEvents.length)];
+  
+  // Award PP
+  awardPP(event.pp);
+  
+  // Show modal
+  var modal = document.getElementById('exploration-modal');
+  if (!modal) return;
+  
+  document.getElementById('exploration-title').textContent = event.icon + ' Random Event!';
+  document.getElementById('exploration-result').innerHTML = event.text;
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem;">+' + event.pp + ' PP</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Nice!';
+  continueBtn.onclick = closeExplorationModal;
+  
+  modal.classList.add('show');
+  
+  console.log('🎲 Random event triggered:', event.text);
+}
+
+// Hook into showTab to check for random events
+var originalShowTabForEvents = showTab;
+showTab = function(tabName) {
+  originalShowTabForEvents(tabName);
+  
+  // Only check for events if user is logged in
+  if (currentUser) {
+    checkForRandomEvent();
+  }
+};
 
