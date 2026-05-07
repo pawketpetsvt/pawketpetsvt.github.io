@@ -4846,3 +4846,294 @@ body.boss-ui-glitch header {
   border-radius: 6px;
   line-height: 1.4;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   FRIENDS SYSTEM STYLES
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.friend-request-badge {
+  display: inline-block;
+  background: var(--pink);
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  text-align: center;
+  line-height: 20px;
+  margin-left: 6px;
+  animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
+.friends-tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border);
+}
+
+.friends-tab {
+  background: transparent;
+  border: none;
+  padding: 12px 20px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.95rem;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+  bottom: -2px;
+}
+
+.friends-tab:hover {
+  color: var(--purple);
+  background: rgba(176, 106, 255, 0.05);
+}
+
+.friends-tab.active {
+  color: var(--purple-dark);
+  border-bottom-color: var(--purple);
+}
+
+.friends-container {
+  min-height: 200px;
+}
+
+.friend-card {
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.friend-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--shadow);
+}
+
+.friend-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.friend-info {
+  flex: 1;
+}
+
+.friend-username {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.2rem;
+  color: var(--purple-dark);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.friend-username:hover {
+  color: var(--purple);
+}
+
+.friend-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--text-light);
+  flex-wrap: wrap;
+}
+
+.friend-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.friend-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.friend-request-card {
+  background: linear-gradient(135deg, rgba(255, 192, 203, 0.1), rgba(176, 106, 255, 0.1));
+  border: 2.5px solid var(--pink);
+}
+
+.search-result-card {
+  background: var(--cream);
+  border: 2.5px dashed var(--border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   GUESTBOOK STYLES
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.guestbook-section {
+  margin-top: 20px;
+}
+
+.guestbook-entry {
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.guestbook-entry:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+.guestbook-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+}
+
+.guestbook-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guestbook-author-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light));
+  color: var(--purple-dark);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.guestbook-author-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.guestbook-author-name {
+  font-weight: bold;
+  color: var(--purple-dark);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.guestbook-author-name:hover {
+  color: var(--purple);
+}
+
+.guestbook-timestamp {
+  font-size: 0.75rem;
+  color: var(--text-light);
+}
+
+.guestbook-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.guestbook-message {
+  color: var(--text);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  font-size: 0.95rem;
+}
+
+.guestbook-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+}
+
+.guestbook-empty-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PROFILE ACTION BUTTONS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.btn-success {
+  background: linear-gradient(135deg, var(--green), #4caf50);
+  color: white;
+  border: none;
+}
+
+.btn-success:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(93, 222, 122, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff6b6b, #ff5252);
+  color: white;
+  border-color: #ff5252;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4);
+}
+
+.blocked-user-card {
+  background: rgba(255, 107, 107, 0.05);
+  border-color: #ff6b6b;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   RESPONSIVE ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  .friend-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .friend-stats {
+    justify-content: center;
+  }
+  
+  .friend-actions {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .guestbook-header {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .guestbook-actions {
+    width: 100%;
+  }
+}

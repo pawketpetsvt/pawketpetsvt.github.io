@@ -6160,3 +6160,924 @@ if (document.readyState === 'loading') {
   setupMelonDialogueWatcher();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRIENDS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var currentFriendTab = 'list';
+var currentProfileUserId = null; // Track the profile being viewed
+var currentFriendshipId = null; // Track friendship ID for current profile
+
+// Update friend request notification badge
+async function updateFriendRequestBadge() {
+  if (!currentUser) return;
+  
+  try {
+    var { data, error } = await supabaseClient
+      .from('friendships')
+      .select('id')
+      .eq('addressee_id', currentUser.id)
+      .eq('status', 'pending');
+    
+    if (error) throw error;
+    
+    var count = data ? data.length : 0;
+    var badge = document.getElementById('friend-request-badge');
+    
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+    
+    // Also update the requests tab badge
+    var requestsBadge = document.getElementById('requests-count-badge');
+    if (requestsBadge) {
+      if (count > 0) {
+        requestsBadge.textContent = count;
+        requestsBadge.style.display = 'inline';
+      } else {
+        requestsBadge.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('Error updating friend request badge:', err);
+  }
+}
+
+// Switch between friends tabs
+function switchFriendsTab(tab) {
+  currentFriendTab = tab;
+  
+  // Update tab buttons
+  document.getElementById('tab-friends-list').classList.toggle('active', tab === 'list');
+  document.getElementById('tab-friend-requests').classList.toggle('active', tab === 'requests');
+  document.getElementById('tab-blocked-users').classList.toggle('active', tab === 'blocked');
+  
+  // Show/hide containers
+  document.getElementById('friends-list-container').style.display = tab === 'list' ? 'block' : 'none';
+  document.getElementById('friend-requests-container').style.display = tab === 'requests' ? 'block' : 'none';
+  document.getElementById('blocked-users-container').style.display = tab === 'blocked' ? 'block' : 'none';
+  
+  // Load appropriate data
+  if (tab === 'list') {
+    loadFriendsList();
+  } else if (tab === 'requests') {
+    loadFriendRequests();
+  } else if (tab === 'blocked') {
+    loadBlockedUsers();
+  }
+}
+
+// Load friends list
+async function loadFriendsList() {
+  if (!currentUser) return;
+  
+  var container = document.getElementById('friends-list-container');
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    // Get friendships where current user is either requester or addressee and status is accepted
+    var { data: friendships, error } = await supabaseClient
+      .from('friendships')
+      .select('id, requester_id, addressee_id, created_at')
+      .eq('status', 'accepted')
+      .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id);
+    
+    if (error) throw error;
+    
+    if (!friendships || friendships.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div style="font-size:3rem;margin-bottom:12px;">👥</div><p>No friends yet!</p><p style="color:var(--text-light);font-size:0.9rem;">Search for players above to send friend requests.</p></div>';
+      document.getElementById('friends-count-badge').textContent = '0';
+      return;
+    }
+    
+    // Get the friend user IDs (the other person in each friendship)
+    var friendIds = friendships.map(function(f) {
+      return f.requester_id === currentUser.id ? f.addressee_id : f.requester_id;
+    });
+    
+    // Fetch friend data
+    var { data: friends, error: friendError } = await supabaseClient
+      .from('players')
+      .select('id, username, pawketpoints, created_at')
+      .in('id', friendIds);
+    
+    if (friendError) throw friendError;
+    
+    // Get pet counts and levels for each friend
+    var { data: petData, error: petError } = await supabaseClient
+      .from('user_pets')
+      .select('user_id, level')
+      .in('user_id', friendIds);
+    
+    if (petError) throw petError;
+    
+    // Get badge counts for each friend
+    var { data: badgeData, error: badgeError } = await supabaseClient
+      .from('user_badges')
+      .select('user_id')
+      .in('user_id', friendIds);
+    
+    if (badgeError) throw badgeError;
+    
+    // Calculate stats for each friend
+    friends.forEach(function(friend) {
+      var pets = petData.filter(function(p) { return p.user_id === friend.id; });
+      friend.petCount = pets.length;
+      friend.totalLevel = pets.reduce(function(sum, p) { return sum + (p.level || 0); }, 0);
+      friend.badgeCount = badgeData.filter(function(b) { return b.user_id === friend.id; }).length;
+      friend.friendshipId = friendships.find(function(f) {
+        return f.requester_id === friend.id || f.addressee_id === friend.id;
+      }).id;
+    });
+    
+    // Sort by points
+    friends.sort(function(a, b) { return (b.pawketpoints || 0) - (a.pawketpoints || 0); });
+    
+    // Render friend cards
+    var html = '';
+    friends.forEach(function(friend) {
+      html += renderFriendCard(friend, 'friend');
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('friends-count-badge').textContent = friends.length;
+    
+  } catch (err) {
+    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + err.message + '</p></div>';
+    console.error('Error loading friends:', err);
+  }
+}
+
+// Load friend requests
+async function loadFriendRequests() {
+  if (!currentUser) return;
+  
+  var container = document.getElementById('friend-requests-container');
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    // Get pending requests where current user is the addressee
+    var { data: requests, error } = await supabaseClient
+      .from('friendships')
+      .select('id, requester_id, created_at')
+      .eq('addressee_id', currentUser.id)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    if (!requests || requests.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div style="font-size:3rem;margin-bottom:12px;">📬</div><p>No pending friend requests</p></div>';
+      return;
+    }
+    
+    // Get requester user data
+    var requesterIds = requests.map(function(r) { return r.requester_id; });
+    var { data: requesters, error: requesterError } = await supabaseClient
+      .from('players')
+      .select('id, username, pawketpoints, created_at')
+      .in('id', requesterIds);
+    
+    if (requesterError) throw requesterError;
+    
+    // Get stats for each requester
+    var { data: petData, error: petError } = await supabaseClient
+      .from('user_pets')
+      .select('user_id, level')
+      .in('user_id', requesterIds);
+    
+    if (petError) throw petError;
+    
+    var { data: badgeData, error: badgeError } = await supabaseClient
+      .from('user_badges')
+      .select('user_id')
+      .in('user_id', requesterIds);
+    
+    if (badgeError) throw badgeError;
+    
+    // Match up data
+    requesters.forEach(function(requester) {
+      var pets = petData.filter(function(p) { return p.user_id === requester.id; });
+      requester.petCount = pets.length;
+      requester.totalLevel = pets.reduce(function(sum, p) { return sum + (p.level || 0); }, 0);
+      requester.badgeCount = badgeData.filter(function(b) { return b.user_id === requester.id; }).length;
+      requester.friendshipId = requests.find(function(r) { return r.requester_id === requester.id; }).id;
+    });
+    
+    // Render request cards
+    var html = '';
+    requesters.forEach(function(requester) {
+      html += renderFriendCard(requester, 'request');
+    });
+    
+    container.innerHTML = html;
+    
+  } catch (err) {
+    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + err.message + '</p></div>';
+    console.error('Error loading friend requests:', err);
+  }
+}
+
+// Load blocked users
+async function loadBlockedUsers() {
+  if (!currentUser) return;
+  
+  var container = document.getElementById('blocked-users-container');
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var { data: blocks, error } = await supabaseClient
+      .from('blocked_users')
+      .select('id, blocked_user_id, created_at')
+      .eq('blocker_id', currentUser.id)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    if (!blocks || blocks.length === 0) {
+      container.innerHTML = '<div class="empty-state"><div style="font-size:3rem;margin-bottom:12px;">✅</div><p>No blocked users</p></div>';
+      document.getElementById('blocked-count-badge').style.display = 'none';
+      return;
+    }
+    
+    // Get blocked user data
+    var blockedIds = blocks.map(function(b) { return b.blocked_user_id; });
+    var { data: blockedUsers, error: userError } = await supabaseClient
+      .from('players')
+      .select('id, username, created_at')
+      .in('id', blockedIds);
+    
+    if (userError) throw userError;
+    
+    // Match up block IDs
+    blockedUsers.forEach(function(user) {
+      user.blockId = blocks.find(function(b) { return b.blocked_user_id === user.id; }).id;
+    });
+    
+    // Render blocked user cards
+    var html = '';
+    blockedUsers.forEach(function(user) {
+      html += renderFriendCard(user, 'blocked');
+    });
+    
+    container.innerHTML = html;
+    document.getElementById('blocked-count-badge').textContent = blockedUsers.length;
+    document.getElementById('blocked-count-badge').style.display = 'inline';
+    
+  } catch (err) {
+    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + err.message + '</p></div>';
+    console.error('Error loading blocked users:', err);
+  }
+}
+
+// Render friend card (used for friends, requests, and blocked users)
+function renderFriendCard(user, type) {
+  var cardClass = type === 'request' ? 'friend-request-card' : type === 'blocked' ? 'blocked-user-card' : '';
+  
+  var html = '<div class="friend-card ' + cardClass + '">';
+  html += '  <div class="friend-avatar">' + user.username.charAt(0).toUpperCase() + '</div>';
+  html += '  <div class="friend-info">';
+  html += '    <div class="friend-username" onclick="viewProfile(\'' + escapeHtml(user.username) + '\')">' + escapeHtml(user.username) + '</div>';
+  
+  if (type !== 'blocked') {
+    html += '    <div class="friend-stats">';
+    html += '      <span class="friend-stat">🪙 ' + (user.pawketpoints || 0).toLocaleString() + ' PP</span>';
+    html += '      <span class="friend-stat">🐾 ' + (user.petCount || 0) + ' Pets</span>';
+    html += '      <span class="friend-stat">⭐ Level ' + (user.totalLevel || 0) + '</span>';
+    html += '      <span class="friend-stat">🎖️ ' + (user.badgeCount || 0) + ' Badges</span>';
+    html += '    </div>';
+  }
+  
+  html += '  </div>';
+  html += '  <div class="friend-actions">';
+  
+  if (type === 'friend') {
+    html += '<button class="btn btn-outline btn-sm" onclick="viewProfile(\'' + escapeHtml(user.username) + '\')">View Profile</button>';
+    html += '<button class="btn btn-outline btn-sm btn-danger" onclick="confirmRemoveFriend(\'' + user.friendshipId + '\', \'' + escapeHtml(user.username) + '\')">Remove Friend</button>';
+  } else if (type === 'request') {
+    html += '<button class="btn btn-primary btn-sm" onclick="acceptFriendRequest(\'' + user.friendshipId + '\')">Accept</button>';
+    html += '<button class="btn btn-outline btn-sm" onclick="declineFriendRequest(\'' + user.friendshipId + '\')">Decline</button>';
+  } else if (type === 'blocked') {
+    html += '<button class="btn btn-outline btn-sm" onclick="confirmUnblock(\'' + user.blockId + '\', \'' + escapeHtml(user.username) + '\')">Unblock</button>';
+  }
+  
+  html += '  </div>';
+  html += '</div>';
+  
+  return html;
+}
+
+// Search for players
+async function searchPlayers() {
+  var searchInput = document.getElementById('friend-search-input');
+  var query = searchInput.value.trim();
+  var resultsContainer = document.getElementById('friend-search-results');
+  
+  if (!query) {
+    resultsContainer.innerHTML = '';
+    return;
+  }
+  
+  resultsContainer.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var { data: players, error } = await supabaseClient
+      .from('players')
+      .select('id, username, pawketpoints, created_at')
+      .ilike('username', '%' + query + '%')
+      .limit(5);
+    
+    if (error) throw error;
+    
+    if (!players || players.length === 0) {
+      resultsContainer.innerHTML = '<p style="text-align:center;color:var(--text-light);padding:16px;">No players found matching "' + escapeHtml(query) + '"</p>';
+      return;
+    }
+    
+    // Get stats for each player
+    var playerIds = players.map(function(p) { return p.id; });
+    
+    var { data: petData } = await supabaseClient
+      .from('user_pets')
+      .select('user_id, level')
+      .in('user_id', playerIds);
+    
+    var { data: badgeData } = await supabaseClient
+      .from('user_badges')
+      .select('user_id')
+      .in('user_id', playerIds);
+    
+    // Check friendship status for each
+    var { data: friendships } = await supabaseClient
+      .from('friendships')
+      .select('requester_id, addressee_id, status')
+      .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id)
+      .in('requester_id', playerIds.concat([currentUser.id]))
+      .in('addressee_id', playerIds.concat([currentUser.id]));
+    
+    players.forEach(function(player) {
+      var pets = petData ? petData.filter(function(p) { return p.user_id === player.id; }) : [];
+      player.petCount = pets.length;
+      player.totalLevel = pets.reduce(function(sum, p) { return sum + (p.level || 0); }, 0);
+      player.badgeCount = badgeData ? badgeData.filter(function(b) { return b.user_id === player.id; }).length : 0;
+      
+      // Check friendship status
+      var friendship = friendships ? friendships.find(function(f) {
+        return (f.requester_id === currentUser.id && f.addressee_id === player.id) ||
+               (f.addressee_id === currentUser.id && f.requester_id === player.id);
+      }) : null;
+      
+      player.friendshipStatus = friendship ? friendship.status : null;
+      player.isSelf = player.id === currentUser.id;
+    });
+    
+    // Render search results
+    var html = '';
+    players.forEach(function(player) {
+      html += '<div class="friend-card search-result-card">';
+      html += '  <div class="friend-avatar">' + player.username.charAt(0).toUpperCase() + '</div>';
+      html += '  <div class="friend-info">';
+      html += '    <div class="friend-username" onclick="viewProfile(\'' + escapeHtml(player.username) + '\')">' + escapeHtml(player.username) + '</div>';
+      html += '    <div class="friend-stats">';
+      html += '      <span class="friend-stat">🪙 ' + (player.pawketpoints || 0).toLocaleString() + ' PP</span>';
+      html += '      <span class="friend-stat">🐾 ' + player.petCount + ' Pets</span>';
+      html += '      <span class="friend-stat">⭐ Level ' + player.totalLevel + '</span>';
+      html += '      <span class="friend-stat">🎖️ ' + player.badgeCount + ' Badges</span>';
+      html += '    </div>';
+      html += '  </div>';
+      html += '  <div class="friend-actions">';
+      
+      if (player.isSelf) {
+        html += '<span style="color:var(--text-light);font-size:0.9rem;">This is you!</span>';
+      } else if (player.friendshipStatus === 'accepted') {
+        html += '<button class="btn btn-success btn-sm" disabled>✅ Friends</button>';
+      } else if (player.friendshipStatus === 'pending') {
+        html += '<button class="btn btn-outline btn-sm" disabled>⏳ Request Pending</button>';
+      } else {
+        html += '<button class="btn btn-primary btn-sm" onclick="sendFriendRequestToUser(\'' + player.id + '\', \'' + escapeHtml(player.username) + '\')">➕ Add Friend</button>';
+      }
+      
+      html += '<button class="btn btn-outline btn-sm" onclick="viewProfile(\'' + escapeHtml(player.username) + '\')">View Profile</button>';
+      html += '  </div>';
+      html += '</div>';
+    });
+    
+    resultsContainer.innerHTML = html;
+    
+  } catch (err) {
+    resultsContainer.innerHTML = '<p style="text-align:center;color:var(--red);padding:16px;">Error: ' + err.message + '</p>';
+    console.error('Error searching players:', err);
+  }
+}
+
+// Send friend request from search results
+async function sendFriendRequestToUser(userId, username) {
+  if (!currentUser) return;
+  
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .insert([{
+        requester_id: currentUser.id,
+        addressee_id: userId,
+        status: 'pending'
+      }]);
+    
+    if (error) throw error;
+    
+    showToast('Friend request sent to ' + username + '! 🎉');
+    searchPlayers(); // Refresh search results
+    
+  } catch (err) {
+    showToast('Error sending friend request: ' + err.message);
+    console.error('Error sending friend request:', err);
+  }
+}
+
+// Send friend request from profile page
+async function sendFriendRequest() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .insert([{
+        requester_id: currentUser.id,
+        addressee_id: currentProfileUserId,
+        status: 'pending'
+      }]);
+    
+    if (error) throw error;
+    
+    showToast('Friend request sent! 🎉');
+    updateProfileButtons(); // Refresh button state
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error sending friend request:', err);
+  }
+}
+
+// Accept friend request
+async function acceptFriendRequest(friendshipId) {
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', friendshipId);
+    
+    if (error) throw error;
+    
+    showToast('Friend request accepted! 🎉');
+    await updateFriendRequestBadge();
+    loadFriendRequests();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error accepting friend request:', err);
+  }
+}
+
+// Decline friend request
+async function declineFriendRequest(friendshipId) {
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .delete()
+      .eq('id', friendshipId);
+    
+    if (error) throw error;
+    
+    showToast('Friend request declined');
+    await updateFriendRequestBadge();
+    loadFriendRequests();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error declining friend request:', err);
+  }
+}
+
+// Confirm and remove friend
+function confirmRemoveFriend(friendshipId, username) {
+  if (confirm('Remove ' + username + ' from your friends list?')) {
+    removeFriendById(friendshipId);
+  }
+}
+
+async function removeFriendById(friendshipId) {
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .delete()
+      .eq('id', friendshipId);
+    
+    if (error) throw error;
+    
+    showToast('Friend removed');
+    loadFriendsList();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error removing friend:', err);
+  }
+}
+
+// Remove friend from profile page
+async function removeFriend() {
+  if (!currentFriendshipId) return;
+  
+  var username = document.getElementById('profile-username').textContent;
+  if (confirm('Remove ' + username + ' from your friends list?')) {
+    removeFriendById(currentFriendshipId);
+    updateProfileButtons();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BLOCKING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Block user from profile
+async function blockUser() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  var username = document.getElementById('profile-username').textContent;
+  if (!confirm('Block ' + username + '? They will not be able to view your profile or send you messages.')) {
+    return;
+  }
+  
+  try {
+    // Remove friendship if exists
+    await supabaseClient
+      .from('friendships')
+      .delete()
+      .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentProfileUserId + '),and(requester_id.eq.' + currentProfileUserId + ',addressee_id.eq.' + currentUser.id + ')');
+    
+    // Add to blocked users
+    var { error } = await supabaseClient
+      .from('blocked_users')
+      .insert([{
+        blocker_id: currentUser.id,
+        blocked_user_id: currentProfileUserId
+      }]);
+    
+    if (error) throw error;
+    
+    showToast('User blocked');
+    updateProfileButtons();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error blocking user:', err);
+  }
+}
+
+// Unblock user from profile
+async function unblockUser() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  try {
+    var { error } = await supabaseClient
+      .from('blocked_users')
+      .delete()
+      .eq('blocker_id', currentUser.id)
+      .eq('blocked_user_id', currentProfileUserId);
+    
+    if (error) throw error;
+    
+    showToast('User unblocked');
+    updateProfileButtons();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error unblocking user:', err);
+  }
+}
+
+// Confirm and unblock from blocked users list
+function confirmUnblock(blockId, username) {
+  if (confirm('Unblock ' + username + '?')) {
+    unblockById(blockId);
+  }
+}
+
+async function unblockById(blockId) {
+  try {
+    var { error } = await supabaseClient
+      .from('blocked_users')
+      .delete()
+      .eq('id', blockId);
+    
+    if (error) throw error;
+    
+    showToast('User unblocked');
+    loadBlockedUsers();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error unblocking user:', err);
+  }
+}
+
+// Update profile action buttons based on relationship status
+async function updateProfileButtons() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  var actionsDiv = document.getElementById('profile-actions');
+  var addFriendBtn = document.getElementById('add-friend-btn');
+  var pendingBtn = document.getElementById('pending-friend-btn');
+  var alreadyFriendsBtn = document.getElementById('already-friends-btn');
+  var removeFriendBtn = document.getElementById('remove-friend-btn');
+  var blockBtn = document.getElementById('block-user-btn');
+  var unblockBtn = document.getElementById('unblock-user-btn');
+  var guestbookForm = document.getElementById('guestbook-post-form');
+  
+  // Hide all buttons initially
+  [addFriendBtn, pendingBtn, alreadyFriendsBtn, removeFriendBtn, blockBtn, unblockBtn].forEach(function(btn) {
+    if (btn) btn.style.display = 'none';
+  });
+  
+  // Check if viewing own profile
+  if (currentProfileUserId === currentUser.id) {
+    actionsDiv.style.display = 'none';
+    if (guestbookForm) guestbookForm.style.display = 'none';
+    return;
+  }
+  
+  actionsDiv.style.display = 'flex';
+  
+  try {
+    // Check if blocked
+    var { data: blockCheck } = await supabaseClient
+      .from('blocked_users')
+      .select('id')
+      .eq('blocker_id', currentUser.id)
+      .eq('blocked_user_id', currentProfileUserId)
+      .single();
+    
+    if (blockCheck) {
+      // User is blocked
+      if (unblockBtn) unblockBtn.style.display = 'inline-block';
+      if (guestbookForm) guestbookForm.style.display = 'none';
+      return;
+    }
+    
+    // Show block button
+    if (blockBtn) blockBtn.style.display = 'inline-block';
+    
+    // Check friendship status
+    var { data: friendship } = await supabaseClient
+      .from('friendships')
+      .select('id, status, requester_id, addressee_id')
+      .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentProfileUserId + '),and(requester_id.eq.' + currentProfileUserId + ',addressee_id.eq.' + currentUser.id + ')')
+      .single();
+    
+    if (friendship) {
+      currentFriendshipId = friendship.id;
+      
+      if (friendship.status === 'accepted') {
+        // Already friends
+        if (alreadyFriendsBtn) alreadyFriendsBtn.style.display = 'inline-block';
+        if (removeFriendBtn) removeFriendBtn.style.display = 'inline-block';
+      } else if (friendship.status === 'pending') {
+        // Request pending
+        if (pendingBtn) pendingBtn.style.display = 'inline-block';
+      }
+    } else {
+      // No friendship - show add friend button
+      currentFriendshipId = null;
+      if (addFriendBtn) addFriendBtn.style.display = 'inline-block';
+    }
+    
+    // Show guestbook form if not blocked
+    if (guestbookForm) guestbookForm.style.display = 'block';
+    
+  } catch (err) {
+    console.error('Error updating profile buttons:', err);
+    // If error, show add friend button as default
+    if (addFriendBtn) addFriendBtn.style.display = 'inline-block';
+    if (blockBtn) blockBtn.style.display = 'inline-block';
+    if (guestbookForm) guestbookForm.style.display = 'block';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GUESTBOOK SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Character counter for guestbook
+document.addEventListener('DOMContentLoaded', function() {
+  var guestbookInput = document.getElementById('guestbook-message-input');
+  var charCount = document.getElementById('guestbook-char-count');
+  
+  if (guestbookInput && charCount) {
+    guestbookInput.addEventListener('input', function() {
+      var length = this.value.length;
+      charCount.textContent = length + ' / 500';
+      
+      if (length > 450) {
+        charCount.style.color = 'var(--red)';
+      } else if (length > 400) {
+        charCount.style.color = 'var(--orange)';
+      } else {
+        charCount.style.color = 'var(--text-light)';
+      }
+    });
+  }
+});
+
+// Post guestbook message
+async function postGuestbookMessage() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  var messageInput = document.getElementById('guestbook-message-input');
+  var message = messageInput.value.trim();
+  
+  if (!message) {
+    showToast('Please enter a message');
+    return;
+  }
+  
+  if (message.length > 500) {
+    showToast('Message is too long (max 500 characters)');
+    return;
+  }
+  
+  try {
+    var { error } = await supabaseClient
+      .from('guestbook_entries')
+      .insert([{
+        profile_user_id: currentProfileUserId,
+        author_id: currentUser.id,
+        message: message
+      }]);
+    
+    if (error) throw error;
+    
+    showToast('Message posted! 💖');
+    messageInput.value = '';
+    document.getElementById('guestbook-char-count').textContent = '0 / 500';
+    loadGuestbookEntries(currentProfileUserId);
+    
+  } catch (err) {
+    showToast('Error posting message: ' + err.message);
+    console.error('Error posting guestbook message:', err);
+  }
+}
+
+// Load guestbook entries
+async function loadGuestbookEntries(profileUserId) {
+  var container = document.getElementById('guestbook-entries');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    // Get guestbook entries with author info
+    var { data: entries, error } = await supabaseClient
+      .from('guestbook_entries')
+      .select('id, author_id, message, created_at, players!guestbook_entries_author_id_fkey(username)')
+      .eq('profile_user_id', profileUserId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+    
+    if (error) throw error;
+    
+    if (!entries || entries.length === 0) {
+      container.innerHTML = '<div class="guestbook-empty"><div class="guestbook-empty-icon">📖</div><p>No messages yet!</p><p style="font-size:0.9rem;color:var(--text-light);margin-top:8px;">Be the first to leave a message!</p></div>';
+      return;
+    }
+    
+    // Render entries
+    var html = '';
+    entries.forEach(function(entry) {
+      var author = entry.players;
+      var authorName = author ? author.username : 'Unknown User';
+      var canDelete = currentUser && (entry.author_id === currentUser.id || profileUserId === currentUser.id);
+      
+      var timestamp = new Date(entry.created_at);
+      var timeAgo = getTimeAgo(timestamp);
+      
+      html += '<div class="guestbook-entry">';
+      html += '  <div class="guestbook-header">';
+      html += '    <div class="guestbook-author">';
+      html += '      <div class="guestbook-author-avatar">' + authorName.charAt(0).toUpperCase() + '</div>';
+      html += '      <div class="guestbook-author-info">';
+      html += '        <div class="guestbook-author-name" onclick="viewProfile(\'' + escapeHtml(authorName) + '\')">' + escapeHtml(authorName) + '</div>';
+      html += '        <div class="guestbook-timestamp">' + timeAgo + '</div>';
+      html += '      </div>';
+      html += '    </div>';
+      
+      if (canDelete) {
+        html += '    <div class="guestbook-actions">';
+        html += '      <button class="btn btn-outline btn-sm btn-danger" onclick="deleteGuestbookEntry(\'' + entry.id + '\')">Delete</button>';
+        html += '    </div>';
+      }
+      
+      html += '  </div>';
+      html += '  <div class="guestbook-message">' + escapeHtml(entry.message) + '</div>';
+      html += '</div>';
+    });
+    
+    container.innerHTML = html;
+    
+  } catch (err) {
+    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + err.message + '</p></div>';
+    console.error('Error loading guestbook entries:', err);
+  }
+}
+
+// Delete guestbook entry
+async function deleteGuestbookEntry(entryId) {
+  if (!confirm('Delete this message?')) return;
+  
+  try {
+    var { error } = await supabaseClient
+      .from('guestbook_entries')
+      .delete()
+      .eq('id', entryId);
+    
+    if (error) throw error;
+    
+    showToast('Message deleted');
+    loadGuestbookEntries(currentProfileUserId);
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error deleting guestbook entry:', err);
+  }
+}
+
+// Helper function to get "time ago" string
+function getTimeAgo(date) {
+  var now = new Date();
+  var seconds = Math.floor((now - date) / 1000);
+  
+  if (seconds < 60) return 'Just now';
+  
+  var minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return minutes + ' minute' + (minutes === 1 ? '' : 's') + ' ago';
+  
+  var hours = Math.floor(minutes / 60);
+  if (hours < 24) return hours + ' hour' + (hours === 1 ? '' : 's') + ' ago';
+  
+  var days = Math.floor(hours / 24);
+  if (days < 30) return days + ' day' + (days === 1 ? '' : 's') + ' ago';
+  
+  var months = Math.floor(days / 30);
+  if (months < 12) return months + ' month' + (months === 1 ? '' : 's') + ' ago';
+  
+  var years = Math.floor(months / 12);
+  return years + ' year' + (years === 1 ? '' : 's') + ' ago';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UPDATE EXISTING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Modify the existing loadProfile function to integrate new features
+var originalLoadProfile = loadProfile;
+loadProfile = async function(username) {
+  await originalLoadProfile(username);
+  
+  // Get the profile user ID
+  var profileRes = await supabaseClient
+    .from('players')
+    .select('id')
+    .ilike('username', username)
+    .single();
+  
+  if (profileRes.data) {
+    currentProfileUserId = profileRes.data.id;
+    
+    // Update action buttons
+    await updateProfileButtons();
+    
+    // Load guestbook
+    await loadGuestbookEntries(currentProfileUserId);
+  }
+};
+
+// Add friends tab to tabsLoaded
+tabsLoaded.friends = function() {
+  updateFriendRequestBadge();
+  switchFriendsTab('list');
+};
+
+// Update the init function to load friend request badge
+var originalInit = init;
+init = async function() {
+  await originalInit();
+  await updateFriendRequestBadge();
+  
+  // Poll for friend requests every 30 seconds
+  setInterval(updateFriendRequestBadge, 30000);
+};
+
