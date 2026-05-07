@@ -5424,8 +5424,10 @@ function getSpriteFile(species) {
     'raccoon': 'MiniFox.png', // using fox as placeholder
     'boar': 'MiniBoar.png',
     'wolf': 'MiniWolf.png',
-    'bear': 'MiniB earng',
-    'deer': 'MiniDeer1.png'
+    'bear': 'MiniBear.png',
+    'deer': 'MiniDeer1.png',
+    'mushroom': 'MonsterMushroom.png',
+    'slime': 'MonsterSlime.png'
   };
   return spriteMap[species] || 'MiniBird.png';
 }
@@ -5693,12 +5695,15 @@ function closeBattleRewardsModal() {
   closeBattle();
 }
 
-function closeBattle() {
+async function closeBattle() {
+  // Wait a moment for any pending database updates to complete
+  await new Promise(resolve => setTimeout(resolve, 100));
+  
   el('battle-screen').style.display = 'none';
   el('forest-exploration').style.display = 'block';
   
   // Reload pet selector to show updated stats
-  loadBattlePets();
+  await loadBattlePets();
 }
 
 // Load pets for battle selection
@@ -6239,7 +6244,7 @@ async function getRandomEnemy(zone, playerLevel) {
     base_attack: baseATK,
     base_defense: baseDEF,
     base_speed: baseSPD,
-    image_file: baseEnemy.image_file,
+    sprite_sheet: baseEnemy.sprite_sheet,
     forest_zone: baseEnemy.forest_zone,
     difficulty_tier: baseEnemy.difficulty_tier,
     variant: variant,
@@ -8477,7 +8482,7 @@ function createDungeonEnemy(baseEnemy, level, variant, statMultiplier) {
     base_attack: baseATK,
     base_defense: baseDEF,
     base_speed: baseSPD,
-    image_file: baseEnemy.image_file,
+    sprite_sheet: baseEnemy.sprite_sheet,
     forest_zone: baseEnemy.forest_zone,
     difficulty_tier: baseEnemy.difficulty_tier,
     variant: variant,
