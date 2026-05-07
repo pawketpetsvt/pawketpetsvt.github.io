@@ -207,6 +207,10 @@ function updateAllPoints(pts) {
     var e = el(id); if (e) e.textContent = str;
   });
   el('nav-points').innerHTML = '&#129689; ' + pts + ' PP';
+  
+  // Update sidebar points
+  var sidebarPoints = document.getElementById('sidebar-points');
+  if (sidebarPoints) sidebarPoints.textContent = pts.toLocaleString() + ' PP';
 }
 
 // ── LEADERBOARD INITIALIZATION ────────────────────────────
@@ -331,6 +335,9 @@ async function showApp(user) {
     updateAllPoints(pr.data.pawketpoints);
   }
   
+  // Update sidebar stats
+  await updateSidebarStats();
+  
   // Load user's badges
   await loadUserBadges();
   
@@ -378,6 +385,102 @@ function showAuth() {
   el('nav-user').textContent = '';
   el('nav-points').textContent = '';
   tabsLoaded = {};
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// UPDATE SIDEBAR STATS
+// ══════════════════════════════════════════════════════════════════════════
+
+async function updateSidebarStats() {
+  if (!currentUser) return;
+  
+  try {
+    // Get player data
+    var { data: player, error: playerError } = await supabaseClient
+      .from('players')
+      .select('pawketpoints')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (playerError) throw playerError;
+    
+    // Get pet count
+    var { data: pets, error: petsError } = await supabaseClient
+      .from('user_pets')
+      .select('id')
+      .eq('user_id', currentUser.id);
+    
+    if (petsError) throw petsError;
+    
+    // Get item count
+    var { data: items, error: itemsError } = await supabaseClient
+      .from('user_inventory')
+      .select('quantity')
+      .eq('user_id', currentUser.id);
+    
+    if (itemsError) throw itemsError;
+    
+    var totalItems = 0;
+    if (items) {
+      items.forEach(function(item) {
+        totalItems += item.quantity || 0;
+      });
+    }
+    
+    // Calculate day streak
+    var streak = calculateDayStreak();
+    
+    // Update sidebar display
+    var petCountEl = document.getElementById('sidebar-pet-count');
+    var pointsEl = document.getElementById('sidebar-points');
+    var itemsEl = document.getElementById('sidebar-items');
+    var streakEl = document.getElementById('sidebar-streak');
+    
+    if (petCountEl) petCountEl.textContent = (pets ? pets.length : 0);
+    if (pointsEl) pointsEl.textContent = (player ? player.pawketpoints.toLocaleString() : 0) + ' PP';
+    if (itemsEl) itemsEl.textContent = totalItems;
+    if (streakEl) streakEl.textContent = streak;
+    
+  } catch (err) {
+    console.error('Error updating sidebar stats:', err);
+  }
+}
+
+// Calculate day streak from localStorage
+function calculateDayStreak() {
+  try {
+    var today = new Date().toDateString();
+    var yesterday = new Date(Date.now() - 86400000).toDateString();
+    
+    var lastLogin = localStorage.getItem('lastLoginDate');
+    var currentStreak = parseInt(localStorage.getItem('loginStreak') || '0');
+    
+    if (!lastLogin) {
+      // First login
+      localStorage.setItem('lastLoginDate', today);
+      localStorage.setItem('loginStreak', '1');
+      return 1;
+    }
+    
+    if (lastLogin === today) {
+      // Already logged in today
+      return currentStreak;
+    } else if (lastLogin === yesterday) {
+      // Consecutive day
+      currentStreak++;
+      localStorage.setItem('lastLoginDate', today);
+      localStorage.setItem('loginStreak', currentStreak.toString());
+      return currentStreak;
+    } else {
+      // Streak broken
+      localStorage.setItem('lastLoginDate', today);
+      localStorage.setItem('loginStreak', '1');
+      return 1;
+    }
+  } catch (err) {
+    console.error('Error calculating streak:', err);
+    return 0;
+  }
 }
 
 async function handleLogout() { await logoutUser(); }
@@ -5131,10 +5234,10 @@ function playBattleTurn() {
     // Play player attack sound with volume based on variance
     if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('player', entry.variance);
-      var playerVolume = 0.35; // Default for light/normal
+      var playerVolume = 0.21; // Reduced 40% (was 0.35)
       
-      if (entry.variance === 1) { // Crit - MUCH quieter!
-        playerVolume = 0.14; // Another 20% reduction (was 0.18, now 0.14)
+      if (entry.variance === 1) { // Crit
+        playerVolume = 0.08; // Reduced 40% (was 0.14)
       }
       
       playBattleSound(soundKey, playerVolume);
@@ -5157,10 +5260,10 @@ function playBattleTurn() {
     } else if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('enemy', entry.variance);
       
-      // Match player volumes - normal enemies use same sounds so match volumes
-      var enemyVolume = 0.30; // Default for light/normal
-      if (entry.variance === 1) { // Crit - match player crit volume!
-        enemyVolume = 0.14; // Same as player crit (was ear-blasting at 0.30)
+      // Reduced 40% from original volumes
+      var enemyVolume = 0.18; // Reduced 40% (was 0.30)
+      if (entry.variance === 1) { // Crit
+        enemyVolume = 0.08; // Reduced 40% (was 0.14)
       }
       
       playBattleSound(soundKey, enemyVolume);
@@ -7079,5 +7182,538 @@ init = async function() {
   
   // Poll for friend requests every 30 seconds
   setInterval(updateFriendRequestBadge, 30000);
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACTIVITY FEED BOX (Sidebar)
+// ═══════════════════════════════════════════════════════════════════════════
+
+var activityFeedInterval = null;
+var currentActivities = [];
+var currentActivityIndex = 0;
+
+// Start the activity feed rotation
+async function startActivityFeed() {
+  if (!currentUser) return;
+  
+  // Load activities initially
+  await loadFriendActivities();
+  
+  // Rotate through activities every 5 seconds
+  activityFeedInterval = setInterval(rotateActivity, 5000);
+}
+
+// Stop the activity feed rotation
+function stopActivityFeed() {
+  if (activityFeedInterval) {
+    clearInterval(activityFeedInterval);
+    activityFeedInterval = null;
+  }
+}
+
+// Load friend activities from database
+async function loadFriendActivities() {
+  if (!currentUser) return;
+  
+  try {
+    // Get friend IDs
+    var { data: friendships, error: friendError } = await supabaseClient
+      .from('friendships')
+      .select('requester_id, addressee_id')
+      .eq('status', 'accepted')
+      .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id);
+    
+    if (friendError) throw friendError;
+    
+    if (!friendships || friendships.length === 0) {
+      // No friends - show default message
+      currentActivities = [];
+      updateActivityFeedDisplay();
+      return;
+    }
+    
+    // Get friend user IDs
+    var friendIds = friendships.map(function(f) {
+      return f.requester_id === currentUser.id ? f.addressee_id : f.requester_id;
+    });
+    
+    // Get recent activities from friends (last 50)
+    var { data: activities, error: actError } = await supabaseClient
+      .from('activity_feed')
+      .select('*, players(username)')
+      .in('user_id', friendIds)
+      .eq('is_public', true)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    
+    if (actError) throw actError;
+    
+    currentActivities = activities || [];
+    currentActivityIndex = 0;
+    updateActivityFeedDisplay();
+    
+  } catch (err) {
+    console.error('Error loading friend activities:', err);
+  }
+}
+
+// Rotate to next activity
+function rotateActivity() {
+  if (currentActivities.length === 0) return;
+  
+  currentActivityIndex = (currentActivityIndex + 1) % currentActivities.length;
+  updateActivityFeedDisplay();
+}
+
+// Update the activity feed display
+function updateActivityFeedDisplay() {
+  var messageEl = document.getElementById('activity-feed-message');
+  if (!messageEl) return;
+  
+  if (currentActivities.length === 0) {
+    messageEl.textContent = 'Add friends to see their activity!';
+    messageEl.style.color = 'var(--text-light)';
+    return;
+  }
+  
+  var activity = currentActivities[currentActivityIndex];
+  var username = activity.players ? activity.players.username : 'Someone';
+  var message = formatActivityMessage(activity, username);
+  
+  // Fade out, change text, fade in
+  messageEl.style.animation = 'none';
+  setTimeout(function() {
+    messageEl.textContent = message;
+    messageEl.style.color = 'var(--text)';
+    messageEl.style.animation = 'activity-fade-in 0.5s ease-in-out';
+  }, 50);
+}
+
+// Format activity message based on type
+function formatActivityMessage(activity, username) {
+  var type = activity.activity_type;
+  var data = activity.activity_data || {};
+  
+  switch(type) {
+    case 'badge_earned':
+      return username + ' just earned the ' + (data.badge_name || 'Badge') + '! ' + (data.badge_icon || '🎖️');
+    
+    case 'level_up':
+      var petName = data.pet_name || 'their pet';
+      var level = data.level || '?';
+      return username + "'s " + petName + ' just hit level ' + level + '! 🎉';
+    
+    case 'pet_adopted':
+      var petName = data.pet_name || 'a new pet';
+      return username + ' just adopted ' + petName + '! 🐾';
+    
+    case 'achievement_unlocked':
+      return username + ' unlocked: ' + (data.achievement_name || 'Achievement') + '! ⭐';
+    
+    case 'battle_victory':
+      var enemy = data.enemy_name || 'an enemy';
+      return username + ' defeated ' + enemy + '! ⚔️';
+    
+    case 'boss_defeated':
+      var boss = data.boss_name || 'a boss';
+      return username + ' defeated ' + boss + '! 💀🎉';
+    
+    default:
+      return username + ' did something cool! ✨';
+  }
+}
+
+// Refresh activity feed (call this periodically)
+async function refreshActivityFeed() {
+  await loadFriendActivities();
+}
+
+// Update init function to start activity feed
+var originalInitForActivity = init;
+init = async function() {
+  await originalInitForActivity();
+  await startActivityFeed();
+  
+  // Refresh activity feed every 2 minutes
+  setInterval(refreshActivityFeed, 120000);
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var notificationDropdownOpen = false;
+var currentNotifications = [];
+
+// Toggle notification dropdown
+function toggleNotificationDropdown() {
+  var dropdown = document.getElementById('notification-dropdown');
+  
+  if (notificationDropdownOpen) {
+    closeNotificationDropdown();
+  } else {
+    openNotificationDropdown();
+  }
+}
+
+// Open notification dropdown
+async function openNotificationDropdown() {
+  var dropdown = document.getElementById('notification-dropdown');
+  dropdown.style.display = 'block';
+  notificationDropdownOpen = true;
+  
+  // Add overlay to close when clicking outside
+  var overlay = document.createElement('div');
+  overlay.className = 'notification-overlay';
+  overlay.id = 'notification-overlay';
+  overlay.onclick = closeNotificationDropdown;
+  document.body.appendChild(overlay);
+  
+  // Load notifications
+  await loadNotifications();
+}
+
+// Close notification dropdown
+function closeNotificationDropdown() {
+  var dropdown = document.getElementById('notification-dropdown');
+  dropdown.style.display = 'none';
+  notificationDropdownOpen = false;
+  
+  var overlay = document.getElementById('notification-overlay');
+  if (overlay) overlay.remove();
+}
+
+// Load notifications
+async function loadNotifications() {
+  if (!currentUser) return;
+  
+  var listEl = document.getElementById('notification-list');
+  listEl.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var { data: notifications, error } = await supabaseClient
+      .from('notifications')
+      .select('*, players!notifications_from_user_id_fkey(username)')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    
+    if (error) throw error;
+    
+    currentNotifications = notifications || [];
+    
+    if (currentNotifications.length === 0) {
+      listEl.innerHTML = '<div class="notification-empty">No notifications</div>';
+      return;
+    }
+    
+    // Render notifications
+    var html = '';
+    currentNotifications.forEach(function(notif) {
+      html += renderNotification(notif);
+    });
+    
+    listEl.innerHTML = html;
+    
+  } catch (err) {
+    console.error('Error loading notifications:', err);
+    listEl.innerHTML = '<div class="notification-empty">Error loading notifications</div>';
+  }
+}
+
+// Render a single notification
+function renderNotification(notif) {
+  var icon = getNotificationIcon(notif.type);
+  var timeAgo = getTimeAgo(new Date(notif.created_at));
+  var unreadClass = notif.is_read ? '' : 'unread';
+  var fromUsername = notif.players ? notif.players.username : 'Someone';
+  
+  var html = '<div class="notification-item ' + unreadClass + '" onclick="handleNotificationClick(\'' + notif.id + '\', \'' + (notif.link || '') + '\')">';
+  html += '  <span class="notification-icon">' + icon + '</span>';
+  html += '  <div class="notification-content">';
+  html += '    <div class="notification-title">' + escapeHtml(notif.title) + '</div>';
+  html += '    <div class="notification-message">' + escapeHtml(notif.message) + '</div>';
+  html += '    <div class="notification-time">' + timeAgo + '</div>';
+  html += '  </div>';
+  html += '</div>';
+  
+  return html;
+}
+
+// Get icon for notification type
+function getNotificationIcon(type) {
+  switch(type) {
+    case 'friend_request': return '👥';
+    case 'friend_accepted': return '✅';
+    case 'guestbook_message': return '📝';
+    case 'badge_earned': return '🎖️';
+    case 'level_up': return '⭐';
+    default: return '🔔';
+  }
+}
+
+// Handle notification click
+async function handleNotificationClick(notificationId, link) {
+  // Mark as read
+  await markNotificationRead(notificationId);
+  
+  // Close dropdown
+  closeNotificationDropdown();
+  
+  // Navigate to link
+  if (link) {
+    if (link.startsWith('tab:')) {
+      var tab = link.replace('tab:', '');
+      showTab(tab);
+    } else if (link.startsWith('profile:')) {
+      var username = link.replace('profile:', '');
+      viewProfile(username);
+    }
+  }
+  
+  // Refresh notification badge
+  await updateNotificationBadge();
+}
+
+// Mark notification as read
+async function markNotificationRead(notificationId) {
+  try {
+    await supabaseClient
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', notificationId);
+  } catch (err) {
+    console.error('Error marking notification as read:', err);
+  }
+}
+
+// Mark all notifications as read
+async function markAllNotificationsRead() {
+  if (!currentUser) return;
+  
+  try {
+    await supabaseClient
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+    
+    await loadNotifications();
+    await updateNotificationBadge();
+    
+  } catch (err) {
+    console.error('Error marking all as read:', err);
+  }
+}
+
+// Update notification badge count
+async function updateNotificationBadge() {
+  if (!currentUser) return;
+  
+  try {
+    var { data, error } = await supabaseClient
+      .from('notifications')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+    
+    if (error) throw error;
+    
+    var count = data ? data.length : 0;
+    var badge = document.getElementById('notification-badge');
+    var bell = document.getElementById('notification-bell');
+    
+    if (count > 0) {
+      if (badge) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.style.display = 'flex';
+      }
+      if (bell) bell.style.display = 'inline-flex';
+    } else {
+      if (badge) badge.style.display = 'none';
+      if (bell) bell.style.display = 'inline-flex'; // Still show bell, just no badge
+    }
+    
+  } catch (err) {
+    console.error('Error updating notification badge:', err);
+  }
+}
+
+// Create a notification (helper function)
+async function createNotification(userId, type, title, message, link, fromUserId) {
+  try {
+    await supabaseClient
+      .from('notifications')
+      .insert([{
+        user_id: userId,
+        type: type,
+        title: title,
+        message: message,
+        link: link || null,
+        from_user_id: fromUserId || null
+      }]);
+  } catch (err) {
+    console.error('Error creating notification:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INTEGRATE NOTIFICATIONS INTO EXISTING FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Modified sendFriendRequest to create notification
+var originalSendFriendRequest = sendFriendRequest;
+sendFriendRequest = async function() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  try {
+    var { error } = await supabaseClient
+      .from('friendships')
+      .insert([{
+        requester_id: currentUser.id,
+        addressee_id: currentProfileUserId,
+        status: 'pending'
+      }]);
+    
+    if (error) throw error;
+    
+    // Create notification for the other user
+    var username = document.getElementById('profile-username').textContent;
+    await createNotification(
+      currentProfileUserId,
+      'friend_request',
+      'New Friend Request',
+      currentUser.email.split('@')[0] + ' sent you a friend request!',
+      'tab:friends',
+      currentUser.id
+    );
+    
+    showToast('Friend request sent! 🎉');
+    updateProfileButtons();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error sending friend request:', err);
+  }
+};
+
+// Modified acceptFriendRequest to create notification
+var originalAcceptFriendRequest = acceptFriendRequest;
+acceptFriendRequest = async function(friendshipId) {
+  try {
+    // Get friendship details first to notify the requester
+    var { data: friendship } = await supabaseClient
+      .from('friendships')
+      .select('requester_id')
+      .eq('id', friendshipId)
+      .single();
+    
+    var { error } = await supabaseClient
+      .from('friendships')
+      .update({ status: 'accepted' })
+      .eq('id', friendshipId);
+    
+    if (error) throw error;
+    
+    // Create notification for the requester
+    if (friendship) {
+      var { data: player } = await supabaseClient
+        .from('players')
+        .select('username')
+        .eq('id', currentUser.id)
+        .single();
+      
+      await createNotification(
+        friendship.requester_id,
+        'friend_accepted',
+        'Friend Request Accepted!',
+        (player ? player.username : 'Someone') + ' accepted your friend request!',
+        'tab:friends',
+        currentUser.id
+      );
+    }
+    
+    showToast('Friend request accepted! 🎉');
+    await updateFriendRequestBadge();
+    loadFriendRequests();
+    
+  } catch (err) {
+    showToast('Error: ' + err.message);
+    console.error('Error accepting friend request:', err);
+  }
+};
+
+// Modified postGuestbookMessage to create notification
+var originalPostGuestbookMessage = postGuestbookMessage;
+postGuestbookMessage = async function() {
+  if (!currentUser || !currentProfileUserId) return;
+  
+  var messageInput = document.getElementById('guestbook-message-input');
+  var message = messageInput.value.trim();
+  
+  if (!message) {
+    showToast('Please enter a message');
+    return;
+  }
+  
+  if (message.length > 500) {
+    showToast('Message is too long (max 500 characters)');
+    return;
+  }
+  
+  try {
+    var { error } = await supabaseClient
+      .from('guestbook_entries')
+      .insert([{
+        profile_user_id: currentProfileUserId,
+        author_id: currentUser.id,
+        message: message
+      }]);
+    
+    if (error) throw error;
+    
+    // Create notification for profile owner (if not posting on own profile)
+    if (currentProfileUserId !== currentUser.id) {
+      var { data: player } = await supabaseClient
+        .from('players')
+        .select('username')
+        .eq('id', currentUser.id)
+        .single();
+      
+      var username = player ? player.username : 'Someone';
+      
+      await createNotification(
+        currentProfileUserId,
+        'guestbook_message',
+        'New Guestbook Message',
+        username + ' left a message on your guestbook!',
+        'tab:profile',
+        currentUser.id
+      );
+    }
+    
+    showToast('Message posted! 💖');
+    messageInput.value = '';
+    document.getElementById('guestbook-char-count').textContent = '0 / 500';
+    loadGuestbookEntries(currentProfileUserId);
+    
+  } catch (err) {
+    showToast('Error posting message: ' + err.message);
+    console.error('Error posting guestbook message:', err);
+  }
+};
+
+// Update showApp to initialize notification system
+var originalShowAppForNotifications = showApp;
+showApp = async function(user) {
+  await originalShowAppForNotifications(user);
+  
+  // Initialize notifications
+  await updateNotificationBadge();
+  
+  // Poll for new notifications every 30 seconds
+  setInterval(updateNotificationBadge, 30000);
 };
 

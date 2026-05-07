@@ -5137,3 +5137,269 @@ body.boss-ui-glitch header {
     width: 100%;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ACTIVITY FEED BOX (Sidebar)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.activity-feed-box {
+  background: linear-gradient(135deg, rgba(176, 106, 255, 0.05), rgba(255, 106, 157, 0.05));
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 12px;
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.activity-feed-message {
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.4;
+  animation: activity-fade-in 0.5s ease-in-out;
+}
+
+@keyframes activity-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HOMEPAGE MELON PROMO - ANIMATED TEXT (Match Shop Title Style)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.melon-promo-text {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.melon-promo-word {
+  display: inline-block;
+  margin: 0 4px;
+  color: var(--text);
+}
+
+.melon-promo-word-melons {
+  color: #ff6b9d;
+  animation: title-bounce 2s ease-in-out infinite;
+  text-shadow: 3px 3px 6px rgba(255, 107, 157, 0.4);
+  font-size: 1.6rem;
+}
+
+.melon-promo-word-melons-2 {
+  color: #ffa502;
+  animation: title-bounce 2s ease-in-out infinite;
+  animation-delay: 0.2s;
+  text-shadow: 3px 3px 6px rgba(255, 165, 2, 0.4);
+  font-size: 1.6rem;
+}
+
+/* The title-bounce animation is already defined earlier in the CSS */
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NOTIFICATION SYSTEM (Navbar Bell Icon & Dropdown)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.notification-bell {
+  position: relative;
+  cursor: pointer;
+  margin-right: 20px;
+  padding: 8px 12px;
+  border-radius: 50%;
+  transition: background 0.2s, transform 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notification-bell:hover {
+  background: rgba(176, 106, 255, 0.1);
+  transform: scale(1.1);
+}
+
+.bell-icon {
+  font-size: 1.4rem;
+  display: block;
+}
+
+.notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--pink);
+  color: white;
+  border-radius: 50%;
+  min-width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  border: 2px solid var(--white);
+  animation: pulse-notification 2s ease-in-out infinite;
+}
+
+@keyframes pulse-notification {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+.notification-dropdown {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  width: 380px;
+  max-height: 500px;
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 32px var(--shadow);
+  z-index: 9999;
+  overflow: hidden;
+  animation: dropdown-slide-in 0.2s ease-out;
+}
+
+@keyframes dropdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.notification-dropdown-header {
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light));
+  padding: 16px 20px;
+  border-bottom: 2px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notification-dropdown-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--purple-dark);
+  font-family: 'Fredoka One', cursive;
+}
+
+.btn-text {
+  background: none;
+  border: none;
+  color: var(--purple);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+
+.btn-text:hover {
+  background: rgba(176, 106, 255, 0.1);
+}
+
+.notification-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.notification-item {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.notification-item:hover {
+  background: rgba(176, 106, 255, 0.05);
+}
+
+.notification-item.unread {
+  background: rgba(255, 192, 203, 0.1);
+  border-left: 4px solid var(--pink);
+}
+
+.notification-item.unread::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 20px;
+  width: 8px;
+  height: 8px;
+  background: var(--pink);
+  border-radius: 50%;
+  transform: translateY(-50%);
+}
+
+.notification-icon {
+  font-size: 1.5rem;
+  margin-right: 12px;
+  display: inline-block;
+}
+
+.notification-content {
+  display: inline-block;
+  vertical-align: top;
+  width: calc(100% - 50px);
+}
+
+.notification-title {
+  font-weight: bold;
+  color: var(--purple-dark);
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.notification-message {
+  color: var(--text);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 4px;
+}
+
+.notification-time {
+  color: var(--text-light);
+  font-size: 0.75rem;
+}
+
+.notification-empty {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 0.9rem;
+}
+
+/* Close dropdown when clicking outside */
+.notification-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: transparent;
+}
+
+@media (max-width: 768px) {
+  .notification-dropdown {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
+
