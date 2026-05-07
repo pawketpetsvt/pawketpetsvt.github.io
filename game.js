@@ -444,6 +444,12 @@ async function showApp(user) {
   
   // Initialize referral system
   await initReferralSystem(user.id);
+  
+  // Check sidebar stream status
+  await checkSidebarStreamStatus();
+  
+  // Refresh stream status every 2 minutes
+  setInterval(checkSidebarStreamStatus, 120000);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -2141,6 +2147,77 @@ function openUseModal(invId,itemName) {
   el('use-modal').classList.add('show');
 }
 function closeUseModal(){el('use-modal').classList.remove('show');selectedInvItem=null;}
+
+// ── CONTACT MODAL ──────────────────────────────────────
+function openContactModal() {
+  el('contact-modal').classList.add('show');
+}
+
+function closeContactModal() {
+  el('contact-modal').classList.remove('show');
+}
+
+// ── SIDEBAR TWITCH LIVE STATUS CHECK ──────────────────
+async function checkSidebarStreamStatus() {
+  // Check if Embertail and Pyxshuul are live using public Twitch API
+  try {
+    // We need to use a token to check streams - try to get from user if linked
+    var token = null;
+    if (currentUser) {
+      var pr = await supabaseClient.from('players').select('twitch_token').eq('id', currentUser.id).single();
+      if (pr.data && pr.data.twitch_token) {
+        token = pr.data.twitch_token;
+      }
+    }
+    
+    // If no token, can't check - this is a Twitch API limitation
+    if (!token) {
+      console.log('No Twitch token available - cannot check live status');
+      return;
+    }
+    
+    // Check both streamers
+    var resp = await fetch('https://api.twitch.tv/helix/streams?user_login=embertail&user_login=pyxshuul', {
+      headers: {
+        'Client-Id': TWITCH_CLIENT_ID,
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    
+    var data = await resp.json();
+    
+    // Reset all to offline first
+    el('ember-status').textContent = 'OFFLINE';
+    el('ember-live-badge').style.display = 'none';
+    el('ember-watch-btn').style.display = 'none';
+    
+    el('pyxs-status').textContent = 'OFFLINE';
+    el('pyxs-live-badge').style.display = 'none';
+    el('pyxs-watch-btn').style.display = 'none';
+    
+    // Update live streamers
+    if (data.data && data.data.length > 0) {
+      data.data.forEach(function(stream) {
+        var login = stream.user_login.toLowerCase();
+        
+        if (login === 'embertail') {
+          el('ember-status').textContent = stream.game_name || 'LIVE';
+          el('ember-live-badge').style.display = 'inline-block';
+          el('ember-watch-btn').style.display = 'inline-block';
+        } else if (login === 'pyxshuul') {
+          el('pyxs-status').textContent = stream.game_name || 'LIVE';
+          el('pyxs-live-badge').style.display = 'inline-block';
+          el('pyxs-watch-btn').style.display = 'inline-block';
+        }
+      });
+    }
+    
+    console.log('✅ Sidebar stream status checked');
+  } catch (err) {
+    console.error('❌ Error checking sidebar stream status:', err);
+  }
+}
+
 
 async function useOnPet(petId,petNickname) {
   if(!selectedInvItem)return;

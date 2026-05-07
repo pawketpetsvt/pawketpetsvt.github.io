@@ -84,7 +84,7 @@
   <div class="beta-banner-inner">
     <span class="beta-tag">BETA</span>
     <span class="beta-text">⚠️ This game is in active development. Progress may be reset, and features are subject to change.</span>
-    <a href="mailto:support@pawketpetsvt.com" class="beta-contact">Report Issues</a>
+    <button class="beta-contact" onclick="openContactModal()">Report Issues</button>
   </div>
 </div>
 
@@ -1216,6 +1216,34 @@
     <p id="use-modal-desc">Which pet?</p>
     <div class="pet-select-list" id="pet-select-list"></div>
     <button class="btn btn-outline" onclick="closeUseModal()">Cancel</button>
+  </div>
+</div>
+
+<!-- Contact Options Modal -->
+<div class="modal-overlay" id="contact-modal">
+  <div class="modal contact-modal">
+    <h2>📞 Contact Us</h2>
+    <p>Need help or found a bug? Reach out to us!</p>
+    
+    <div class="contact-options">
+      <a href="mailto:PawketPetsVT@gmail.com" class="contact-option">
+        <div class="contact-icon">✉️</div>
+        <div class="contact-text">
+          <strong>Email Us</strong>
+          <span>PawketPetsVT@gmail.com</span>
+        </div>
+      </a>
+      
+      <a href="https://discord.com/users/embertail" target="_blank" class="contact-option">
+        <div class="contact-icon">💬</div>
+        <div class="contact-text">
+          <strong>Discord</strong>
+          <span>Contact Embertail</span>
+        </div>
+      </a>
+    </div>
+    
+    <button class="btn btn-outline" onclick="closeContactModal()">Close</button>
   </div>
 </div>
 
