@@ -5275,8 +5275,29 @@ function selectZone(zone) {
     selectedBtn.style.transform = 'scale(1.02)';
     
     var helperText = document.getElementById('battle-helper-text');
-    if (helperText && selectedBattlePetId) {
-      helperText.textContent = 'Ready to battle in ' + (zone === 'outskirts' ? 'City Outskirts' : 'Forest Glade') + '!';
+    var findBtn = document.getElementById('find-battle-btn');
+    
+    if (zone === 'dungeon') {
+      // Dungeon mode
+      if (helperText && selectedBattlePetId) {
+        helperText.textContent = 'Ready to challenge the Shallow Cave!';
+      }
+      if (findBtn) {
+        findBtn.textContent = '🕳️ Enter Dungeon';
+        findBtn.onclick = startDungeon;
+      }
+    } else {
+      // Normal exploration
+      if (helperText && selectedBattlePetId) {
+        var zoneName = zone === 'outskirts' ? 'City Outskirts' : 
+                       zone === 'glade' ? 'Forest Glade' : 
+                       zone === 'deepwoods' ? 'Deep Woods' : 'this zone';
+        helperText.textContent = 'Ready to explore ' + zoneName + '!';
+      }
+      if (findBtn) {
+        findBtn.textContent = '🌲 Go Exploring';
+        findBtn.onclick = goExploring;
+      }
     }
   }
 }
@@ -8295,5 +8316,397 @@ function loadDailyTip() {
   
   console.log('💡 Selected tip:', tip);
   tipEl.textContent = tip;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STARTER DUNGEON SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var dungeonState = {
+  active: false,
+  currentWave: 0,
+  petId: null,
+  petHP: 0,
+  petMaxHP: 0,
+  enemies: [],
+  rewards: {
+    pp: 0,
+    xp: 0
+  }
+};
+
+async function startDungeon() {
+  if (!selectedBattlePetId) {
+    showPixelToast('Select a pet first!', 'warning');
+    return;
+  }
+  
+  // Check daily energy cap
+  var today = new Date().toISOString().split('T')[0];
+  var energyKey = 'energy_used_' + today;
+  var energyUsedToday = parseInt(localStorage.getItem(energyKey)) || 0;
+  
+  // Dungeon costs 15 energy (3 battles × 5)
+  if (energyUsedToday >= 250 - 15) {
+    showPixelToast('⚡ Not enough energy for dungeon run!', 'warning');
+    return;
+  }
+  
+  // Track energy used
+  localStorage.setItem(energyKey, energyUsedToday + 15);
+  
+  // Get player pet stats
+  var petStats = await calculatePetStats(selectedBattlePetId);
+  if (!petStats) {
+    showPixelToast('Error loading pet stats!', 'error');
+    return;
+  }
+  
+  // Initialize dungeon state
+  dungeonState.active = true;
+  dungeonState.currentWave = 1;
+  dungeonState.petId = selectedBattlePetId;
+  dungeonState.petHP = petStats.currentHP;
+  dungeonState.petMaxHP = petStats.maxHP;
+  dungeonState.rewards = { pp: 0, xp: 0 };
+  
+  // Generate 3 enemies
+  dungeonState.enemies = await generateDungeonEnemies(petStats.stats);
+  
+  // Show dungeon intro modal
+  showDungeonIntro();
+}
+
+async function generateDungeonEnemies(playerStats) {
+  var playerLevel = Math.floor((playerStats.attack + playerStats.defense + playerStats.speed) / 5);
+  
+  // Get random base enemy from outskirts (easier creatures for starter dungeon)
+  var res = await supabaseClient
+    .from('enemy_pets')
+    .select('*')
+    .eq('forest_zone', 'outskirts');
+  
+  if (res.error || !res.data || res.data.length === 0) {
+    return [];
+  }
+  
+  var baseEnemy = res.data[Math.floor(Math.random() * res.data.length)];
+  var enemies = [];
+  
+  // Wave 1: Baby variant (-1 level, 0.7x stats)
+  var wave1 = createDungeonEnemy(baseEnemy, Math.max(1, playerLevel - 1), 'baby', 0.7);
+  enemies.push(wave1);
+  
+  // Wave 2: Adult variant (player level, 1.3x stats)
+  var wave2 = createDungeonEnemy(baseEnemy, playerLevel, 'adult', 1.3);
+  enemies.push(wave2);
+  
+  // Wave 3: KING BOSS (+2 levels, 2.5x stats)
+  var wave3 = createDungeonEnemy(baseEnemy, playerLevel + 2, 'king', 2.5);
+  enemies.push(wave3);
+  
+  return enemies;
+}
+
+function createDungeonEnemy(baseEnemy, level, variant, statMultiplier) {
+  var levelBonus = level - 1;
+  var baseHP = Math.floor((baseEnemy.base_hp + (levelBonus * 8)) * statMultiplier);
+  var baseATK = Math.floor((baseEnemy.base_attack + levelBonus) * statMultiplier);
+  var baseDEF = Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier);
+  var baseSPD = Math.floor((baseEnemy.base_speed + Math.floor(levelBonus * 0.5)) * statMultiplier);
+  
+  var variantNames = {
+    'baby': 'Baby',
+    'adult': 'Adult',
+    'king': '👑 KING'
+  };
+  
+  var name = variantNames[variant] + ' ' + baseEnemy.name;
+  
+  return {
+    id: baseEnemy.id,
+    species: baseEnemy.species,
+    name: name,
+    level: level,
+    hp: baseHP,
+    attack: baseATK,
+    defense: baseDEF,
+    speed: baseSPD,
+    base_hp: baseHP,
+    base_attack: baseATK,
+    base_defense: baseDEF,
+    base_speed: baseSPD,
+    image_file: baseEnemy.image_file,
+    forest_zone: baseEnemy.forest_zone,
+    difficulty_tier: baseEnemy.difficulty_tier,
+    variant: variant,
+    exp_reward: Math.floor(baseEnemy.exp_reward * statMultiplier),
+    pp_reward: Math.floor(baseEnemy.pp_reward * statMultiplier)
+  };
+}
+
+function showDungeonIntro() {
+  var modal = document.getElementById('exploration-modal');
+  var enemy = dungeonState.enemies[0];
+  
+  document.getElementById('exploration-title').textContent = '🕳️ Shallow Cave - Wave 1/3';
+  document.getElementById('exploration-result').innerHTML = 
+    '<strong style="color: var(--purple);">Dungeon Challenge Started!</strong><br><br>' +
+    'Fight 3 waves back-to-back. Your HP carries over between battles!<br><br>' +
+    'First enemy: <strong>' + enemy.name + '</strong> (Level ' + enemy.level + ')';
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--text-light); font-size: 0.9rem;">⚠️ No healing between waves!</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Start Wave 1!';
+  continueBtn.onclick = function() {
+    closeExplorationModal();
+    startDungeonWave();
+  };
+  
+  modal.classList.add('show');
+}
+
+async function startDungeonWave() {
+  if (!dungeonState.active || dungeonState.currentWave > 3) return;
+  
+  var enemy = dungeonState.enemies[dungeonState.currentWave - 1];
+  var petStats = await calculatePetStats(dungeonState.petId);
+  
+  if (!petStats) {
+    showPixelToast('Error loading pet!', 'error');
+    endDungeon(false);
+    return;
+  }
+  
+  // Override pet HP with dungeon state (persistent HP)
+  petStats.currentHP = dungeonState.petHP;
+  
+  // Start battle
+  await startDungeonBattle(petStats, enemy);
+}
+
+async function startDungeonBattle(playerStats, enemyStats) {
+  // Hide exploration UI
+  document.getElementById('forest-exploration').style.display = 'none';
+  document.getElementById('battle-screen').style.display = 'block';
+  
+  // Set up player side
+  var playerNameEl = el('player-battle-name');
+  playerNameEl.textContent = playerStats.name;
+  
+  el('player-hp-text').textContent = playerStats.currentHP + '/' + playerStats.maxHP;
+  el('player-hp-fill').style.width = ((playerStats.currentHP / playerStats.maxHP) * 100) + '%';
+  
+  var playerSprite = el('player-battle-sprite');
+  playerSprite.style.backgroundImage = 'url(images/' + playerStats.imageFile + ')';
+  
+  // Set up enemy side
+  el('enemy-battle-name').textContent = enemyStats.name;
+  el('enemy-hp-text').textContent = enemyStats.hp + '/' + enemyStats.hp;
+  el('enemy-hp-fill').style.width = '100%';
+  
+  var enemySprite = el('enemy-battle-sprite');
+  enemySprite.innerHTML = '';
+  var spriteFile = getSpriteFile(enemyStats.species);
+  enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
+  
+  // Clear battle log
+  el('battle-log').innerHTML = '';
+  
+  // Simulate battle
+  var battleResult = simulateBattle(playerStats, enemyStats);
+  
+  // Store dungeon HP after battle
+  dungeonState.petHP = Math.max(0, battleResult.playerFinalHP);
+  
+  // Play battle
+  currentBattleLog = battleResult.log;
+  currentBattleIndex = 0;
+  
+  el('battle-skip-btn').style.display = 'inline-block';
+  el('battle-continue-btn').style.display = 'none';
+  
+  playBattleTurn();
+}
+
+function endBattlePlayback() {
+  el('battle-skip-btn').style.display = 'none';
+  el('battle-continue-btn').style.display = 'inline-block';
+  
+  // Check if dungeon is active
+  if (dungeonState.active) {
+    handleDungeonBattleEnd();
+  }
+}
+
+async function handleDungeonBattleEnd() {
+  var victory = dungeonState.petHP > 0;
+  var enemy = dungeonState.enemies[dungeonState.currentWave - 1];
+  
+  if (victory) {
+    // Add rewards
+    dungeonState.rewards.pp += enemy.pp_reward;
+    dungeonState.rewards.xp += enemy.exp_reward;
+    
+    // Check if dungeon complete
+    if (dungeonState.currentWave === 3) {
+      // DUNGEON COMPLETE!
+      await completeDungeon();
+    } else {
+      // Next wave
+      dungeonState.currentWave++;
+      showNextWaveModal();
+    }
+  } else {
+    // Dungeon failed
+    await failDungeon();
+  }
+}
+
+function showNextWaveModal() {
+  document.getElementById('battle-screen').style.display = 'none';
+  document.getElementById('forest-exploration').style.display = 'block';
+  
+  var modal = document.getElementById('exploration-modal');
+  var enemy = dungeonState.enemies[dungeonState.currentWave - 1];
+  
+  document.getElementById('exploration-title').textContent = 
+    '🕳️ Wave ' + dungeonState.currentWave + '/3' + 
+    (dungeonState.currentWave === 3 ? ' - BOSS!' : '');
+  
+  document.getElementById('exploration-result').innerHTML = 
+    '<strong style="color: var(--green);">Wave ' + (dungeonState.currentWave - 1) + ' Complete!</strong><br><br>' +
+    'Next enemy: <strong style="color: ' + (dungeonState.currentWave === 3 ? 'var(--pink)' : 'var(--purple)') + ';">' + 
+    enemy.name + '</strong> (Level ' + enemy.level + ')<br><br>' +
+    'Your HP: <strong>' + dungeonState.petHP + '/' + dungeonState.petMaxHP + '</strong>';
+  
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--text-light); font-size: 0.9rem;">⚠️ Remember: No healing!</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = dungeonState.currentWave === 3 ? 'Fight the KING!' : 'Continue to Wave ' + dungeonState.currentWave;
+  continueBtn.onclick = function() {
+    closeExplorationModal();
+    startDungeonWave();
+  };
+  
+  modal.classList.add('show');
+}
+
+async function completeDungeon() {
+  // Award bonus PP for completing dungeon
+  var bonusPP = 100;
+  dungeonState.rewards.pp += bonusPP;
+  
+  // Save rewards
+  await awardPP(dungeonState.rewards.pp);
+  
+  // Award XP to pet
+  var petData = await supabaseClient
+    .from('user_pets')
+    .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed')
+    .eq('id', dungeonState.petId)
+    .single();
+  
+  if (petData.data) {
+    var pet = petData.data;
+    var newXp = (pet.xp || 0) + dungeonState.rewards.xp;
+    
+    var lu = calculateLevelUp(
+      newXp,
+      pet.level,
+      pet.max_hunger,
+      pet.max_energy,
+      pet.max_happiness,
+      pet.base_hp || 25,
+      pet.base_attack || 4,
+      pet.base_defense || 2,
+      pet.base_speed || 3
+    );
+    
+    var updates = { xp: lu.xp, level: lu.level };
+    
+    if (lu.leveled) {
+      updates.max_hunger = lu.maxHunger;
+      updates.max_energy = lu.maxEnergy;
+      updates.max_happiness = lu.maxHappiness;
+      updates.base_hp = lu.base_hp;
+      updates.base_attack = lu.base_attack;
+      updates.base_defense = lu.base_defense;
+      updates.base_speed = lu.base_speed;
+      updates.max_hp = lu.base_hp;
+    }
+    
+    await supabaseClient
+      .from('user_pets')
+      .update(updates)
+      .eq('id', dungeonState.petId);
+  }
+  
+  // Show completion modal
+  document.getElementById('battle-screen').style.display = 'none';
+  document.getElementById('forest-exploration').style.display = 'block';
+  
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = '🎉 Dungeon Complete!';
+  document.getElementById('exploration-result').innerHTML = 
+    '<strong style="color: var(--green); font-size: 1.3rem;">VICTORY!</strong><br><br>' +
+    'You conquered the Shallow Cave!';
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem; margin: 10px 0;">+' + dungeonState.rewards.pp + ' PP</div>' +
+    '<div style="color: var(--purple); font-weight: bold; margin: 5px 0;">+' + dungeonState.rewards.xp + ' XP</div>' +
+    '<div style="color: var(--pink); font-weight: bold; margin: 10px 0;">+' + bonusPP + ' Completion Bonus!</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Amazing!';
+  continueBtn.onclick = function() {
+    closeExplorationModal();
+    endDungeon(true);
+  };
+  
+  modal.classList.add('show');
+  
+  // Reset dungeon state
+  dungeonState.active = false;
+}
+
+async function failDungeon() {
+  // Show failure modal
+  document.getElementById('battle-screen').style.display = 'none';
+  document.getElementById('forest-exploration').style.display = 'block';
+  
+  var modal = document.getElementById('exploration-modal');
+  document.getElementById('exploration-title').textContent = '💔 Dungeon Failed';
+  document.getElementById('exploration-result').innerHTML = 
+    '<strong style="color: var(--text-light);">Your pet fainted on Wave ' + dungeonState.currentWave + '</strong><br><br>' +
+    'Better luck next time!';
+  document.getElementById('exploration-rewards').innerHTML = 
+    '<div style="color: var(--text-light); font-size: 0.9rem;">No rewards for incomplete runs</div>';
+  
+  var continueBtn = document.getElementById('exploration-continue-btn');
+  continueBtn.textContent = 'Try Again Later';
+  continueBtn.onclick = function() {
+    closeExplorationModal();
+    endDungeon(false);
+  };
+  
+  modal.classList.add('show');
+  
+  // Reset dungeon state
+  dungeonState.active = false;
+}
+
+function endDungeon(success) {
+  dungeonState.active = false;
+  dungeonState.currentWave = 0;
+  dungeonState.petId = null;
+  dungeonState.enemies = [];
+  
+  // Reload pets to show updated HP/stats
+  if (tabsLoaded['battle']) {
+    loadBattlePets();
+  }
 }
 
