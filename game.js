@@ -410,8 +410,8 @@ async function showApp(user) {
   // Award welcome badge if new user
   await awardBadge('welcome');
   
-  // Load daily tip on home page
-  loadDailyTip();
+  // Load daily tip on home page (delay to ensure DOM is ready)
+  setTimeout(loadDailyTip, 100);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -7949,8 +7949,13 @@ var dailyTips = [
 ];
 
 function loadDailyTip() {
+  console.log('🎯 loadDailyTip called!');
   var tipEl = document.getElementById('daily-tip-content');
-  if (!tipEl) return;
+  console.log('📝 Tip element:', tipEl);
+  if (!tipEl) {
+    console.log('❌ Tip element not found!');
+    return;
+  }
   
   // Get today's date as seed for consistent daily tip
   var today = new Date();
@@ -7960,6 +7965,7 @@ function loadDailyTip() {
   var tipIndex = seed % dailyTips.length;
   var tip = dailyTips[tipIndex];
   
+  console.log('💡 Selected tip:', tip);
   tipEl.textContent = tip;
 }
 
