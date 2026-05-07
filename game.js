@@ -5853,23 +5853,8 @@ async function handleBattleEncounter() {
     return;
   }
   
-  // Store enemy and show modal
-  pendingBattleEnemy = enemy;
-  
-  var modal = document.getElementById('exploration-modal');
-  document.getElementById('exploration-title').textContent = '⚔️ Wild Encounter!';
-  document.getElementById('exploration-result').innerHTML = 
-    'A wild <strong style="color: var(--purple);">' + enemy.name + '</strong> appears!';
-  document.getElementById('exploration-rewards').innerHTML = '';
-  
-  var continueBtn = document.getElementById('exploration-continue-btn');
-  continueBtn.textContent = 'Battle!';
-  continueBtn.onclick = async function() {
-    closeExplorationModal();
-    await startBattleWithEnemy(selectedBattlePetId, pendingBattleEnemy);
-  };
-  
-  modal.classList.add('show');
+  // Go directly to battle - no modal
+  await startBattleWithEnemy(selectedBattlePetId, enemy);
 }
 
 async function handleItemEncounter() {
@@ -5915,20 +5900,13 @@ async function handleItemEncounter() {
   // Award PP
   await awardPP(ppReward);
   
-  // Show result
-  var modal = document.getElementById('exploration-modal');
-  document.getElementById('exploration-title').textContent = '🎁 Item Found!';
-  document.getElementById('exploration-result').innerHTML = 
-    'You found a <strong style="color: var(--purple);">' + randomItem.name + '</strong> while exploring!';
-  document.getElementById('exploration-rewards').innerHTML = 
-    '<div style="color: var(--green); font-weight: bold;">+' + ppReward + ' PP</div>' +
-    '<div style="color: var(--text-light); font-size: 0.9rem; margin-top: 8px;">Added to your inventory!</div>';
-  
-  var continueBtn = document.getElementById('exploration-continue-btn');
-  continueBtn.textContent = 'Continue';
-  continueBtn.onclick = closeExplorationModal;
-  
-  modal.classList.add('show');
+  // Show in battle screen
+  showExplorationResult(
+    '🎁 Item Found!',
+    'You found a <strong style="color: var(--purple);">' + randomItem.name + '</strong> while exploring!',
+    '+' + ppReward + ' PP',
+    'Continue'
+  );
 }
 
 async function handleTreasureEncounter() {
@@ -5976,21 +5954,13 @@ async function handleTreasureEncounter() {
   // Award PP
   await awardPP(ppReward);
   
-  // Show result
-  var modal = document.getElementById('exploration-modal');
-  document.getElementById('exploration-title').textContent = '💎 Treasure Discovered!';
-  document.getElementById('exploration-result').innerHTML = 
-    'You discovered a hidden treasure chest!<br>' +
-    'Inside you found: <strong style="color: var(--purple);">' + randomItem.name + '</strong>!';
-  document.getElementById('exploration-rewards').innerHTML = 
-    '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem;">+' + ppReward + ' PP</div>' +
-    '<div style="color: var(--text-light); font-size: 0.9rem; margin-top: 8px;">Rare item added to inventory!</div>';
-  
-  var continueBtn = document.getElementById('exploration-continue-btn');
-  continueBtn.textContent = 'Amazing!';
-  continueBtn.onclick = closeExplorationModal;
-  
-  modal.classList.add('show');
+  // Show in battle screen
+  showExplorationResult(
+    '💎 Treasure Discovered!',
+    'You discovered a hidden treasure chest!<br>Inside you found: <strong style="color: var(--purple);">' + randomItem.name + '</strong>!',
+    '+' + ppReward + ' PP (Rare item!)',
+    'Amazing!'
+  );
 }
 
 async function handleFlavorEncounter() {
@@ -6016,18 +5986,42 @@ async function handleFlavorEncounter() {
   // Award PP
   await awardPP(event.pp);
   
-  // Show result
-  var modal = document.getElementById('exploration-modal');
-  document.getElementById('exploration-title').textContent = event.emoji + ' Peaceful Moment';
-  document.getElementById('exploration-result').innerHTML = event.text;
-  document.getElementById('exploration-rewards').innerHTML = 
-    '<div style="color: var(--green); font-weight: bold;">+' + event.pp + ' PP</div>';
+  // Show in battle screen
+  showExplorationResult(
+    event.emoji + ' Peaceful Moment',
+    event.text,
+    '+' + event.pp + ' PP',
+    'Nice!'
+  );
+}
+
+// Show exploration result in battle screen area
+function showExplorationResult(title, message, reward, buttonText) {
+  // Hide exploration UI, show battle screen
+  document.getElementById('forest-exploration').style.display = 'none';
+  document.getElementById('battle-screen').style.display = 'block';
   
-  var continueBtn = document.getElementById('exploration-continue-btn');
-  continueBtn.textContent = 'Nice!';
-  continueBtn.onclick = closeExplorationModal;
+  // Hide battle sprites and HP bars
+  document.querySelector('.battle-container').style.display = 'none';
   
-  modal.classList.add('show');
+  // Show battle log with result
+  var battleLog = document.getElementById('battle-log');
+  battleLog.innerHTML = 
+    '<div class="battle-log-entry" style="font-size: 1.3rem; font-weight: bold; color: var(--purple); margin-bottom: 15px;">' + title + '</div>' +
+    '<div class="battle-log-entry" style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px;">' + message + '</div>' +
+    '<div class="battle-log-entry" style="font-size: 1.2rem; font-weight: bold; color: var(--green); margin-top: 20px;">' + reward + '</div>';
+  
+  // Set up controls
+  document.getElementById('battle-skip-btn').style.display = 'none';
+  var continueBtn = document.getElementById('battle-continue-btn');
+  continueBtn.style.display = 'inline-block';
+  continueBtn.textContent = buttonText;
+  continueBtn.onclick = function() {
+    // Show battle container again
+    document.querySelector('.battle-container').style.display = 'flex';
+    // Return to exploration
+    closeBattle();
+  };
 }
 
 function closeExplorationModal() {
