@@ -3,9 +3,44 @@
 <head>
   <!-- Updated: Profile System v1.0 -->
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; connect-src 'self' https://hqzugbxutgefjilgmxqu.supabase.co https://*.supabase.co https://id.twitch.tv https://api.twitch.tv data: blob:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; connect-src 'self' https://hqzugbxutgefjilgmxqu.supabase.co https://*.supabase.co https://id.twitch.tv https://api.twitch.tv https://www.googletagmanager.com https://www.google-analytics.com data: blob:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PawketPetsVT</title>
+  
+  <!-- SEO Meta Tags -->
+  <title>PawketPetsVT - Adopt Your Favorite VTuber's Digital Pet!</title>
+  <meta name="description" content="Adopt digital pets of your favorite VTubers! Play minigames, battle friends, earn rewards by watching Embertail & Pyxshuul's Twitch streams. Free virtual pet game with live Twitch integration.">
+  <meta name="keywords" content="virtual pet game, vtuber game, twitch game, pet simulator, online pet game, embertail, pyxshuul, pawketpets, digital pets, browser game, free game">
+  <meta name="author" content="PawketPetsVT">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://pawketpetsvt.github.io/">
+  
+  <!-- Open Graph / Facebook / Discord -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pawketpetsvt.github.io/">
+  <meta property="og:title" content="PawketPetsVT - Adopt Your Favorite VTuber's Pet!">
+  <meta property="og:description" content="Free virtual pet game! Adopt Embertail or Pyxshuul, play minigames, battle friends, and earn rewards watching Twitch streams.">
+  <meta property="og:image" content="https://pawketpetsvt.github.io/images/social-preview.png">
+  <meta property="og:site_name" content="PawketPetsVT">
+  
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://pawketpetsvt.github.io/">
+  <meta name="twitter:title" content="PawketPetsVT - VTuber Virtual Pet Game">
+  <meta name="twitter:description" content="Adopt Embertail & Pyxshuul! Earn rewards watching streams, battle friends, play minigames. Free!">
+  <meta name="twitter:image" content="https://pawketpetsvt.github.io/images/twitter-card.png">
+  
+  <!-- Theme Color -->
+  <meta name="theme-color" content="#b06aff">
+  
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0BZB5MHSLQ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-0BZB5MHSLQ');
+  </script>
+  
   <link rel="stylesheet" href="style.css?v=20260504215426">
 
 </head>
@@ -43,6 +78,15 @@
     </div>
   </div>
 </nav>
+
+<!-- Beta Warning Banner -->
+<div class="beta-banner">
+  <div class="beta-banner-inner">
+    <span class="beta-tag">BETA</span>
+    <span class="beta-text">⚠️ This game is in active development. Progress may be reset, and features are subject to change.</span>
+    <a href="mailto:support@pawketpetsvt.com" class="beta-contact">Report Issues</a>
+  </div>
+</div>
 
 <!-- Notification Dropdown -->
 <div class="notification-dropdown" id="notification-dropdown" style="display:none;">
@@ -227,6 +271,47 @@
         <div class="daily-tip-header">💡 Did You Know?</div>
         <div class="daily-tip-content" id="daily-tip-content">
           Loading tip...
+        </div>
+      </div>
+      
+      <!-- Referral System Card -->
+      <div class="referral-card" id="referral-card" style="display:none;">
+        <div class="referral-header">
+          <span class="referral-icon">📨</span>
+          <h3>Invite Friends & Earn Rewards!</h3>
+        </div>
+        <div class="referral-description">
+          Share your unique link and both you and your friend get bonus PawketPoints when they join!
+        </div>
+        <div class="referral-rewards">
+          <div class="referral-reward">
+            <div class="referral-reward-icon">🎁</div>
+            <div class="referral-reward-text">
+              <strong>You Earn:</strong> 200 PP per friend
+            </div>
+          </div>
+          <div class="referral-reward">
+            <div class="referral-reward-icon">🎁</div>
+            <div class="referral-reward-text">
+              <strong>They Earn:</strong> 100 PP bonus
+            </div>
+          </div>
+        </div>
+        <div class="referral-link-container">
+          <input type="text" class="referral-link-input" id="referral-link-input" readonly onclick="this.select()">
+          <button class="referral-copy-btn" onclick="copyReferralLink()">
+            <span id="copy-btn-text">Copy Link</span>
+          </button>
+        </div>
+        <div class="referral-stats">
+          <div class="referral-stat">
+            <span class="referral-stat-label">Total Referrals:</span>
+            <span class="referral-stat-value" id="referral-count">0</span>
+          </div>
+          <div class="referral-stat">
+            <span class="referral-stat-label">PP Earned:</span>
+            <span class="referral-stat-value" id="referral-pp-earned">0 PP</span>
+          </div>
         </div>
       </div>
       

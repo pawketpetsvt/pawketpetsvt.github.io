@@ -441,6 +441,9 @@ async function showApp(user) {
   
   // Load daily tip on home page (delay to ensure DOM is ready)
   setTimeout(loadDailyTip, 100);
+  
+  // Initialize referral system
+  await initReferralSystem(user.id);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -917,6 +920,9 @@ async function confirmAdopt() {
   
   // Award first pet badge
   await awardBadge('first_pet');
+  
+  // Track adoption in analytics
+  trackPetAdoption(selectedPet.name);
   
   closeAdoptModal();
   el('success-message').textContent = nickname + ' has joined your collection!';
@@ -2230,6 +2236,9 @@ async function awardBadge(badgeKey, showNotification = true) {
     badge_icon: badge.icon
   });
   
+  // Track in analytics
+  trackBadgeUnlock(badge.name);
+  
   // Show notification
   if (showNotification) {
     showBadgeNotification(badge);
@@ -2946,6 +2955,9 @@ async function handleTwitchCallback(token) {
       .eq('id', currentUser.id);
     
     showPixelToast('✅ Twitch account linked successfully!', 'success');
+    
+    // Track in analytics
+    trackTwitchLink();
     
     // Reload the page to show linked status
     await checkTwitchLinked();
@@ -8883,4 +8895,331 @@ showTab = function(tabName) {
     checkForRandomEvent();
   }
 };
+
+
+// ══════════════════════════════════════════════════════════════
+// REFERRAL SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Initialize referral system
+ * - Generate referral code if doesn't exist
+ * - Check URL for referral parameter
+ * - Display referral card
+ */
+async function initReferralSystem(userId) {
+  console.log('🔗 Initializing referral system...');
+  
+  // Check if new user arrived via referral link
+  var urlParams = new URLSearchParams(window.location.search);
+  var referralCode = urlParams.get('ref');
+  
+  if (referralCode) {
+    console.log('🎁 User arrived via referral code:', referralCode);
+    await processReferral(userId, referralCode);
+    
+    // Clean URL (remove ref parameter)
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+  
+  // Load or generate referral code for current user
+  await loadReferralData(userId);
+  
+  // Track page view in analytics
+  gtag('event', 'page_view', {
+    page_title: 'Home',
+    page_location: window.location.href,
+    page_path: window.location.pathname
+  });
+}
+
+/**
+ * Generate unique referral code from username
+ */
+function generateReferralCode(username) {
+  // Create code from username (alphanumeric only, uppercase, max 10 chars)
+  var base = username.toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 8);
+  
+  // Add random numbers if too short
+  while (base.length < 6) {
+    base += Math.floor(Math.random() * 10);
+  }
+  
+  // Add 2 random digits for uniqueness
+  base += Math.floor(Math.random() * 90 + 10);
+  
+  return base;
+}
+
+/**
+ * Load user's referral data and display card
+ */
+async function loadReferralData(userId) {
+  try {
+    var { data: player, error } = await supabaseClient
+      .from('players')
+      .select('username, referral_code, referrals_count')
+      .eq('id', userId)
+      .single();
+    
+    if (error) {
+      console.error('❌ Error loading referral data:', error);
+      return;
+    }
+    
+    // Generate code if doesn't exist
+    if (!player.referral_code) {
+      var newCode = generateReferralCode(player.username);
+      
+      var { error: updateError } = await supabaseClient
+        .from('players')
+        .update({ referral_code: newCode })
+        .eq('id', userId);
+      
+      if (updateError) {
+        console.error('❌ Error saving referral code:', updateError);
+        return;
+      }
+      
+      player.referral_code = newCode;
+    }
+    
+    // Display referral card
+    var referralCard = el('referral-card');
+    if (referralCard) {
+      referralCard.style.display = 'block';
+      
+      var referralLink = window.location.origin + window.location.pathname + '?ref=' + player.referral_code;
+      el('referral-link-input').value = referralLink;
+      el('referral-count').textContent = player.referrals_count || 0;
+      el('referral-pp-earned').textContent = ((player.referrals_count || 0) * 200) + ' PP';
+    }
+    
+    console.log('✅ Referral system loaded. Code:', player.referral_code);
+  } catch (err) {
+    console.error('❌ Referral system error:', err);
+  }
+}
+
+/**
+ * Process referral when new user signs up via ref link
+ */
+async function processReferral(newUserId, referralCode) {
+  try {
+    console.log('🎁 Processing referral for code:', referralCode);
+    
+    // Find referrer by code
+    var { data: referrer, error: findError } = await supabaseClient
+      .from('players')
+      .select('id, username, referrals_count')
+      .eq('referral_code', referralCode)
+      .single();
+    
+    if (findError || !referrer) {
+      console.log('⚠️ Referral code not found or invalid');
+      return;
+    }
+    
+    // Don't let users refer themselves
+    if (referrer.id === newUserId) {
+      console.log('⚠️ User tried to refer themselves');
+      return;
+    }
+    
+    // Check if user was already referred
+    var { data: existingRef } = await supabaseClient
+      .from('players')
+      .select('referred_by')
+      .eq('id', newUserId)
+      .single();
+    
+    if (existingRef && existingRef.referred_by) {
+      console.log('⚠️ User already has a referrer');
+      return;
+    }
+    
+    // Save referral relationship
+    var { error: saveError } = await supabaseClient
+      .from('players')
+      .update({ referred_by: referrer.id })
+      .eq('id', newUserId);
+    
+    if (saveError) {
+      console.error('❌ Error saving referral:', saveError);
+      return;
+    }
+    
+    // Award rewards
+    await awardReferralRewards(referrer.id, newUserId, referrer.username);
+    
+    console.log('✅ Referral processed successfully!');
+  } catch (err) {
+    console.error('❌ Error processing referral:', err);
+  }
+}
+
+/**
+ * Award PawketPoints to both referrer and new user
+ */
+async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
+  try {
+    // Award referrer 200 PP
+    var { data: referrerData } = await supabaseClient
+      .from('players')
+      .select('pawketpoints, referrals_count')
+      .eq('id', referrerId)
+      .single();
+    
+    if (referrerData) {
+      await supabaseClient
+        .from('players')
+        .update({
+          pawketpoints: (referrerData.pawketpoints || 0) + 200,
+          referrals_count: (referrerData.referrals_count || 0) + 1
+        })
+        .eq('id', referrerId);
+      
+      console.log('💰 Awarded 200 PP to referrer');
+    }
+    
+    // Award new user 100 PP
+    var { data: newUserData } = await supabaseClient
+      .from('players')
+      .select('pawketpoints')
+      .eq('id', newUserId)
+      .single();
+    
+    if (newUserData) {
+      await supabaseClient
+        .from('players')
+        .update({
+          pawketpoints: (newUserData.pawketpoints || 0) + 100
+        })
+        .eq('id', newUserId);
+      
+      console.log('💰 Awarded 100 PP to new user');
+      
+      // Show welcome message
+      showPixelToast('🎁 Welcome! You earned 100 PP from ' + referrerUsername + '\'s referral!', 'success');
+    }
+    
+    // Check for referral badges
+    await checkReferralBadges(referrerId, (referrerData.referrals_count || 0) + 1);
+    
+    // Track in analytics
+    gtag('event', 'referral_successful', {
+      referrer_id: referrerId,
+      new_user_id: newUserId
+    });
+    
+  } catch (err) {
+    console.error('❌ Error awarding referral rewards:', err);
+  }
+}
+
+/**
+ * Check and award referral milestone badges
+ */
+async function checkReferralBadges(userId, referralCount) {
+  var badges = [
+    { count: 5, badge: 'recruiter', name: 'Recruiter' },
+    { count: 10, badge: 'ambassador', name: 'Ambassador' },
+    { count: 25, badge: 'influencer', name: 'Influencer' },
+    { count: 50, badge: 'legend', name: 'Legend' }
+  ];
+  
+  for (var i = 0; i < badges.length; i++) {
+    if (referralCount >= badges[i].count) {
+      await awardBadge(badges[i].badge, userId);
+    }
+  }
+}
+
+/**
+ * Copy referral link to clipboard
+ */
+async function copyReferralLink() {
+  var input = el('referral-link-input');
+  var btn = el('copy-btn-text');
+  
+  try {
+    // Select and copy
+    input.select();
+    input.setSelectionRange(0, 99999); // For mobile
+    
+    await navigator.clipboard.writeText(input.value);
+    
+    // Show success feedback
+    btn.textContent = '✓ Copied!';
+    showPixelToast('Referral link copied to clipboard!', 'success');
+    
+    // Track in analytics
+    gtag('event', 'referral_link_copied', {
+      referral_link: input.value
+    });
+    
+    // Reset button text after 2 seconds
+    setTimeout(function() {
+      btn.textContent = 'Copy Link';
+    }, 2000);
+    
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    
+    // Fallback: show prompt to copy manually
+    btn.textContent = 'Select & Copy';
+    setTimeout(function() {
+      btn.textContent = 'Copy Link';
+    }, 2000);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// ANALYTICS EVENT TRACKING
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Track custom events throughout the app
+ * Call these functions at key moments
+ */
+
+function trackSignup() {
+  gtag('event', 'sign_up', {
+    method: 'email'
+  });
+}
+
+function trackPetAdoption(petName) {
+  gtag('event', 'adopt_pet', {
+    pet_name: petName,
+    event_category: 'engagement'
+  });
+}
+
+function trackMinigame(gameName) {
+  gtag('event', 'play_minigame', {
+    game_name: gameName,
+    event_category: 'engagement'
+  });
+}
+
+function trackBattle(result) {
+  gtag('event', 'battle', {
+    result: result, // 'victory' or 'defeat'
+    event_category: 'engagement'
+  });
+}
+
+function trackBadgeUnlock(badgeName) {
+  gtag('event', 'unlock_badge', {
+    badge_name: badgeName,
+    event_category: 'achievement'
+  });
+}
+
+function trackTwitchLink() {
+  gtag('event', 'link_twitch', {
+    event_category: 'social'
+  });
+}
 
