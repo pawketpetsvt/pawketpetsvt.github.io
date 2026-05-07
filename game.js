@@ -183,11 +183,72 @@ function stopMusic() { bgMusic.pause(); bgMusic.currentTime = 0; document.getEle
 function setVolume(v) { bgMusic.volume = parseFloat(v); }
 
 // ── TOAST ────────────────────────────────
-function showToast(msg) {
-  var t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 3000);
+// ═══════════════════════════════════════════════════════════════════════════
+// PIXEL-ART TOAST NOTIFICATION SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var toastQueue = [];
+var isShowingToast = false;
+
+function showToast(msg, type) {
+  showPixelToast(msg, type || 'info');
+}
+
+function showPixelToast(message, type) {
+  // Add to queue
+  toastQueue.push({ message: message, type: type || 'info' });
+  
+  // If not already showing, start queue
+  if (!isShowingToast) {
+    showNextToast();
+  }
+}
+
+function showNextToast() {
+  if (toastQueue.length === 0) {
+    isShowingToast = false;
+    return;
+  }
+  
+  isShowingToast = true;
+  var toast = toastQueue.shift();
+  
+  // Create toast element
+  var toastEl = makeEl('div', { class: 'pixel-toast pixel-toast-' + toast.type });
+  
+  // Add icon based on type
+  var icon = '';
+  switch(toast.type) {
+    case 'success': icon = '✓'; break;
+    case 'error': icon = '✗'; break;
+    case 'warning': icon = '⚠'; break;
+    case 'info': 
+    default: icon = 'ⓘ'; break;
+  }
+  
+  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + escapeHtml(toast.message) + '</span>';
+  
+  document.body.appendChild(toastEl);
+  
+  // Animate in
+  setTimeout(function() {
+    toastEl.classList.add('show');
+  }, 10);
+  
+  // Remove after 3 seconds
+  setTimeout(function() {
+    toastEl.classList.remove('show');
+    setTimeout(function() {
+      toastEl.remove();
+      showNextToast(); // Show next in queue
+    }, 300);
+  }, 3000);
+}
+
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
 // ── UTILS ────────────────────────────────
@@ -454,6 +515,7 @@ function calculateDayStreak() {
     
     var lastLogin = localStorage.getItem('lastLoginDate');
     var currentStreak = parseInt(localStorage.getItem('loginStreak') || '0');
+    var lastRewardDay = parseInt(localStorage.getItem('lastStreakRewardDay') || '0');
     
     if (!lastLogin) {
       // First login
@@ -470,16 +532,48 @@ function calculateDayStreak() {
       currentStreak++;
       localStorage.setItem('lastLoginDate', today);
       localStorage.setItem('loginStreak', currentStreak.toString());
+      
+      // Check for streak rewards (only award once per milestone)
+      if (currentStreak > lastRewardDay) {
+        awardStreakReward(currentStreak);
+        localStorage.setItem('lastStreakRewardDay', currentStreak.toString());
+      }
+      
       return currentStreak;
     } else {
       // Streak broken
       localStorage.setItem('lastLoginDate', today);
       localStorage.setItem('loginStreak', '1');
+      localStorage.setItem('lastStreakRewardDay', '0'); // Reset reward tracking
       return 1;
     }
   } catch (err) {
     console.error('Error calculating streak:', err);
     return 0;
+  }
+}
+
+// Award streak milestone rewards
+async function awardStreakReward(streak) {
+  var reward = null;
+  
+  if (streak === 3) {
+    reward = { pp: 50, message: '3-Day Streak! +50 PP! 🎉' };
+  } else if (streak === 7) {
+    reward = { pp: 150, message: '7-Day Streak! +150 PP! ⭐' };
+  } else if (streak === 14) {
+    reward = { pp: 300, message: '14-Day Streak! +300 PP! 💎' };
+  } else if (streak === 30) {
+    reward = { pp: 1000, message: '30-Day Streak! +1000 PP! 🏆' };
+  } else if (streak === 60) {
+    reward = { pp: 2500, message: '60-Day Streak! +2500 PP! 👑' };
+  } else if (streak === 100) {
+    reward = { pp: 5000, message: '100-Day Streak! +5000 PP! 🌟' };
+  }
+  
+  if (reward) {
+    await awardPP(reward.pp);
+    showPixelToast(reward.message, 'success');
   }
 }
 
@@ -7811,5 +7905,62 @@ showApp = async function(user) {
   
   // Poll for new notifications every 30 seconds
   setInterval(updateNotificationBadge, 30000);
+};
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY TIPS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var dailyTips = [
+  "Pets with higher happiness perform better in battles!",
+  "Play minigames daily to earn PawketPoints!",
+  "Your pet's level increases their battle stats!",
+  "Boss battles drop exclusive items!",
+  "Equipment boosts your pet's combat stats!",
+  "Ember's Flametail Strike deals 1.5x damage!",
+  "Pyxie's Raspberry Soda Stream heals while attacking!",
+  "Login daily to build your streak for bonus rewards!",
+  "Feed your pets to keep them happy and healthy!",
+  "Check the leaderboard to see top players!",
+  "Friend other players to see their activity!",
+  "Leave guestbook messages on profiles!",
+  "Evolving your pet changes their appearance!",
+  "Pets have 3 evolution stages: Baby, Teen, and Adult!",
+  "Win battles to earn XP and level up your pet!",
+  "The shop has items in different tiers - higher tiers cost more!",
+  "Shadow of Piper is the toughest boss in the forest!",
+  "Skills have a 30% chance to activate each turn!",
+  "You can earn badges by completing achievements!",
+  "Visit Melon's shop to buy treats and equipment!",
+  "Battle in different forest zones for varying rewards!",
+  "Your day streak is displayed in the sidebar!",
+  "Blocked users cannot view your profile!",
+  "Notifications appear when friends interact with you!",
+  "Check your activity feed to see what friends are up to!"
+];
+
+function loadDailyTip() {
+  var tipEl = document.getElementById('daily-tip-content');
+  if (!tipEl) return;
+  
+  // Get today's date as seed for consistent daily tip
+  var today = new Date();
+  var seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+  
+  // Use seed to pick consistent tip for the day
+  var tipIndex = seed % dailyTips.length;
+  var tip = dailyTips[tipIndex];
+  
+  tipEl.textContent = tip;
+}
+
+// Load tip when home tab is shown
+var originalShowTab = showTab;
+showTab = function(tabName) {
+  originalShowTab(tabName);
+  if (tabName === 'home') {
+    loadDailyTip();
+  }
 };
 
