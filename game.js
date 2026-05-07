@@ -110,11 +110,11 @@ if (typeof supabase !== 'undefined') {
 }
 
 // ── CONFIG ──────────────────────────────
-var TWITCH_CLIENT_ID = 'PASTE_YOUR_TWITCH_CLIENT_ID_HERE';
+var TWITCH_CLIENT_ID = 'moqd3war5e7fleif8y1e1d8n6kl25u';
 var TWITCH_REDIRECT_URI = 'https://pawketpetsvt.github.io/';
 var STREAMER_IDS = {
-  embertail: 'EMBERTAIL_TWITCH_USER_ID',
-  pyxshuul:  'PYXSHUUL_TWITCH_USER_ID'
+  embertail: '91821604',
+  pyxshuul:  '1459912293'
 };
 
 // ── GLOBALS ──────────────────────────────
@@ -2906,6 +2906,57 @@ async function loadNews() {
 }
 
 // ── TWITCH ───────────────────────────────
+
+function linkTwitch() {
+  var scope = 'user:read:email user:read:follows';
+  var authUrl = 'https://id.twitch.tv/oauth2/authorize' +
+    '?client_id=' + TWITCH_CLIENT_ID +
+    '&redirect_uri=' + encodeURIComponent(TWITCH_REDIRECT_URI) +
+    '&response_type=token' +
+    '&scope=' + encodeURIComponent(scope);
+  window.location.href = authUrl;
+}
+
+async function handleTwitchCallback(token) {
+  try {
+    // Get Twitch user info
+    var userResp = await fetch('https://api.twitch.tv/helix/users', {
+      headers: {
+        'Client-Id': TWITCH_CLIENT_ID,
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    var userData = await userResp.json();
+    
+    if (!userData.data || userData.data.length === 0) {
+      showPixelToast('Failed to get Twitch user info', 'error');
+      return;
+    }
+    
+    var twitchUser = userData.data[0];
+    
+    // Save to database
+    await supabaseClient
+      .from('players')
+      .update({
+        twitch_id: twitchUser.id,
+        twitch_username: twitchUser.login,
+        twitch_token: token
+      })
+      .eq('id', currentUser.id);
+    
+    showPixelToast('✅ Twitch account linked successfully!', 'success');
+    
+    // Reload the page to show linked status
+    await checkTwitchLinked();
+    await loadTeamShowcase();
+    
+  } catch(e) {
+    console.error('Twitch callback error:', e);
+    showPixelToast('Error linking Twitch account', 'error');
+  }
+}
+
 async function initTwitchTab() {
   var hash=window.location.hash;
   if(hash&&hash.includes('access_token')){
@@ -5696,13 +5747,14 @@ function closeBattleRewardsModal() {
 }
 
 async function closeBattle() {
-  // Wait a moment for any pending database updates to complete
-  await new Promise(resolve => setTimeout(resolve, 100));
+  // Wait longer for database updates to fully complete and propagate
+  await new Promise(resolve => setTimeout(resolve, 500));
   
   el('battle-screen').style.display = 'none';
   el('forest-exploration').style.display = 'block';
   
-  // Reload pet selector to show updated stats
+  // Force clear battle tab cache and reload pet selector with fresh data
+  tabsLoaded['battle'] = false;
   await loadBattlePets();
 }
 
@@ -5755,7 +5807,7 @@ async function loadBattlePets() {
     var stats = makeEl('div', { class: 'battle-pet-card-stats' });
     
     var hpStat = makeEl('div', { class: 'battle-pet-stat' });
-    var currentHP = userPet.current_hp || userPet.base_hp || 30;
+    var currentHP = (userPet.current_hp !== null && userPet.current_hp !== undefined) ? userPet.current_hp : (userPet.base_hp || 30);
     var maxHP = userPet.max_hp || userPet.base_hp || 30;
     hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + currentHP + '/' + maxHP + '</div>';
     stats.appendChild(hpStat);
