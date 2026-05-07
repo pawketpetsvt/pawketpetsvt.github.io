@@ -3848,8 +3848,26 @@ async function loadEquipmentShop() {
   
   grid.innerHTML = '';
   
+  // Group items by tier
+  var tiers = {};
   res.data.forEach(function(item) {
-    var card = makeEl('div', { class: 'equipment-card' });
+    if (!tiers[item.tier]) {
+      tiers[item.tier] = [];
+    }
+    tiers[item.tier].push(item);
+  });
+  
+  // Render each tier with headers
+  Object.keys(tiers).sort(function(a, b) { return parseInt(a) - parseInt(b); }).forEach(function(tier) {
+    // Tier header
+    var header = makeEl('div', { class: 'shop-category-header' });
+    header.style.cssText = 'grid-column: 1 / -1; padding: 15px 20px; margin-top: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius: 12px; color: white; font-weight: bold; font-size: 18px;';
+    header.textContent = '⚔️ Tier ' + tier;
+    grid.appendChild(header);
+    
+    // Items in this tier
+    tiers[tier].forEach(function(item) {
+      var card = makeEl('div', { class: 'equipment-card' });
     
     // Tier badge
     var tierBadge = makeEl('div', { class: 'equipment-tier' });
@@ -3912,7 +3930,8 @@ async function loadEquipmentShop() {
     card.appendChild(buyBtn);
     
     grid.appendChild(card);
-  });
+    }); // Close items forEach
+  }); // Close tiers forEach
 }
 
 async function buyEquipment(equipmentId, equipmentName, price) {
@@ -5115,7 +5134,7 @@ function playBattleTurn() {
       var playerVolume = 0.35; // Default for light/normal
       
       if (entry.variance === 1) { // Crit - MUCH quieter!
-        playerVolume = 0.18; // 50% of default (was 0.35)
+        playerVolume = 0.14; // Another 20% reduction (was 0.18, now 0.14)
       }
       
       playBattleSound(soundKey, playerVolume);
