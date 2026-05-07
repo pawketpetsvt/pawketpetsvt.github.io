@@ -5426,3 +5426,24 @@ body.boss-ui-glitch header {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PET SKILLS SYSTEM - Battle Log Styling
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.battle-log-entry.skill-attack {
+  background: linear-gradient(135deg, rgba(255, 165, 0, 0.2), rgba(255, 69, 0, 0.2));
+  border-left: 4px solid #ff6b00;
+  font-weight: bold;
+  animation: skill-glow 0.5s ease-in-out;
+}
+
+@keyframes skill-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 107, 0, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(255, 107, 0, 0.6);
+  }
+}
+

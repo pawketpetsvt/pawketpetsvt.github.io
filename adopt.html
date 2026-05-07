@@ -128,6 +128,19 @@
           currentPoints = np;
         }
         closeModal();
+        
+        // Log adoption activity
+        try {
+          await supabaseClient.from('activity_feed').insert([{
+            user_id: currentUser.id,
+            activity_type: 'pet_adopted',
+            activity_data: { pet_name: nickname },
+            is_public: true
+          }]);
+        } catch(actErr) {
+          console.log('Activity log error (non-critical):', actErr);
+        }
+        
         document.getElementById('success-message').textContent = nickname + ' has joined your collection! 💖';
         document.getElementById('success-modal').classList.add('show');
         ownedPetIds.push(selectedPet.id); totalOwnedCount++;

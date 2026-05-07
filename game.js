@@ -2093,6 +2093,12 @@ async function awardBadge(badgeKey, showNotification = true) {
   // Add to cache
   earnedBadges.push(badgeKey);
   
+  // Log activity to feed
+  await logActivity('badge_earned', {
+    badge_name: badge.name,
+    badge_icon: badge.icon
+  });
+  
   // Show notification
   if (showNotification) {
     showBadgeNotification(badge);
@@ -4394,10 +4400,10 @@ async function unequipItem(slot) {
  * Calculate pet's total stats including equipment bonuses
  */
 async function calculatePetStats(petId) {
-  // Get pet base stats
+  // Get pet base stats including special skill
   var petRes = await supabaseClient
     .from('user_pets')
-    .select('*, pets!inner(name, image_file)')
+    .select('*, pets!inner(name, image_file, special_skill)')
     .eq('id', petId)
     .single();
   
@@ -4479,7 +4485,8 @@ async function calculatePetStats(petId) {
     currentHP: currentHP,
     maxHP: maxHP,
     energy: pet.energy || 50,
-    maxEnergy: pet.max_energy || 100
+    maxEnergy: pet.max_energy || 100,
+    specialSkill: pet.pets.special_skill || null
   };
 }
 
@@ -4509,18 +4516,64 @@ function simulateBattle(playerStats, enemyStats) {
     
     // Player's turn
     if (playerFirst || turn > 1) {
-      var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false);
-      enemyHP -= playerDamageResult.damage;
+      // Check if player uses a special skill
+      var usedSkill = false;
+      var skillResult = null;
       
-      log.push({
-        type: 'player_attack',
-        attacker: 'player',
-        damage: playerDamageResult.damage,
-        variance: playerDamageResult.variance,
-        text: playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
-        playerHP: playerHP,
-        enemyHP: Math.max(0, enemyHP)
-      });
+      if (playerStats.specialSkill && Math.random() < playerStats.specialSkill.trigger_chance) {
+        // Player uses special skill!
+        usedSkill = true;
+        var baseDamage = playerStats.stats.attack - enemyStats.defense;
+        var skillDamage = Math.max(1, Math.floor(baseDamage * playerStats.specialSkill.damage_multiplier));
+        
+        enemyHP -= skillDamage;
+        
+        // Calculate heal if skill has healing
+        var healAmount = 0;
+        if (playerStats.specialSkill.heal_percent > 0) {
+          healAmount = Math.floor(skillDamage * playerStats.specialSkill.heal_percent);
+          playerHP = Math.min(playerStats.maxHP, playerHP + healAmount);
+        }
+        
+        skillResult = {
+          damage: skillDamage,
+          heal: healAmount,
+          skillName: playerStats.specialSkill.name,
+          skillIcon: playerStats.specialSkill.icon
+        };
+        
+        var skillText = playerStats.name + ' uses ' + playerStats.specialSkill.name + '! ' + playerStats.specialSkill.icon + ' ' + skillDamage + ' damage!';
+        if (healAmount > 0) {
+          skillText += ' (Healed ' + healAmount + ' HP!)';
+        }
+        
+        log.push({
+          type: 'player_attack',
+          attacker: 'player',
+          damage: skillDamage,
+          variance: 1, // Skills count as crits for sound effects
+          isSkill: true,
+          skillData: skillResult,
+          text: skillText,
+          playerHP: playerHP,
+          enemyHP: Math.max(0, enemyHP)
+        });
+      } else {
+        // Normal attack
+        var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false);
+        enemyHP -= playerDamageResult.damage;
+        
+        log.push({
+          type: 'player_attack',
+          attacker: 'player',
+          damage: playerDamageResult.damage,
+          variance: playerDamageResult.variance,
+          isSkill: false,
+          text: playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
+          playerHP: playerHP,
+          enemyHP: Math.max(0, enemyHP)
+        });
+      }
       
       if (enemyHP <= 0) break;
     }
@@ -4851,6 +4904,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (battleResult.victory && enemyStats.is_boss) {
     console.log('🎁 Boss defeated! Rolling for exclusive drop...');
     
+    // Log boss defeat activity
+    await logActivity('boss_defeated', {
+      boss_name: enemyStats.name
+    });
+    
     // Get boss drops for this specific boss zone
     var bossDropRes = await supabaseClient
       .from('items')
@@ -4993,6 +5051,20 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         battleRewards.leveledUp = true;
         battleRewards.newLevel = lu.level;
         battleRewards.statIncreases = lu.statIncreases;
+        
+        // Log level up activity
+        var petInfo = await supabaseClient
+          .from('user_pets')
+          .select('nickname, pets(name)')
+          .eq('id', petId)
+          .single();
+        
+        var petName = petInfo.data ? (petInfo.data.nickname || petInfo.data.pets.name) : 'Pet';
+        
+        await logActivity('level_up', {
+          pet_name: petName,
+          level: lu.level
+        });
         
         // Check if pet evolved to a new stage
         if (oldStage !== newStage) {
@@ -5196,6 +5268,10 @@ function playBattleTurn() {
   var logEntry = makeEl('div', { class: 'battle-log-entry' });
   if (entry.type === 'player_attack') {
     logEntry.classList.add('player-attack');
+    // Add special styling for skill attacks
+    if (entry.isSkill) {
+      logEntry.classList.add('skill-attack');
+    }
   } else if (entry.type === 'enemy_attack') {
     logEntry.classList.add('enemy-attack');
   } else if (entry.type === 'end') {
@@ -7288,6 +7364,26 @@ function updateActivityFeedDisplay() {
     messageEl.style.color = 'var(--text)';
     messageEl.style.animation = 'activity-fade-in 0.5s ease-in-out';
   }, 50);
+}
+
+// Log an activity to the activity_feed table
+async function logActivity(activityType, activityData) {
+  if (!currentUser) return;
+  
+  try {
+    await supabaseClient
+      .from('activity_feed')
+      .insert([{
+        user_id: currentUser.id,
+        activity_type: activityType,
+        activity_data: activityData,
+        is_public: true
+      }]);
+    
+    console.log('📢 Activity logged:', activityType, activityData);
+  } catch (err) {
+    console.error('Error logging activity:', err);
+  }
 }
 
 // Format activity message based on type
