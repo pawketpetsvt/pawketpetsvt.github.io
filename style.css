@@ -660,6 +660,29 @@ a:hover { color: var(--pink) !important; }
   font-family: 'Chewy', cursive !important;
   text-shadow: 2px 2px 0 var(--pink-light) !important;
 }
+
+/* Modal image container for pet adoption */
+.modal-image {
+  max-width: 100%;
+  max-height: 250px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.modal-image img {
+  max-width: 100%;
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
 .modal p {
   color: var(--text) !important;
   margin-bottom: 24px !important;
