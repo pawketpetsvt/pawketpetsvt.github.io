@@ -319,6 +319,11 @@ function showTab(tab) {
     loadTab(tab); 
   }
   
+  // Load daily tip when home tab is shown
+  if (tab === 'home') {
+    loadDailyTip();
+  }
+  
   window.scrollTo(0, 0);
   
   // Update URL hash to persist tab (without triggering reload)
@@ -404,6 +409,9 @@ async function showApp(user) {
   
   // Award welcome badge if new user
   await awardBadge('welcome');
+  
+  // Load daily tip on home page
+  loadDailyTip();
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -7954,13 +7962,4 @@ function loadDailyTip() {
   
   tipEl.textContent = tip;
 }
-
-// Load tip when home tab is shown
-var originalShowTab = showTab;
-showTab = function(tabName) {
-  originalShowTab(tabName);
-  if (tabName === 'home') {
-    loadDailyTip();
-  }
-};
 
