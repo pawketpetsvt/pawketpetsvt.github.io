@@ -5156,7 +5156,14 @@ function playBattleTurn() {
       playBattleSound(bossSoundKey, bossVolume, true); // Allow boss sounds to overlap
     } else if (entry.variance !== undefined) {
       var soundKey = getBattleSoundKey('enemy', entry.variance);
-      playBattleSound(soundKey, 0.30);
+      
+      // Match player volumes - normal enemies use same sounds so match volumes
+      var enemyVolume = 0.30; // Default for light/normal
+      if (entry.variance === 1) { // Crit - match player crit volume!
+        enemyVolume = 0.14; // Same as player crit (was ear-blasting at 0.30)
+      }
+      
+      playBattleSound(soundKey, enemyVolume);
     }
   } else if (entry.type === 'end') {
     // Play victory/defeat sound
@@ -5481,7 +5488,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // FOR TESTING: Change 0.03 to 1.0 for 100% boss encounters
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 1.00) {  // 3% chance (~1 in 33 battles) | Change to 1.0 for testing!
+  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles)
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
