@@ -340,7 +340,10 @@ function showTab(tab) {
   if (tab === 'leaderboard') {
     initLeaderboardTab();
   } else if (tab === 'forum') {
-    initForum();
+    // Ensure forum initializes properly
+    setTimeout(function() {
+      initForum();
+    }, 100);
   } else if (tab === 'myprofile') {
     loadMyProfile();
   } else if (tab === 'profile' && window.currentProfileUsername) {
