@@ -6411,3 +6411,295 @@ body.boss-ui-glitch header {
   background: var(--purple-light);
   transform: scale(1.2);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PARTICLE EFFECTS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Floating sparkles on home page */
+.sparkle-particle {
+  position: fixed;
+  pointer-events: none;
+  z-index: 1;
+  font-size: 1.5rem;
+  animation: float-sparkle 3s ease-in-out infinite;
+  opacity: 0;
+}
+
+@keyframes float-sparkle {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(-100vh) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Confetti on adoption */
+.confetti-piece {
+  position: fixed;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  z-index: 10001;
+  animation: confetti-fall 3s ease-out forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+/* Stars on battle victory */
+.star-burst {
+  position: fixed;
+  font-size: 2rem;
+  pointer-events: none;
+  z-index: 10001;
+  animation: star-burst 1s ease-out forwards;
+}
+
+@keyframes star-burst {
+  0% {
+    transform: scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.5) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.5) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+/* Hearts when playing with pet */
+.heart-float {
+  position: fixed;
+  font-size: 1.5rem;
+  pointer-events: none;
+  z-index: 10001;
+  animation: heart-rise 2s ease-out forwards;
+}
+
+@keyframes heart-rise {
+  0% {
+    transform: translateY(0) scale(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    transform: translateY(-150px) scale(0.5);
+    opacity: 0;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TEAM PROFILES PAGE
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.team-profiles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 24px;
+  margin-top: 30px;
+}
+
+.team-profile-card {
+  background: white;
+  border: 3px solid var(--purple-light);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+
+.team-profile-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(176, 106, 255, 0.2);
+  border-color: var(--purple);
+}
+
+.team-profile-header {
+  background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.team-profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid white;
+  overflow: hidden;
+  background: white;
+  flex-shrink: 0;
+}
+
+.team-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.team-profile-info {
+  flex: 1;
+}
+
+.team-profile-name {
+  color: white;
+  font-size: 1.8rem;
+  margin: 0 0 8px 0;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+
+.team-profile-role {
+  color: rgba(255,255,255,0.95);
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.team-profile-body {
+  padding: 24px;
+}
+
+.team-profile-bio {
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.team-profile-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--purple-light);
+  border-radius: 12px;
+}
+
+.team-stat {
+  text-align: center;
+}
+
+.team-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.team-stat-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--purple-dark);
+}
+
+.team-profile-socials {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.team-social-btn {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.2s;
+  color: white;
+}
+
+.team-social-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.team-social-btn.twitch {
+  background: linear-gradient(135deg, #9146ff 0%, #772ce8 100%);
+}
+
+.team-social-btn.twitter {
+  background: linear-gradient(135deg, #1DA1F2 0%, #0d8bd9 100%);
+}
+
+.social-icon {
+  font-size: 1.2rem;
+}
+
+/* Join Card */
+.team-join-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(176, 106, 255, 0.1) 100%);
+  border: 3px dashed var(--purple-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.team-join-card:hover {
+  border-color: var(--purple);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(176, 106, 255, 0.2) 100%);
+}
+
+.team-join-content {
+  text-align: center;
+  padding: 40px;
+}
+
+.team-join-content h3 {
+  color: var(--purple-dark);
+  margin: 0 0 12px 0;
+}
+
+.team-join-content p {
+  color: var(--text-light);
+  margin-bottom: 20px;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+  .team-profiles-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .team-profile-header {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .team-profile-socials {
+    flex-direction: column;
+  }
+  
+  .team-social-btn {
+    width: 100%;
+  }
+}

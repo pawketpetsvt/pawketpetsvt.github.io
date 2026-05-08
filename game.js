@@ -948,6 +948,12 @@ async function confirmAdopt() {
   closeAdoptModal();
   el('success-message').textContent = nickname + ' has joined your collection!';
   el('success-modal').classList.add('show');
+  
+  // 🎉 CONFETTI BURST!
+  setTimeout(function() {
+    createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
+  }, 100);
+  
   ownedPetIds.push(selectedPet.id); totalOwnedCount++;
   tabsLoaded['mypets'] = false;
   btn.textContent='Adopt!'; btn.disabled=false;
@@ -1316,6 +1322,14 @@ function makeMyPetCard(pet) {
     speciesEl.appendChild(tLink);
   }
   headerInfo.appendChild(speciesEl);
+  
+  // Pet backstory/bio
+  var backstory = getPetBackstory(info.name);
+  var bioEl = makeEl('div', {class:'pet-card-bio'});
+  bioEl.textContent = backstory;
+  bioEl.style.cssText = 'font-size:0.85rem;color:var(--text-light);margin:8px 0;font-style:italic;line-height:1.4;';
+  headerInfo.appendChild(bioEl);
+  
   headerInfo.appendChild(makeEl('div', {class:'pet-card-level', id:'lvl-'+pet.id}, 'Lv. '+pet.level+' | Max Stats: '+pet.max_hunger));
   body.appendChild(headerInfo);
 
@@ -1811,7 +1825,16 @@ async function feed(petId) {
     if (lu.level === 10) await awardBadge('level_10');
     if (lu.level === 20) await awardBadge('level_20');
   }
-  else showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
+  else {
+    showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
+    
+    // 💖 FLOATING HEARTS!
+    var card = el('pet-card-' + petId);
+    if (card) {
+      var rect = card.getBoundingClientRect();
+      createHeartFloat(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    }
+  }
   
   // Update button to show already used
   btn.textContent='Fed Today!';
@@ -5805,6 +5828,11 @@ function showBattleRewardsModal() {
     title.style.color = 'var(--green)';
     expText.textContent = '+' + battleRewards.expGained + ' EXP';
     ppText.textContent = '+' + battleRewards.ppGained + ' PP';
+    
+    // ⭐ STAR BURST!
+    setTimeout(function() {
+      createStarBurst(window.innerWidth / 2, window.innerHeight / 3);
+    }, 200);
     
     // Check for level up
     if (battleRewards.leveledUp) {
@@ -10273,5 +10301,149 @@ function insertEmoji(textareaId, emoji) {
   // Close picker
   var allPickers = document.querySelectorAll('.emoji-picker');
   allPickers.forEach(function(p) { p.style.display = 'none'; });
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// PARTICLE EFFECTS SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Create floating sparkles on home page
+ */
+function createFloatingSparkles() {
+  var sparkles = ['✨', '⭐', '💫', '🌟'];
+  
+  setInterval(function() {
+    var sparkle = makeEl('div', { class: 'sparkle-particle' });
+    sparkle.textContent = sparkles[Math.floor(Math.random() * sparkles.length)];
+    sparkle.style.left = Math.random() * window.innerWidth + 'px';
+    sparkle.style.animationDelay = Math.random() * 2 + 's';
+    sparkle.style.animationDuration = (Math.random() * 2 + 2) + 's';
+    
+    document.body.appendChild(sparkle);
+    
+    setTimeout(function() {
+      sparkle.remove();
+    }, 5000);
+  }, 3000); // New sparkle every 3 seconds
+}
+
+/**
+ * Confetti burst (for adoptions)
+ */
+function createConfettiBurst(x, y) {
+  var colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe'];
+  var count = 50;
+  
+  for (var i = 0; i < count; i++) {
+    var confetti = makeEl('div', { class: 'confetti-piece' });
+    confetti.style.left = x + 'px';
+    confetti.style.top = y + 'px';
+    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    confetti.style.animationDelay = (Math.random() * 0.3) + 's';
+    confetti.style.animationDuration = (Math.random() * 1 + 2) + 's';
+    
+    // Random direction
+    var angle = (Math.random() * 360);
+    var velocity = (Math.random() * 300 + 200);
+    confetti.style.setProperty('--tx', Math.cos(angle) * velocity + 'px');
+    confetti.style.setProperty('--ty', Math.sin(angle) * velocity + 'px');
+    
+    document.body.appendChild(confetti);
+    
+    setTimeout(function(c) {
+      return function() { c.remove(); };
+    }(confetti), 3000);
+  }
+}
+
+/**
+ * Star burst (for battle victories)
+ */
+function createStarBurst(x, y) {
+  var stars = ['⭐', '🌟', '✨', '💫'];
+  var count = 12;
+  
+  for (var i = 0; i < count; i++) {
+    var star = makeEl('div', { class: 'star-burst' });
+    star.textContent = stars[Math.floor(Math.random() * stars.length)];
+    
+    var angle = (i / count) * Math.PI * 2;
+    var distance = 100;
+    
+    star.style.left = (x + Math.cos(angle) * distance) + 'px';
+    star.style.top = (y + Math.sin(angle) * distance) + 'px';
+    star.style.animationDelay = (i * 0.05) + 's';
+    
+    document.body.appendChild(star);
+    
+    setTimeout(function(s) {
+      return function() { s.remove(); };
+    }(star), 1500);
+  }
+}
+
+/**
+ * Floating hearts (when playing with pet)
+ */
+function createHeartFloat(x, y) {
+  var hearts = ['💖', '💗', '💕', '❤️'];
+  var count = 5;
+  
+  for (var i = 0; i < count; i++) {
+    var heart = makeEl('div', { class: 'heart-float' });
+    heart.textContent = hearts[Math.floor(Math.random() * hearts.length)];
+    heart.style.left = (x + (Math.random() - 0.5) * 100) + 'px';
+    heart.style.top = y + 'px';
+    heart.style.animationDelay = (i * 0.2) + 's';
+    
+    document.body.appendChild(heart);
+    
+    setTimeout(function(h) {
+      return function() { h.remove(); };
+    }(heart), 2500);
+  }
+}
+
+/**
+ * Initialize particle effects
+ */
+function initParticleEffects() {
+  // Only add floating sparkles on home page
+  var homeSection = el('section-home');
+  if (homeSection && homeSection.classList.contains('active')) {
+    createFloatingSparkles();
+  }
+}
+
+// Start particles when page loads
+setTimeout(function() {
+  if (el('section-home') && el('section-home').classList.contains('active')) {
+    createFloatingSparkles();
+  }
+}, 2000);
+
+
+// ══════════════════════════════════════════════════════════════
+// PET BACKSTORIES / BIOS
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Pet backstories - easily editable by you!
+ * Format: petName: "Bio text here"
+ */
+var petBackstories = {
+  'Ember': 'A fiery fox with a passion for adventure and streaming! Loves exploring new games and making friends. 🦊✨',
+  'Pyxie': 'A magical bunny who hops between worlds! Full of energy and always ready to play. 🐰💫',
+  // Add more as team members join!
+  // 'NewPet': 'Their backstory here...',
+};
+
+/**
+ * Get pet backstory
+ */
+function getPetBackstory(petName) {
+  return petBackstories[petName] || 'A mysterious pet with secrets yet to be discovered... 🌟';
 }
 
