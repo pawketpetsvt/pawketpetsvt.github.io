@@ -10434,8 +10434,8 @@ setTimeout(function() {
  * Format: petName: "Bio text here"
  */
 var petBackstories = {
-  'Ember': 'A fiery fox with a passion for adventure and streaming! Loves exploring new games and making friends. 🦊✨',
-  'Pyxie': 'A magical bunny who hops between worlds! Full of energy and always ready to play. 🐰💫',
+  'Ember': 'Co-founder of PawketPets! 🦊',
+  'Pyxie': 'Co-founder of PawketPets! 🐰',
   // Add more as team members join!
   // 'NewPet': 'Their backstory here...',
 };
@@ -10444,6 +10444,6 @@ var petBackstories = {
  * Get pet backstory
  */
 function getPetBackstory(petName) {
-  return petBackstories[petName] || 'A mysterious pet with secrets yet to be discovered... 🌟';
+  return petBackstories[petName] || 'Coming soon... 🌟';
 }
 
