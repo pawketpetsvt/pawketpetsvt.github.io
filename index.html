@@ -1193,6 +1193,20 @@
     <div style="font-size:3.5rem;margin-bottom:12px;">&#127881;</div>
     <h2 style="color:var(--purple-dark)">Welcome home!</h2>
     <p id="success-message">Your new pet has been adopted!</p>
+    
+    <!-- Social Share Buttons -->
+    <div class="social-share-buttons" id="adoption-share-buttons" style="margin: 16px 0;">
+      <p style="font-size:0.9rem;color:var(--text-light);margin-bottom:8px;">Share your new pet!</p>
+      <div style="display:flex;gap:8px;justify-content:center;">
+        <button class="btn-social btn-twitter" onclick="shareAdoptionToTwitter()">
+          <span class="social-icon">🐦</span> Tweet
+        </button>
+        <button class="btn-social btn-bluesky" onclick="shareAdoptionToBluesky()">
+          <span class="social-icon">🦋</span> Post
+        </button>
+      </div>
+    </div>
+    
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-outline" onclick="closeSuccessModal()">Adopt More</button>
       <button class="btn btn-primary" onclick="closeSuccessModal();showTab('mypets')">My Pets</button>

@@ -3410,6 +3410,34 @@ body::after {
 .badge-notif-desc {
   font-size: 0.85rem;
   color: rgba(255,255,255,0.9);
+  margin-bottom: 8px;
+}
+
+.badge-notif-share {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.btn-social-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: bold;
+  font-size: 0.75rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: white;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.btn-social-mini:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 
@@ -5715,6 +5743,52 @@ body.boss-ui-glitch header {
 .contact-text span {
   font-size: 0.9rem;
   opacity: 0.9;
+}
+
+/* ===== SOCIAL SHARE BUTTONS ===== */
+.social-share-buttons {
+  padding: 12px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 12px;
+}
+
+.btn-social {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 0.9rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: white;
+}
+
+.btn-social:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn-twitter {
+  background: linear-gradient(135deg, #1DA1F2 0%, #0d8bd9 100%);
+}
+
+.btn-twitter:hover {
+  background: linear-gradient(135deg, #0d8bd9 0%, #0a6fb8 100%);
+}
+
+.btn-bluesky {
+  background: linear-gradient(135deg, #0085ff 0%, #0066cc 100%);
+}
+
+.btn-bluesky:hover {
+  background: linear-gradient(135deg, #0066cc 0%, #004d99 100%);
+}
+
+.social-icon {
+  font-size: 1.1rem;
 }
 
 /* ===== REFERRAL CARD ===== */

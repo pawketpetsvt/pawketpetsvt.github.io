@@ -886,7 +886,10 @@ function openAdoptModal() {
 }
 
 function closeAdoptModal() { el('adopt-modal').classList.remove('show'); selectedPet = null; }
-function closeSuccessModal() { el('success-modal').classList.remove('show'); tabsLoaded['adopt'] = false; loadAdopt(); }
+function closeSuccessModal() { el('success-modal').classList.remove('show'); tabsLoaded['adopt'] = false; loadAdopt(); lastAdoptedPet = null; }
+
+// Store last adopted pet for sharing
+var lastAdoptedPet = null;
 
 async function confirmAdopt() {
   if (!selectedPet || !currentUser) return;
@@ -923,6 +926,13 @@ async function confirmAdopt() {
     await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
     updateAllPoints(np);
   }
+  
+  // Store for social sharing
+  lastAdoptedPet = {
+    name: selectedPet.name,
+    nickname: nickname,
+    emoji: getPetEmoji(selectedPet.name)
+  };
   
   // Award first pet badge
   await awardBadge('first_pet');
@@ -2325,6 +2335,9 @@ async function awardBadge(badgeKey, showNotification = true) {
 }
 
 function showBadgeNotification(badge) {
+  // Store for potential sharing
+  lastUnlockedBadge = badge;
+  
   var notification = makeEl('div', {class: 'badge-notification'});
   notification.innerHTML = `
     <div class="badge-notif-icon">${badge.icon}</div>
@@ -2332,6 +2345,14 @@ function showBadgeNotification(badge) {
       <div class="badge-notif-title">Badge Earned!</div>
       <div class="badge-notif-name">${badge.name}</div>
       <div class="badge-notif-desc">${badge.description || ''}</div>
+      <div class="badge-notif-share">
+        <button class="btn-social-mini btn-twitter" onclick="shareBadgeToTwitter('${badge.name}', '${badge.icon}')">
+          🐦 Tweet
+        </button>
+        <button class="btn-social-mini btn-bluesky" onclick="shareBadgeToBluesky('${badge.name}', '${badge.icon}')">
+          🦋 Post
+        </button>
+      </div>
     </div>
   `;
   
@@ -2340,11 +2361,11 @@ function showBadgeNotification(badge) {
   // Animate in
   setTimeout(() => notification.classList.add('show'), 10);
   
-  // Remove after 5 seconds
+  // Remove after 7 seconds (longer because of share buttons)
   setTimeout(() => {
     notification.classList.remove('show');
     setTimeout(() => notification.remove(), 300);
-  }, 5000);
+  }, 7000);
 }
 
 // ── MINIGAMES ────────────────────────────
@@ -9298,5 +9319,189 @@ function trackTwitchLink() {
   gtag('event', 'link_twitch', {
     event_category: 'social'
   });
+}
+
+// ══════════════════════════════════════════════════════════════
+// SOCIAL SHARING SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Get emoji for pet (for social posts)
+ */
+function getPetEmoji(petName) {
+  var emojiMap = {
+    'Ember': '🦊',
+    'Pyxie': '🐰',
+    'Bird': '🐦',
+    'Fox': '🦊',
+    'Raccoon': '🦝',
+    'Bear': '🐻',
+    'Deer': '🦌',
+    'Wolf': '🐺',
+    'Squirrel': '🐿️',
+    'Bunny': '🐰'
+  };
+  
+  return emojiMap[petName] || '🐾';
+}
+
+/**
+ * Get user's referral link
+ */
+async function getReferralLink() {
+  if (!currentUser) return 'https://pawketpetsvt.github.io';
+  
+  var { data } = await supabaseClient
+    .from('players')
+    .select('referral_code')
+    .eq('id', currentUser.id)
+    .single();
+  
+  if (data && data.referral_code) {
+    return 'https://pawketpetsvt.github.io/?ref=' + data.referral_code;
+  }
+  
+  return 'https://pawketpetsvt.github.io';
+}
+
+/**
+ * Share to Twitter
+ */
+function shareToTwitter(text, includeReferral) {
+  getReferralLink().then(function(url) {
+    var shareUrl = includeReferral ? url : 'https://pawketpetsvt.github.io';
+    var twitterUrl = 'https://twitter.com/intent/tweet?' +
+      'text=' + encodeURIComponent(text) +
+      '&url=' + encodeURIComponent(shareUrl) +
+      '&hashtags=PawketPetsVT,VTuber,VirtualPets';
+    
+    window.open(twitterUrl, '_blank', 'width=550,height=420');
+    
+    // Track in analytics
+    gtag('event', 'social_share', {
+      platform: 'twitter',
+      content_type: 'general'
+    });
+  });
+}
+
+/**
+ * Share to Bluesky
+ */
+function shareToBluesky(text, includeReferral) {
+  getReferralLink().then(function(url) {
+    var shareUrl = includeReferral ? url : 'https://pawketpetsvt.github.io';
+    var fullText = text + '\n\n' + shareUrl;
+    var blueskyUrl = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(fullText);
+    
+    window.open(blueskyUrl, '_blank', 'width=600,height=600');
+    
+    // Track in analytics
+    gtag('event', 'social_share', {
+      platform: 'bluesky',
+      content_type: 'general'
+    });
+  });
+}
+
+/**
+ * Share after pet adoption
+ */
+function shareAdoptionToTwitter() {
+  if (!lastAdoptedPet) {
+    shareToTwitter('I just adopted a pet in PawketPetsVT! Join me! 🐾', true);
+    return;
+  }
+  
+  var text = 'I just adopted ' + lastAdoptedPet.nickname + ' in PawketPetsVT! ' + 
+             lastAdoptedPet.emoji + '\n\nJoin me and get 100 free PawketPoints!';
+  
+  shareToTwitter(text, true);
+}
+
+function shareAdoptionToBluesky() {
+  if (!lastAdoptedPet) {
+    shareToBluesky('I just adopted a pet in PawketPetsVT! Join me! 🐾', true);
+    return;
+  }
+  
+  var text = 'I just adopted ' + lastAdoptedPet.nickname + ' in PawketPetsVT! ' + 
+             lastAdoptedPet.emoji + '\n\nJoin me and get 100 free PawketPoints!';
+  
+  shareToBluesky(text, true);
+}
+
+/**
+ * Share badge unlock
+ */
+var lastUnlockedBadge = null;
+
+function shareBadgeToTwitter(badgeName, badgeIcon) {
+  var text = 'I just earned the "' + badgeName + '" badge ' + badgeIcon + ' in PawketPetsVT!\n\nJoin me!';
+  shareToTwitter(text, true);
+}
+
+function shareBadgeToBluesky(badgeName, badgeIcon) {
+  var text = 'I just earned the "' + badgeName + '" badge ' + badgeIcon + ' in PawketPetsVT!\n\nJoin me!';
+  shareToBluesky(text, true);
+}
+
+/**
+ * Share level milestone
+ */
+function shareLevelToTwitter(level) {
+  var text = 'I just reached Level ' + level + ' in PawketPetsVT! 🎉\n\nJoin the fun!';
+  shareToTwitter(text, true);
+}
+
+function shareLevelToBluesky(level) {
+  var text = 'I just reached Level ' + level + ' in PawketPetsVT! 🎉\n\nJoin the fun!';
+  shareToBluesky(text, true);
+}
+
+/**
+ * Share profile
+ */
+async function shareProfileToTwitter() {
+  if (!currentUser) return;
+  
+  var { data } = await supabaseClient
+    .from('players')
+    .select('username')
+    .eq('id', currentUser.id)
+    .single();
+  
+  var username = data ? data.username : 'me';
+  var text = 'Check out my PawketPetsVT profile! 🐾\n\nCome play with ' + username + '!';
+  
+  shareToTwitter(text, true);
+}
+
+async function shareProfileToBluesky() {
+  if (!currentUser) return;
+  
+  var { data } = await supabaseClient
+    .from('players')
+    .select('username')
+    .eq('id', currentUser.id)
+    .single();
+  
+  var username = data ? data.username : 'me';
+  var text = 'Check out my PawketPetsVT profile! 🐾\n\nCome play with ' + username + '!';
+  
+  shareToBluesky(text, true);
+}
+
+/**
+ * Share battle victory
+ */
+function shareBattleVictoryToTwitter(enemyName) {
+  var text = 'I just defeated a ' + enemyName + ' in PawketPetsVT! ⚔️\n\nThink you can beat me?';
+  shareToTwitter(text, true);
+}
+
+function shareBattleVictoryToBluesky(enemyName) {
+  var text = 'I just defeated a ' + enemyName + ' in PawketPetsVT! ⚔️\n\nThink you can beat me?';
+  shareToBluesky(text, true);
 }
 
