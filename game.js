@@ -339,6 +339,8 @@ function showTab(tab) {
   // Special cases: some tabs need to initialize every time
   if (tab === 'leaderboard') {
     initLeaderboardTab();
+  } else if (tab === 'forum') {
+    initForum();
   } else if (tab === 'myprofile') {
     loadMyProfile();
   } else if (tab === 'profile' && window.currentProfileUsername) {
@@ -9503,5 +9505,677 @@ function shareBattleVictoryToTwitter(enemyName) {
 function shareBattleVictoryToBluesky(enemyName) {
   var text = 'I just defeated a ' + enemyName + ' in PawketPetsVT! ⚔️\n\nThink you can beat me?';
   shareToBluesky(text, true);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// RETRO FORUM SYSTEM
+// ══════════════════════════════════════════════════════════════
+
+var currentCategoryId = null;
+var currentThreadId = null;
+var isModerator = false;
+
+/**
+ * Initialize forum - check if user is mod
+ */
+async function initForum() {
+  if (!currentUser) return;
+  
+  // Check if user is moderator
+  var { data } = await supabaseClient
+    .from('forum_moderators')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .single();
+  
+  isModerator = !!data;
+  
+  if (isModerator) {
+    el('forum-admin-panel-btn').style.display = 'block';
+  }
+  
+  await loadForumCategories();
+}
+
+/**
+ * Load forum categories
+ */
+async function loadForumCategories() {
+  var list = el('forum-categories-list');
+  list.innerHTML = '<div class="spinner"></div>';
+  
+  var { data: categories, error } = await supabaseClient
+    .from('forum_categories')
+    .select('*')
+    .order('display_order', { ascending: true });
+  
+  if (error) {
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading categories</p></div>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  
+  for (var i = 0; i < categories.length; i++) {
+    var cat = categories[i];
+    
+    // Get thread count
+    var { count } = await supabaseClient
+      .from('forum_threads')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', cat.id);
+    
+    var card = makeEl('div', { class: 'forum-category-card' });
+    card.onclick = (function(catId, catName) {
+      return function() { showForumCategory(catId, catName); };
+    })(cat.id, cat.name);
+    
+    card.innerHTML = `
+      <div class="forum-category-icon">${cat.icon}</div>
+      <div class="forum-category-info">
+        <div class="forum-category-name">${cat.name}</div>
+        <div class="forum-category-desc">${cat.description || ''}</div>
+      </div>
+      <div class="forum-category-stats">
+        <div class="forum-stat-number">${count || 0}</div>
+        <div class="forum-stat-label">Threads</div>
+      </div>
+    `;
+    
+    list.appendChild(card);
+  }
+}
+
+/**
+ * Show forum category (list of threads)
+ */
+async function showForumCategory(categoryId, categoryName) {
+  currentCategoryId = categoryId;
+  
+  el('forum-categories-view').style.display = 'none';
+  el('forum-category-view').style.display = 'block';
+  el('forum-category-name').textContent = categoryName;
+  
+  await loadForumThreads(categoryId);
+}
+
+/**
+ * Load threads in category
+ */
+async function loadForumThreads(categoryId) {
+  var list = el('forum-threads-list');
+  list.innerHTML = '<div class="spinner"></div>';
+  
+  // Check if user is banned
+  if (currentUser) {
+    var { data: ban } = await supabaseClient
+      .from('forum_bans')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .single();
+    
+    if (ban) {
+      list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">🚫</div><p>You have been banned from posting</p></div>';
+      return;
+    }
+  }
+  
+  var { data: threads, error } = await supabaseClient
+    .from('forum_threads')
+    .select('*, players!forum_threads_author_id_fkey(username)')
+    .eq('category_id', categoryId)
+    .order('is_pinned', { ascending: false })
+    .order('last_reply_at', { ascending: false });
+  
+  if (error) {
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading threads</p></div>';
+    return;
+  }
+  
+  if (threads.length === 0) {
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📝</div><p>No threads yet. Be the first to post!</p></div>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  
+  for (var i = 0; i < threads.length; i++) {
+    var thread = threads[i];
+    
+    var row = makeEl('div', { class: 'forum-thread-row' });
+    if (thread.is_pinned) row.classList.add('pinned');
+    if (thread.is_locked) row.classList.add('locked');
+    
+    row.onclick = (function(threadId) {
+      return function() { showForumThread(threadId); };
+    })(thread.id);
+    
+    var icon = '💬';
+    if (thread.is_pinned) icon = '📌';
+    if (thread.is_locked) icon = '🔒';
+    
+    var timeAgo = getTimeAgo(thread.created_at);
+    
+    row.innerHTML = `
+      <div class="forum-thread-icon">${icon}</div>
+      <div class="forum-thread-content">
+        <div class="forum-thread-title">${escapeHtml(thread.title)}</div>
+        <div class="forum-thread-meta">
+          Started by <strong>${thread.players.username}</strong> • ${timeAgo}
+        </div>
+      </div>
+      <div class="forum-thread-stats">
+        <div class="forum-thread-stat">
+          <div class="forum-thread-stat-number">${thread.reply_count}</div>
+          <div class="forum-thread-stat-label">Replies</div>
+        </div>
+        <div class="forum-thread-stat">
+          <div class="forum-thread-stat-number">${thread.view_count}</div>
+          <div class="forum-thread-stat-label">Views</div>
+        </div>
+      </div>
+    `;
+    
+    list.appendChild(row);
+  }
+}
+
+/**
+ * Show single thread with replies
+ */
+async function showForumThread(threadId) {
+  currentThreadId = threadId;
+  
+  el('forum-category-view').style.display = 'none';
+  el('forum-thread-view').style.display = 'block';
+  
+  var container = el('forum-thread-container');
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  // Increment view count
+  await supabaseClient.rpc('increment', {
+    table_name: 'forum_threads',
+    row_id: threadId,
+    column_name: 'view_count'
+  });
+  
+  // Get thread
+  var { data: thread, error: threadError } = await supabaseClient
+    .from('forum_threads')
+    .select('*, players!forum_threads_author_id_fkey(username, forum_post_count)')
+    .eq('id', threadId)
+    .single();
+  
+  if (threadError || !thread) {
+    container.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Thread not found</p></div>';
+    return;
+  }
+  
+  // Check if locked
+  if (thread.is_locked && !isModerator) {
+    el('forum-reply-box').style.display = 'none';
+  } else {
+    el('forum-reply-box').style.display = 'block';
+  }
+  
+  // Get replies
+  var { data: replies } = await supabaseClient
+    .from('forum_replies')
+    .select('*, players!forum_replies_author_id_fkey(username, forum_post_count)')
+    .eq('thread_id', threadId)
+    .order('created_at', { ascending: true });
+  
+  container.innerHTML = '';
+  
+  // Original post
+  var op = makeEl('div', { class: 'forum-post original-post' });
+  op.innerHTML = createForumPostHTML(thread, thread.players, true);
+  container.appendChild(op);
+  
+  // Replies
+  if (replies && replies.length > 0) {
+    for (var i = 0; i < replies.length; i++) {
+      var reply = replies[i];
+      var replyEl = makeEl('div', { class: 'forum-post' });
+      replyEl.innerHTML = createForumPostHTML(reply, reply.players, false);
+      container.appendChild(replyEl);
+    }
+  }
+}
+
+/**
+ * Create forum post HTML
+ */
+function createForumPostHTML(post, author, isOriginal) {
+  var timeAgo = getTimeAgo(post.created_at);
+  var initial = author.username.charAt(0).toUpperCase();
+  var postCount = author.forum_post_count || 0;
+  
+  var deleteBtn = '';
+  if (isModerator || (currentUser && currentUser.id === post.author_id)) {
+    var postType = isOriginal ? 'thread' : 'reply';
+    deleteBtn = `<button class="forum-post-action-btn danger" onclick="deleteForumPost('${post.id}', '${postType}')">🗑️ Delete</button>`;
+  }
+  
+  var pinBtn = '';
+  var lockBtn = '';
+  if (isModerator && isOriginal) {
+    pinBtn = `<button class="forum-post-action-btn" onclick="togglePin('${post.id}', ${!post.is_pinned})">${post.is_pinned ? '📌 Unpin' : '📌 Pin'}</button>`;
+    lockBtn = `<button class="forum-post-action-btn" onclick="toggleLock('${post.id}', ${!post.is_locked})">${post.is_locked ? '🔓 Unlock' : '🔒 Lock'}</button>`;
+  }
+  
+  return `
+    <div class="forum-post-sidebar">
+      <div class="forum-post-avatar">${initial}</div>
+      <div class="forum-post-username">${escapeHtml(author.username)}</div>
+      ${isModerator && post.author_id === currentUser.id ? '<div class="forum-post-badge">MOD</div>' : ''}
+      <div class="forum-post-stats">
+        Posts: ${postCount}
+      </div>
+    </div>
+    <div class="forum-post-content-wrapper">
+      <div class="forum-post-header">
+        <div class="forum-post-date">${timeAgo}</div>
+        <div class="forum-post-actions">
+          ${pinBtn}
+          ${lockBtn}
+          ${deleteBtn}
+        </div>
+      </div>
+      <div class="forum-post-body">${escapeHtml(post.content || post.title)}</div>
+    </div>
+  `;
+}
+
+/**
+ * Show new thread modal
+ */
+function showNewThreadModal() {
+  if (!currentUser) {
+    showToast('Please log in to post!');
+    return;
+  }
+  
+  el('new-thread-modal').classList.add('show');
+  el('new-thread-title').value = '';
+  el('new-thread-content').value = '';
+}
+
+function closeNewThreadModal() {
+  el('new-thread-modal').classList.remove('show');
+}
+
+/**
+ * Submit new thread
+ */
+async function submitNewThread() {
+  if (!currentUser) return;
+  
+  var title = el('new-thread-title').value.trim();
+  var content = el('new-thread-content').value.trim();
+  
+  if (!title || !content) {
+    showToast('Please fill in both title and message!');
+    return;
+  }
+  
+  // Check if banned
+  var { data: ban } = await supabaseClient
+    .from('forum_bans')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .single();
+  
+  if (ban) {
+    showToast('You are banned from posting');
+    return;
+  }
+  
+  var { error } = await supabaseClient
+    .from('forum_threads')
+    .insert([{
+      category_id: currentCategoryId,
+      author_id: currentUser.id,
+      title: title,
+      content: content
+    }]);
+  
+  if (error) {
+    showToast('Error creating thread: ' + error.message);
+    return;
+  }
+  
+  showPixelToast('Thread created!', 'success');
+  closeNewThreadModal();
+  
+  // Reload category
+  var catName = el('forum-category-name').textContent;
+  showForumCategory(currentCategoryId, catName);
+}
+
+/**
+ * Submit reply to thread
+ */
+async function submitReply() {
+  if (!currentUser) {
+    showToast('Please log in to reply!');
+    return;
+  }
+  
+  var content = el('forum-reply-textarea').value.trim();
+  
+  if (!content) {
+    showToast('Please write a reply!');
+    return;
+  }
+  
+  // Check if banned
+  var { data: ban } = await supabaseClient
+    .from('forum_bans')
+    .select('id')
+    .eq('user_id', currentUser.id)
+    .single();
+  
+  if (ban) {
+    showToast('You are banned from posting');
+    return;
+  }
+  
+  var { error } = await supabaseClient
+    .from('forum_replies')
+    .insert([{
+      thread_id: currentThreadId,
+      author_id: currentUser.id,
+      content: content
+    }]);
+  
+  if (error) {
+    showToast('Error posting reply: ' + error.message);
+    return;
+  }
+  
+  showPixelToast('Reply posted!', 'success');
+  el('forum-reply-textarea').value = '';
+  
+  // Reload thread
+  await showForumThread(currentThreadId);
+}
+
+/**
+ * Delete forum post
+ */
+async function deleteForumPost(postId, postType) {
+  if (!confirm('Are you sure you want to delete this ' + postType + '?')) {
+    return;
+  }
+  
+  if (postType === 'thread') {
+    var { error } = await supabaseClient
+      .from('forum_threads')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) {
+      showToast('Error deleting thread');
+      return;
+    }
+    
+    showPixelToast('Thread deleted', 'success');
+    backToCategory();
+  } else {
+    var { error } = await supabaseClient
+      .from('forum_replies')
+      .delete()
+      .eq('id', postId);
+    
+    if (error) {
+      showToast('Error deleting reply');
+      return;
+    }
+    
+    showPixelToast('Reply deleted', 'success');
+    await showForumThread(currentThreadId);
+  }
+}
+
+/**
+ * Toggle thread pin
+ */
+async function togglePin(threadId, pinState) {
+  var { error } = await supabaseClient
+    .from('forum_threads')
+    .update({ is_pinned: pinState })
+    .eq('id', threadId);
+  
+  if (error) {
+    showToast('Error updating thread');
+    return;
+  }
+  
+  showPixelToast(pinState ? 'Thread pinned' : 'Thread unpinned', 'success');
+  await showForumThread(threadId);
+}
+
+/**
+ * Toggle thread lock
+ */
+async function toggleLock(threadId, lockState) {
+  var { error } = await supabaseClient
+    .from('forum_threads')
+    .update({ is_locked: lockState })
+    .eq('id', threadId);
+  
+  if (error) {
+    showToast('Error updating thread');
+    return;
+  }
+  
+  showPixelToast(lockState ? 'Thread locked' : 'Thread unlocked', 'success');
+  await showForumThread(threadId);
+}
+
+/**
+ * Show forum categories view
+ */
+function showForumCategories() {
+  el('forum-categories-view').style.display = 'block';
+  el('forum-category-view').style.display = 'none';
+  el('forum-thread-view').style.display = 'none';
+  currentCategoryId = null;
+  currentThreadId = null;
+}
+
+/**
+ * Go back to category from thread
+ */
+function backToCategory() {
+  el('forum-category-view').style.display = 'block';
+  el('forum-thread-view').style.display = 'none';
+  
+  var catName = el('forum-category-name').textContent;
+  loadForumThreads(currentCategoryId);
+}
+
+/**
+ * Admin panel functions
+ */
+function toggleAdminPanel() {
+  el('admin-panel-modal').classList.add('show');
+  switchAdminTab('bans');
+}
+
+function closeAdminPanel() {
+  el('admin-panel-modal').classList.remove('show');
+}
+
+function switchAdminTab(tab) {
+  var tabs = document.querySelectorAll('.admin-tab');
+  tabs.forEach(function(t) { t.classList.remove('active'); });
+  event.target.classList.add('active');
+  
+  el('admin-bans-view').style.display = tab === 'bans' ? 'block' : 'none';
+  el('admin-recent-view').style.display = tab === 'recent' ? 'block' : 'none';
+  
+  if (tab === 'bans') {
+    loadBannedUsers();
+  } else {
+    loadRecentPosts();
+  }
+}
+
+/**
+ * Load banned users
+ */
+async function loadBannedUsers() {
+  var list = el('banned-users-list');
+  list.innerHTML = '<div class="spinner"></div>';
+  
+  var { data: bans } = await supabaseClient
+    .from('forum_bans')
+    .select('*, players!forum_bans_user_id_fkey(username)')
+    .order('banned_at', { ascending: false });
+  
+  if (!bans || bans.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-light)">No banned users</p>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  
+  for (var i = 0; i < bans.length; i++) {
+    var ban = bans[i];
+    var item = makeEl('div', { class: 'banned-user-item' });
+    item.innerHTML = `
+      <div>
+        <strong>${ban.players.username}</strong>
+        ${ban.reason ? '<br><small>' + escapeHtml(ban.reason) + '</small>' : ''}
+      </div>
+      <button class="btn btn-sm btn-outline" onclick="unbanUser('${ban.user_id}')">Unban</button>
+    `;
+    list.appendChild(item);
+  }
+}
+
+/**
+ * Ban user
+ */
+async function banUser() {
+  var username = el('ban-username-input').value.trim();
+  var reason = el('ban-reason-input').value.trim();
+  
+  if (!username) {
+    showToast('Enter a username');
+    return;
+  }
+  
+  // Find user
+  var { data: user } = await supabaseClient
+    .from('players')
+    .select('id')
+    .eq('username', username)
+    .single();
+  
+  if (!user) {
+    showToast('User not found');
+    return;
+  }
+  
+  var { error } = await supabaseClient
+    .from('forum_bans')
+    .insert([{
+      user_id: user.id,
+      banned_by: currentUser.id,
+      reason: reason || null
+    }]);
+  
+  if (error) {
+    showToast('Error banning user: ' + error.message);
+    return;
+  }
+  
+  showPixelToast('User banned', 'success');
+  el('ban-username-input').value = '';
+  el('ban-reason-input').value = '';
+  loadBannedUsers();
+}
+
+/**
+ * Unban user
+ */
+async function unbanUser(userId) {
+  var { error } = await supabaseClient
+    .from('forum_bans')
+    .delete()
+    .eq('user_id', userId);
+  
+  if (error) {
+    showToast('Error unbanning user');
+    return;
+  }
+  
+  showPixelToast('User unbanned', 'success');
+  loadBannedUsers();
+}
+
+/**
+ * Load recent posts for moderation
+ */
+async function loadRecentPosts() {
+  var list = el('recent-posts-list');
+  list.innerHTML = '<div class="spinner"></div>';
+  
+  var { data: threads } = await supabaseClient
+    .from('forum_threads')
+    .select('*, players!forum_threads_author_id_fkey(username)')
+    .order('created_at', { ascending: false })
+    .limit(10);
+  
+  if (!threads || threads.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-light)">No recent posts</p>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  
+  for (var i = 0; i < threads.length; i++) {
+    var thread = threads[i];
+    var item = makeEl('div', { class: 'recent-post-item' });
+    var timeAgo = getTimeAgo(thread.created_at);
+    item.innerHTML = `
+      <div><strong>${escapeHtml(thread.title)}</strong></div>
+      <div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">
+        by ${thread.players.username} • ${timeAgo}
+      </div>
+      <button class="btn btn-sm btn-danger" onclick="deleteForumPost('${thread.id}', 'thread')" style="margin-top:8px;">
+        Delete Thread
+      </button>
+    `;
+    list.appendChild(item);
+  }
+}
+
+/**
+ * Get time ago string
+ */
+function getTimeAgo(timestamp) {
+  var now = new Date();
+  var time = new Date(timestamp);
+  var diff = Math.floor((now - time) / 1000);
+  
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + ' minutes ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
+  if (diff < 2592000) return Math.floor(diff / 86400) + ' days ago';
+  return Math.floor(diff / 2592000) + ' months ago';
+}
+
+/**
+ * Escape HTML to prevent XSS
+ */
+function escapeHtml(text) {
+  var div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
