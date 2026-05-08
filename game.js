@@ -9520,21 +9520,44 @@ var isModerator = false;
  * Initialize forum - check if user is mod
  */
 async function initForum() {
-  if (!currentUser) return;
+  console.log('🏛️ Initializing forum...');
   
-  // Check if user is moderator
-  var { data } = await supabaseClient
-    .from('forum_moderators')
-    .select('id')
-    .eq('user_id', currentUser.id)
-    .single();
-  
-  isModerator = !!data;
-  
-  if (isModerator) {
-    el('forum-admin-panel-btn').style.display = 'block';
+  if (!currentUser) {
+    console.log('❌ No user logged in for forum');
+    return;
   }
   
+  console.log('✅ User logged in, checking moderator status...');
+  
+  // Check if user is moderator
+  try {
+    var { data, error } = await supabaseClient
+      .from('forum_moderators')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+      console.error('Error checking mod status:', error);
+    }
+    
+    isModerator = !!data;
+    console.log('Moderator status:', isModerator);
+    
+    if (isModerator) {
+      var adminBtn = el('forum-admin-panel-btn');
+      if (adminBtn) {
+        adminBtn.style.display = 'block';
+        console.log('✅ Moderator panel button shown');
+      } else {
+        console.error('❌ Admin panel button element not found!');
+      }
+    }
+  } catch (err) {
+    console.error('Error in mod check:', err);
+  }
+  
+  console.log('Loading forum categories...');
   await loadForumCategories();
 }
 
@@ -9542,48 +9565,72 @@ async function initForum() {
  * Load forum categories
  */
 async function loadForumCategories() {
+  console.log('📂 Loading forum categories...');
+  
   var list = el('forum-categories-list');
-  list.innerHTML = '<div class="spinner"></div>';
-  
-  var { data: categories, error } = await supabaseClient
-    .from('forum_categories')
-    .select('*')
-    .order('display_order', { ascending: true });
-  
-  if (error) {
-    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading categories</p></div>';
+  if (!list) {
+    console.error('❌ forum-categories-list element not found!');
     return;
   }
   
-  list.innerHTML = '';
+  list.innerHTML = '<div class="spinner"></div>';
   
-  for (var i = 0; i < categories.length; i++) {
-    var cat = categories[i];
+  try {
+    var { data: categories, error } = await supabaseClient
+      .from('forum_categories')
+      .select('*')
+      .order('display_order', { ascending: true });
     
-    // Get thread count
-    var { count } = await supabaseClient
-      .from('forum_threads')
-      .select('*', { count: 'exact', head: true })
-      .eq('category_id', cat.id);
+    if (error) {
+      console.error('❌ Error loading categories:', error);
+      list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading categories: ' + error.message + '</p></div>';
+      return;
+    }
     
-    var card = makeEl('div', { class: 'forum-category-card' });
-    card.onclick = (function(catId, catName) {
-      return function() { showForumCategory(catId, catName); };
-    })(cat.id, cat.name);
+    console.log('✅ Categories loaded:', categories.length);
     
-    card.innerHTML = `
-      <div class="forum-category-icon">${cat.icon}</div>
-      <div class="forum-category-info">
-        <div class="forum-category-name">${cat.name}</div>
-        <div class="forum-category-desc">${cat.description || ''}</div>
-      </div>
-      <div class="forum-category-stats">
-        <div class="forum-stat-number">${count || 0}</div>
-        <div class="forum-stat-label">Threads</div>
-      </div>
-    `;
+    if (!categories || categories.length === 0) {
+      console.warn('⚠️ No categories found in database!');
+      list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📂</div><p>No forum categories yet. Please run the SQL migration!</p></div>';
+      return;
+    }
     
-    list.appendChild(card);
+    list.innerHTML = '';
+    
+    for (var i = 0; i < categories.length; i++) {
+      var cat = categories[i];
+      console.log('Creating card for category:', cat.name);
+      
+      // Get thread count
+      var { count } = await supabaseClient
+        .from('forum_threads')
+        .select('*', { count: 'exact', head: true })
+        .eq('category_id', cat.id);
+      
+      var card = makeEl('div', { class: 'forum-category-card' });
+      card.onclick = (function(catId, catName) {
+        return function() { showForumCategory(catId, catName); };
+      })(cat.id, cat.name);
+      
+      card.innerHTML = `
+        <div class="forum-category-icon">${cat.icon}</div>
+        <div class="forum-category-info">
+          <div class="forum-category-name">${cat.name}</div>
+          <div class="forum-category-desc">${cat.description || ''}</div>
+        </div>
+        <div class="forum-category-stats">
+          <div class="forum-stat-number">${count || 0}</div>
+          <div class="forum-stat-label">Threads</div>
+        </div>
+      `;
+      
+      list.appendChild(card);
+    }
+    
+    console.log('✅ Forum categories displayed successfully!');
+  } catch (err) {
+    console.error('❌ Exception in loadForumCategories:', err);
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + err.message + '</p></div>';
   }
 }
 
@@ -10177,5 +10224,51 @@ function escapeHtml(text) {
   var div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// EMOJI PICKER FOR FORUM
+// ══════════════════════════════════════════════════════════════
+
+/**
+ * Toggle emoji picker
+ */
+function toggleEmojiPicker(type) {
+  var picker = el('emoji-picker-' + type);
+  if (!picker) return;
+  
+  if (picker.style.display === 'none') {
+    // Close all other pickers first
+    var allPickers = document.querySelectorAll('.emoji-picker');
+    allPickers.forEach(function(p) { p.style.display = 'none'; });
+    
+    // Open this one
+    picker.style.display = 'block';
+  } else {
+    picker.style.display = 'none';
+  }
+}
+
+/**
+ * Insert emoji into textarea
+ */
+function insertEmoji(textareaId, emoji) {
+  var textarea = el(textareaId);
+  if (!textarea) return;
+  
+  var startPos = textarea.selectionStart;
+  var endPos = textarea.selectionEnd;
+  var text = textarea.value;
+  
+  textarea.value = text.substring(0, startPos) + emoji + text.substring(endPos);
+  
+  // Set cursor after emoji
+  textarea.selectionStart = textarea.selectionEnd = startPos + emoji.length;
+  textarea.focus();
+  
+  // Close picker
+  var allPickers = document.querySelectorAll('.emoji-picker');
+  allPickers.forEach(function(p) { p.style.display = 'none'; });
 }
 

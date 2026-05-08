@@ -6353,3 +6353,61 @@ body.boss-ui-glitch header {
     justify-content: center;
   }
 }
+
+/* Emoji Picker */
+.emoji-picker-container {
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.emoji-picker-btn {
+  background: var(--purple-light);
+  border: 2px solid var(--purple);
+  color: var(--purple-dark);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.emoji-picker-btn:hover {
+  background: var(--purple);
+  color: white;
+}
+
+.emoji-picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 8px;
+  background: white;
+  border: 3px solid var(--purple);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  z-index: 1000;
+  max-width: 300px;
+}
+
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+}
+
+.emoji-option {
+  font-size: 1.5rem;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  text-align: center;
+  user-select: none;
+}
+
+.emoji-option:hover {
+  background: var(--purple-light);
+  transform: scale(1.2);
+}
