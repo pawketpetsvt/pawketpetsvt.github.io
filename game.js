@@ -451,7 +451,42 @@ async function showApp(user) {
   el('nav-logout').style.display = 'inline-block';
   el('nav-profile').style.display = 'inline-block';
 
-  var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).single();
+  // Check if player exists, create if missing (auto-recovery from database issues)
+  var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).maybeSingle();
+  
+  if (!pr.data) {
+    console.log('🚨 Player not found! Auto-creating fresh player account...');
+    
+    // Extract username from email (everything before @)
+    var emailUsername = user.email ? user.email.split('@')[0] : 'Player';
+    
+    // Create new player
+    var createResult = await supabaseClient
+      .from('players')
+      .insert([{
+        id: user.id,
+        username: emailUsername,
+        pawketpoints: 0,
+        created_at: new Date().toISOString()
+      }])
+      .select('username, pawketpoints')
+      .single();
+    
+    if (createResult.data) {
+      console.log('✅ Fresh player account created:', createResult.data);
+      pr = createResult;
+      
+      // Show welcome notification for fresh start
+      setTimeout(function() {
+        showToast('🌟 Welcome to PawketPets! Your adventure begins now!', 8000, 'var(--purple)');
+      }, 1000);
+    } else {
+      console.error('❌ Failed to create player:', createResult.error);
+      showToast('⚠️ Error creating account. Please refresh the page.', 5000, 'var(--red)');
+      return;
+    }
+  }
+  
   if (pr.data) {
     el('nav-user').textContent = '\u2B50 ' + pr.data.username;
     updateAllPoints(pr.data.pawketpoints);
@@ -540,12 +575,18 @@ async function updateSidebarStats() {
   if (!currentUser) return;
   
   try {
-    // Get player data
+    // Get player data (use maybeSingle to avoid errors if missing)
     var { data: player, error: playerError } = await supabaseClient
       .from('players')
       .select('pawketpoints')
       .eq('id', currentUser.id)
-      .single();
+      .maybeSingle();
+    
+    // If player doesn't exist, they're being auto-created - skip stats for now
+    if (!player) {
+      console.log('⏳ Player not yet created, skipping sidebar stats...');
+      return;
+    }
     
     if (playerError) throw playerError;
     
@@ -9338,7 +9379,13 @@ async function loadReferralData(userId) {
       .from('players')
       .select('username, referral_code, referrals_count')
       .eq('id', userId)
-      .single();
+      .maybeSingle();
+    
+    // If player doesn't exist yet, skip referral setup
+    if (!player) {
+      console.log('⏳ Player not yet created, skipping referral data...');
+      return;
+    }
     
     if (error) {
       console.error('❌ Error loading referral data:', error);
