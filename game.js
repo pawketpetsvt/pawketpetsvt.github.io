@@ -469,6 +469,12 @@ async function showApp(user) {
   // Load pet title library
   await loadAllPetTitles();
   
+  // Check for 3am login (Sleep Deprived title)
+  checkMidnightLogin();
+  
+  // Check player title unlocks
+  await checkPlayerTitleUnlocks();
+  
   // Award welcome badge if new user
   await awardBadge('welcome');
   
@@ -10863,108 +10869,278 @@ function getPetTitleDisplay(petId) {
 // ═══════════════════════════════════════════════════════════════════════
 
 // Check pet title unlocks after various actions
+// ═══════════════════════════════════════════════════════════════════════
+// REFINED TITLE UNLOCK TRACKING
+// Unique, memorable conditions - no boring stat grinding
+// ═══════════════════════════════════════════════════════════════════════
+
+// Track special conditions
+var titleTracking = {
+  consecutiveMisses: {},     // pet_id: count
+  consecutiveLosses: {},     // user_id: count
+  sameFood: {},             // pet_id: { food_item: count }
+  buttonClicks: {},         // user_id: { button_id: count }
+  midnightLogins: []        // timestamps of 3am logins
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// PLAYER TITLE UNLOCKS
+// ═══════════════════════════════════════════════════════════════════════
+
+async function checkPlayerTitleUnlocks() {
+  if (!currentUser) return;
+  
+  try {
+    var stats = await supabaseClient
+      .from('players')
+      .select('*, battle_history(*)')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (!stats.data) return;
+    var p = stats.data;
+    
+    // Spoon Warlord - Win 100 battles
+    var totalWins = p.battle_history?.filter(b => b.victory).length || 0;
+    if (totalWins >= 100 && !hasTitle('spoon_warlord')) {
+      await awardTitle('spoon_warlord');
+    }
+    
+    // Local Menace - Win 50 battles
+    if (totalWins >= 50 && !hasTitle('local_menace')) {
+      await awardTitle('local_menace');
+    }
+    
+    // Golden Legend - Defeat 5 Golden enemies
+    var goldenKills = p.battle_history?.filter(b => 
+      b.victory && b.enemy_special_variant === 'golden'
+    ).length || 0;
+    if (goldenKills >= 5 && !hasTitle('golden_legend')) {
+      await awardTitle('golden_legend');
+    }
+    
+    // Shiny Hunter - Defeat 10 Shiny enemies
+    var shinyKills = p.battle_history?.filter(b => 
+      b.victory && b.enemy_special_variant === 'shiny'
+    ).length || 0;
+    if (shinyKills >= 10 && !hasTitle('shiny_hunter')) {
+      await awardTitle('shiny_hunter');
+    }
+    
+    // Corrupted Soul - Defeat 20 Corrupted enemies
+    var corruptedKills = p.battle_history?.filter(b => 
+      b.victory && b.enemy_special_variant === 'corrupted'
+    ).length || 0;
+    if (corruptedKills >= 20 && !hasTitle('corrupted_soul')) {
+      await awardTitle('corrupted_soul');
+    }
+    
+    // Bug Catcher - Defeat 15 Glitched enemies
+    var glitchedKills = p.battle_history?.filter(b => 
+      b.victory && b.enemy_special_variant === 'glitched'
+    ).length || 0;
+    if (glitchedKills >= 15 && !hasTitle('bug_catcher')) {
+      await awardTitle('bug_catcher');
+    }
+    
+    // Elemental Master - Defeat all 5 elemental types
+    var elementalTypes = new Set();
+    p.battle_history?.forEach(b => {
+      if (b.victory && b.enemy_elemental_type) {
+        elementalTypes.add(b.enemy_elemental_type);
+      }
+    });
+    if (elementalTypes.size >= 5 && !hasTitle('elemental_master')) {
+      await awardTitle('elemental_master');
+    }
+    
+    // PP Addict - Earn 5,000 PP total
+    if ((p.total_pp_earned || 0) >= 5000 && !hasTitle('pp_addict')) {
+      await awardTitle('pp_addict');
+    }
+    
+    // Creature Collector - Own all available pets
+    var totalPets = await supabaseClient
+      .from('pets')
+      .select('id', { count: 'exact' });
+    
+    var ownedPets = await supabaseClient
+      .from('user_pets')
+      .select('pet_id', { count: 'exact' })
+      .eq('user_id', currentUser.id);
+    
+    if (ownedPets.count >= totalPets.count && !hasTitle('creature_collector')) {
+      await awardTitle('creature_collector');
+    }
+    
+    // Forest Cryptid - Defeat 30 Deep Woods enemies
+    var deepWoodsKills = p.battle_history?.filter(b => 
+      b.victory && b.zone === 'deepwoods'
+    ).length || 0;
+    if (deepWoodsKills >= 30 && !hasTitle('forest_cryptid')) {
+      await awardTitle('forest_cryptid');
+    }
+    
+    // Dungeon Janitor - Defeat 100 total enemies
+    var totalKills = p.battle_history?.filter(b => b.victory).length || 0;
+    if (totalKills >= 100 && !hasTitle('dungeon_janitor')) {
+      await awardTitle('dungeon_janitor');
+    }
+    
+    // Mythical Being - Reach total level 100 across all pets
+    var allPets = await supabaseClient
+      .from('user_pets')
+      .select('level')
+      .eq('user_id', currentUser.id);
+    
+    var totalLevel = allPets.data?.reduce((sum, p) => sum + p.level, 0) || 0;
+    if (totalLevel >= 100 && !hasTitle('mythical_being')) {
+      await awardTitle('mythical_being');
+    }
+    
+  } catch (err) {
+    console.error('[Titles] Error checking player unlocks:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PET TITLE UNLOCKS - With Unique Conditions
+// ═══════════════════════════════════════════════════════════════════════
+
 async function checkPetTitleUnlocks(petId, context) {
   if (!petId || !currentUser) return;
   
   try {
-    // Load pet's battle stats
-    var battleRes = await supabaseClient
+    var pet = petState[petId];
+    if (!pet) return;
+    
+    // Get battle history for this specific pet
+    var battles = await supabaseClient
       .from('battle_history')
       .select('*')
       .eq('user_id', currentUser.id)
       .eq('pet_id', petId);
     
-    if (!battleRes.data) return;
+    if (!battles.data) return;
+    var b = battles.data;
     
-    var battles = battleRes.data;
-    var wins = battles.filter(function(b) { return b.victory; }).length;
-    var losses = battles.filter(function(b) { return !b.victory; }).length;
-    var critHits = battles.reduce(function(sum, b) { 
-      return sum + (b.critical_hits || 0); 
-    }, 0);
-    var misses = battles.reduce(function(sum, b) { 
-      return sum + (b.missed_attacks || 0); 
-    }, 0);
-    
-    // Get pet data
-    var pet = petState[petId];
-    if (!pet) return;
-    
-    // Combat win titles
-    if (wins >= 10 && !petHasTitle(petId, 'the_brave')) {
-      await awardPetTitle(petId, 'the_brave', 'Won 10 battles');
-    }
-    if (wins >= 50 && !petHasTitle(petId, 'the_warrior')) {
-      await awardPetTitle(petId, 'the_warrior', 'Won 50 battles');
-    }
+    // the Champion - Win 100 battles
+    var wins = b.filter(x => x.victory).length;
     if (wins >= 100 && !petHasTitle(petId, 'the_champion')) {
       await awardPetTitle(petId, 'the_champion', 'Won 100 battles');
     }
     
-    // Miss/luck titles
-    if (misses >= 20 && !petHasTitle(petId, 'the_unlucky')) {
-      await awardPetTitle(petId, 'the_unlucky', 'Missed 20 attacks');
-    }
-    if (critHits >= 10 && !petHasTitle(petId, 'the_lucky')) {
-      await awardPetTitle(petId, 'the_lucky', 'Landed 10 critical hits');
-    }
-    if (critHits >= 25 && !petHasTitle(petId, 'critical_master')) {
-      await awardPetTitle(petId, 'critical_master', 'Landed 25 critical hits');
+    // the Gremlin - Win 20 battles
+    if (wins >= 20 && !petHasTitle(petId, 'the_gremlin')) {
+      await awardPetTitle(petId, 'the_gremlin', 'Won 20 battles');
     }
     
-    // Death/survival titles
-    if (losses >= 1 && !petHasTitle(petId, 'the_fallen')) {
-      await awardPetTitle(petId, 'the_fallen', 'Fainted in battle');
-    }
-    if (losses >= 5 && !petHasTitle(petId, 'the_resilient')) {
-      await awardPetTitle(petId, 'the_resilient', 'Fainted 5 times but kept fighting');
+    // Boss Slayer - Defeat any boss
+    var bossKills = b.filter(x => x.victory && x.is_boss).length;
+    if (bossKills >= 1 && !petHasTitle(petId, 'boss_slayer')) {
+      await awardPetTitle(petId, 'boss_slayer', 'Defeated a boss');
     }
     
-    // Level titles
-    if (pet.level >= 1 && !petHasTitle(petId, 'the_newbie')) {
-      await awardPetTitle(petId, 'the_newbie', 'Started their journey');
-    }
-    if (pet.level >= 10 && !petHasTitle(petId, 'the_experienced')) {
-      await awardPetTitle(petId, 'the_experienced', 'Reached level 10');
-    }
-    if (pet.level >= 20 && !petHasTitle(petId, 'the_veteran')) {
-      await awardPetTitle(petId, 'the_veteran', 'Reached level 20');
-    }
-    if (pet.level >= 30 && !petHasTitle(petId, 'the_master')) {
-      await awardPetTitle(petId, 'the_master', 'Reached level 30');
-    }
-    if (pet.level >= 40 && !petHasTitle(petId, 'the_legendary')) {
-      await awardPetTitle(petId, 'the_legendary', 'Reached level 40');
+    // Dragon Slayer - Defeat Dragon boss
+    var dragonKills = b.filter(x => 
+      x.victory && x.is_boss && x.enemy_name?.toLowerCase().includes('dragon')
+    ).length;
+    if (dragonKills >= 1 && !petHasTitle(petId, 'dragon_slayer')) {
+      await awardPetTitle(petId, 'dragon_slayer', 'Defeated the Dragon');
     }
     
-    // Variant titles
-    if (pet.variant === 'shiny' && !petHasTitle(petId, 'the_shiny')) {
-      await awardPetTitle(petId, 'the_shiny', 'Became a Shiny variant');
+    // the Survivor - Win with less than 5% HP
+    var survivorWins = b.filter(x => 
+      x.victory && x.final_hp <= (x.max_hp * 0.05)
+    ).length;
+    if (survivorWins >= 1 && !petHasTitle(petId, 'the_survivor')) {
+      await awardPetTitle(petId, 'the_survivor', 'Won with < 5% HP');
     }
-    if (pet.variant === 'golden' && !petHasTitle(petId, 'the_golden')) {
-      await awardPetTitle(petId, 'the_golden', 'Became a Golden variant');
+    
+    // the Cursed - Lose 5 battles in a row
+    if (context === 'battle_end' && !petHasTitle(petId, 'the_cursed')) {
+      checkConsecutiveLosses(petId, battles.data);
     }
-    if (pet.variant === 'corrupted' && !petHasTitle(petId, 'the_corrupted')) {
-      await awardPetTitle(petId, 'the_corrupted', 'Became a Corrupted variant');
+    
+    // the Unlucky - Miss 15 attacks in a row
+    if (context === 'attack_missed' && !petHasTitle(petId, 'the_unlucky')) {
+      incrementConsecutiveMisses(petId);
     }
-    if (pet.variant === 'glitched' && !petHasTitle(petId, 'the_glitched')) {
-      await awardPetTitle(petId, 'the_glitched', 'Became a Glitched variant');
+    
+    // the Menace - Deal 200 damage in one hit
+    var bigHits = b.filter(x => x.max_damage_dealt >= 200).length;
+    if (bigHits >= 1 && !petHasTitle(petId, 'the_menace')) {
+      await awardPetTitle(petId, 'the_menace', 'Dealt 200+ damage');
     }
-    if (pet.variant === 'shadow' && !petHasTitle(petId, 'the_shadowed')) {
-      await awardPetTitle(petId, 'the_shadowed', 'Became a Shadow variant');
+    
+    // the Feral - Win 10 battles with energy below 10
+    var feralWins = b.filter(x => x.victory && x.pet_energy_at_start <= 10).length;
+    if (feralWins >= 10 && !petHasTitle(petId, 'the_feral')) {
+      await awardPetTitle(petId, 'the_feral', 'Won while exhausted');
+    }
+    
+    // Speedster - Win in under 3 turns
+    var speedWins = b.filter(x => x.victory && x.turns <= 3).length;
+    if (speedWins >= 1 && !petHasTitle(petId, 'speedster')) {
+      await awardPetTitle(petId, 'speedster', 'Won in under 3 turns');
+    }
+    
+    // the Tiny - Win a battle while level 5 or below
+    var tinyWins = b.filter(x => x.victory && x.pet_level <= 5).length;
+    if (tinyWins >= 1 && !petHasTitle(petId, 'the_tiny')) {
+      await awardPetTitle(petId, 'the_tiny', 'Won while tiny');
     }
     
     // Stat-based titles
-    if (pet.hunger === 0 && !petHasTitle(petId, 'the_hungry')) {
-      await awardPetTitle(petId, 'the_hungry', 'Hunger reached 0');
-    }
     if (pet.energy === 0 && !petHasTitle(petId, 'the_lazy')) {
-      await awardPetTitle(petId, 'the_lazy', 'Energy reached 0');
+      await awardPetTitle(petId, 'the_lazy', 'Fell asleep');
     }
     
-    // Equipment titles - check if full set equipped
-    if (context === 'equipment_changed') {
-      await checkEquipmentTitles(petId);
+    if (pet.hunger === 0 && !petHasTitle(petId, 'the_hungry')) {
+      await awardPetTitle(petId, 'the_hungry', 'Starving!');
+    }
+    
+    if (pet.happiness >= 90 && !petHasTitle(petId, 'the_happy')) {
+      await awardPetTitle(petId, 'the_happy', 'Pure joy!');
+    }
+    
+    if (pet.happiness <= 20 && !petHasTitle(petId, 'the_grumpy')) {
+      await awardPetTitle(petId, 'the_grumpy', 'Permanently grumpy');
+    }
+    
+    // the Fallen - Faint once
+    var deaths = b.filter(x => !x.victory).length;
+    if (deaths >= 1 && !petHasTitle(petId, 'the_fallen')) {
+      await awardPetTitle(petId, 'the_fallen', 'Fainted in battle');
+    }
+    
+    // Variant titles
+    if (pet.variant === 'golden' && !petHasTitle(petId, 'the_golden')) {
+      await awardPetTitle(petId, 'the_golden', 'Became Golden');
+    }
+    
+    if ((pet.variant === 'corrupted' || pet.variant === 'glitched') && !petHasTitle(petId, 'the_ominous')) {
+      await awardPetTitle(petId, 'the_ominous', 'Something isn\'t right...');
+    }
+    
+    // Level titles
+    if (pet.level >= 50 && !petHasTitle(petId, 'the_ancient')) {
+      await awardPetTitle(petId, 'the_ancient', 'Reached level 50');
+    }
+    
+    // the Spoiled - Fed 50 times
+    if (pet.times_fed >= 50 && !petHasTitle(petId, 'the_spoiled')) {
+      await awardPetTitle(petId, 'the_spoiled', 'Fed 50 times');
+    }
+    
+    // the Beloved - Fed 20 times (starting title basically)
+    if (pet.times_fed >= 20 && !petHasTitle(petId, 'the_beloved')) {
+      await awardPetTitle(petId, 'the_beloved', 'Fed 20 times');
+    }
+    
+    // the Sleepy - Energy hit 0 ten times
+    if (pet.times_energy_zero >= 10 && !petHasTitle(petId, 'the_sleepy')) {
+      await awardPetTitle(petId, 'the_sleepy', 'Fell asleep 10 times');
     }
     
   } catch (err) {
@@ -10972,44 +11148,48 @@ async function checkPetTitleUnlocks(petId, context) {
   }
 }
 
-// Check equipment-based titles
-async function checkEquipmentTitles(petId) {
-  if (!petId) return;
+// Helper: Track consecutive misses
+function incrementConsecutiveMisses(petId) {
+  if (!titleTracking.consecutiveMisses[petId]) {
+    titleTracking.consecutiveMisses[petId] = 0;
+  }
+  titleTracking.consecutiveMisses[petId]++;
   
-  try {
-    var equipRes = await supabaseClient
-      .from('player_equipment')
-      .select('equipment(*)')
-      .eq('pet_id', petId);
-    
-    if (!equipRes.data) return;
-    
-    var equipment = equipRes.data.map(function(pe) { return pe.equipment; });
-    
-    // Check for full sets
-    var tiers = [1, 2, 3, 4];
-    
-    tiers.forEach(async function(tier) {
-      var hasFullSet = equipment.filter(function(e) { 
-        return e && e.tier === tier; 
-      }).length >= 3; // Assuming 3+ items = full set
-      
-      if (tier === 1 && hasFullSet && !petHasTitle(petId, 'well_equipped')) {
-        await awardPetTitle(petId, 'well_equipped', 'Equipped full Tier 1 set');
-      }
-      if (tier === 2 && hasFullSet && !petHasTitle(petId, 'elite_gear')) {
-        await awardPetTitle(petId, 'elite_gear', 'Equipped full Tier 2 set');
-      }
-      if (tier === 3 && hasFullSet && !petHasTitle(petId, 'master_gear')) {
-        await awardPetTitle(petId, 'master_gear', 'Equipped full Tier 3 set');
-      }
-      if (tier === 4 && hasFullSet && !petHasTitle(petId, 'legendary_gear')) {
-        await awardPetTitle(petId, 'legendary_gear', 'Equipped full Tier 4 set');
-      }
-    });
-    
-  } catch (err) {
-    console.error('[Pet Titles] Error checking equipment titles:', err);
+  if (titleTracking.consecutiveMisses[petId] >= 15) {
+    awardPetTitle(petId, 'the_unlucky', 'Missed 15 attacks in a row');
+    titleTracking.consecutiveMisses[petId] = 0; // Reset
+  }
+}
+
+// Helper: Reset miss counter on successful hit
+function resetConsecutiveMisses(petId) {
+  titleTracking.consecutiveMisses[petId] = 0;
+}
+
+// Helper: Check consecutive losses
+async function checkConsecutiveLosses(petId, allBattles) {
+  // Get last 5 battles
+  var recent = allBattles.slice(-5);
+  var allLosses = recent.every(b => !b.victory) && recent.length >= 5;
+  
+  if (allLosses) {
+    await awardPetTitle(petId, 'the_cursed', 'Lost 5 battles in a row');
+  }
+}
+
+// Special: 3am login check (call in showApp)
+function checkMidnightLogin() {
+  var hour = new Date().getHours();
+  if (hour === 3 && !hasTitle('sleep_deprived')) {
+    awardTitle('sleep_deprived');
+  }
+}
+
+// Special: 3am battle check (call after battle victories)
+async function checkMidnightBattle(petId, won) {
+  var hour = new Date().getHours();
+  if (hour === 3 && won && !petHasTitle(petId, 'the_cryptid')) {
+    await awardPetTitle(petId, 'the_cryptid', 'Won a battle at 3am');
   }
 }
 
@@ -11026,34 +11206,29 @@ async function checkBossTitles(petId, bossName) {
   if (bossName.toLowerCase().includes('dragon') && !petHasTitle(petId, 'dragon_slayer')) {
     await awardPetTitle(petId, 'dragon_slayer', 'Defeated the Dragon');
   }
-  if (bossName.toLowerCase().includes('piper') && !petHasTitle(petId, 'piper_hunter')) {
-    await awardPetTitle(petId, 'piper_hunter', 'Defeated the Pied Piper');
-  }
 }
 
-// Check for special combat titles
+// Check for special combat titles (call after each battle)
 async function checkCombatTitles(petId, battleData) {
   if (!petId || !battleData) return;
   
-  // Speedster - won in under 5 turns
-  if (battleData.victory && battleData.turns <= 5 && !petHasTitle(petId, 'speedster')) {
-    await awardPetTitle(petId, 'speedster', 'Won in under 5 turns');
+  // Speedster - won in under 3 turns
+  if (battleData.victory && battleData.turns <= 3 && !petHasTitle(petId, 'speedster')) {
+    await awardPetTitle(petId, 'speedster', 'Won in under 3 turns');
   }
   
-  // Patient - won in 20+ turns
-  if (battleData.victory && battleData.turns >= 20 && !petHasTitle(petId, 'the_patient')) {
-    await awardPetTitle(petId, 'the_patient', 'Won in 20+ turns');
+  // Survivor - won with <5% HP
+  if (battleData.victory && battleData.finalHP <= (battleData.maxHP * 0.05) && !petHasTitle(petId, 'the_survivor')) {
+    await awardPetTitle(petId, 'the_survivor', 'Won with less than 5% HP');
   }
   
-  // Survivor - won with <10% HP
-  if (battleData.victory && battleData.finalHP <= (battleData.maxHP * 0.1) && !petHasTitle(petId, 'the_survivor')) {
-    await awardPetTitle(petId, 'the_survivor', 'Won with less than 10% HP');
+  // the Menace - dealt 200+ damage in one hit
+  if (battleData.maxDamageDealt >= 200 && !petHasTitle(petId, 'the_menace')) {
+    await awardPetTitle(petId, 'the_menace', 'Dealt 200+ damage in one hit');
   }
   
-  // Glass Cannon - dealt 200+ damage in one hit
-  if (battleData.maxDamageDealt >= 200 && !petHasTitle(petId, 'the_glass_cannon')) {
-    await awardPetTitle(petId, 'the_glass_cannon', 'Dealt 200+ damage in one hit');
-  }
+  // Check 3am battles
+  await checkMidnightBattle(petId, battleData.victory);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
