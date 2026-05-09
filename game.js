@@ -152,6 +152,28 @@ var dailyTips = [
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
+// PET BACKSTORIES / BIOS
+// ══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Pet backstories - easily editable!
+ * Format: petName: "Bio text here"
+ */
+var petBackstories = {
+  'Ember': 'Co-founder of PawketPets! 🦊',
+  'Pyxie': 'Co-founder of PawketPets! 🐰',
+  // Add more as team members join!
+  // 'NewPet': 'Their backstory here...',
+};
+
+/**
+ * Get pet backstory
+ */
+function getPetBackstory(petName) {
+  return petBackstories[petName] || 'Coming soon... 🌟';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // EVOLUTION SYSTEM
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -8137,15 +8159,12 @@ async function refreshActivityFeed() {
   await loadFriendActivities();
 }
 
-// Update init function to start activity feed
-var originalInitForActivity = init;
-init = async function() {
-  await originalInitForActivity();
-  await startActivityFeed();
-  
+// Start activity feed polling
+setTimeout(function() {
+  startActivityFeed();
   // Refresh activity feed every 2 minutes
   setInterval(refreshActivityFeed, 120000);
-};
+}, 2000);
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -10417,26 +10436,4 @@ setTimeout(function() {
   }
 }, 2000);
 
-
-// ══════════════════════════════════════════════════════════════
-// PET BACKSTORIES / BIOS
-// ══════════════════════════════════════════════════════════════
-
-/**
- * Pet backstories - easily editable by you!
- * Format: petName: "Bio text here"
- */
-var petBackstories = {
-  'Ember': 'Co-founder of PawketPets! 🦊',
-  'Pyxie': 'Co-founder of PawketPets! 🐰',
-  // Add more as team members join!
-  // 'NewPet': 'Their backstory here...',
-};
-
-/**
- * Get pet backstory
- */
-function getPetBackstory(petName) {
-  return petBackstories[petName] || 'Coming soon... 🌟';
-}
 
