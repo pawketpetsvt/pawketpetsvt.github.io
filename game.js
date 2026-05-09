@@ -7969,15 +7969,8 @@ tabsLoaded.friends = function() {
   switchFriendsTab('list');
 };
 
-// Update the init function to load friend request badge
-var originalInit = init;
-init = async function() {
-  await originalInit();
-  await updateFriendRequestBadge();
-  
-  // Poll for friend requests every 30 seconds
-  setInterval(updateFriendRequestBadge, 30000);
-};
+// Poll for friend requests every 30 seconds
+setInterval(updateFriendRequestBadge, 30000);
 
 
 // ═══════════════════════════════════════════════════════════════════════════
