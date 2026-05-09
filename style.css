@@ -6703,3 +6703,627 @@ body.boss-ui-glitch header {
     width: 100%;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SPECIAL VARIANT EFFECTS (Shiny/Golden/Rare/Corrupted/Glitched)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Shiny Variant - Prismatic hue shift with sparkle */
+.enemy-sprite.variant-shiny {
+  filter: hue-rotate(45deg) brightness(1.3) saturate(1.4);
+  animation: shiny-pulse 2s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+}
+
+@keyframes shiny-pulse {
+  0%, 100% { filter: hue-rotate(45deg) brightness(1.3) saturate(1.4); }
+  50% { filter: hue-rotate(90deg) brightness(1.5) saturate(1.6); }
+}
+
+/* Golden Variant - Rich golden glow */
+.enemy-sprite.variant-golden {
+  filter: sepia(1) hue-rotate(15deg) saturate(3) brightness(1.2);
+  animation: golden-glow 2s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+}
+
+@keyframes golden-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.6); }
+  50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.9); }
+}
+
+/* Rare Variant - Subtle diamond shimmer */
+.enemy-sprite.variant-rare {
+  filter: brightness(1.2) contrast(1.15) saturate(1.2);
+  animation: rare-shimmer 3s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+}
+
+@keyframes rare-shimmer {
+  0%, 100% { filter: brightness(1.2) contrast(1.15) saturate(1.2); }
+  50% { filter: brightness(1.3) contrast(1.2) saturate(1.3); }
+}
+
+/* Corrupted Variant - Dark red/black corruption */
+.enemy-sprite.variant-corrupted {
+  filter: hue-rotate(290deg) saturate(1.5) brightness(0.9) contrast(1.2);
+  animation: corrupt-pulse 1.5s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+}
+
+@keyframes corrupt-pulse {
+  0%, 100% { filter: hue-rotate(290deg) saturate(1.5) brightness(0.9) contrast(1.2); }
+  50% { filter: hue-rotate(300deg) saturate(2) brightness(0.8) contrast(1.3); }
+}
+
+/* Glitched Variant - Digital glitch effect */
+.enemy-sprite.variant-glitched {
+  animation: glitch-effect 0.8s steps(2) infinite, sprite-idle 0.8s steps(4) infinite;
+}
+
+@keyframes glitch-effect {
+  0% { 
+    transform: translateX(0); 
+    filter: hue-rotate(0deg);
+  }
+  20% { 
+    transform: translateX(-3px) translateY(2px); 
+    filter: hue-rotate(90deg);
+  }
+  40% { 
+    transform: translateX(3px) translateY(-2px); 
+    filter: hue-rotate(180deg);
+  }
+  60% { 
+    transform: translateX(-2px) translateY(-2px); 
+    filter: hue-rotate(270deg);
+  }
+  80% { 
+    transform: translateX(2px) translateY(2px); 
+    filter: hue-rotate(360deg);
+  }
+  100% { 
+    transform: translateX(0); 
+    filter: hue-rotate(0deg);
+  }
+}
+
+/* Special variant label in battle UI */
+.enemy-variant-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  z-index: 10;
+  animation: badge-float 2s ease-in-out infinite;
+}
+
+@keyframes badge-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+.enemy-variant-badge.golden {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+}
+
+.enemy-variant-badge.shiny {
+  background: linear-gradient(135deg, #00ffff, #ff00ff, #ffff00);
+  animation: badge-float 2s ease-in-out infinite, rainbow-shift 3s linear infinite;
+}
+
+.enemy-variant-badge.rare {
+  background: linear-gradient(135deg, #4facfe, #00f2fe);
+}
+
+.enemy-variant-badge.corrupted {
+  background: linear-gradient(135deg, #8b0000, #2d0000);
+}
+
+.enemy-variant-badge.glitched {
+  background: linear-gradient(135deg, #00ff00, #0000ff);
+  animation: badge-float 2s ease-in-out infinite, glitch-colors 0.5s steps(2) infinite;
+}
+
+@keyframes rainbow-shift {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+
+@keyframes glitch-colors {
+  0%, 100% { background: linear-gradient(135deg, #00ff00, #0000ff); }
+  50% { background: linear-gradient(135deg, #ff00ff, #ffff00); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TITLE SYSTEM UI
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.user-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-align: center;
+  margin-top: 4px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  letter-spacing: 0.5px;
+}
+
+.titles-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+  padding: 20px;
+}
+
+.title-card {
+  background: var(--white);
+  border: 3px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+
+.title-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px var(--shadow);
+}
+
+.title-card.active {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(236, 72, 153, 0.1));
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.title-card.active::before {
+  content: '✨ EQUIPPED ✨';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 0.65rem;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.title-card.locked {
+  opacity: 0.5;
+  filter: grayscale(0.8);
+}
+
+.title-card.locked:hover {
+  transform: none;
+}
+
+.title-icon {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+}
+
+.title-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.2rem;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+
+.title-rarity {
+  font-size: 0.7rem;
+  font-weight: bold;
+  letter-spacing: 2px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.title-desc {
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.title-desc.locked-text {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.title-unlock {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-bottom: 12px;
+  font-style: italic;
+  min-height: 32px;
+}
+
+.title-card .btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+/* Rarity-specific glows */
+.title-card[style*="border-color: #ff9800"] {
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.3);
+}
+
+.title-card[style*="border-color: #9c27b0"] {
+  box-shadow: 0 0 15px rgba(156, 39, 176, 0.3);
+}
+
+.title-card[style*="border-color: #5bc0de"] {
+  box-shadow: 0 0 15px rgba(91, 192, 222, 0.3);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PET VARIANT VISUAL EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Variant badge on pet cards */
+.pet-variant-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: bold;
+  color: white;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+/* Shiny variant - rainbow hue shift */
+.pet-card.pet-variant-shiny,
+.pet-image-wrap.pet-variant-shiny img {
+  animation: shiny-pulse 3s ease-in-out infinite;
+}
+
+@keyframes shiny-pulse {
+  0%, 100% { filter: hue-rotate(0deg) brightness(1.2) saturate(1.3); }
+  33% { filter: hue-rotate(120deg) brightness(1.3) saturate(1.4); }
+  66% { filter: hue-rotate(240deg) brightness(1.3) saturate(1.4); }
+}
+
+.pet-card.pet-variant-shiny {
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  border: 2.5px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #ff00ff, #00ffff, #ffff00, #ff00ff) border-box;
+}
+
+/* Golden variant - gold glow */
+.pet-card.pet-variant-golden,
+.pet-image-wrap.pet-variant-golden img {
+  filter: sepia(0.6) hue-rotate(15deg) saturate(2.5) brightness(1.15);
+}
+
+.pet-card.pet-variant-golden {
+  box-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+  border-color: #FFD700;
+  animation: golden-glow 2s ease-in-out infinite;
+}
+
+@keyframes golden-glow {
+  0%, 100% { box-shadow: 0 0 25px rgba(255, 215, 0, 0.5); }
+  50% { box-shadow: 0 0 35px rgba(255, 215, 0, 0.8); }
+}
+
+/* Shadow variant - dark purple/black */
+.pet-card.pet-variant-shadow,
+.pet-image-wrap.pet-variant-shadow img {
+  filter: brightness(0.7) saturate(0.8) hue-rotate(260deg);
+}
+
+.pet-card.pet-variant-shadow {
+  box-shadow: 0 0 20px rgba(139, 0, 139, 0.6);
+  border-color: #4B0082;
+  background: linear-gradient(135deg, rgba(139, 0, 139, 0.05), rgba(75, 0, 130, 0.05));
+}
+
+/* Rainbow variant - full spectrum animation */
+.pet-card.pet-variant-rainbow,
+.pet-image-wrap.pet-variant-rainbow img {
+  animation: rainbow-shift 4s linear infinite;
+}
+
+@keyframes rainbow-shift {
+  0% { filter: hue-rotate(0deg) saturate(1.5) brightness(1.2); }
+  100% { filter: hue-rotate(360deg) saturate(1.5) brightness(1.2); }
+}
+
+.pet-card.pet-variant-rainbow {
+  border: 3px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(90deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3, #ff0000) border-box;
+  background-size: 200% 200%;
+  animation: rainbow-border 3s linear infinite;
+}
+
+@keyframes rainbow-border {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+/* Corrupted variant - red/black corruption */
+.pet-card.pet-variant-corrupted,
+.pet-image-wrap.pet-variant-corrupted img {
+  filter: hue-rotate(290deg) saturate(1.5) brightness(0.9) contrast(1.2);
+}
+
+.pet-card.pet-variant-corrupted {
+  box-shadow: 0 0 20px rgba(139, 0, 0, 0.5);
+  border-color: #8B0000;
+  animation: corrupt-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes corrupt-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(139, 0, 0, 0.5); }
+  50% { box-shadow: 0 0 30px rgba(139, 0, 0, 0.8); }
+}
+
+/* Glitched variant - digital distortion */
+.pet-card.pet-variant-glitched,
+.pet-image-wrap.pet-variant-glitched img {
+  animation: glitch-distort 1s steps(4) infinite;
+}
+
+@keyframes glitch-distort {
+  0% { filter: hue-rotate(0deg); transform: translateX(0); }
+  20% { filter: hue-rotate(90deg); transform: translateX(-2px); }
+  40% { filter: hue-rotate(180deg); transform: translateX(2px); }
+  60% { filter: hue-rotate(270deg); transform: translateX(-1px); }
+  80% { filter: hue-rotate(360deg); transform: translateX(1px); }
+  100% { filter: hue-rotate(0deg); transform: translateX(0); }
+}
+
+.pet-card.pet-variant-glitched {
+  box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+  border-color: #00FF00;
+}
+
+/* Frost variant - icy blue */
+.pet-card.pet-variant-frost,
+.pet-image-wrap.pet-variant-frost img {
+  filter: hue-rotate(180deg) saturate(1.2) brightness(1.15);
+}
+
+.pet-card.pet-variant-frost {
+  box-shadow: 0 0 20px rgba(135, 206, 250, 0.5);
+  border-color: #87CEEB;
+  background: linear-gradient(135deg, rgba(135, 206, 250, 0.05), rgba(176, 224, 230, 0.05));
+}
+
+/* Flame variant - fiery red/orange */
+.pet-card.pet-variant-flame,
+.pet-image-wrap.pet-variant-flame img {
+  filter: hue-rotate(-15deg) saturate(1.5) brightness(1.1);
+}
+
+.pet-card.pet-variant-flame {
+  box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
+  border-color: #FF4500;
+  animation: flame-flicker 1s ease-in-out infinite;
+}
+
+@keyframes flame-flicker {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 69, 0, 0.5); }
+  50% { box-shadow: 0 0 30px rgba(255, 140, 0, 0.7); }
+}
+
+/* Cosmic variant - space/galaxy effect */
+.pet-card.pet-variant-cosmic,
+.pet-image-wrap.pet-variant-cosmic img {
+  filter: saturate(1.3) brightness(1.1);
+}
+
+.pet-card.pet-variant-cosmic {
+  box-shadow: 0 0 25px rgba(138, 43, 226, 0.6);
+  border: 3px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(135deg, #000033, #663399, #9933ff, #000033) border-box;
+  animation: cosmic-pulse 3s ease-in-out infinite;
+}
+
+@keyframes cosmic-pulse {
+  0%, 100% { box-shadow: 0 0 25px rgba(138, 43, 226, 0.6); }
+  50% { box-shadow: 0 0 40px rgba(138, 43, 226, 0.9); }
+}
+
+/* Crystal variant - diamond shimmer */
+.pet-card.pet-variant-crystal,
+.pet-image-wrap.pet-variant-crystal img {
+  filter: brightness(1.3) contrast(1.15) saturate(1.3);
+}
+
+.pet-card.pet-variant-crystal {
+  box-shadow: 0 0 20px rgba(0, 191, 255, 0.5);
+  border-color: #00BFFF;
+  animation: crystal-shimmer 2s ease-in-out infinite;
+}
+
+@keyframes crystal-shimmer {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.15); }
+}
+
+/* Profile page top pets display */
+.profile-top-pets {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.profile-pet-card {
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 15px;
+  text-align: center;
+  min-width: 150px;
+  box-shadow: 0 4px 12px var(--shadow);
+  transition: transform 0.2s;
+}
+
+.profile-pet-card:hover {
+  transform: translateY(-3px);
+}
+
+.profile-pet-image {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  overflow: hidden;
+  border: 2px solid var(--border);
+}
+
+.profile-pet-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-pet-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.1rem;
+  color: var(--purple-dark);
+  margin-bottom: 5px;
+}
+
+.profile-pet-level {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-bottom: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   TITLE SELECTOR UI
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.title-selector-section {
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 25px;
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+.selector-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.4rem;
+  color: var(--purple-dark);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.selector-desc {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.title-dropdown-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title-dropdown-wrap label {
+  font-weight: bold;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.title-select,
+.pet-title-select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.title-select:hover,
+.pet-title-select:hover {
+  border-color: var(--purple);
+}
+
+.title-select:focus,
+.pet-title-select:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.title-select option[disabled],
+.pet-title-select option[disabled] {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.pet-title-selector-container {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.pet-title-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pet-title-selector label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.pet-title-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  background: rgba(99, 102, 241, 0.1);
+  margin-top: 8px;
+  text-align: center;
+}
+
+.pet-name-with-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.pet-display-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.3rem;
+  color: var(--purple-dark);
+}
+
+.pet-display-title {
+  font-size: 0.85rem;
+  font-style: italic;
+  font-weight: 600;
+}

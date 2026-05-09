@@ -463,6 +463,12 @@ async function showApp(user) {
   // Load user's badges
   await loadUserBadges();
   
+  // Load player titles
+  await loadTitles();
+  
+  // Load pet title library
+  await loadAllPetTitles();
+  
   // Award welcome badge if new user
   await awardBadge('welcome');
   
@@ -1023,7 +1029,7 @@ async function loadMyPets() {
   if (!currentUser) return;
   container.innerHTML = '<div class="spinner"></div>';
   await loadInventoryData();
-  var res = await supabaseClient.from('user_pets').select('*, pets(name, image_file, vtuber_name, twitch_url)').eq('user_id',currentUser.id).order('adopted_at',{ascending:true});
+  var res = await supabaseClient.from('user_pets').select('*, pets(name, image_file, vtuber_name, twitch_url), variant, variant_unlocked_at_level, active_pet_title_id').eq('user_id',currentUser.id).order('adopted_at',{ascending:true});
   if (res.error) { container.textContent='Could not load pets.'; return; }
   if (!res.data || !res.data.length) {
     container.innerHTML='<div class="empty-state"><div style="font-size:3rem;margin-bottom:14px;">&#128062;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No pets yet!</h2><p style="color:var(--text-light);margin-bottom:18px;">Head to the adoption centre!</p><button class="btn btn-primary btn-lg" onclick="showTab(\'adopt\')">Adopt a Pet</button></div>';
@@ -1052,6 +1058,12 @@ async function loadMyPets() {
       current_hp: regenedHP
     });
   });
+  
+  // Load titles for each pet
+  for (var petId in petState) {
+    await loadPetTitles(petId);
+  }
+  
   var grid = document.createElement('div');
   grid.className = 'mypets-grid';
   Object.values(petState).forEach(function(pet) { grid.appendChild(makeMyPetCard(pet)); });
@@ -1335,6 +1347,23 @@ function makeMyPetCard(pet) {
   var stageName = evolutionStage.charAt(0).toUpperCase() + evolutionStage.slice(1);
   
   headerInfo.appendChild(makeEl('div', {class:'pet-card-nickname'}, evolutionEmoji + ' ' + pet.nickname + ' (' + stageName + ')'));
+  
+  // Add variant badge if pet has variant
+  if (pet.variant) {
+    var variantBadgeDiv = makeEl('div');
+    variantBadgeDiv.innerHTML = getPetVariantBadge(pet.variant);
+    variantBadgeDiv.style.cssText = 'margin:5px 0;';
+    headerInfo.appendChild(variantBadgeDiv);
+  }
+  
+  // Add pet title display if active
+  if (pet.active_pet_title_id) {
+    var titleDiv = makeEl('div');
+    titleDiv.innerHTML = getPetTitleDisplay(pet.id);
+    titleDiv.style.cssText = 'margin:5px 0;';
+    headerInfo.appendChild(titleDiv);
+  }
+  
   var speciesEl = makeEl('div', {class:'pet-card-species'});
   if (info.vtuber_name) speciesEl.textContent = info.vtuber_name;
   if (info.twitch_url) {
@@ -1486,7 +1515,22 @@ function makeMyPetCard(pet) {
 
   body.appendChild(makeDropdown(pet.id));
   body.appendChild(makeEl('div', {class:'stat-flash', id:'flash-'+pet.id}));
+  
+  // Add pet title selector dropdown
+  var titleSelectorDiv = makeEl('div', {
+    id: 'pet-title-selector-' + pet.id, 
+    class: 'pet-title-selector-container'
+  });
+  titleSelectorDiv.innerHTML = renderPetTitleSelector(pet.id, 'pet-title-selector-' + pet.id);
+  body.appendChild(titleSelectorDiv);
+  
   card.appendChild(body);
+  
+  // Apply variant CSS class to card if pet has variant
+  if (pet.variant) {
+    card.className += ' ' + getPetVariantClass(pet.variant);
+  }
+  
   return card;
 }
 
@@ -5255,11 +5299,16 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       variantMultiplier *= 1.2;
     }
     
+    // Special variant bonus (Golden/Shiny/Rare/Corrupted/Glitched)
+    if (enemyStats.rewardMultiplier) {
+      variantMultiplier *= enemyStats.rewardMultiplier;
+    }
+    
     // Apply multipliers
     expGained = Math.floor(expGained * variantMultiplier);
     ppGained = Math.floor(ppGained * variantMultiplier);
     
-    console.log('💰 Rewards scaled by variant:', enemyStats.variant, 'Elemental:', enemyStats.elementalType, 'Multiplier:', variantMultiplier);
+    console.log('💰 Rewards scaled by variant:', enemyStats.variant, 'Elemental:', enemyStats.elementalType, 'Special:', enemyStats.specialVariant, 'Multiplier:', variantMultiplier);
   }
   
   var itemDropped = null;
@@ -5604,6 +5653,9 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   // Set enemy sprite based on species
   var enemySprite = el('enemy-battle-sprite');
   
+  // Clear any existing variant classes
+  enemySprite.className = 'battle-sprite enemy-sprite';
+  
   // BOSS SPRITE - Show glitchy question mark
   if (enemyStats.is_boss) {
     enemySprite.style.backgroundImage = 'none';
@@ -5613,6 +5665,23 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     var spriteFile = getSpriteFile(enemyStats.species);
     enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
     enemySprite.style.backgroundPosition = '0 0'; // idle animation top row
+    
+    // Apply special variant visual effect
+    if (enemyStats.specialVariant) {
+      enemySprite.classList.add('variant-' + enemyStats.specialVariant);
+      
+      // Add variant badge
+      var badge = document.createElement('div');
+      badge.className = 'enemy-variant-badge ' + enemyStats.specialVariant;
+      badge.textContent = enemyStats.specialVariant.toUpperCase();
+      enemySprite.parentElement.style.position = 'relative';
+      
+      // Remove old badge if exists
+      var oldBadge = enemySprite.parentElement.querySelector('.enemy-variant-badge');
+      if (oldBadge) oldBadge.remove();
+      
+      enemySprite.parentElement.appendChild(badge);
+    }
   }
   
   // Clear battle log
@@ -6425,24 +6494,99 @@ async function getRandomEnemy(zone, playerLevel) {
     }
   }
   
+  // ═══════════════════════════════════════════════════════════════════════
+  // SPECIAL VARIANT SYSTEM - Shiny/Golden/Rare/Corrupted/Glitched
+  // ═══════════════════════════════════════════════════════════════════════
+  
+  var specialVariant = null;
+  var specialMultiplier = 1.0;
+  var rewardMultiplier = 1.0;
+  
+  // Roll for special variants (independent of age/elemental)
+  var specialRoll = Math.random();
+  
+  if (specialRoll < 0.005) {
+    // 0.5% - GOLDEN (Ultra Rare)
+    specialVariant = 'golden';
+    specialMultiplier = 1.8;
+    rewardMultiplier = 2.5;
+  } else if (specialRoll < 0.015) {
+    // 1% - SHINY (Very Rare)
+    specialVariant = 'shiny';
+    specialMultiplier = 1.4;
+    rewardMultiplier = 1.8;
+  } else if (specialRoll < 0.025) {
+    // 1% - GLITCHED (Very Rare, random stats)
+    specialVariant = 'glitched';
+    specialMultiplier = 0.8 + (Math.random() * 1.0); // 0.8-1.8x random
+    rewardMultiplier = 1.6;
+  } else if (specialRoll < 0.055) {
+    // 3% - CORRUPTED (Rare, harder)
+    specialVariant = 'corrupted';
+    specialMultiplier = 1.5;
+    rewardMultiplier = 1.5;
+  } else if (specialRoll < 0.105) {
+    // 5% - RARE (Uncommon)
+    specialVariant = 'rare';
+    specialMultiplier = 1.2;
+    rewardMultiplier = 1.25;
+  }
+  
+  // Apply special variant multiplier on top of existing multipliers
+  if (specialVariant) {
+    statMultiplier *= specialMultiplier;
+  }
+  
   // Build variant name
   var variantName = '';
-  if (elementalType) {
-    var elementalPrefix = {
-      'shadow': 'Shadow',
-      'flame': 'Flame',
-      'frost': 'Frost',
-      'storm': 'Storm',
-      'void': 'Void'
+  
+  // Special variant prefix (overrides other prefixes visually)
+  if (specialVariant) {
+    var specialPrefix = {
+      'golden': '👑 Golden',
+      'shiny': '✨ Shiny',
+      'rare': '💎 Rare',
+      'corrupted': '🔥 Corrupted',
+      'glitched': '🌀 Glitched'
     };
-    variantName = elementalPrefix[elementalType] + ' ' + baseEnemy.name;
+    
+    // Build compound name: "Golden Shadow Elder Slime" or "Shiny Baby Rabbit"
+    if (elementalType) {
+      var elementalPrefix = {
+        'shadow': 'Shadow',
+        'flame': 'Flame',
+        'frost': 'Frost',
+        'storm': 'Storm',
+        'void': 'Void'
+      };
+      variantName = specialPrefix[specialVariant] + ' ' + elementalPrefix[elementalType] + ' ' + baseEnemy.name;
+    } else {
+      var agePrefix = {
+        'baby': 'Baby',
+        'adult': 'Adult',
+        'elder': 'Elder'
+      };
+      variantName = specialPrefix[specialVariant] + ' ' + agePrefix[variant] + ' ' + baseEnemy.name;
+    }
   } else {
-    var variantPrefix = {
-      'baby': 'Baby',
-      'adult': 'Adult',
-      'elder': 'Elder'
-    };
-    variantName = variantPrefix[variant] + ' ' + baseEnemy.name;
+    // No special variant - use normal naming
+    if (elementalType) {
+      var elementalPrefix = {
+        'shadow': 'Shadow',
+        'flame': 'Flame',
+        'frost': 'Frost',
+        'storm': 'Storm',
+        'void': 'Void'
+      };
+      variantName = elementalPrefix[elementalType] + ' ' + baseEnemy.name;
+    } else {
+      var variantPrefix = {
+        'baby': 'Baby',
+        'adult': 'Adult',
+        'elder': 'Elder'
+      };
+      variantName = variantPrefix[variant] + ' ' + baseEnemy.name;
+    }
   }
   
   // Scale stats based on level (base stats + scaling per level)
@@ -6465,10 +6609,12 @@ async function getRandomEnemy(zone, playerLevel) {
     forest_zone: baseEnemy.forest_zone,
     difficulty_tier: baseEnemy.difficulty_tier,
     variant: variant,
-    elementalType: elementalType
+    elementalType: elementalType,
+    specialVariant: specialVariant,
+    rewardMultiplier: rewardMultiplier
   };
   
-  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Stats:', {
+  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Special:', specialVariant, 'Stats:', {
     hp: scaledEnemy.base_hp,
     atk: scaledEnemy.base_attack,
     def: scaledEnemy.base_defense,
@@ -8968,21 +9114,46 @@ function endDungeon(success) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 var randomEvents = [
-  { text: "A wild creature dropped some coins in front of you!", pp: 25, icon: "🪙" },
-  { text: "Your pet found a shiny gem while exploring!", pp: 30, icon: "💎" },
-  { text: "A mysterious traveler gave you a gift!", pp: 20, icon: "🎁" },
-  { text: "You discovered a hidden stash of PawketPoints!", pp: 35, icon: "✨" },
-  { text: "A friendly bird dropped something shiny!", pp: 15, icon: "🐦" },
-  { text: "Your pet dug up a buried treasure!", pp: 40, icon: "🏴‍☠️" },
-  { text: "A lucky four-leaf clover appeared at your feet!", pp: 20, icon: "🍀" },
-  { text: "The forest spirits blessed you with a gift!", pp: 25, icon: "🧚" },
-  { text: "You found an old coin purse on the ground!", pp: 30, icon: "👛" },
-  { text: "A shooting star granted your wish!", pp: 35, icon: "🌠" },
-  { text: "Your pet made a new friend who shared their snacks!", pp: 15, icon: "🍪" },
-  { text: "A rainbow appeared! Good fortune is coming your way!", pp: 25, icon: "🌈" },
-  { text: "You stumbled upon an abandoned merchant cart!", pp: 45, icon: "🛒" },
-  { text: "A magical mushroom ring appeared around you!", pp: 20, icon: "🍄" },
-  { text: "The wind carried a pouch of coins to your feet!", pp: 30, icon: "💨" }
+  // Standard PP rewards (existing)
+  { text: "A wild creature dropped some coins in front of you!", pp: 25, icon: "🪙", type: "reward" },
+  { text: "Your pet found a shiny gem while exploring!", pp: 30, icon: "💎", type: "reward" },
+  { text: "A mysterious traveler gave you a gift!", pp: 20, icon: "🎁", type: "reward" },
+  { text: "You discovered a hidden stash of PawketPoints!", pp: 35, icon: "✨", type: "reward" },
+  { text: "A friendly bird dropped something shiny!", pp: 15, icon: "🐦", type: "reward" },
+  { text: "Your pet dug up a buried treasure!", pp: 40, icon: "🏴‍☠️", type: "reward" },
+  { text: "A lucky four-leaf clover appeared at your feet!", pp: 20, icon: "🍀", type: "reward" },
+  { text: "The forest spirits blessed you with a gift!", pp: 25, icon: "🧚", type: "reward" },
+  { text: "You found an old coin purse on the ground!", pp: 30, icon: "👛", type: "reward" },
+  { text: "A shooting star granted your wish!", pp: 35, icon: "🌠", type: "reward" },
+  { text: "Your pet made a new friend who shared their snacks!", pp: 15, icon: "🍪", type: "reward" },
+  { text: "A rainbow appeared! Good fortune is coming your way!", pp: 25, icon: "🌈", type: "reward" },
+  { text: "You stumbled upon an abandoned merchant cart!", pp: 45, icon: "🛒", type: "reward" },
+  { text: "A magical mushroom ring appeared around you!", pp: 20, icon: "🍄", type: "reward" },
+  { text: "The wind carried a pouch of coins to your feet!", pp: 30, icon: "💨", type: "reward" },
+  
+  // NEW: Bigger rewards (rarer)
+  { text: "You found a legendary treasure chest!", pp: 100, icon: "💰", type: "reward" },
+  { text: "A wealthy noble tossed you their spare change!", pp: 75, icon: "👑", type: "reward" },
+  { text: "Your pet accidentally discovered a dragon's hoard!", pp: 150, icon: "🐉", type: "reward" },
+  
+  // NEW: Story/flavor events (still give PP)
+  { text: "Your pet learned a new trick! They're so clever!", pp: 10, icon: "🎪", type: "story" },
+  { text: "A mysterious hooded figure nodded approvingly at you...", pp: 15, icon: "🧙", type: "story" },
+  { text: "The forest feels different today... magical, somehow.", pp: 20, icon: "🌲", type: "story" },
+  { text: "You hear faint music in the distance. Where is it coming from?", pp: 15, icon: "🎵", type: "story" },
+  { text: "Your pet found a strange glowing pebble. They seem mesmerized by it.", pp: 25, icon: "🔮", type: "story" },
+  { text: "An old hermit shared wisdom with you: 'The strongest bonds are forged through care.'", pp: 20, icon: "🧓", type: "story" },
+  { text: "You discovered ancient ruins covered in mysterious symbols...", pp: 30, icon: "🗿", type: "story" },
+  { text: "A strange portal flickered in the air for just a moment, then vanished.", pp: 35, icon: "🌀", type: "story" },
+  
+  // NEW: Modifier events (temporary buffs) - These are special!
+  { text: "⚡ LUCKY HOUR! Rare enemies appear more often for 30 minutes!", pp: 50, icon: "⭐", type: "modifier", modifier: "rare_spawn", duration: 30 },
+  { text: "📚 STUDY BOOST! All XP gains doubled for 1 hour!", pp: 50, icon: "📖", type: "modifier", modifier: "double_xp", duration: 60 },
+  { text: "🛍️ MERCHANT SALE! Shop items 20% off for 2 hours!", pp: 0, icon: "💸", type: "modifier", modifier: "shop_discount", duration: 120 },
+  { text: "🎲 LUCKY STREAK! Your next minigame rewards are doubled!", pp: 30, icon: "🍀", type: "modifier", modifier: "minigame_boost", duration: 60 },
+  { text: "🌟 GOLDEN HOUR! Enemy drop rates increased for 1 hour!", pp: 40, icon: "✨", type: "modifier", modifier: "drop_boost", duration: 60 },
+  { text: "💪 POWER SURGE! Your pets deal +20% damage for 30 minutes!", pp: 35, icon: "⚔️", type: "modifier", modifier: "damage_boost", duration: 30 },
+  { text: "🛡️ GUARDIAN BLESSING! Your pets take -20% damage for 30 minutes!", pp: 35, icon: "🛡️", type: "modifier", modifier: "defense_boost", duration: 30 }
 ];
 
 function checkForRandomEvent() {
@@ -9007,8 +9178,15 @@ function checkForRandomEvent() {
 function triggerRandomEvent() {
   var event = randomEvents[Math.floor(Math.random() * randomEvents.length)];
   
-  // Award PP
-  awardPP(event.pp);
+  // Award PP (if any)
+  if (event.pp > 0) {
+    awardPP(event.pp);
+  }
+  
+  // Handle modifier events
+  if (event.type === 'modifier' && event.modifier && event.duration) {
+    applyEventModifier(event.modifier, event.duration);
+  }
   
   // Show modal
   var modal = document.getElementById('exploration-modal');
@@ -9016,16 +9194,68 @@ function triggerRandomEvent() {
   
   document.getElementById('exploration-title').textContent = event.icon + ' Random Event!';
   document.getElementById('exploration-result').innerHTML = event.text;
-  document.getElementById('exploration-rewards').innerHTML = 
-    '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem;">+' + event.pp + ' PP</div>';
+  
+  var rewardsHTML = '';
+  if (event.pp > 0) {
+    rewardsHTML += '<div style="color: var(--green); font-weight: bold; font-size: 1.2rem;">+' + event.pp + ' PP</div>';
+  }
+  if (event.type === 'modifier') {
+    rewardsHTML += '<div style="color: var(--purple); font-weight: bold; font-size: 1rem; margin-top: 8px;">⏰ Active for ' + event.duration + ' minutes!</div>';
+  }
+  document.getElementById('exploration-rewards').innerHTML = rewardsHTML;
   
   var continueBtn = document.getElementById('exploration-continue-btn');
-  continueBtn.textContent = 'Nice!';
+  continueBtn.textContent = event.type === 'modifier' ? 'Awesome!' : 'Nice!';
   continueBtn.onclick = closeExplorationModal;
   
   modal.classList.add('show');
   
-  console.log('🎲 Random event triggered:', event.text);
+  console.log('🎲 Random event triggered:', event.text, event.type === 'modifier' ? '(Modifier: ' + event.modifier + ')' : '');
+}
+
+// Apply event modifiers with expiration
+function applyEventModifier(modifier, durationMinutes) {
+  var now = Date.now();
+  var expiration = now + (durationMinutes * 60 * 1000);
+  
+  // Store modifier in localStorage
+  localStorage.setItem('event_modifier_' + modifier, expiration.toString());
+  
+  console.log('✨ Event modifier applied:', modifier, 'expires in', durationMinutes, 'minutes');
+}
+
+// Check if an event modifier is active
+function hasActiveModifier(modifier) {
+  var expiration = localStorage.getItem('event_modifier_' + modifier);
+  if (!expiration) return false;
+  
+  var now = Date.now();
+  if (now > parseInt(expiration)) {
+    // Expired, clean up
+    localStorage.removeItem('event_modifier_' + modifier);
+    return false;
+  }
+  
+  return true;
+}
+
+// Get active modifiers list (for UI display)
+function getActiveModifiers() {
+  var modifiers = [];
+  var possibleMods = ['rare_spawn', 'double_xp', 'shop_discount', 'minigame_boost', 'drop_boost', 'damage_boost', 'defense_boost'];
+  
+  possibleMods.forEach(function(mod) {
+    if (hasActiveModifier(mod)) {
+      var expiration = parseInt(localStorage.getItem('event_modifier_' + mod));
+      var remaining = Math.ceil((expiration - Date.now()) / (60 * 1000));
+      modifiers.push({
+        type: mod,
+        minutesLeft: remaining
+      });
+    }
+  });
+  
+  return modifiers;
 }
 
 // Hook into showTab to check for random events
@@ -10437,3 +10667,813 @@ setTimeout(function() {
 }, 2000);
 
 
+// ═══════════════════════════════════════════════════════════════════════
+// PET TITLES SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+
+var allPetTitles = []; // All available pet titles
+var petTitlesCache = {}; // Cache of titles per pet: { petId: [titles] }
+
+// Load all pet titles
+async function loadAllPetTitles() {
+  try {
+    var res = await supabaseClient
+      .from('pet_titles')
+      .select('*')
+      .order('rarity', { ascending: false });
+    
+    if (res.data) {
+      allPetTitles = res.data;
+      console.log('🏷️ Pet titles loaded:', allPetTitles.length, 'available');
+    }
+  } catch (err) {
+    console.error('[Pet Titles] Error loading titles:', err);
+  }
+}
+
+// Load titles for a specific pet
+async function loadPetTitles(petId) {
+  if (!petId) return [];
+  
+  try {
+    var res = await supabaseClient
+      .from('user_pet_titles')
+      .select('pet_title_id, pet_titles(*)')
+      .eq('user_pet_id', petId);
+    
+    if (res.data) {
+      var titles = res.data.map(function(upt) { return upt.pet_titles; });
+      petTitlesCache[petId] = titles;
+      return titles;
+    }
+    
+    return [];
+  } catch (err) {
+    console.error('[Pet Titles] Error loading pet titles:', err);
+    return [];
+  }
+}
+
+// Check if pet has specific title
+function petHasTitle(petId, titleKey) {
+  var titles = petTitlesCache[petId] || [];
+  return titles.some(function(t) { return t.title_key === titleKey; });
+}
+
+// Award title to pet
+async function awardPetTitle(petId, titleKey, reason) {
+  if (!petId || !titleKey) return;
+  
+  // Check if already has this title
+  if (petHasTitle(petId, titleKey)) {
+    console.log('[Pet Title] Already unlocked:', titleKey, 'for pet', petId);
+    return;
+  }
+  
+  try {
+    // Get title info
+    var titleRes = await supabaseClient
+      .from('pet_titles')
+      .select('*')
+      .eq('title_key', titleKey)
+      .single();
+    
+    if (titleRes.error || !titleRes.data) {
+      console.error('[Pet Title] Title not found:', titleKey);
+      return;
+    }
+    
+    var title = titleRes.data;
+    
+    // Insert into user_pet_titles
+    var insertRes = await supabaseClient
+      .from('user_pet_titles')
+      .insert([{
+        user_pet_id: petId,
+        pet_title_id: title.id,
+        unlock_reason: reason || 'Earned in battle'
+      }]);
+    
+    if (insertRes.error) {
+      console.error('[Pet Title] Error awarding title:', insertRes.error);
+      return;
+    }
+    
+    // Add to local cache
+    if (!petTitlesCache[petId]) {
+      petTitlesCache[petId] = [];
+    }
+    petTitlesCache[petId].push(title);
+    
+    // Show notification
+    showPetTitleUnlockNotification(petId, title, reason);
+    
+    console.log('🏷️✨ Pet title unlocked:', title.display_name, 'for pet', petId);
+    
+  } catch (err) {
+    console.error('[Pet Title] Error awarding title:', err);
+  }
+}
+
+// Show pet title unlock notification
+function showPetTitleUnlockNotification(petId, title, reason) {
+  var rarityColors = {
+    'common': '#8e8e8e',
+    'uncommon': '#5cb85c',
+    'rare': '#5bc0de',
+    'epic': '#9c27b0',
+    'legendary': '#ff9800'
+  };
+  
+  var color = rarityColors[title.rarity] || '#8e8e8e';
+  var pet = petState[petId];
+  var petName = pet ? pet.nickname : 'Your pet';
+  
+  // Show toast notification
+  showToast(petName + ' earned: ' + title.icon + ' ' + title.display_name + '!', 5000, color);
+  
+  // Optional: Show fancy modal
+  // You could reuse the exploration modal or create a dedicated one
+}
+
+// Set active title for pet
+async function setPetActiveTitle(petId, petTitleId) {
+  if (!petId) return;
+  
+  try {
+    var updateRes = await supabaseClient
+      .from('user_pets')
+      .update({ active_pet_title_id: petTitleId })
+      .eq('id', petId);
+    
+    if (updateRes.error) {
+      console.error('[Pet Title] Error setting active title:', updateRes.error);
+      showToast('Failed to equip pet title', 3000, 'var(--red)');
+      return;
+    }
+    
+    // Update local cache
+    if (petState[petId]) {
+      petState[petId].active_pet_title_id = petTitleId;
+    }
+    
+    if (petTitleId) {
+      var title = allPetTitles.find(function(t) { return t.id === petTitleId; });
+      showToast('✅ Title equipped: ' + title.display_name, 3000, 'var(--green)');
+    } else {
+      showToast('Pet title removed', 3000, 'var(--text-light)');
+    }
+    
+    // Reload pet display
+    tabsLoaded['mypets'] = false;
+    if (currentTab === 'mypets') {
+      showTab('mypets');
+    }
+    
+  } catch (err) {
+    console.error('[Pet Title] Error setting active title:', err);
+  }
+}
+
+// Get pet title display text (for showing on pet cards)
+function getPetTitleDisplay(petId) {
+  var pet = petState[petId];
+  if (!pet || !pet.active_pet_title_id) return '';
+  
+  var title = allPetTitles.find(function(t) { return t.id === pet.active_pet_title_id; });
+  if (!title) return '';
+  
+  var rarityColors = {
+    'common': '#8e8e8e',
+    'uncommon': '#5cb85c',
+    'rare': '#5bc0de',
+    'epic': '#9c27b0',
+    'legendary': '#ff9800'
+  };
+  
+  var color = rarityColors[title.rarity] || '#8e8e8e';
+  
+  return '<div class="pet-title-badge" style="color: ' + color + ';">' +
+    title.icon + ' ' + title.display_name +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PET TITLE UNLOCK TRACKING
+// ═══════════════════════════════════════════════════════════════════════
+
+// Check pet title unlocks after various actions
+async function checkPetTitleUnlocks(petId, context) {
+  if (!petId || !currentUser) return;
+  
+  try {
+    // Load pet's battle stats
+    var battleRes = await supabaseClient
+      .from('battle_history')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId);
+    
+    if (!battleRes.data) return;
+    
+    var battles = battleRes.data;
+    var wins = battles.filter(function(b) { return b.victory; }).length;
+    var losses = battles.filter(function(b) { return !b.victory; }).length;
+    var critHits = battles.reduce(function(sum, b) { 
+      return sum + (b.critical_hits || 0); 
+    }, 0);
+    var misses = battles.reduce(function(sum, b) { 
+      return sum + (b.missed_attacks || 0); 
+    }, 0);
+    
+    // Get pet data
+    var pet = petState[petId];
+    if (!pet) return;
+    
+    // Combat win titles
+    if (wins >= 10 && !petHasTitle(petId, 'the_brave')) {
+      await awardPetTitle(petId, 'the_brave', 'Won 10 battles');
+    }
+    if (wins >= 50 && !petHasTitle(petId, 'the_warrior')) {
+      await awardPetTitle(petId, 'the_warrior', 'Won 50 battles');
+    }
+    if (wins >= 100 && !petHasTitle(petId, 'the_champion')) {
+      await awardPetTitle(petId, 'the_champion', 'Won 100 battles');
+    }
+    
+    // Miss/luck titles
+    if (misses >= 20 && !petHasTitle(petId, 'the_unlucky')) {
+      await awardPetTitle(petId, 'the_unlucky', 'Missed 20 attacks');
+    }
+    if (critHits >= 10 && !petHasTitle(petId, 'the_lucky')) {
+      await awardPetTitle(petId, 'the_lucky', 'Landed 10 critical hits');
+    }
+    if (critHits >= 25 && !petHasTitle(petId, 'critical_master')) {
+      await awardPetTitle(petId, 'critical_master', 'Landed 25 critical hits');
+    }
+    
+    // Death/survival titles
+    if (losses >= 1 && !petHasTitle(petId, 'the_fallen')) {
+      await awardPetTitle(petId, 'the_fallen', 'Fainted in battle');
+    }
+    if (losses >= 5 && !petHasTitle(petId, 'the_resilient')) {
+      await awardPetTitle(petId, 'the_resilient', 'Fainted 5 times but kept fighting');
+    }
+    
+    // Level titles
+    if (pet.level >= 1 && !petHasTitle(petId, 'the_newbie')) {
+      await awardPetTitle(petId, 'the_newbie', 'Started their journey');
+    }
+    if (pet.level >= 10 && !petHasTitle(petId, 'the_experienced')) {
+      await awardPetTitle(petId, 'the_experienced', 'Reached level 10');
+    }
+    if (pet.level >= 20 && !petHasTitle(petId, 'the_veteran')) {
+      await awardPetTitle(petId, 'the_veteran', 'Reached level 20');
+    }
+    if (pet.level >= 30 && !petHasTitle(petId, 'the_master')) {
+      await awardPetTitle(petId, 'the_master', 'Reached level 30');
+    }
+    if (pet.level >= 40 && !petHasTitle(petId, 'the_legendary')) {
+      await awardPetTitle(petId, 'the_legendary', 'Reached level 40');
+    }
+    
+    // Variant titles
+    if (pet.variant === 'shiny' && !petHasTitle(petId, 'the_shiny')) {
+      await awardPetTitle(petId, 'the_shiny', 'Became a Shiny variant');
+    }
+    if (pet.variant === 'golden' && !petHasTitle(petId, 'the_golden')) {
+      await awardPetTitle(petId, 'the_golden', 'Became a Golden variant');
+    }
+    if (pet.variant === 'corrupted' && !petHasTitle(petId, 'the_corrupted')) {
+      await awardPetTitle(petId, 'the_corrupted', 'Became a Corrupted variant');
+    }
+    if (pet.variant === 'glitched' && !petHasTitle(petId, 'the_glitched')) {
+      await awardPetTitle(petId, 'the_glitched', 'Became a Glitched variant');
+    }
+    if (pet.variant === 'shadow' && !petHasTitle(petId, 'the_shadowed')) {
+      await awardPetTitle(petId, 'the_shadowed', 'Became a Shadow variant');
+    }
+    
+    // Stat-based titles
+    if (pet.hunger === 0 && !petHasTitle(petId, 'the_hungry')) {
+      await awardPetTitle(petId, 'the_hungry', 'Hunger reached 0');
+    }
+    if (pet.energy === 0 && !petHasTitle(petId, 'the_lazy')) {
+      await awardPetTitle(petId, 'the_lazy', 'Energy reached 0');
+    }
+    
+    // Equipment titles - check if full set equipped
+    if (context === 'equipment_changed') {
+      await checkEquipmentTitles(petId);
+    }
+    
+  } catch (err) {
+    console.error('[Pet Titles] Error checking unlocks:', err);
+  }
+}
+
+// Check equipment-based titles
+async function checkEquipmentTitles(petId) {
+  if (!petId) return;
+  
+  try {
+    var equipRes = await supabaseClient
+      .from('player_equipment')
+      .select('equipment(*)')
+      .eq('pet_id', petId);
+    
+    if (!equipRes.data) return;
+    
+    var equipment = equipRes.data.map(function(pe) { return pe.equipment; });
+    
+    // Check for full sets
+    var tiers = [1, 2, 3, 4];
+    
+    tiers.forEach(async function(tier) {
+      var hasFullSet = equipment.filter(function(e) { 
+        return e && e.tier === tier; 
+      }).length >= 3; // Assuming 3+ items = full set
+      
+      if (tier === 1 && hasFullSet && !petHasTitle(petId, 'well_equipped')) {
+        await awardPetTitle(petId, 'well_equipped', 'Equipped full Tier 1 set');
+      }
+      if (tier === 2 && hasFullSet && !petHasTitle(petId, 'elite_gear')) {
+        await awardPetTitle(petId, 'elite_gear', 'Equipped full Tier 2 set');
+      }
+      if (tier === 3 && hasFullSet && !petHasTitle(petId, 'master_gear')) {
+        await awardPetTitle(petId, 'master_gear', 'Equipped full Tier 3 set');
+      }
+      if (tier === 4 && hasFullSet && !petHasTitle(petId, 'legendary_gear')) {
+        await awardPetTitle(petId, 'legendary_gear', 'Equipped full Tier 4 set');
+      }
+    });
+    
+  } catch (err) {
+    console.error('[Pet Titles] Error checking equipment titles:', err);
+  }
+}
+
+// Check for boss defeat titles
+async function checkBossTitles(petId, bossName) {
+  if (!petId || !bossName) return;
+  
+  // Generic boss slayer
+  if (!petHasTitle(petId, 'boss_slayer')) {
+    await awardPetTitle(petId, 'boss_slayer', 'Defeated ' + bossName);
+  }
+  
+  // Specific boss titles
+  if (bossName.toLowerCase().includes('dragon') && !petHasTitle(petId, 'dragon_slayer')) {
+    await awardPetTitle(petId, 'dragon_slayer', 'Defeated the Dragon');
+  }
+  if (bossName.toLowerCase().includes('piper') && !petHasTitle(petId, 'piper_hunter')) {
+    await awardPetTitle(petId, 'piper_hunter', 'Defeated the Pied Piper');
+  }
+}
+
+// Check for special combat titles
+async function checkCombatTitles(petId, battleData) {
+  if (!petId || !battleData) return;
+  
+  // Speedster - won in under 5 turns
+  if (battleData.victory && battleData.turns <= 5 && !petHasTitle(petId, 'speedster')) {
+    await awardPetTitle(petId, 'speedster', 'Won in under 5 turns');
+  }
+  
+  // Patient - won in 20+ turns
+  if (battleData.victory && battleData.turns >= 20 && !petHasTitle(petId, 'the_patient')) {
+    await awardPetTitle(petId, 'the_patient', 'Won in 20+ turns');
+  }
+  
+  // Survivor - won with <10% HP
+  if (battleData.victory && battleData.finalHP <= (battleData.maxHP * 0.1) && !petHasTitle(petId, 'the_survivor')) {
+    await awardPetTitle(petId, 'the_survivor', 'Won with less than 10% HP');
+  }
+  
+  // Glass Cannon - dealt 200+ damage in one hit
+  if (battleData.maxDamageDealt >= 200 && !petHasTitle(petId, 'the_glass_cannon')) {
+    await awardPetTitle(petId, 'the_glass_cannon', 'Dealt 200+ damage in one hit');
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTEGRATION NOTES
+// ═══════════════════════════════════════════════════════════════════════
+
+/*
+INTEGRATION CHECKLIST:
+
+1. Call loadAllPetTitles() in init() function
+2. Call loadPetTitles(petId) when loading pet data
+3. Call checkPetTitleUnlocks(petId) after:
+   - Battle ends
+   - Level up
+   - Equipment changes
+   - Variant unlocks
+   - Stats hit 0
+4. Call checkBossTitles(petId, bossName) after boss victories
+5. Call checkCombatTitles(petId, battleData) after each battle
+6. Add title selection dropdown to My Pets page (see UI code below)
+*/
+// ═══════════════════════════════════════════════════════════════════════
+// TITLE SELECTION UI COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════
+// PLAYER TITLE SELECTOR (For Profile Page)
+// ═══════════════════════════════════════════════════════════════════════
+
+function renderPlayerTitleSelector(containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  
+  var html = '<div class="title-selector-section">';
+  html += '  <h3 class="selector-title">👑 Your Account Title</h3>';
+  html += '  <p class="selector-desc">This title displays on your profile and shows your account-wide achievements!</p>';
+  html += '  <div class="title-dropdown-wrap">';
+  html += '    <label for="player-title-select">Active Title:</label>';
+  html += '    <select id="player-title-select" class="title-select" onchange="handlePlayerTitleChange(this)">';
+  html += '      <option value="">No Title</option>';
+  
+  allTitles.forEach(function(title) {
+    var unlocked = hasTitle(title.title_key);
+    var isActive = activeTitle && activeTitle.id === title.id;
+    
+    if (unlocked) {
+      html += '      <option value="' + title.id + '"' + (isActive ? ' selected' : '') + '>';
+      html += title.icon + ' ' + title.display_name + ' (' + title.rarity + ')';
+      html += '</option>';
+    } else {
+      html += '      <option value="" disabled>';
+      html += '🔒 ??? - ' + title.unlock_condition;
+      html += '</option>';
+    }
+  });
+  
+  html += '    </select>';
+  html += '  </div>';
+  html += '</div>';
+  
+  container.innerHTML = html;
+}
+
+async function handlePlayerTitleChange(selectElement) {
+  var titleId = selectElement.value || null;
+  await setActiveTitle(titleId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PET TITLE SELECTOR (For Individual Pet Cards on My Pets Page)
+// ═══════════════════════════════════════════════════════════════════════
+
+function renderPetTitleSelector(petId, containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  
+  var pet = petState[petId];
+  if (!pet) return;
+  
+  var petTitles = petTitlesCache[petId] || [];
+  
+  var html = '<div class="pet-title-selector">';
+  html += '  <label for="pet-title-select-' + petId + '">🏷️ Pet Title:</label>';
+  html += '  <select id="pet-title-select-' + petId + '" class="pet-title-select" onchange="handlePetTitleChange(\'' + petId + '\', this)">';
+  html += '    <option value="">No Title</option>';
+  
+  allPetTitles.forEach(function(title) {
+    var unlocked = petTitles.some(function(t) { return t.id === title.id; });
+    var isActive = pet.active_pet_title_id === title.id;
+    
+    if (unlocked) {
+      html += '    <option value="' + title.id + '"' + (isActive ? ' selected' : '') + '>';
+      html += title.icon + ' ' + title.display_name + ' (' + title.rarity + ')';
+      html += '</option>';
+    } else {
+      html += '    <option value="" disabled>';
+      html += '🔒 ??? - ' + title.unlock_condition;
+      html += '</option>';
+    }
+  });
+  
+  html += '  </select>';
+  html += '</div>';
+  
+  return html;
+}
+
+async function handlePetTitleChange(petId, selectElement) {
+  var titleId = selectElement.value || null;
+  await setPetActiveTitle(petId, titleId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// INTEGRATED PET CARD WITH TITLE SELECTOR
+// ═══════════════════════════════════════════════════════════════════════
+
+// Enhanced makeMyPetCard function with title selector
+function makeMyPetCardWithTitles(pet) {
+  var card = makeEl('div', {
+    class: 'pet-card ' + getPetVariantClass(pet.variant),
+    id: 'pet-card-' + pet.id
+  });
+  
+  // Pet image with variant effect
+  var imageWrap = makeEl('div', {class: 'pet-image-wrap ' + getPetVariantClass(pet.variant)});
+  var img = makeEl('img', {
+    src: 'images/pets/' + (pet.image_file || pet.pets?.image_file || 'placeholder.png'),
+    alt: pet.nickname,
+    onerror: "this.style.display='none';"
+  });
+  imageWrap.appendChild(img);
+  card.appendChild(imageWrap);
+  
+  // Name row with variant badge
+  var nameRow = makeEl('div', {class: 'pet-name-row'});
+  var nameText = makeEl('div', {class: 'pet-name'}, pet.nickname);
+  nameRow.appendChild(nameText);
+  
+  if (pet.variant) {
+    var variantBadge = document.createElement('div');
+    variantBadge.innerHTML = getPetVariantBadge(pet.variant);
+    nameRow.appendChild(variantBadge);
+  }
+  card.appendChild(nameRow);
+  
+  // Level
+  var level = makeEl('div', {class: 'pet-level'}, 'Level ' + pet.level);
+  card.appendChild(level);
+  
+  // Pet title display (if active)
+  if (pet.active_pet_title_id) {
+    var titleDisplay = document.createElement('div');
+    titleDisplay.innerHTML = getPetTitleDisplay(pet.id);
+    card.appendChild(titleDisplay);
+  }
+  
+  // Stats section (hunger, energy, happiness, HP, etc.)
+  // ... your existing stats code ...
+  
+  // Title selector dropdown
+  var titleSelectorDiv = makeEl('div', {id: 'pet-title-selector-' + pet.id, class: 'pet-title-selector-container'});
+  card.appendChild(titleSelectorDiv);
+  
+  // Load and render title selector asynchronously
+  loadPetTitles(pet.id).then(function() {
+    titleSelectorDiv.innerHTML = renderPetTitleSelector(pet.id, 'pet-title-selector-' + pet.id);
+  });
+  
+  // Action buttons (feed, play, etc.)
+  // ... your existing action buttons ...
+  
+  return card;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PROFILE PAGE TITLE DISPLAY
+// ═══════════════════════════════════════════════════════════════════════
+
+// Updated profile page to include title selector
+async function loadProfileTabWithTitleSelector(userId) {
+  var container = el('tab-profile');
+  if (!container) return;
+  
+  if (!userId && currentUser) {
+    userId = currentUser.id;
+  }
+  
+  if (!userId) {
+    container.innerHTML = '<div class="page-hero"><p>Please log in to view profiles.</p></div>';
+    return;
+  }
+  
+  var isOwnProfile = userId === currentUser.id;
+  
+  try {
+    // Load player data
+    var playerRes = await supabaseClient
+      .from('players')
+      .select('*, titles(*)')
+      .eq('id', userId)
+      .single();
+    
+    if (playerRes.error || !playerRes.data) {
+      container.innerHTML = '<div class="page-hero"><p>Profile not found.</p></div>';
+      return;
+    }
+    
+    var player = playerRes.data;
+    
+    // Build profile HTML
+    var html = '<div class="page-hero">';
+    html += '  <div class="sparkle-row">👤 ✦ 👤</div>';
+    html += '  <h1>' + escapeHtml(player.username) + '</h1>';
+    
+    // Show active title
+    if (player.titles) {
+      var rarityColors = {
+        'common': '#8e8e8e',
+        'uncommon': '#5cb85c',
+        'rare': '#5bc0de',
+        'epic': '#9c27b0',
+        'legendary': '#ff9800'
+      };
+      var color = rarityColors[player.titles.rarity] || '#8e8e8e';
+      html += '  <div class="user-title" style="color: ' + color + '; font-size: 1rem;">' +
+        player.titles.icon + ' ' + player.titles.display_name +
+        '</div>';
+    }
+    
+    html += '</div>';
+    
+    // If viewing own profile, show title selector
+    if (isOwnProfile) {
+      html += '<div id="player-title-selector-container"></div>';
+    }
+    
+    // ... rest of profile page (stats, pets, badges) ...
+    
+    container.innerHTML = html;
+    
+    // Render title selector if own profile
+    if (isOwnProfile) {
+      renderPlayerTitleSelector('player-title-selector-container');
+    }
+    
+  } catch (err) {
+    console.error('[Profile] Error loading profile:', err);
+    container.innerHTML = '<div class="page-hero"><p>Error loading profile.</p></div>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CSS FOR TITLE SELECTORS
+// ═══════════════════════════════════════════════════════════════════════
+
+var titleSelectorCSS = `
+<style>
+.title-selector-section {
+  max-width: 600px;
+  margin: 30px auto;
+  padding: 25px;
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 16px var(--shadow);
+}
+
+.selector-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.4rem;
+  color: var(--purple-dark);
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.selector-desc {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.title-dropdown-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title-dropdown-wrap label {
+  font-weight: bold;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.title-select,
+.pet-title-select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.title-select:hover,
+.pet-title-select:hover {
+  border-color: var(--purple);
+}
+
+.title-select:focus,
+.pet-title-select:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.title-select option[disabled],
+.pet-title-select option[disabled] {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.pet-title-selector-container {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+.pet-title-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pet-title-selector label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.pet-title-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  background: rgba(99, 102, 241, 0.1);
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Display pet name + title together */
+.pet-name-with-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 10px;
+}
+
+.pet-display-name {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.3rem;
+  color: var(--purple-dark);
+}
+
+.pet-display-title {
+  font-size: 0.85rem;
+  font-style: italic;
+  font-weight: 600;
+}
+</style>
+`;
+
+// ═══════════════════════════════════════════════════════════════════════
+// EXAMPLE: DISPLAYING PET WITH TITLE
+// ═══════════════════════════════════════════════════════════════════════
+
+/*
+Example of displaying a pet with their title:
+
+HTML Output:
+  <div class="pet-name-with-title">
+    <div class="pet-display-name">Ember</div>
+    <div class="pet-display-title" style="color: #ff9800;">
+      👑 the Golden
+    </div>
+  </div>
+
+This creates:
+  Ember
+  👑 the Golden
+
+Making it: "Golden Ember the Golden" (variant + name + title)
+*/
+
+function getPetFullDisplayName(pet) {
+  var variantPrefix = '';
+  var titleSuffix = '';
+  
+  // Add variant prefix
+  if (pet.variant) {
+    var variantData = petVariants.find(function(v) { return v.key === pet.variant; });
+    if (variantData) {
+      variantPrefix = variantData.name + ' ';
+    }
+  }
+  
+  // Add title suffix
+  if (pet.active_pet_title_id) {
+    var title = allPetTitles.find(function(t) { return t.id === pet.active_pet_title_id; });
+    if (title) {
+      titleSuffix = ' ' + title.display_name;
+    }
+  }
+  
+  return variantPrefix + pet.nickname + titleSuffix;
+}
+
+// Example: "Golden Ember the Brave" or "Shadow Pyxie the Unlucky"
