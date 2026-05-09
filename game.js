@@ -457,15 +457,15 @@ async function showApp(user) {
   if (!pr.data) {
     console.log('🚨 Player not found! Auto-creating fresh player account...');
     
-    // Extract username from email (everything before @)
-    var emailUsername = user.email ? user.email.split('@')[0] : 'Player';
+    // Generate a safe temporary username (NOT from email for privacy!)
+    var tempUsername = 'Player' + Math.floor(Math.random() * 100000);
     
     // Create new player
     var createResult = await supabaseClient
       .from('players')
       .insert([{
         id: user.id,
-        username: emailUsername,
+        username: tempUsername,
         pawketpoints: 0,
         created_at: new Date().toISOString()
       }])
@@ -476,9 +476,9 @@ async function showApp(user) {
       console.log('✅ Fresh player account created:', createResult.data);
       pr = createResult;
       
-      // Show welcome notification for fresh start
+      // Show welcome notification with prompt to set username
       setTimeout(function() {
-        showToast('🌟 Welcome to PawketPets! Your adventure begins now!', 8000, 'var(--purple)');
+        showToast('🌟 Welcome! Please set your username in your Profile!', 10000, 'var(--orange)');
       }, 1000);
     } else {
       console.error('❌ Failed to create player:', createResult.error);
