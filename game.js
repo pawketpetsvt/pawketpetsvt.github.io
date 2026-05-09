@@ -463,17 +463,16 @@ async function showApp(user) {
   // Load user's badges
   await loadUserBadges();
   
-  // Load player titles
-  await loadTitles();
-  
   // Load pet title library
   await loadAllPetTitles();
   
   // Check for 3am login (Sleep Deprived title)
-  checkMidnightLogin();
+  // Note: Player titles not yet implemented, this is for future use
+  // checkMidnightLogin();
   
   // Check player title unlocks
-  await checkPlayerTitleUnlocks();
+  // Note: Player titles not yet implemented, this is for future use
+  // await checkPlayerTitleUnlocks();
   
   // Award welcome badge if new user
   await awardBadge('welcome');
@@ -10884,9 +10883,11 @@ var titleTracking = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYER TITLE UNLOCKS
+// PLAYER TITLE UNLOCKS - NOT YET IMPLEMENTED
+// Uncomment when player title system (loadTitles, hasTitle, awardTitle) is added
 // ═══════════════════════════════════════════════════════════════════════
 
+/*
 async function checkPlayerTitleUnlocks() {
   if (!currentUser) return;
   
@@ -11002,6 +11003,7 @@ async function checkPlayerTitleUnlocks() {
     console.error('[Titles] Error checking player unlocks:', err);
   }
 }
+*/
 
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE UNLOCKS - With Unique Conditions
@@ -11177,13 +11179,15 @@ async function checkConsecutiveLosses(petId, allBattles) {
   }
 }
 
-// Special: 3am login check (call in showApp)
+// Special: 3am login check (NOT YET IMPLEMENTED - needs player title system)
+/*
 function checkMidnightLogin() {
   var hour = new Date().getHours();
   if (hour === 3 && !hasTitle('sleep_deprived')) {
     awardTitle('sleep_deprived');
   }
 }
+*/
 
 // Special: 3am battle check (call after battle victories)
 async function checkMidnightBattle(petId, won) {
@@ -11255,9 +11259,11 @@ INTEGRATION CHECKLIST:
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYER TITLE SELECTOR (For Profile Page)
+// PLAYER TITLE SELECTOR (For Profile Page) - NOT YET IMPLEMENTED
+// Uncomment when player title system is fully implemented
 // ═══════════════════════════════════════════════════════════════════════
 
+/*
 function renderPlayerTitleSelector(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
@@ -11296,6 +11302,7 @@ async function handlePlayerTitleChange(selectElement) {
   var titleId = selectElement.value || null;
   await setActiveTitle(titleId);
 }
+*/
 
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE SELECTOR (For Individual Pet Cards on My Pets Page)
