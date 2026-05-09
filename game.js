@@ -1567,7 +1567,7 @@ function makeMyPetCard(pet) {
     id: 'pet-title-selector-' + pet.id, 
     class: 'pet-title-selector-container'
   });
-  titleSelectorDiv.innerHTML = renderPetTitleSelector(pet.id, 'pet-title-selector-' + pet.id);
+  titleSelectorDiv.innerHTML = renderPetTitleSelector(pet.id);
   body.appendChild(titleSelectorDiv);
   
   card.appendChild(body);
@@ -11355,12 +11355,9 @@ async function handlePlayerTitleChange(selectElement) {
 // PET TITLE SELECTOR (For Individual Pet Cards on My Pets Page)
 // ═══════════════════════════════════════════════════════════════════════
 
-function renderPetTitleSelector(petId, containerId) {
-  var container = document.getElementById(containerId);
-  if (!container) return;
-  
+function renderPetTitleSelector(petId) {
   var pet = petState[petId];
-  if (!pet) return;
+  if (!pet) return '';
   
   var petTitles = petTitlesCache[petId] || [];
   
