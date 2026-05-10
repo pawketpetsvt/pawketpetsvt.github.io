@@ -313,6 +313,11 @@ function makeEl(tag, attrs, text) {
 }
 
 function updateAllPoints(pts) {
+  // Handle null/undefined points
+  if (pts === null || pts === undefined) {
+    pts = 0;
+  }
+  
   currentPoints = pts;
   var str = pts + ' PP';
   ['adopt-points','mypets-points','shop-points','games-points','redeem-points'].forEach(function(id){
@@ -489,7 +494,7 @@ async function showApp(user) {
   
   if (pr.data) {
     el('nav-user').textContent = '\u2B50 ' + pr.data.username;
-    updateAllPoints(pr.data.pawketpoints);
+    updateAllPoints(pr.data.pawketpoints || 0);
   }
   
   // Update sidebar stats
