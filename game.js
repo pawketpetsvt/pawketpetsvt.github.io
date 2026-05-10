@@ -110,7 +110,7 @@ if (typeof supabase !== 'undefined') {
 }
 
 // ── CONFIG ──────────────────────────────
-var TWITCH_CLIENT_ID = 'moqd3war5e7fleif8y1e1d8n6kl25u';
+var TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u';
 var TWITCH_REDIRECT_URI = 'https://pawketpetsvt.github.io/';
 var STREAMER_IDS = {
   embertail: '91821604',
