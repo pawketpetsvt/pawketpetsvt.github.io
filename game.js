@@ -3312,11 +3312,31 @@ async function loadTeamShowcase() {
     var card = document.createElement('div');
     card.className = 'team-member-card';
 
-    // Avatar placeholder (uses first letter of name)
+    // Avatar with pet image (lowercase filenames)
     var avatarDiv = document.createElement('div');
     avatarDiv.className = 'team-avatar';
-    avatarDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;font-family:Fredoka One,cursive;font-size:2rem;color:var(--purple-dark);background:var(--purple-light);';
-    avatarDiv.textContent = member.name.charAt(0);
+    
+    // Map pet names to lowercase image filenames
+    var petImageMap = {
+      'Ember': 'ember.png',
+      'Pyxie': 'pyxie.png'
+    };
+    
+    var imageName = petImageMap[member.petName] || member.petName.toLowerCase() + '.png';
+    var imgSrc = 'images/pets/' + imageName;
+    
+    var img = document.createElement('img');
+    img.src = imgSrc;
+    img.alt = member.name;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+    img.onerror = function() {
+      // Fallback to letter if image fails
+      this.style.display = 'none';
+      avatarDiv.style.cssText = 'display:flex;align-items:center;justify-content:center;font-family:Fredoka One,cursive;font-size:2rem;color:var(--purple-dark);background:var(--purple-light);';
+      avatarDiv.textContent = member.name.charAt(0);
+    };
+    
+    avatarDiv.appendChild(img);
     card.appendChild(avatarDiv);
 
     card.appendChild(makeEl('div', {class:'team-name'}, member.name));
