@@ -506,13 +506,17 @@ async function showApp(user) {
   // Load pet title library
   await loadAllPetTitles();
   
+  // Load player title system
+  await loadAllPlayerTitles();
+  await loadPlayerTitles();
+  await loadActivePlayerTitle();
+  
   // Check for 3am login (Sleep Deprived title)
   // Note: Player titles not yet implemented, this is for future use
   // checkMidnightLogin();
   
   // Check player title unlocks
-  // Note: Player titles not yet implemented, this is for future use
-  // await checkPlayerTitleUnlocks();
+  await checkPlayerTitleUnlocks();
   
   // Award welcome badge if new user
   await awardBadge('welcome');
@@ -1941,6 +1945,14 @@ async function feed(petId) {
     if (lu.level === 5) await awardBadge('level_5');
     if (lu.level === 10) await awardBadge('level_10');
     if (lu.level === 20) await awardBadge('level_20');
+    
+    // Check for variant unlock at levels 5, 10, 15, 20
+    if ([5, 10, 15, 20].includes(lu.level)) {
+      await checkVariantUnlock(petId, lu.level);
+    }
+    
+    // Check for pet title unlocks after level up
+    await checkPetTitleUnlocks(petId, 'level_up');
   }
   else {
     showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
@@ -2021,6 +2033,14 @@ async function play(petId) {
     if (lu.level === 5) await awardBadge('level_5');
     if (lu.level === 10) await awardBadge('level_10');
     if (lu.level === 20) await awardBadge('level_20');
+    
+    // Check for variant unlock at levels 5, 10, 15, 20
+    if ([5, 10, 15, 20].includes(lu.level)) {
+      await checkVariantUnlock(petId, lu.level);
+    }
+    
+    // Check for pet title unlocks after level up
+    await checkPetTitleUnlocks(petId, 'level_up');
   }
   else showFlash(petId,'-10 Energy +15 Happiness +15 XP','#5dde7a');
   
@@ -2265,7 +2285,7 @@ async function loadInventory() {
   var invRes=await supabaseClient.from('user_inventory').select('id,item_id,quantity').eq('user_id',currentUser.id).gt('quantity',0);
   if(invRes.error||!invRes.data||!invRes.data.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">Inventory empty!</div>';return;}
   var itemIds=invRes.data.map(function(r){return r.item_id;});
-  var itemsRes=await supabaseClient.from('items').select('id,name,item_type,image_url').in('id',itemIds);
+  var itemsRes=await supabaseClient.from('items').select('id,name,item_type,image_url,hunger_restore,health_restore,happiness_bonus,energy_restore').in('id',itemIds);
   var itemMap={};
   if(itemsRes.data)itemsRes.data.forEach(function(i){itemMap[i.id]=i;});
   grid.innerHTML='';
@@ -2277,6 +2297,19 @@ async function loadInventory() {
     else icon.innerHTML=itemEmoji(item.item_type);
     card.appendChild(icon);
     card.appendChild(makeEl('div',{class:'inv-name'},item.name||'Item'));
+    
+    // Show item effects
+    var effects = [];
+    if (item.hunger_restore) effects.push('Hunger +' + item.hunger_restore);
+    if (item.health_restore) effects.push('HP +' + item.health_restore);
+    if (item.happiness_bonus) effects.push('Happiness +' + item.happiness_bonus);
+    if (item.energy_restore) effects.push('Energy +' + item.energy_restore);
+    if (effects.length > 0) {
+      var effectDiv = makeEl('div', {class:'inv-effect'}, effects.join(', '));
+      effectDiv.style.cssText = 'font-size:0.85rem;color:var(--green);margin-top:4px;';
+      card.appendChild(effectDiv);
+    }
+    
     card.appendChild(makeEl('div',{class:'inv-qty'},'x'+row.quantity));
     var useBtn=makeEl('button',{class:'btn btn-sm btn-primary'},'Use');
     useBtn.onclick=(function(rId,iName){return function(){openUseModal(rId,iName);};})(row.id, item.name||'Item');
@@ -2313,6 +2346,9 @@ function closeContactModal() {
 }
 
 // ── SIDEBAR TWITCH LIVE STATUS CHECK ──────────────────
+// Track if we've already logged about missing Twitch token
+var twitchTokenLoggedOnce = false;
+
 async function checkSidebarStreamStatus() {
   // Check if Embertail and Pyxshuul are live using public Twitch API
   try {
@@ -2327,7 +2363,11 @@ async function checkSidebarStreamStatus() {
     
     // If no token, can't check - this is a Twitch API limitation
     if (!token) {
-      console.log('No Twitch token available - cannot check live status');
+      // Only log once per session to avoid spam
+      if (!twitchTokenLoggedOnce) {
+        console.log('No Twitch token available - cannot check live status');
+        twitchTokenLoggedOnce = true;
+      }
       return;
     }
     
@@ -3148,8 +3188,8 @@ async function loadNews() {
   container.innerHTML='';
   res.data.forEach(function(post){
     var date=new Date(post.published_at||post.created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    var div=makeEl('div',{class:'news-post'});
-    div.appendChild(makeEl('div',{class:'news-post-date'},date));
+    var div=makeEl('div',{class:'news-post news-card'});
+    div.appendChild(makeEl('div',{class:'news-post-date news-date'},date));
     div.appendChild(makeEl('h3',{},post.title||'Untitled'));
     div.appendChild(makeEl('p',{},post.content||''));
     if(post.author)div.appendChild(makeEl('div',{class:'news-author'},'- '+post.author));
@@ -3898,6 +3938,33 @@ async function loadProfile(username) {
     el('profile-username').textContent = profile.username;
     el('profile-bio').textContent = profile.bio || 'No bio yet';
     
+    // Load and display player title if they have one
+    try {
+      var titleRes = await supabaseClient
+        .from('players')
+        .select('active_player_title_id, player_titles(*)')
+        .eq('id', profile.id)
+        .single();
+      
+      if (titleRes.data && titleRes.data.active_player_title_id && titleRes.data.player_titles) {
+        var title = titleRes.data.player_titles;
+        var rarityColors = {
+          'Common': '#8e8e8e',
+          'Uncommon': '#5cb85c',
+          'Rare': '#5bc0de',
+          'Epic': '#9c27b0',
+          'Legendary': '#ff9800'
+        };
+        var color = title.color || rarityColors[title.rarity] || '#8e8e8e';
+        var titleBadge = '<div class="player-title-badge" style="color: ' + color + '; font-size: 1.1rem; margin-top: 8px; font-weight: 600;">' +
+          title.icon + ' ' + title.display_name +
+          '</div>';
+        el('profile-username').innerHTML = profile.username + titleBadge;
+      }
+    } catch (titleErr) {
+      console.log('[loadProfile] Could not load player title:', titleErr);
+    }
+    
     var joinDate = new Date(profile.created_at);
     el('profile-joined').textContent = 'Joined: ' + joinDate.toLocaleDateString('en-US', { 
       month: 'short', 
@@ -4026,6 +4093,13 @@ async function loadMyProfile() {
     el('myprofile-username-preview').textContent = username;
     el('myprofile-bio-preview').textContent = player.bio || 'No bio yet';
     
+    // Add player title to preview if active
+    var titleDisplay = getPlayerTitleDisplay(currentUser.id);
+    if (titleDisplay) {
+      var usernameEl = el('myprofile-username-preview');
+      usernameEl.innerHTML = username + titleDisplay;
+    }
+    
     var joinDate = new Date(player.created_at).toLocaleDateString('en-US', { 
       year: 'numeric', 
       month: 'long', 
@@ -4036,6 +4110,9 @@ async function loadMyProfile() {
     // Update form
     el('edit-username').value = username;
     el('edit-bio').value = player.bio || '';
+    
+    // Render player title selector
+    renderPlayerTitleSelector('player-title-selector-container');
     
     // Update stats
     el('myprofile-points').textContent = player.pawketpoints || 0;
@@ -4405,9 +4482,17 @@ async function loadEquipmentShop() {
   
   // Render each tier with headers
   Object.keys(tiers).sort(function(a, b) { return parseInt(a) - parseInt(b); }).forEach(function(tier) {
+    // Tier-specific colors
+    var tierColors = {
+      '1': 'linear-gradient(135deg, #888 0%, #666 100%)',        // Gray
+      '2': 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)',  // Green
+      '3': 'linear-gradient(135deg, #2196F3 0%, #1565C0 100%)',  // Blue
+      '4': 'linear-gradient(135deg, #9C27B0 0%, #6A1B9A 100%)'   // Purple
+    };
+    
     // Tier header
     var header = makeEl('div', { class: 'shop-category-header' });
-    header.style.cssText = 'grid-column: 1 / -1; padding: 15px 20px; margin-top: 10px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); border-radius: 12px; color: white; font-weight: bold; font-size: 18px;';
+    header.style.cssText = 'grid-column: 1 / -1; padding: 15px 20px; margin-top: 10px; background: ' + (tierColors[tier] || tierColors['1']) + '; border-radius: 12px; color: white; font-weight: bold; font-size: 1.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);';
     header.textContent = '⚔️ Tier ' + tier;
     grid.appendChild(header);
     
@@ -7222,15 +7307,12 @@ function showSpookyDialogue() {
   var dialogueEl = document.getElementById('melon-dialogue');
   if (!dialogueEl) return;
   
-  // TRIGGER PAGE GLITCH EFFECT!
-  var shopSection = document.getElementById('section-shop');
-  if (shopSection) {
-    shopSection.classList.add('page-glitch');
-    // Remove glitch class after animation completes
-    setTimeout(function() {
-      shopSection.classList.remove('page-glitch');
-    }, 800);
-  }
+  // TRIGGER DIALOGUE BOX GLITCH EFFECT ONLY!
+  dialogueEl.classList.add('page-glitch');
+  // Remove glitch class after animation completes
+  setTimeout(function() {
+    dialogueEl.classList.remove('page-glitch');
+  }, 800);
   
   // Spooky message with glitchy "Piper"
   dialogueEl.innerHTML = 'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing';
@@ -10916,6 +10998,409 @@ function getPetTitleDisplay(petId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// PET VARIANT SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+
+// Variant types and their unlock levels
+var petVariants = {
+  golden: { level: 5, chance: 0.15, name: 'Golden', icon: '✨', color: '#FFD700' },
+  shiny: { level: 10, chance: 0.15, name: 'Shiny', icon: '💎', color: '#00CED1' },
+  rainbow: { level: 15, chance: 0.15, name: 'Rainbow', icon: '🌈', color: '#FF69B4' },
+  cosmic: { level: 20, chance: 0.15, name: 'Cosmic', icon: '🌌', color: '#9370DB' }
+};
+
+// Get variant badge HTML
+function getPetVariantBadge(variant) {
+  if (!variant) return '';
+  
+  var variantData = petVariants[variant];
+  if (!variantData) return '';
+  
+  return '<div class="pet-variant-badge" style="background: ' + variantData.color + '20; border: 2px solid ' + variantData.color + '; color: ' + variantData.color + '; padding: 4px 10px; border-radius: 12px; font-weight: bold; font-size: 0.85rem; display: inline-block;">' +
+    variantData.icon + ' ' + variantData.name +
+    '</div>';
+}
+
+// Get variant CSS class
+function getPetVariantClass(variant) {
+  if (!variant) return '';
+  return 'pet-variant-' + variant;
+}
+
+// Check for variant unlock at milestone levels
+async function checkVariantUnlock(petId, level) {
+  if (!petId) return;
+  
+  var pet = petState[petId];
+  if (!pet) return;
+  
+  // If pet already has a variant, don't unlock another one
+  if (pet.variant) {
+    console.log('[Variant] Pet already has variant:', pet.variant);
+    return;
+  }
+  
+  // Check if this level unlocks a variant
+  var variantToUnlock = null;
+  
+  if (level === 5 && Math.random() < 0.15) {
+    variantToUnlock = 'golden';
+  } else if (level === 10 && Math.random() < 0.15) {
+    variantToUnlock = 'shiny';
+  } else if (level === 15 && Math.random() < 0.15) {
+    variantToUnlock = 'rainbow';
+  } else if (level === 20 && Math.random() < 0.15) {
+    variantToUnlock = 'cosmic';
+  }
+  
+  if (!variantToUnlock) {
+    console.log('[Variant] No variant unlocked at level', level);
+    return;
+  }
+  
+  try {
+    // Update pet with variant
+    var updateRes = await supabaseClient
+      .from('user_pets')
+      .update({ 
+        variant: variantToUnlock,
+        variant_unlocked_at_level: level
+      })
+      .eq('id', petId);
+    
+    if (updateRes.error) {
+      console.error('[Variant] Error unlocking variant:', updateRes.error);
+      return;
+    }
+    
+    // Update local state
+    petState[petId].variant = variantToUnlock;
+    petState[petId].variant_unlocked_at_level = level;
+    
+    // Show notification
+    var variantData = petVariants[variantToUnlock];
+    showToast('✨ <strong>Variant Unlocked!</strong><br>' +
+      pet.nickname + ' became <span style="color: ' + variantData.color + ';">' + 
+      variantData.icon + ' ' + variantData.name + '</span>!',
+      6000, variantData.color);
+    
+    console.log('✨ Variant unlocked:', variantToUnlock, 'for pet', petId);
+    
+    // Award variant badge
+    await awardBadge('variant_unlock');
+    
+    // Reload pet display
+    tabsLoaded['mypets'] = false;
+    
+  } catch (err) {
+    console.error('[Variant] Error unlocking variant:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// PLAYER TITLE SYSTEM (Account-Wide Titles)
+// ═══════════════════════════════════════════════════════════════════════
+
+var allPlayerTitles = [];
+var playerTitlesCache = []; // Titles unlocked by current user
+var activePlayerTitle = null; // Currently equipped title
+
+// Load all available player titles from database
+async function loadAllPlayerTitles() {
+  try {
+    var res = await supabaseClient
+      .from('player_titles')
+      .select('*')
+      .order('rarity', { ascending: false });
+    
+    if (res.data) {
+      allPlayerTitles = res.data;
+      console.log('👑 Player titles loaded:', allPlayerTitles.length, 'available');
+    }
+  } catch (err) {
+    console.error('[Player Titles] Error loading titles:', err);
+  }
+}
+
+// Load titles unlocked by current user
+async function loadPlayerTitles() {
+  if (!currentUser) return [];
+  
+  try {
+    var res = await supabaseClient
+      .from('user_player_titles')
+      .select('player_title_id, player_titles(*)')
+      .eq('user_id', currentUser.id);
+    
+    if (res.data) {
+      playerTitlesCache = res.data.map(function(upt) { return upt.player_titles; });
+      console.log('👑 User player titles loaded:', playerTitlesCache.length, 'unlocked');
+      return playerTitlesCache;
+    }
+    
+    return [];
+  } catch (err) {
+    console.error('[Player Titles] Error loading user titles:', err);
+    return [];
+  }
+}
+
+// Load active player title for current user
+async function loadActivePlayerTitle() {
+  if (!currentUser) return null;
+  
+  try {
+    var res = await supabaseClient
+      .from('players')
+      .select('active_player_title_id, player_titles(*)')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (res.data && res.data.active_player_title_id) {
+      activePlayerTitle = res.data.player_titles;
+      console.log('👑 Active player title:', activePlayerTitle?.display_name || 'None');
+      return activePlayerTitle;
+    }
+    
+    activePlayerTitle = null;
+    return null;
+  } catch (err) {
+    console.error('[Player Titles] Error loading active title:', err);
+    return null;
+  }
+}
+
+// Check if player has specific title
+function hasPlayerTitle(titleKey) {
+  return playerTitlesCache.some(function(t) { return t.title_key === titleKey; });
+}
+
+// Award title to player
+async function awardPlayerTitle(titleKey, reason) {
+  if (!titleKey || !currentUser) return;
+  
+  // Check if already has this title
+  if (hasPlayerTitle(titleKey)) {
+    console.log('[Player Title] Already unlocked:', titleKey);
+    return;
+  }
+  
+  try {
+    // Get title info
+    var titleRes = await supabaseClient
+      .from('player_titles')
+      .select('*')
+      .eq('title_key', titleKey)
+      .single();
+    
+    if (titleRes.error || !titleRes.data) {
+      console.error('[Player Title] Title not found:', titleKey);
+      return;
+    }
+    
+    var title = titleRes.data;
+    
+    // Insert into user_player_titles
+    var insertRes = await supabaseClient
+      .from('user_player_titles')
+      .insert([{
+        user_id: currentUser.id,
+        player_title_id: title.id,
+        unlock_reason: reason || 'Achievement unlocked'
+      }]);
+    
+    if (insertRes.error) {
+      console.error('[Player Title] Error awarding title:', insertRes.error);
+      return;
+    }
+    
+    // Add to local cache
+    playerTitlesCache.push(title);
+    
+    // Show notification
+    showPlayerTitleUnlockNotification(title, reason);
+    
+    console.log('👑✨ Player title unlocked:', title.display_name);
+    
+  } catch (err) {
+    console.error('[Player Title] Error awarding title:', err);
+  }
+}
+
+// Set active player title
+async function setActivePlayerTitle(playerTitleId) {
+  if (!currentUser) return;
+  
+  try {
+    var updateRes = await supabaseClient
+      .from('players')
+      .update({ active_player_title_id: playerTitleId })
+      .eq('id', currentUser.id);
+    
+    if (updateRes.error) {
+      console.error('[Player Title] Error setting active title:', updateRes.error);
+      showToast('Failed to equip title', 3000, 'var(--red)');
+      return;
+    }
+    
+    // Update local cache
+    if (playerTitleId) {
+      activePlayerTitle = allPlayerTitles.find(function(t) { return t.id === playerTitleId; });
+      showToast('✅ Title equipped: ' + activePlayerTitle.display_name, 3000, 'var(--green)');
+    } else {
+      activePlayerTitle = null;
+      showToast('Title removed', 3000, 'var(--text-light)');
+    }
+    
+    // Reload profile if on that tab
+    if (currentTab === 'myprofile') {
+      showTab('myprofile');
+    }
+    
+  } catch (err) {
+    console.error('[Player Title] Error setting active title:', err);
+  }
+}
+
+// Get player title display text
+function getPlayerTitleDisplay(userId) {
+  // This will be used for public profiles
+  // For now, return active title if it's current user
+  if (userId === currentUser?.id && activePlayerTitle) {
+    var rarityColors = {
+      'Common': '#8e8e8e',
+      'Uncommon': '#5cb85c',
+      'Rare': '#5bc0de',
+      'Epic': '#9c27b0',
+      'Legendary': '#ff9800'
+    };
+    
+    var color = activePlayerTitle.color || rarityColors[activePlayerTitle.rarity] || '#8e8e8e';
+    
+    return '<div class="player-title-badge" style="color: ' + color + '; font-size: 1.1rem; margin-top: 8px; font-weight: 600;">' +
+      activePlayerTitle.icon + ' ' + activePlayerTitle.display_name +
+      '</div>';
+  }
+  
+  return '';
+}
+
+// Show title unlock notification
+function showPlayerTitleUnlockNotification(title, reason) {
+  var rarityColors = {
+    'Common': '#8e8e8e',
+    'Uncommon': '#5cb85c',
+    'Rare': '#5bc0de',
+    'Epic': '#9c27b0',
+    'Legendary': '#ff9800'
+  };
+  
+  var color = title.color || rarityColors[title.rarity] || '#8e8e8e';
+  
+  var message = '🎉 <strong>Player Title Unlocked!</strong><br>' +
+    '<span style="color: ' + color + '; font-size: 1.2rem;">' +
+    title.icon + ' ' + title.display_name + '</span><br>' +
+    '<small>' + (reason || title.unlock_condition) + '</small>';
+  
+  showToast(message, 6000, color);
+}
+
+// Check and award player titles based on achievements
+async function checkPlayerTitleUnlocks() {
+  if (!currentUser) return;
+  
+  try {
+    // Get player stats
+    var playerRes = await supabaseClient
+      .from('players')
+      .select('pawketpoints, created_at')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (!playerRes.data) return;
+    
+    var player = playerRes.data;
+    
+    // Get pet count
+    var petsRes = await supabaseClient
+      .from('user_pets')
+      .select('id')
+      .eq('user_id', currentUser.id);
+    
+    var petCount = petsRes.data?.length || 0;
+    
+    // Get total levels
+    var totalLevelRes = await supabaseClient
+      .from('user_pets')
+      .select('level')
+      .eq('user_id', currentUser.id);
+    
+    var totalLevel = 0;
+    if (totalLevelRes.data) {
+      totalLevelRes.data.forEach(function(pet) {
+        totalLevel += pet.level || 1;
+      });
+    }
+    
+    // Get badge count
+    var badgesRes = await supabaseClient
+      .from('user_badges')
+      .select('id')
+      .eq('user_id', currentUser.id);
+    
+    var badgeCount = badgesRes.data?.length || 0;
+    
+    // Check title unlocks
+    
+    // Newcomer (automatic on join)
+    if (!hasPlayerTitle('newcomer')) {
+      await awardPlayerTitle('newcomer', 'Joined PawketPets VT');
+    }
+    
+    // Point-based titles
+    if (player.pawketpoints >= 10000 && !hasPlayerTitle('point_hoarder')) {
+      await awardPlayerTitle('point_hoarder', 'Earned 10,000 PP total');
+    }
+    if (player.pawketpoints >= 50000 && !hasPlayerTitle('whale')) {
+      await awardPlayerTitle('whale', 'Earned 50,000 PP total');
+    }
+    if (player.pawketpoints >= 1000000 && !hasPlayerTitle('millionaire')) {
+      await awardPlayerTitle('millionaire', 'Earned 1,000,000 PP total');
+    }
+    
+    // Pet collection titles
+    if (petCount >= 3 && !hasPlayerTitle('pet_lover')) {
+      await awardPlayerTitle('pet_lover', 'Own 3 pets');
+    }
+    if (petCount >= 10 && !hasPlayerTitle('collector')) {
+      await awardPlayerTitle('collector', 'Own 10 pets');
+    }
+    if (petCount >= 25 && !hasPlayerTitle('hoarder')) {
+      await awardPlayerTitle('hoarder', 'Own 25 pets');
+    }
+    
+    // Level titles
+    if (totalLevel >= 100 && !hasPlayerTitle('trainer')) {
+      await awardPlayerTitle('trainer', 'Total pet levels reached 100');
+    }
+    if (totalLevel >= 500 && !hasPlayerTitle('master_trainer')) {
+      await awardPlayerTitle('master_trainer', 'Total pet levels reached 500');
+    }
+    
+    // Badge titles
+    if (badgeCount >= 10 && !hasPlayerTitle('badge_collector')) {
+      await awardPlayerTitle('badge_collector', 'Earned 10 badges');
+    }
+    if (badgeCount >= 25 && !hasPlayerTitle('badge_master')) {
+      await awardPlayerTitle('badge_master', 'Earned 25 badges');
+    }
+    
+  } catch (err) {
+    console.error('[Player Titles] Error checking unlocks:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // PET TITLE UNLOCK TRACKING
 // ═══════════════════════════════════════════════════════════════════════
 
@@ -11311,11 +11796,9 @@ INTEGRATION CHECKLIST:
 // ═══════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYER TITLE SELECTOR (For Profile Page) - NOT YET IMPLEMENTED
-// Uncomment when player title system is fully implemented
+// PLAYER TITLE SELECTOR (For Profile Page)
 // ═══════════════════════════════════════════════════════════════════════
 
-/*
 function renderPlayerTitleSelector(containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
@@ -11328,9 +11811,9 @@ function renderPlayerTitleSelector(containerId) {
   html += '    <select id="player-title-select" class="title-select" onchange="handlePlayerTitleChange(this)">';
   html += '      <option value="">No Title</option>';
   
-  allTitles.forEach(function(title) {
-    var unlocked = hasTitle(title.title_key);
-    var isActive = activeTitle && activeTitle.id === title.id;
+  allPlayerTitles.forEach(function(title) {
+    var unlocked = playerTitlesCache.some(function(t) { return t.id === title.id; });
+    var isActive = activePlayerTitle && activePlayerTitle.id === title.id;
     
     if (unlocked) {
       html += '      <option value="' + title.id + '"' + (isActive ? ' selected' : '') + '>';
@@ -11352,9 +11835,8 @@ function renderPlayerTitleSelector(containerId) {
 
 async function handlePlayerTitleChange(selectElement) {
   var titleId = selectElement.value || null;
-  await setActiveTitle(titleId);
+  await setActivePlayerTitle(titleId);
 }
-*/
 
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE SELECTOR (For Individual Pet Cards on My Pets Page)

@@ -6,6 +6,9 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https: data: blob:; connect-src 'self' https://hqzugbxutgefjilgmxqu.supabase.co https://*.supabase.co https://id.twitch.tv https://api.twitch.tv https://www.googletagmanager.com https://www.google-analytics.com data: blob:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="images/favicon.png" />
+  
   <!-- SEO Meta Tags -->
   <title>PawketPetsVT - Adopt Your Favorite VTuber's Digital Pet!</title>
   <meta name="description" content="Adopt digital pets of your favorite VTubers! Play minigames, battle friends, earn rewards by watching Embertail & Pyxshuul's Twitch streams. Free virtual pet game with live Twitch integration.">
@@ -1328,6 +1331,11 @@
           <small class="form-hint">Max 200 characters.</small>
         </div>
 
+        <!-- Player Title Selector -->
+        <div class="form-group">
+          <div id="player-title-selector-container"></div>
+        </div>
+
         <div id="profile-edit-error" class="alert alert-error" style="display:none;"></div>
         <div id="profile-edit-success" class="alert alert-success" style="display:none;"></div>
 
@@ -1568,7 +1576,7 @@
       <!-- Embertail -->
       <div class="streamer-item" id="streamer-embertail">
         <div class="streamer-avatar">
-          <img src="images/pets/ember.png" alt="Embertail" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\'background:linear-gradient(135deg,#ff6b6b,#ff9933);width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;font-weight:bold;border-radius:50%;\'>E</div>'" />
+          <img src="images/pets/ember.png" alt="Embertail" onerror="this.src='images/pets/ember.png'" />
         </div>
         <div class="streamer-info">
           <div class="streamer-name">
@@ -1585,7 +1593,7 @@
       <!-- Pyxshuul -->
       <div class="streamer-item" id="streamer-pyxshuul">
         <div class="streamer-avatar">
-          <img src="images/pets/pyxie.png" alt="Pyxshuul" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\'background:linear-gradient(135deg,#9966ff,#cc66ff);width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;font-weight:bold;border-radius:50%;\'>P</div>'" />
+          <img src="images/pets/pyxie.png" alt="Pyxshuul" onerror="this.src='images/pets/pyxie.png'" />
         </div>
         <div class="streamer-info">
           <div class="streamer-name">
