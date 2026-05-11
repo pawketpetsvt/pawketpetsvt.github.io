@@ -7420,3 +7420,34 @@ body.boss-ui-glitch header {
   font-style: italic;
   font-weight: 600;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SPOOKY EFFECT ANIMATIONS (for THEYWENTMISSING code)
+   ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes spooky-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spooky-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes crt-flicker {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}

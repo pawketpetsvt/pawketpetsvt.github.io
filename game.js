@@ -3417,15 +3417,67 @@ async function unlinkTwitch(){
 
 // Spooky effect for THEYWENTMISSING code
 function triggerSpookyEffect() {
-  // Make the entire page glitch briefly
-  var body = document.body;
-  body.classList.add('page-glitch');
-  setTimeout(function() {
-    body.classList.remove('page-glitch');
-  }, 800);
+  // Add dark overlay with CRT effect
+  var overlay = document.createElement('div');
+  overlay.id = 'spooky-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9998;
+    pointer-events: none;
+    animation: spooky-fade-in 1s ease-in;
+  `;
   
-  // Show a spooky toast
+  // Add CRT scanlines effect
+  var crtLines = document.createElement('div');
+  crtLines.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.15),
+      rgba(0, 0, 0, 0.15) 1px,
+      transparent 1px,
+      transparent 2px
+    );
+    z-index: 9999;
+    pointer-events: none;
+    animation: crt-flicker 0.1s infinite;
+  `;
+  
+  document.body.appendChild(overlay);
+  document.body.appendChild(crtLines);
+  
+  // Play spooky audio (Piper's flute)
+  try {
+    var spookyAudio = new Audio('/sounds/piper-flute-normal.mp3');
+    spookyAudio.volume = 0.3;
+    spookyAudio.play().catch(function(err) {
+      console.log('Spooky audio failed to play:', err);
+    });
+  } catch (err) {
+    console.log('Could not load spooky audio');
+  }
+  
+  // Show spooky toast
   showToast('⚠️ <strong>Something changed...</strong><br><small>Check the newspaper...</small>', 5000, '#6A1B9A');
+  
+  // Remove effects after 3 seconds
+  setTimeout(function() {
+    overlay.style.animation = 'spooky-fade-out 1s ease-out';
+    crtLines.style.animation = 'spooky-fade-out 1s ease-out';
+    setTimeout(function() {
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (crtLines.parentNode) crtLines.parentNode.removeChild(crtLines);
+    }, 1000);
+  }, 3000);
   
   // Trigger Melon's spooky dialogue if on shop page
   if (currentTab === 'shop') {
