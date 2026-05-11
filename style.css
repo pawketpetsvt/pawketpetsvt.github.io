@@ -8046,3 +8046,88 @@ body.night-mode a {
 body.night-mode a:hover {
   color: #ff99dd !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NIGHT MODE FIX - CORRECT CLASS NAMES FROM INDEX.HTML
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Welcome Panel - Main white card */
+body.night-mode .welcome-panel {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Daily Tip Box - "Did You Know?" */
+body.night-mode .daily-tip-box {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.night-mode .daily-tip-header {
+  background: rgba(102, 68, 170, 0.6) !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .daily-tip-content {
+  color: #e8d5ff !important;
+}
+
+/* Melon's Promo Section */
+body.night-mode .melon-promo {
+  background: rgba(42, 36, 64, 0.9) !important;
+  border: 3px solid #6644aa !important;
+}
+
+body.night-mode .melon-promo-text {
+  color: #e8d5ff !important;
+}
+
+/* Referral Card */
+body.night-mode .referral-card {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.night-mode .referral-header,
+body.night-mode .referral-description,
+body.night-mode .referral-reward-text {
+  color: #e8d5ff !important;
+}
+
+/* Streamers Widget - Sidebar */
+body.night-mode .streamers-widget {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.night-mode .streamer-item {
+  background: rgba(102, 68, 170, 0.2) !important;
+  border: 2px solid #6644aa !important;
+}
+
+body.night-mode .streamer-name,
+body.night-mode .streamer-status {
+  color: #e8d5ff !important;
+}
+
+/* News Widget - Sidebar */
+body.night-mode .news-widget {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+body.night-mode .sidebar-title {
+  color: #e8d5ff !important;
+}
+
+/* News items inside widget */
+body.night-mode .news-widget .news-item {
+  background: rgba(102, 68, 170, 0.2) !important;
+  border-color: #6644aa !important;
+  color: #e8d5ff !important;
+}
