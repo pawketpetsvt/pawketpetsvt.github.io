@@ -3479,10 +3479,13 @@ function triggerSpookyEffect() {
     }, 1000);
   }, 3000);
   
-  // Trigger Melon's spooky dialogue if on shop page
-  if (currentTab === 'shop') {
+  // Trigger Melon's spooky dialogue if on shop page (check safely)
+  var shopSection = document.getElementById('section-shop');
+  if (shopSection && shopSection.classList.contains('active')) {
     setTimeout(function() {
-      showSpookyDialogue();
+      if (typeof showSpookyDialogue === 'function') {
+        showSpookyDialogue();
+      }
     }, 1000);
   }
 }
