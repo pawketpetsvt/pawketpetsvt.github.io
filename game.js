@@ -3415,6 +3415,26 @@ async function unlinkTwitch(){
 }
 // ── REDEEM CODES ─────────────────────────────
 
+// Spooky effect for THEYWENTMISSING code
+function triggerSpookyEffect() {
+  // Make the entire page glitch briefly
+  var body = document.body;
+  body.classList.add('page-glitch');
+  setTimeout(function() {
+    body.classList.remove('page-glitch');
+  }, 800);
+  
+  // Show a spooky toast
+  showToast('⚠️ <strong>Something changed...</strong><br><small>Check the newspaper...</small>', 5000, '#6A1B9A');
+  
+  // Trigger Melon's spooky dialogue if on shop page
+  if (currentTab === 'shop') {
+    setTimeout(function() {
+      showSpookyDialogue();
+    }, 1000);
+  }
+}
+
 // Update the points counter in the redeem tab too
 // We need to patch updateAllPoints to include redeem-points.
 // Find your updateAllPoints function and add 'redeem-points' to the forEach array like this:
