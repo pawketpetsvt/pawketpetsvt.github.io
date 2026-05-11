@@ -13619,11 +13619,7 @@ function updateRotationCountdown() {
   if (countdown) {
     countdown.textContent = getTimeUntilRotation();
   }
-  } catch (err) {
-    alert('Purchase failed: ' + err.message);
-    console.error('Buy equipment error:', err);
-  }
-}
+
 
 /* ═══════════════════════════════════════════════════════════════════════
    USAGE INSTRUCTIONS:
