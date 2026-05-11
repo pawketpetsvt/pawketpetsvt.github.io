@@ -2447,8 +2447,8 @@ async function checkSidebarStreamStatus() {
     }
     
     // Check both streamers
-    var resp = await fetch('https://api.twitch.tv/helix/streams?user_login=embertail&user_login=pyxshuul', {
-      headers: {
+        var logins = TEAM_MEMBERS.map(function(m) { return 'user_login=' + m.login; }).join('&');
+    var resp = await fetch('https://api.twitch.tv/helix/streams?' + logins, {
         'Client-Id': TWITCH_CLIENT_ID,
         'Authorization': 'Bearer ' + token
       }
