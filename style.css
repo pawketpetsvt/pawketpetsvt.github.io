@@ -7754,7 +7754,21 @@ body.night-mode .pet-card,
 body.night-mode .battle-card,
 body.night-mode .news-post,
 body.night-mode .activity-feed-box,
-body.night-mode .sidebar-section {
+body.night-mode .sidebar-section,
+body.night-mode .page-section,
+body.night-mode .page-wrap,
+body.night-mode .page-hero,
+body.night-mode .welcome-section,
+body.night-mode .info-card,
+body.night-mode .melons-section,
+body.night-mode .referral-section,
+body.night-mode .news-section,
+body.night-mode .streamers-section,
+body.night-mode .team-section,
+body.night-mode .did-you-know,
+body.night-mode .tip-box,
+body.night-mode .content-card,
+body.night-mode .modal-content {
   background: rgba(42, 36, 64, 0.95) !important;
   border-color: #6644aa !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
@@ -7940,4 +7954,95 @@ body.night-mode .time-indicator::before {
 body:not(.night-mode) .time-indicator::before {
   content: '☀️';
   margin-right: 5px;
+}
+
+/* Additional Night Mode Fixes for Bright Sections */
+
+/* Welcome/Hero sections with gradient backgrounds */
+body.night-mode .page-hero,
+body.night-mode .welcome-section {
+  background: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* "Did You Know" tip boxes */
+body.night-mode .did-you-know,
+body.night-mode .tip-box {
+  background: rgba(42, 36, 64, 0.9) !important;
+  border: 2px solid #6644aa !important;
+}
+
+/* Latest News section */
+body.night-mode .news-section,
+body.night-mode .latest-news {
+  background: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* Streamers/Team section cards */
+body.night-mode .streamer-card,
+body.night-mode .team-card,
+body.night-mode .team-member-card {
+  background: rgba(42, 36, 64, 0.9) !important;
+  border: 2px solid #6644aa !important;
+}
+
+/* Melon's section (character promo area) */
+body.night-mode .melons-section,
+body.night-mode .character-promo {
+  background: rgba(42, 36, 64, 0.85) !important;
+}
+
+/* Referral/invite section */
+body.night-mode .referral-section,
+body.night-mode .invite-section {
+  background: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* Any sections with white/cream backgrounds */
+body.night-mode [style*="background: #fff"],
+body.night-mode [style*="background: white"],
+body.night-mode [style*="background: #ffffff"],
+body.night-mode [style*="background-color: #fff"],
+body.night-mode [style*="background-color: white"] {
+  background: rgba(42, 36, 64, 0.95) !important;
+}
+
+/* Content boxes with light backgrounds */
+body.night-mode .content-box,
+body.night-mode .info-panel,
+body.night-mode .description-box {
+  background: rgba(42, 36, 64, 0.9) !important;
+  border-color: #6644aa !important;
+}
+
+/* Ensure any remaining white backgrounds are darkened */
+body.night-mode div[class*="section"],
+body.night-mode div[class*="card"],
+body.night-mode div[class*="panel"],
+body.night-mode div[class*="box"] {
+  background-color: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* Keep buttons and interactive elements readable */
+body.night-mode .btn,
+body.night-mode button {
+  color: #e8d5ff !important;
+}
+
+body.night-mode .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #ff66cc) !important;
+  color: #ffffff !important;
+}
+
+/* Images should maintain visibility */
+body.night-mode img {
+  opacity: 0.95;
+}
+
+/* Links remain visible */
+body.night-mode a {
+  color: #bb99ff !important;
+}
+
+body.night-mode a:hover {
+  color: #ff99dd !important;
 }
