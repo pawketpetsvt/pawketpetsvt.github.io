@@ -2882,8 +2882,16 @@ function spinWheel() {
   var winningIndex = Math.floor(Math.random() * wheelPrizes.length);
   var winningPrize = wheelPrizes[winningIndex];
   var rotations = 5 + Math.random() * 3;
-  var targetAngle = (360 / wheelPrizes.length) * winningIndex;
-  var totalRotation = (rotations * 360) + targetAngle;
+  
+  // Calculate angle so the winning slice ends up at the TOP (12 o'clock position where pointer is)
+  // Each slice is (360 / wheelPrizes.length) degrees
+  var degreesPerSlice = 360 / wheelPrizes.length;
+  var targetAngle = (degreesPerSlice * winningIndex) + (degreesPerSlice / 2);
+  
+  // We want to rotate so this angle ends up at the top (0 degrees)
+  // So we rotate to (360 - targetAngle) to position it correctly
+  var finalPosition = 360 - targetAngle;
+  var totalRotation = (rotations * 360) + finalPosition;
   
   var startTime = Date.now();
   var duration = 4000;
@@ -2894,6 +2902,7 @@ function spinWheel() {
     var easeOut = 1 - Math.pow(1 - progress, 3);
     var currentRotation = totalRotation * easeOut;
     
+    // Only rotate the canvas (wheel), NOT the pointer
     canvas.style.transform = 'rotate(' + currentRotation + 'deg)';
     
     if (progress < 1) {
@@ -3003,31 +3012,96 @@ function shuffleShells() {
   shellShuffling = true;
   shellWinningPos = Math.floor(Math.random() * 3);
   
-  // Show egg under all shells briefly
+  // Show egg under winning shell briefly
   for (var i = 0; i < 3; i++) {
     el('shell-' + i).textContent = i === shellWinningPos ? '🥚✨' : '🥚';
   }
   
   setTimeout(function() {
+    // Hide all eggs
     for (var i = 0; i < 3; i++) {
       el('shell-' + i).textContent = '🥚';
     }
-  }, 1000);
-  
-  // Animate shuffle
-  var shells = [el('shell-0'), el('shell-1'), el('shell-2')];
-  var shuffles = 0;
-  var shuffleInterval = setInterval(function() {
-    shells.forEach(function(s) { s.classList.add('shuffle'); });
-    setTimeout(function() {
-      shells.forEach(function(s) { s.classList.remove('shuffle'); });
-    }, 400);
-    shuffles++;
-    if (shuffles >= 5) {
-      clearInterval(shuffleInterval);
-      shellShuffling = false;
+    
+    // Now perform actual visual swaps
+    var shells = [el('shell-0'), el('shell-1'), el('shell-2')];
+    var positions = [0, 1, 2]; // Track logical positions
+    var swapCount = 8; // Number of swaps to perform
+    var swapDelay = 400; // Time between swaps
+    var currentSwap = 0;
+    
+    function performSwap() {
+      if (currentSwap >= swapCount) {
+        shellShuffling = false;
+        return;
+      }
+      
+      // Pick two random positions to swap
+      var pos1 = Math.floor(Math.random() * 3);
+      var pos2 = Math.floor(Math.random() * 3);
+      while (pos1 === pos2) {
+        pos2 = Math.floor(Math.random() * 3);
+      }
+      
+      // Animate the swap visually
+      var shell1 = shells[pos1];
+      var shell2 = shells[pos2];
+      
+      // Get current positions
+      var rect1 = shell1.getBoundingClientRect();
+      var rect2 = shell2.getBoundingClientRect();
+      var deltaX = rect2.left - rect1.left;
+      
+      // Apply transform to swap
+      shell1.style.transition = 'transform 0.4s ease';
+      shell2.style.transition = 'transform 0.4s ease';
+      shell1.style.transform = 'translateX(' + deltaX + 'px)';
+      shell2.style.transform = 'translateX(' + (-deltaX) + 'px)';
+      
+      setTimeout(function() {
+        // Reset transforms
+        shell1.style.transition = 'none';
+        shell2.style.transition = 'none';
+        shell1.style.transform = '';
+        shell2.style.transform = '';
+        
+        // Actually swap in DOM (so they stay in new positions)
+        var parent = shell1.parentNode;
+        var shell1Next = shell1.nextSibling;
+        var shell2Next = shell2.nextSibling;
+        
+        if (shell1Next === shell2) {
+          parent.insertBefore(shell2, shell1);
+        } else if (shell2Next === shell1) {
+          parent.insertBefore(shell1, shell2);
+        } else {
+          parent.insertBefore(shell2, shell1Next);
+          parent.insertBefore(shell1, shell2Next);
+        }
+        
+        // Swap in arrays
+        var temp = shells[pos1];
+        shells[pos1] = shells[pos2];
+        shells[pos2] = temp;
+        
+        var tempPos = positions[pos1];
+        positions[pos1] = positions[pos2];
+        positions[pos2] = tempPos;
+        
+        // Track where winning position moved to
+        if (positions[pos1] === shellWinningPos) {
+          shellWinningPos = pos1;
+        } else if (positions[pos2] === shellWinningPos) {
+          shellWinningPos = pos2;
+        }
+        
+        currentSwap++;
+        setTimeout(performSwap, 100);
+      }, swapDelay);
     }
-  }, 500);
+    
+    performSwap();
+  }, 1000);
 }
 
 function guessShell(pos) {
@@ -3063,6 +3137,103 @@ function guessShell(pos) {
       el('shell-cooldown').style.display = 'block';
     }, 1500);
   }
+}
+
+// ── SLOT MACHINE ──────────────────────────────────
+var slotSpinning = false;
+var slotSymbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🎰'];
+var slotReels = [0, 0, 0]; // Current symbol index for each reel
+
+function spinSlots() {
+  if (slotSpinning || isCD('slots')) return;
+  slotSpinning = true;
+  
+  var btn = el('slots-btn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Spinning...';
+  }
+  
+  var reel1 = el('slot-reel-0');
+  var reel2 = el('slot-reel-1');
+  var reel3 = el('slot-reel-2');
+  
+  // Random final positions
+  var final = [
+    Math.floor(Math.random() * slotSymbols.length),
+    Math.floor(Math.random() * slotSymbols.length),
+    Math.floor(Math.random() * slotSymbols.length)
+  ];
+  
+  var spins = 0;
+  var maxSpins = 20;
+  var spinInterval = setInterval(function() {
+    // Spin all reels rapidly
+    slotReels[0] = Math.floor(Math.random() * slotSymbols.length);
+    slotReels[1] = Math.floor(Math.random() * slotSymbols.length);
+    slotReels[2] = Math.floor(Math.random() * slotSymbols.length);
+    
+    if (reel1) reel1.textContent = slotSymbols[slotReels[0]];
+    if (reel2) reel2.textContent = slotSymbols[slotReels[1]];
+    if (reel3) reel3.textContent = slotSymbols[slotReels[2]];
+    
+    spins++;
+    
+    // Stop reels one by one
+    if (spins === 15 && reel1) {
+      slotReels[0] = final[0];
+      reel1.textContent = slotSymbols[final[0]];
+    }
+    if (spins === 18 && reel2) {
+      slotReels[1] = final[1];
+      reel2.textContent = slotSymbols[final[1]];
+    }
+    if (spins >= maxSpins) {
+      clearInterval(spinInterval);
+      slotReels[2] = final[2];
+      if (reel3) reel3.textContent = slotSymbols[final[2]];
+      
+      // Check for win
+      var prize = 0;
+      if (final[0] === final[1] && final[1] === final[2]) {
+        // All three match!
+        var symbol = slotSymbols[final[0]];
+        if (symbol === '7️⃣') {
+          prize = 100; // Jackpot!
+        } else if (symbol === '💎') {
+          prize = 50;
+        } else {
+          prize = 25;
+        }
+      } else if (final[0] === final[1] || final[1] === final[2] || final[0] === final[2]) {
+        // Two match
+        prize = 10;
+      }
+      
+      slotSpinning = false;
+      setCD('slots');
+      
+      var result = el('slots-result');
+      if (result) {
+        if (prize > 0) {
+          result.textContent = 'You won ' + prize + ' PP!';
+          result.style.color = '#5dde7a';
+          awardPP(prize);
+        } else {
+          result.textContent = 'No match! Try again tomorrow!';
+          result.style.color = '#ff6eb4';
+        }
+      }
+      
+      var cooldown = el('slots-cooldown');
+      if (cooldown) cooldown.style.display = 'block';
+      
+      if (btn) {
+        btn.textContent = 'Spin!';
+        btn.disabled = false;
+      }
+    }
+  }, 100);
 }
 
 // ── TYPING CHALLENGE ──────────────────────────────
