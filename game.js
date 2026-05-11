@@ -2430,10 +2430,8 @@ function sortStreamerList() {
   var streamerItems = streamersWidget.querySelectorAll('.streamer-item');
   if (!streamerItems.length) return;
   
-  // Convert NodeList to Array for sorting
   var itemsArray = Array.prototype.slice.call(streamerItems);
   
-  // Sort: LIVE streamers first, then alphabetically
   itemsArray.sort(function(a, b) {
     var aLive = a.querySelector('.live-indicator') && 
                 a.querySelector('.live-indicator').style.display !== 'none';
@@ -2443,19 +2441,18 @@ function sortStreamerList() {
     if (aLive && !bLive) return -1;
     if (!aLive && bLive) return 1;
     
-    // Both live or both offline - sort by name
     var aName = a.querySelector('.streamer-name').textContent.trim();
     var bName = b.querySelector('.streamer-name').textContent.trim();
     return aName.localeCompare(bName);
   });
   
-  // Re-append in sorted order
   itemsArray.forEach(function(item) {
     streamersWidget.appendChild(item);
   });
 }
 
 async function checkSidebarStreamStatus() {
+  // ... rest of the existing function ...
   // Check if Embertail and Pyxshuul are live using public Twitch API
   try {
     // We need to use a token to check streams - try to get from user if linked
