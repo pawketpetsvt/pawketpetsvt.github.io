@@ -7679,3 +7679,265 @@ body.boss-ui-glitch header {
     padding: 10px 24px;
   }
 }
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2C: NIGHT MODE THEME
+   Darker, cozy theme that activates 6 PM - 6 AM local time
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Night Mode CSS Variables - Override day colors */
+body.night-mode {
+  /* Darker background gradient */
+  background: linear-gradient(180deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%) !important;
+  
+  /* Night color palette */
+  --pink:        #ff66cc;
+  --pink-light:  #ff99dd;
+  --pink-dark:   #cc0099;
+  --purple:      #9966ff;
+  --purple-light:#b399ff;
+  --purple-dark: #7744dd;
+  --yellow:      #ffd700;
+  --cyan:        #00ddff;
+  --green:       #66ff99;
+  --orange:      #ff9933;
+  --blue:        #5577ff;
+  --white:       #f5f5f5;
+  --cream:       #2a2440; /* Darker cards */
+  --text:        #e8d5ff; /* Light purple text */
+  --text-light:  #b399dd; /* Lighter purple for secondary text */
+  --border:      #6644aa; /* Darker borders */
+  --shadow:      rgba(0,0,0,0.5); /* Deeper shadows */
+}
+
+/* Night Mode Background Overlay - Darker ambient glow */
+body.night-mode::before {
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(153,102,255,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(102,51,204,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255,102,204,0.1) 0%, transparent 50%);
+}
+
+/* Add subtle stars effect at night */
+body.night-mode::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(2px 2px at 20% 30%, white, transparent),
+    radial-gradient(2px 2px at 60% 70%, white, transparent),
+    radial-gradient(1px 1px at 50% 50%, white, transparent),
+    radial-gradient(1px 1px at 80% 10%, white, transparent),
+    radial-gradient(2px 2px at 90% 60%, white, transparent),
+    radial-gradient(1px 1px at 33% 50%, white, transparent),
+    radial-gradient(1px 1px at 77% 88%, white, transparent);
+  background-repeat: repeat;
+  background-size: 200px 200px, 300px 300px, 250px 250px, 400px 400px, 350px 350px, 280px 280px, 380px 380px;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.5; }
+}
+
+/* Cards and containers - darker but still distinct */
+body.night-mode .card,
+body.night-mode .form-card,
+body.night-mode .stat-card,
+body.night-mode .pet-card,
+body.night-mode .battle-card,
+body.night-mode .news-post,
+body.night-mode .activity-feed-box,
+body.night-mode .sidebar-section {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border-color: #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Ensure text remains readable */
+body.night-mode h1,
+body.night-mode h2,
+body.night-mode h3,
+body.night-mode h4,
+body.night-mode h5,
+body.night-mode h6 {
+  color: #e8d5ff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.night-mode p,
+body.night-mode span,
+body.night-mode div,
+body.night-mode label {
+  color: #e8d5ff !important;
+}
+
+/* Secondary/muted text */
+body.night-mode .text-light,
+body.night-mode .stat-label,
+body.night-mode .form-subtitle {
+  color: #b399dd !important;
+}
+
+/* Links - brighter at night for visibility */
+body.night-mode a {
+  color: #bb99ff !important;
+}
+
+body.night-mode a:hover {
+  color: #ff99dd !important;
+}
+
+/* Buttons - maintain visibility and contrast */
+body.night-mode .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #ff66cc) !important;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.4) !important;
+}
+
+body.night-mode .btn-outline {
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.2) !important;
+}
+
+/* Navigation bar - darker but distinct */
+body.night-mode .navbar {
+  background: linear-gradient(135deg, #2a1a4a, #4a2a6a, #2a4a6a) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* News ticker - darker variant */
+body.night-mode .news-ticker {
+  background: linear-gradient(90deg, #4a2a6a, #6a4a8a, #4a6a8a) !important;
+  border-bottom: 3px solid rgba(153, 102, 255, 0.5) !important;
+}
+
+/* Sidebar - darker background */
+body.night-mode .left-sidebar,
+body.night-mode .right-sidebar {
+  background: rgba(26, 10, 46, 0.7) !important;
+}
+
+/* Input fields - dark but readable */
+body.night-mode input,
+body.night-mode textarea,
+body.night-mode select {
+  background: rgba(42, 36, 64, 0.8) !important;
+  border-color: #6644aa !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode input::placeholder,
+body.night-mode textarea::placeholder {
+  color: #8866aa !important;
+}
+
+body.night-mode input:focus,
+body.night-mode textarea:focus,
+body.night-mode select:focus {
+  border-color: #9966ff !important;
+  box-shadow: 0 0 0 3px rgba(153, 102, 255, 0.2) !important;
+}
+
+/* Progress bars - maintain visibility */
+body.night-mode .progress-bar {
+  background: rgba(42, 36, 64, 0.9) !important;
+}
+
+body.night-mode .progress-fill {
+  box-shadow: 0 0 10px rgba(153, 102, 255, 0.6) !important;
+}
+
+/* Stats display - bright colors for contrast */
+body.night-mode .stat-value {
+  color: #ffd700 !important;
+}
+
+/* Pet cards - maintain image visibility */
+body.night-mode .pet-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(153, 102, 255, 0.4) !important;
+}
+
+/* Battle UI - maintain contrast */
+body.night-mode .battle-arena {
+  background: rgba(26, 10, 46, 0.95) !important;
+}
+
+/* Modals and overlays */
+body.night-mode .modal,
+body.night-mode .modal-overlay {
+  background: rgba(10, 5, 20, 0.95) !important;
+}
+
+body.night-mode .modal {
+  border-color: #6644aa !important;
+}
+
+/* Toast notifications */
+body.night-mode .toast {
+  background: rgba(42, 36, 64, 0.98) !important;
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+/* Tables - readable in dark mode */
+body.night-mode table {
+  background: rgba(42, 36, 64, 0.8) !important;
+}
+
+body.night-mode th {
+  background: rgba(102, 68, 170, 0.4) !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode td {
+  border-color: #6644aa !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode tr:hover {
+  background: rgba(153, 102, 255, 0.1) !important;
+}
+
+/* Beta banner */
+body.night-mode .beta-banner {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border-bottom: 2px solid #6644aa !important;
+}
+
+/* Smooth transitions for theme changes */
+body,
+body::before,
+body::after,
+.card,
+.navbar,
+.news-ticker,
+.sidebar-section,
+input,
+textarea,
+select,
+.btn,
+a {
+  transition: all 0.5s ease !important;
+}
+
+/* Optional: Moon icon indicator (you can add this to your navbar) */
+body.night-mode .time-indicator::before {
+  content: '🌙';
+  margin-right: 5px;
+}
+
+body:not(.night-mode) .time-indicator::before {
+  content: '☀️';
+  margin-right: 5px;
+}

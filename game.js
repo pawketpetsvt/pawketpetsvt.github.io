@@ -8480,7 +8480,58 @@ var dailyFortune = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   INITIALIZE NEWS TICKER & DAILY FORTUNE ON PAGE LOAD
+   PHASE 2C: DAY/NIGHT CYCLE SYSTEM
+   Auto-detects user's local time and applies appropriate theme
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var dayNightCycle = {
+  isNightMode: false,
+  checkInterval: null,
+  
+  init: function() {
+    this.checkTimeAndApplyTheme();
+    
+    // Check every 5 minutes if time period changed
+    this.checkInterval = setInterval(function() {
+      dayNightCycle.checkTimeAndApplyTheme();
+    }, 300000); // 5 minutes
+  },
+  
+  checkTimeAndApplyTheme: function() {
+    var hour = new Date().getHours();
+    var shouldBeNight = hour >= 18 || hour < 6; // 6 PM to 6 AM
+    
+    if (shouldBeNight && !this.isNightMode) {
+      this.enableNightMode();
+    } else if (!shouldBeNight && this.isNightMode) {
+      this.enableDayMode();
+    }
+  },
+  
+  enableNightMode: function() {
+    document.body.classList.add('night-mode');
+    this.isNightMode = true;
+    console.log('🌙 Night mode enabled');
+  },
+  
+  enableDayMode: function() {
+    document.body.classList.remove('night-mode');
+    this.isNightMode = false;
+    console.log('☀️ Day mode enabled');
+  },
+  
+  // Manual toggle for testing
+  toggle: function() {
+    if (this.isNightMode) {
+      this.enableDayMode();
+    } else {
+      this.enableNightMode();
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INITIALIZE NEWS TICKER, DAILY FORTUNE & DAY/NIGHT CYCLE ON PAGE LOAD
    ═══════════════════════════════════════════════════════════════════════ */
 
 // Initialize when DOM is ready
@@ -8488,11 +8539,13 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
     dailyFortune.init();
+    dayNightCycle.init();
   });
 } else {
   // DOM already loaded
   newsTicker.init();
   dailyFortune.init();
+  dayNightCycle.init();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
