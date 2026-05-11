@@ -3166,7 +3166,7 @@ function selectSlotBet(amount) {
 }
 
 function spinSlots() {
-  if (slotSpinning || isCD('slots')) return;
+  if (slotSpinning) return;
   
   // Check if user has enough PP
   if (currentPoints < selectedSlotBet) {
@@ -3195,7 +3195,6 @@ function spinSlots() {
     result.textContent = '';
   }
   
-  // Note: HTML has slot-reel-1, slot-reel-2, slot-reel-3 (not 0-indexed!)
   var reel1 = el('slot-reel-1');
   var reel2 = el('slot-reel-2');
   var reel3 = el('slot-reel-3');
@@ -3252,7 +3251,6 @@ function spinSlots() {
       }
       
       slotSpinning = false;
-      setCD('slots');
       
       var result = el('slot-result');
       if (result) {
@@ -3268,8 +3266,8 @@ function spinSlots() {
             result.style.color = '#ffdd57';
           }
         } else {
-          // Lost - already deducted bet
-          result.textContent = '❌ No match! Lost ' + selectedSlotBet + ' PP. Try again tomorrow!';
+          // Already deducted bet - show loss
+          result.textContent = '❌ No match! Lost ' + selectedSlotBet + ' PP. Try again!';
           result.style.color = '#ff6eb4';
         }
       }
@@ -3294,7 +3292,7 @@ async function deductPP(amount) {
     .eq('id', currentUser.id);
   
   currentPoints = newPoints;
-  updatePointsDisplay();
+  updateAllPoints(currentPoints);
 }
 
 // ── TYPING CHALLENGE ──────────────────────────────
