@@ -2456,29 +2456,39 @@ async function checkSidebarStreamStatus() {
     
     var data = await resp.json();
     
-    // Reset all to offline first
-    el('ember-status').textContent = 'OFFLINE';
-    el('ember-live-badge').style.display = 'none';
-    el('ember-watch-btn').style.display = 'none';
-    
-    el('pyxs-status').textContent = 'OFFLINE';
-    el('pyxs-live-badge').style.display = 'none';
-    el('pyxs-watch-btn').style.display = 'none';
+       // Reset all to offline first
+    var streamerIds = ['ember', 'pyxs', 'aria', 'blushimia', 'cowbee', 'kelta', 'jess', 'gnarly'];
+    streamerIds.forEach(function(id) {
+      var statusEl = el(id + '-status');
+      var badgeEl = el(id + '-live-badge');
+      var watchBtn = el(id + '-watch-btn');
+      if (statusEl) statusEl.textContent = 'OFFLINE';
+      if (badgeEl) badgeEl.style.display = 'none';
+      if (watchBtn) watchBtn.style.display = 'none';
+    });
     
     // Update live streamers
     if (data.data && data.data.length > 0) {
       data.data.forEach(function(stream) {
         var login = stream.user_login.toLowerCase();
-        
-        if (login === 'embertail') {
-          el('ember-status').textContent = stream.game_name || 'LIVE';
-          el('ember-live-badge').style.display = 'inline-block';
-          el('ember-watch-btn').style.display = 'inline-block';
-        } else if (login === 'pyxshuul') {
-          el('pyxs-status').textContent = stream.game_name || 'LIVE';
-          el('pyxs-live-badge').style.display = 'inline-block';
-          el('pyxs-watch-btn').style.display = 'inline-block';
-        }
+        var loginMap = {
+          'embertail': 'ember',
+          'pyxshuul': 'pyxs',
+          'ariadoestwitch': 'aria',
+          'realblushimia': 'blushimia',
+          'cowbeevt': 'cowbee',
+          'keltathepomeranian': 'kelta',
+          'teatimejess': 'jess',
+          'gnarly_neon_smilodon': 'gnarly'
+        };
+        var prefix = loginMap[login];
+        if (!prefix) return;
+        var statusEl = el(prefix + '-status');
+        var badgeEl = el(prefix + '-live-badge');
+        var watchBtn = el(prefix + '-watch-btn');
+        if (statusEl) statusEl.textContent = stream.game_name || 'LIVE';
+        if (badgeEl) badgeEl.style.display = 'inline-block';
+        if (watchBtn) watchBtn.style.display = 'inline-block';
       });
     }
     
