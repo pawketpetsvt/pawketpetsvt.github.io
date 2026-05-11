@@ -3466,9 +3466,6 @@ function triggerSpookyEffect() {
     console.log('Could not load spooky audio');
   }
   
-  // Show spooky toast
-  showToast('⚠️ <strong>Something changed...</strong><br><small>Check the newspaper...</small>', 5000, '#6A1B9A');
-  
   // Remove effects after 3 seconds
   setTimeout(function() {
     overlay.style.animation = 'spooky-fade-out 1s ease-out';
