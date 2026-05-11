@@ -3586,9 +3586,11 @@ async function redeemCode() {
       .update({ times_used: (promo.times_used || 0) + 1 })
       .eq('id', promo.id);
 
-    // 6.5. SPOOKY EFFECT for THEYWENTMISSING code
+    // 6.5. SPOOKY EFFECT for THEYWENTMISSING code - BEFORE showing success panel
     if (code === 'THEYWENTMISSING') {
       triggerSpookyEffect();
+      // Wait for spooky effect to complete before showing success
+      await new Promise(resolve => setTimeout(resolve, 3000));
     }
 
     // 7. Show success panel
@@ -3599,7 +3601,7 @@ async function redeemCode() {
     var msgEl   = el('redeem-success-msg');
     var loreBtn = el('redeem-lore-btn');
 
-    // 7. If it's a lore code (spooky easter egg), hide normal messages
+    // 8. If it's a lore code (spooky easter egg), show the lore button
     if (promo.lore_page) {
       titleEl.textContent = '...';
       msgEl.textContent = ''; // No description shown
