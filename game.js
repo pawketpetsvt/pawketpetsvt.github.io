@@ -1782,8 +1782,13 @@ function calculateEnergyRegen(currentEnergy, maxEnergy, lastPlayedTimestamp) {
   var lastPlayed = new Date(lastPlayedTimestamp);
   var hoursPassed = (now - lastPlayed) / (1000 * 60 * 60);
   
-  // Regenerate 5% per hour
+  // Regenerate 5% per hour (base rate)
   var regenRate = 5; // 5% per hour
+  
+  // Apply event bonus if active
+  var eventMultiplier = worldEvents.getActiveBonus('energyRegen');
+  regenRate = regenRate * eventMultiplier;
+  
   var regenAmount = Math.floor((maxEnergy * (regenRate / 100)) * hoursPassed);
   
   var newEnergy = Math.min(currentEnergy + regenAmount, maxEnergy);
@@ -1929,8 +1934,17 @@ async function feed(petId) {
   }
   
   var btn = el('feed-'+petId); btn.disabled=true; btn.textContent='...';
-  var nh=Math.min(pet.hunger+20,pet.max_hunger);
-  var nhap=Math.min(pet.happiness+5,pet.max_happiness);
+  
+  // Base gains
+  var baseHungerGain = 20;
+  var baseHappinessGain = 5;
+  
+  // Apply event bonuses (snackEfficiency affects how much stats increase)
+  var actualHungerGain = worldEvents.applyEventModifier(baseHungerGain, 'snackEfficiency');
+  var actualHappinessGain = worldEvents.applyEventModifier(baseHappinessGain, 'happinessGain');
+  
+  var nh=Math.min(pet.hunger+actualHungerGain,pet.max_hunger);
+  var nhap=Math.min(pet.happiness+actualHappinessGain,pet.max_happiness);
   var lu=calculateLevelUp(
     pet.xp+10,
     pet.level,
@@ -2242,11 +2256,19 @@ async function loadShop() {
       if(item.hp_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hp_bonus+' HP'));
       if(item.speed_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.speed_bonus+' SPD'));
       if(tags.children.length)card.appendChild(tags);
-      card.appendChild(makeEl('div',{class:'shop-item-price'},'🪙 '+item.price+' PP'));
-      var canAfford=currentPoints>=item.price;
-      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+item.price+' PP');
+      
+      // Apply event discount to displayed price
+      var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
+      var priceText = '🪙 ' + displayPrice + ' PP';
+      if (displayPrice < item.price) {
+        priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
+      }
+      card.appendChild(makeEl('div',{class:'shop-item-price'},priceText));
+      
+      var canAfford=currentPoints>=displayPrice;
+      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+displayPrice+' PP');
       if(!canAfford)buyBtn.disabled=true;
-      buyBtn.onclick=function(){buyItem(item.id,item.name,item.price);};
+      buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
       grid.appendChild(card);
     });
@@ -2267,11 +2289,19 @@ async function loadShop() {
       card.appendChild(iconDiv);
       card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
       card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
-      card.appendChild(makeEl('div',{class:'shop-item-price'},'🪙 '+item.price+' PP'));
-      var canAfford=currentPoints>=item.price;
-      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+item.price+' PP');
+      
+      // Apply event discount to displayed price
+      var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
+      var priceText = '🪙 ' + displayPrice + ' PP';
+      if (displayPrice < item.price) {
+        priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
+      }
+      card.appendChild(makeEl('div',{class:'shop-item-price'},priceText));
+      
+      var canAfford=currentPoints>=displayPrice;
+      var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+displayPrice+' PP');
       if(!canAfford)buyBtn.disabled=true;
-      buyBtn.onclick=function(){buyItem(item.id,item.name,item.price);};
+      buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
       grid.appendChild(card);
     });
@@ -4677,15 +4707,20 @@ async function loadEquipmentShop() {
     }
     card.appendChild(statsDiv);
     
-    // Price
+    // Price with event discount
+    var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
     var price = makeEl('div', { class: 'equipment-price' });
-    price.textContent = item.price + ' PP';
+    if (displayPrice < item.price) {
+      price.innerHTML = displayPrice + ' PP <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
+    } else {
+      price.textContent = displayPrice + ' PP';
+    }
     card.appendChild(price);
     
     // Buy button
     var buyBtn = makeEl('button', { class: 'btn btn-primary' });
     buyBtn.textContent = 'Buy';
-    buyBtn.onclick = function() { buyEquipment(item.id, item.name, item.price); };
+    buyBtn.onclick = function() { buyEquipment(item.id, item.name, displayPrice); };
     card.appendChild(buyBtn);
     
     grid.appendChild(card);
@@ -5549,6 +5584,13 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
   var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
   
+  // Apply event bonuses FIRST (before variant multipliers)
+  if (battleResult.victory) {
+    expGained = worldEvents.applyEventModifier(expGained, 'battleXpBonus');
+    ppGained = worldEvents.applyEventModifier(ppGained, 'ppGainBonus');
+    ppGained = worldEvents.applyEventModifier(ppGained, 'battleRewards');
+  }
+  
   // Scale rewards based on enemy variant and level
   if (battleResult.victory && enemyStats.variant) {
     var variantMultiplier = 1.0;
@@ -5627,25 +5669,33 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   }
   
   // Normal 10% chance for item drop on victory (only if not boss)
-  if (battleResult.victory && !enemyStats.is_boss && Math.random() < 0.1) {
-    // Get random cheap item from shop (under 100 PP)
-    var itemsRes = await supabaseClient
-      .from('items')
-      .select('*')
-      .lte('price', 100)
-      .limit(20);
+  if (battleResult.victory && !enemyStats.is_boss) {
+    // Base drop chance
+    var dropChance = 0.1; // 10% base chance
     
-    if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
-      itemDropped = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
+    // Apply event bonus for rare drops
+    dropChance = dropChance * worldEvents.getActiveBonus('rareFindChance');
+    
+    if (Math.random() < dropChance) {
+      // Get random cheap item from shop (under 100 PP)
+      var itemsRes = await supabaseClient
+        .from('items')
+        .select('*')
+        .lte('price', 100)
+        .limit(20);
       
-      // Add to player inventory
-      await supabaseClient
-        .from('user_inventory')
-        .insert([{
-          user_id: currentUser.id,
-          item_id: itemDropped.id,
-          quantity: 1
-        }]);
+      if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
+        itemDropped = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
+        
+        // Add to player inventory
+        await supabaseClient
+          .from('user_inventory')
+          .insert([{
+            user_id: currentUser.id,
+            item_id: itemDropped.id,
+            quantity: 1
+          }]);
+      }
     }
   }
   
@@ -8531,7 +8581,7 @@ var dayNightCycle = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   INITIALIZE NEWS TICKER, DAILY FORTUNE & DAY/NIGHT CYCLE ON PAGE LOAD
+   INITIALIZE ALL SYSTEMS ON PAGE LOAD
    ═══════════════════════════════════════════════════════════════════════ */
 
 // Initialize when DOM is ready
@@ -8540,12 +8590,16 @@ if (document.readyState === 'loading') {
     newsTicker.init();
     dailyFortune.init();
     dayNightCycle.init();
+    weatherSystem.init();
+    worldEvents.init();
   });
 } else {
   // DOM already loaded
   newsTicker.init();
   dailyFortune.init();
   dayNightCycle.init();
+  weatherSystem.init();
+  worldEvents.init();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -12666,3 +12720,539 @@ function getPetFullDisplayName(pet) {
 }
 
 // Example: "Golden Ember the Brave" or "Shadow Pyxie the Unlucky"
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2D: WEATHER SYSTEM
+   6 weather types with visual effects and flavor text
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var weatherSystem = {
+  weatherTypes: [
+    {
+      id: 'sunny',
+      name: 'Sunny',
+      icon: '☀️',
+      description: 'Perfect weather for pet adventures!',
+      weight: 30 // More common
+    },
+    {
+      id: 'rainy',
+      name: 'Rainy',
+      icon: '🌧️',
+      description: 'The mushrooms are extra happy today.',
+      weight: 20
+    },
+    {
+      id: 'foggy',
+      name: 'Foggy',
+      icon: '🌫️',
+      description: 'Mysterious mists drift through the Deep Woods...',
+      weight: 15
+    },
+    {
+      id: 'windy',
+      name: 'Windy',
+      icon: '💨',
+      description: 'Hold onto your spoons! Gusty conditions today.',
+      weight: 15
+    },
+    {
+      id: 'starry',
+      name: 'Starry Night',
+      icon: '✨',
+      description: 'The cosmos align. Make a wish!',
+      weight: 10
+    },
+    {
+      id: 'cursed',
+      name: 'Cursed Fog',
+      icon: '🟣',
+      description: 'Strange purple fog emanates from the ruins. Proceed with caution.',
+      weight: 10 // Rare but not too rare
+    }
+  ],
+  
+  currentWeather: null,
+  changeInterval: null,
+  
+  init: function() {
+    // Load saved weather or generate new
+    var saved = localStorage.getItem('currentWeather');
+    var savedDate = localStorage.getItem('weatherDate');
+    var today = new Date().toDateString();
+    
+    if (saved && savedDate === today) {
+      // Use saved weather for today
+      this.currentWeather = JSON.parse(saved);
+    } else {
+      // Generate new weather
+      this.generateWeather();
+      localStorage.setItem('weatherDate', today);
+    }
+    
+    this.applyWeather();
+    
+    // Change weather every 2 hours
+    this.changeInterval = setInterval(function() {
+      weatherSystem.generateWeather();
+    }, 7200000); // 2 hours
+  },
+  
+  generateWeather: function() {
+    // Weighted random selection
+    var totalWeight = this.weatherTypes.reduce(function(sum, w) { return sum + w.weight; }, 0);
+    var random = Math.random() * totalWeight;
+    var cumulative = 0;
+    
+    for (var i = 0; i < this.weatherTypes.length; i++) {
+      cumulative += this.weatherTypes[i].weight;
+      if (random <= cumulative) {
+        this.currentWeather = this.weatherTypes[i];
+        break;
+      }
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('currentWeather', JSON.stringify(this.currentWeather));
+    
+    this.applyWeather();
+  },
+  
+  applyWeather: function() {
+    if (!this.currentWeather) return;
+    
+    var body = document.body;
+    
+    // Remove all weather classes
+    body.classList.remove('weather-sunny', 'weather-rainy', 'weather-foggy', 
+                          'weather-windy', 'weather-starry', 'weather-cursed');
+    
+    // Add current weather class
+    body.classList.add('weather-' + this.currentWeather.id);
+    
+    // Update weather display if element exists
+    this.updateWeatherDisplay();
+    
+    console.log('🌤️ Weather changed to:', this.currentWeather.name);
+  },
+  
+  updateWeatherDisplay: function() {
+    var weatherWidget = document.getElementById('weather-widget');
+    if (weatherWidget && this.currentWeather) {
+      weatherWidget.innerHTML = 
+        '<div class="weather-icon">' + this.currentWeather.icon + '</div>' +
+        '<div class="weather-info">' +
+          '<div class="weather-name">' + this.currentWeather.name + '</div>' +
+          '<div class="weather-desc">' + this.currentWeather.description + '</div>' +
+        '</div>';
+    }
+  },
+  
+  getCurrentWeather: function() {
+    return this.currentWeather;
+  },
+  
+  // Manual change for testing
+  setWeather: function(weatherId) {
+    var weather = this.weatherTypes.find(function(w) { return w.id === weatherId; });
+    if (weather) {
+      this.currentWeather = weather;
+      localStorage.setItem('currentWeather', JSON.stringify(this.currentWeather));
+      this.applyWeather();
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 3A: WORLD EVENTS SYSTEM (UPDATED WITH GAMEPLAY EFFECTS)
+   Rotating daily/weekly events with ACTUAL gameplay impact
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var worldEvents = {
+  events: [
+    {
+      id: 'mushroom_migration',
+      name: 'Mushroom Migration Day',
+      icon: '🍄',
+      description: 'The mushrooms are on the move! Battle encounters are more common today.',
+      duration: 1,
+      rarity: 'common',
+      effects: {
+        battleXpBonus: 1.25,      // 25% more XP from battles
+        encounterRate: 1.5        // 50% more encounters
+      }
+    },
+    {
+      id: 'spoon_appreciation',
+      name: 'Spoon Appreciation Week',
+      icon: '🥄',
+      description: 'All spoons deserve recognition. Spoon weapons deal extra damage!',
+      duration: 7,
+      rarity: 'uncommon',
+      effects: {
+        spoonDamageBonus: 1.5,    // 50% more damage with spoons
+        spoonShopDiscount: 0.75   // 25% off spoons in shop
+      }
+    },
+    {
+      id: 'pyxie_chaos',
+      name: 'Pyxie Chaos Festival',
+      icon: '✨',
+      description: 'Maximum chaos day! Random bonuses and surprises everywhere.',
+      duration: 1,
+      rarity: 'rare',
+      effects: {
+        randomBonusChance: 0.3,   // 30% chance of random bonus on any action
+        ppGainBonus: 1.5          // 50% more PawketPoints from everything
+      }
+    },
+    {
+      id: 'golden_bunny',
+      name: 'Golden Bunny Sighting',
+      icon: '🐰',
+      description: 'The elusive Golden Bunny grants luck! Rare drops are more common.',
+      duration: 1,
+      rarity: 'legendary',
+      effects: {
+        rareFindChance: 2.0,      // Double chance for rare items
+        criticalHitChance: 1.5,   // 50% more critical hits
+        luckBonus: true
+      }
+    },
+    {
+      id: 'strange_fog',
+      name: 'Strange Fog in the Deep Woods',
+      icon: '🌫️',
+      description: 'Mysterious fog affects the forest. Pets feel... different.',
+      duration: 2,
+      rarity: 'rare',
+      effects: {
+        petHappinessDecay: 0.5,   // Happiness decays 50% slower
+        mysteryBonus: true,       // Random stat changes
+        explorationBonus: 1.25    // 25% more from exploration
+      }
+    },
+    {
+      id: 'pet_parade',
+      name: 'Grand Pet Parade',
+      icon: '🎉',
+      description: 'All pets are celebrating! Happiness increases faster today.',
+      duration: 1,
+      rarity: 'common',
+      effects: {
+        happinessGain: 2.0,       // Double happiness from interactions
+        petXpBonus: 1.25,         // 25% more pet XP
+        snackEfficiency: 1.5      // Snacks work 50% better
+      }
+    },
+    {
+      id: 'market_madness',
+      name: 'Marketplace Madness',
+      icon: '🛒',
+      description: 'Special deals in the shop! Everything is discounted.',
+      duration: 1,
+      rarity: 'uncommon',
+      effects: {
+        shopDiscount: 0.7,        // 30% off all shop items
+        sellBonus: 1.5            // Sell items for 50% more
+      }
+    },
+    {
+      id: 'void_watching',
+      name: 'The Void is Watching',
+      icon: '👁️',
+      description: 'The void grants mysterious bonuses. Proceed respectfully.',
+      duration: 1,
+      rarity: 'rare',
+      effects: {
+        allStatsBonus: 1.15,      // 15% bonus to all stats
+        mysteryRewardChance: 0.2, // 20% chance for mystery rewards
+        voidBlessing: true
+      }
+    },
+    {
+      id: 'battle_tournament',
+      name: 'Arena Championship',
+      icon: '⚔️',
+      description: 'The Battle Arena is hosting a tournament! Victory rewards doubled.',
+      duration: 3,
+      rarity: 'uncommon',
+      effects: {
+        battleRewards: 2.0,       // Double PP from battles
+        battleXpBonus: 1.5,       // 50% more XP from battles
+        winStreakBonus: 1.25      // 25% better win streak rewards
+      }
+    },
+    {
+      id: 'snack_shortage',
+      name: 'Great Snack Shortage',
+      icon: '🍪',
+      description: 'Someone hoarded all the snacks. Snacks are less effective but cheaper!',
+      duration: 1,
+      rarity: 'common',
+      effects: {
+        snackEfficiency: 0.75,    // Snacks 25% less effective
+        snackCost: 0.5            // But 50% cheaper!
+      }
+    },
+    {
+      id: 'full_moon',
+      name: 'Full Moon Night',
+      icon: '🌕',
+      description: 'The full moon brings nocturnal power. Night bonuses active!',
+      duration: 1,
+      rarity: 'uncommon',
+      effects: {
+        nightPowerBonus: 1.4,     // 40% stronger at night
+        energyRegen: 1.5,         // 50% faster energy regeneration
+        moonBlessing: true
+      }
+    },
+    {
+      id: 'butterfly_swarm',
+      name: 'Suspicious Butterfly Swarm',
+      icon: '🦋',
+      description: 'The butterflies share their secrets. Discovery chances increased!',
+      duration: 1,
+      rarity: 'rare',
+      effects: {
+        discoveryChance: 2.0,     // Double chance to find secrets
+        explorationBonus: 1.5,    // 50% more from exploration
+        hiddenItemChance: 1.75    // 75% better chance for hidden items
+      }
+    },
+    {
+      id: 'tactical_napping',
+      name: 'International Tactical Napping Day',
+      icon: '😴',
+      description: 'Strategic rest pays off. Energy regenerates much faster!',
+      duration: 1,
+      rarity: 'common',
+      effects: {
+        energyRegen: 2.5,         // Energy regens 2.5x faster
+        restBonus: 1.5,           // 50% better rest benefits
+        fatigueReduction: 0.5     // 50% less fatigue
+      }
+    },
+    {
+      id: 'ruins_rumbling',
+      name: 'The Ruins are Rumbling',
+      icon: '🏛️',
+      description: 'Ancient power awakens. All rewards significantly increased!',
+      duration: 2,
+      rarity: 'legendary',
+      effects: {
+        allRewards: 2.0,          // DOUBLE all rewards
+        ancientPowerBonus: 1.5,   // 50% stat bonus
+        legendaryDropChance: 3.0, // TRIPLE chance for legendary items
+        ruinsBlessing: true
+      }
+    },
+    {
+      id: 'friendship_festival',
+      name: 'Friendship Festival',
+      icon: '💖',
+      description: 'Bonds grow stronger. Friend activities and social features boosted!',
+      duration: 3,
+      rarity: 'common',
+      effects: {
+        friendshipGain: 2.0,      // Double friendship XP
+        giftEfficiency: 1.5,      // Gifts 50% better
+        socialBonus: 1.3,         // 30% more from social activities
+        happinessGain: 1.5        // 50% more happiness
+      }
+    }
+  ],
+  
+  currentEvent: null,
+  eventEndDate: null,
+  
+  init: function() {
+    var saved = localStorage.getItem('currentEvent');
+    var savedEnd = localStorage.getItem('eventEndDate');
+    
+    if (saved && savedEnd) {
+      this.currentEvent = JSON.parse(saved);
+      this.eventEndDate = new Date(savedEnd);
+      
+      if (new Date() > this.eventEndDate) {
+        this.generateEvent();
+      }
+    } else {
+      this.generateEvent();
+    }
+    
+    this.displayEvent();
+    
+    setInterval(function() {
+      if (worldEvents.eventEndDate && new Date() > worldEvents.eventEndDate) {
+        worldEvents.generateEvent();
+      }
+    }, 3600000);
+  },
+  
+  generateEvent: function() {
+    if (Math.random() < 0.3) {
+      this.currentEvent = null;
+      this.eventEndDate = null;
+      localStorage.removeItem('currentEvent');
+      localStorage.removeItem('eventEndDate');
+      this.displayEvent();
+      return;
+    }
+    
+    var event = this.events[Math.floor(Math.random() * this.events.length)];
+    this.currentEvent = event;
+    
+    var endDate = new Date();
+    endDate.setDate(endDate.getDate() + event.duration);
+    this.eventEndDate = endDate;
+    
+    localStorage.setItem('currentEvent', JSON.stringify(event));
+    localStorage.setItem('eventEndDate', endDate.toISOString());
+    
+    this.displayEvent();
+    
+    console.log('🎪 New event:', event.name, '| Effects:', event.effects);
+  },
+  
+  displayEvent: function() {
+    var eventBanner = document.getElementById('event-banner');
+    
+    if (!eventBanner) return;
+    
+    if (!this.currentEvent) {
+      eventBanner.style.display = 'none';
+      return;
+    }
+    
+    // Build effects list
+    var effectsList = this.getEffectsDisplay(this.currentEvent.effects);
+    
+    eventBanner.style.display = 'block';
+    eventBanner.innerHTML = 
+      '<div class="event-icon">' + this.currentEvent.icon + '</div>' +
+      '<div class="event-content">' +
+        '<div class="event-name">' + this.currentEvent.name + '</div>' +
+        '<div class="event-description">' + this.currentEvent.description + '</div>' +
+        effectsList +
+      '</div>' +
+      '<div class="event-timer" id="event-timer"></div>';
+    
+    this.updateEventTimer();
+  },
+  
+  getEffectsDisplay: function(effects) {
+    var bonuses = [];
+    
+    if (effects.battleXpBonus && effects.battleXpBonus > 1) {
+      bonuses.push('⚔️ +' + Math.round((effects.battleXpBonus - 1) * 100) + '% Battle XP');
+    }
+    if (effects.ppGainBonus && effects.ppGainBonus > 1) {
+      bonuses.push('🪙 +' + Math.round((effects.ppGainBonus - 1) * 100) + '% PP Gain');
+    }
+    if (effects.shopDiscount && effects.shopDiscount < 1) {
+      bonuses.push('🛒 ' + Math.round((1 - effects.shopDiscount) * 100) + '% Shop Discount');
+    }
+    if (effects.happinessGain && effects.happinessGain > 1) {
+      bonuses.push('💖 +' + Math.round((effects.happinessGain - 1) * 100) + '% Happiness');
+    }
+    if (effects.allRewards && effects.allRewards > 1) {
+      bonuses.push('✨ +' + Math.round((effects.allRewards - 1) * 100) + '% All Rewards');
+    }
+    if (effects.rareFindChance && effects.rareFindChance > 1) {
+      bonuses.push('🎁 ' + effects.rareFindChance + 'x Rare Drop Chance');
+    }
+    if (effects.energyRegen && effects.energyRegen > 1) {
+      bonuses.push('⚡ ' + effects.energyRegen + 'x Energy Regen');
+    }
+    
+    if (bonuses.length === 0) return '';
+    
+    return '<div class="event-bonuses">' + bonuses.join(' • ') + '</div>';
+  },
+  
+  updateEventTimer: function() {
+    if (!this.eventEndDate) return;
+    
+    var timerEl = document.getElementById('event-timer');
+    if (!timerEl) return;
+    
+    var now = new Date();
+    var diff = this.eventEndDate - now;
+    
+    if (diff <= 0) {
+      timerEl.textContent = 'Ending soon...';
+      return;
+    }
+    
+    var days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    var hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    
+    if (days > 0) {
+      timerEl.textContent = days + 'd ' + hours + 'h left';
+    } else {
+      timerEl.textContent = hours + 'h left';
+    }
+    
+    setTimeout(function() {
+      worldEvents.updateEventTimer();
+    }, 60000);
+  },
+  
+  getCurrentEvent: function() {
+    return this.currentEvent;
+  },
+  
+  // Get active bonuses for other systems to use
+  getActiveBonus: function(bonusType) {
+    if (!this.currentEvent || !this.currentEvent.effects) return 1.0;
+    return this.currentEvent.effects[bonusType] || 1.0;
+  },
+  
+  hasActiveEffect: function(effectName) {
+    if (!this.currentEvent || !this.currentEvent.effects) return false;
+    return this.currentEvent.effects[effectName] === true;
+  },
+  
+  // Apply event modifiers to values
+  applyEventModifier: function(baseValue, modifierType) {
+    var modifier = this.getActiveBonus(modifierType);
+    return Math.floor(baseValue * modifier);
+  },
+  
+  triggerEvent: function(eventId) {
+    var event = this.events.find(function(e) { return e.id === eventId; });
+    if (event) {
+      this.currentEvent = event;
+      var endDate = new Date();
+      endDate.setDate(endDate.getDate() + event.duration);
+      this.eventEndDate = endDate;
+      localStorage.setItem('currentEvent', JSON.stringify(event));
+      localStorage.setItem('eventEndDate', endDate.toISOString());
+      this.displayEvent();
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   HELPER FUNCTIONS FOR OTHER SYSTEMS TO USE EVENT BONUSES
+   
+   Add these calls in your existing game systems:
+   
+   // In battle reward calculation:
+   var ppReward = worldEvents.applyEventModifier(basePP, 'ppGainBonus');
+   var xpReward = worldEvents.applyEventModifier(baseXP, 'battleXpBonus');
+   
+   // In shop pricing:
+   var finalPrice = worldEvents.applyEventModifier(basePrice, 'shopDiscount');
+   
+   // In happiness updates:
+   var happinessGain = worldEvents.applyEventModifier(baseGain, 'happinessGain');
+   
+   // Check for special effects:
+   if (worldEvents.hasActiveEffect('luckBonus')) {
+     // Apply luck-based bonuses
+   }
+   
+   ═══════════════════════════════════════════════════════════════════════ */
