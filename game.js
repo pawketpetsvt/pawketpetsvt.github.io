@@ -8267,9 +8267,9 @@ var newsTicker = {
     "SCANDAL: Embertail caught hoarding all the good snacks. Investigation pending.",
     "Public service: The void is watching. Not judgmentally, just... watching. Respectfully.",
     "URGENT: Please stop asking pets about cryptocurrency. They don't know. They're pets.",
-    "Local Ember spotted teaching battle tactics to confused woodland creatures.",
+    "Local Embertail (the Protogen) spotted teaching battle tactics to confused woodland creatures.",
     "ALERT: Suspicious activity in Deep Woods. Mushrooms organizing into 'battle formations.'",
-    "Breaking: Pyxshuul denies starting underground spoon fighting ring. Evidence suggests otherwise.",
+    "Breaking: Pyxshuul the Sparkledog denies starting underground spoon fighting ring. Evidence suggests otherwise.",
     "Weather update: Today's chaos energy levels at 87%. Stay hydrated.",
     "REMINDER: Pets cannot sign legal documents. Please stop trying.",
     "Community bulletin: The ruins are NOT a good first date location. Trust us on this.",
@@ -8277,7 +8277,7 @@ var newsTicker = {
     "SCANDAL: Someone taught the mushrooms to dance. Investigations ongoing.",
     "Public notice: If your pet starts whispering in ancient languages, that's probably fine.",
     "Market report: Snack futures looking strong. Invest in cuddles while you can.",
-    "Breaking: Witnesses report Embertail performing 'sick flips' near the marketplace.",
+    "Breaking: Witnesses report Embertail the Protogen performing 'sick flips' near the marketplace.",
     "URGENT: Do not challenge random forest creatures to duels. This should be obvious.",
     "Weather advisory: Emotionally unstable mushrooms detected in sector 7.",
     "Community update: The Deep Woods are NOT 'just vibes.' There are actual monsters.",
@@ -8304,19 +8304,37 @@ var newsTicker = {
     "SCANDAL: Underground pet cuddle syndicate discovered. All participants suspiciously happy.",
     "Community notice: The ruins are having a 'bad vibe day.' Visit at your own risk.",
     "ALERT: Suspicious butterfly activity near the marketplace. Remain vigilant.",
-    "Breaking: Embertail's new hobby is 'aggressive wholesomeness.' Casualties: zero. Smiles: many."
+    "Breaking: Embertail's new hobby is 'aggressive wholesomeness.' Casualties: zero. Smiles: many.",
+    // NEW MEMBER JOKES
+    "BREAKING: Aria the Rosy Maple Moth spotted hovering suspiciously near all the lamps. Again.",
+    "Alert: Aria insists the lamps are 'just friends.' Community remains skeptical.",
+    "EXCLUSIVE: Blushimia the puppy's tail-wagging energy could power entire city. Scientists investigating.",
+    "Public notice: Blushimia rated '12/10 good dog' by independent review board.",
+    "Breaking: Cowbee produces both milk AND honey. Economists baffled by implications.",
+    "SCANDAL: Cowbee's buzz-moo hybrid sound breaks international classification system.",
+    "Market alert: Kelta the Pomeranian's floof levels exceed safety recommendations.",
+    "URGENT: Kelta's cuteness has reached critical mass. Protective eyewear advised.",
+    "Breaking: Jess the Parasaur claims dinosaurs 'never went extinct, just got cuter.'",
+    "EXCLUSIVE: Jess spotted doing the stanky leg. Paleontologists refuse to comment.",
+    "ALERT: Gnarly the Smilodon banned from arcade for 'dominating every high score.'",
+    "Breaking: Gnarly's gaming skills described as 'prehistorically good.' Witnesses intimidated.",
+    "Community update: Please stop asking Cowbee if they identify as 'bee-vegan.' It's complicated.",
+    "Weather report: Aria's moth senses predict incoming lamp sales. Invest accordingly.",
+    "SCANDAL: Kelta's pomeranian poof used as emergency cushion. No injuries reported.",
+    "Public service: Jess confirms dinosaurs DID have feathers. Fashion historians vindicated.",
+    "Breaking: Gnarly achieves perfect Pac-Man run. Arcade ghosts file complaint.",
+    "Market update: Blushimia-brand enthusiasm stocks soaring. Buy while wagging is good."
   ],
   
   currentIndex: 0,
   rotationInterval: null,
+  isScrolling: false,
+  usedIndices: [],
   
   init: function() {
     this.shuffle();
     this.updateTicker();
-    // Rotate message every 8 seconds
-    this.rotationInterval = setInterval(function() {
-      newsTicker.updateTicker();
-    }, 8000);
+    this.startScrollDetection();
   },
   
   shuffle: function() {
@@ -8327,21 +8345,71 @@ var newsTicker = {
       this.messages[i] = this.messages[j];
       this.messages[j] = temp;
     }
+    this.usedIndices = [];
+  },
+  
+  getRandomUnusedIndex: function() {
+    // If we've used all messages, reset
+    if (this.usedIndices.length >= this.messages.length) {
+      this.usedIndices = [];
+      this.shuffle();
+    }
+    
+    // Find unused index
+    var availableIndices = [];
+    for (var i = 0; i < this.messages.length; i++) {
+      if (this.usedIndices.indexOf(i) === -1) {
+        availableIndices.push(i);
+      }
+    }
+    
+    // Pick random from available
+    var randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
+    this.usedIndices.push(randomIndex);
+    return randomIndex;
+  },
+  
+  startScrollDetection: function() {
+    var tickerElement = document.querySelector('.news-ticker-inner');
+    if (!tickerElement) return;
+    
+    // Check every 100ms if message has scrolled off-screen
+    this.rotationInterval = setInterval(function() {
+      if (newsTicker.isScrolling) return;
+      
+      var rect = tickerElement.getBoundingClientRect();
+      var parent = tickerElement.parentElement.getBoundingClientRect();
+      
+      // If the right edge of the message is past the left edge of the container
+      // (fully scrolled off screen to the left)
+      if (rect.right < parent.left) {
+        newsTicker.updateTicker();
+      }
+    }, 100);
   },
   
   updateTicker: function() {
     var tickerElement = document.querySelector('.news-ticker-inner');
     if (tickerElement) {
-      // Add separator between messages
+      this.isScrolling = true;
+      
+      // Get random unused message
+      this.currentIndex = this.getRandomUnusedIndex();
       var message = this.messages[this.currentIndex];
+      
+      // Update message
       tickerElement.textContent = '📰 ' + message + ' ✨ ';
       
-      this.currentIndex = (this.currentIndex + 1) % this.messages.length;
+      // Reset animation by removing and re-adding the element
+      var parent = tickerElement.parentElement;
+      var clone = tickerElement.cloneNode(true);
+      parent.removeChild(tickerElement);
+      parent.appendChild(clone);
       
-      // Re-shuffle when we complete a cycle
-      if (this.currentIndex === 0) {
-        this.shuffle();
-      }
+      // Mark as not scrolling after animation restarts
+      setTimeout(function() {
+        newsTicker.isScrolling = false;
+      }, 100);
     }
   },
   
