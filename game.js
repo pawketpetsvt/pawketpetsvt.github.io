@@ -4612,132 +4612,6 @@ async function loadProfileBadges(userId) {
 
 var currentEquipmentFilter = 'all';
 
-async function loadEquipmentShop() {
-  var grid = el('equipment-shop-grid');
-  grid.innerHTML = '<div class="spinner"></div>';
-  
-  var query = supabaseClient
-    .from('equipment')
-    .select('*')
-    .order('tier', { ascending: true })
-    .order('price', { ascending: true });
-  
-  if (currentEquipmentFilter !== 'all') {
-    query = query.eq('equipment_type', currentEquipmentFilter);
-  }
-  
-  var res = await query;
-  
-  if (res.error) {
-    grid.innerHTML = '<p style="text-align:center;color:var(--text-light);">Error loading equipment</p>';
-    return;
-  }
-  
-  if (res.data.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><p>No equipment available! 🗡️</p></div>';
-    return;
-  }
-  
-  grid.innerHTML = '';
-  
-  // Group items by tier
-  var tiers = {};
-  res.data.forEach(function(item) {
-    if (!tiers[item.tier]) {
-      tiers[item.tier] = [];
-    }
-    tiers[item.tier].push(item);
-  });
-  
-  // Render each tier with headers
-  Object.keys(tiers).sort(function(a, b) { return parseInt(a) - parseInt(b); }).forEach(function(tier) {
-    // Tier-specific colors
-    var tierColors = {
-      '1': 'linear-gradient(135deg, #888 0%, #666 100%)',        // Gray
-      '2': 'linear-gradient(135deg, #4CAF50 0%, #2E7D32 100%)',  // Green
-      '3': 'linear-gradient(135deg, #2196F3 0%, #1565C0 100%)',  // Blue
-      '4': 'linear-gradient(135deg, #9C27B0 0%, #6A1B9A 100%)'   // Purple
-    };
-    
-    // Tier header
-    var header = makeEl('div', { class: 'shop-category-header' });
-    header.style.cssText = 'grid-column: 1 / -1; padding: 15px 20px; margin-top: 10px; background: ' + (tierColors[tier] || tierColors['1']) + '; border-radius: 12px; color: white; font-weight: bold; font-size: 1.5rem; text-shadow: 0 2px 4px rgba(0,0,0,0.3);';
-    header.textContent = '⚔️ Tier ' + tier;
-    grid.appendChild(header);
-    
-    // Items in this tier
-    tiers[tier].forEach(function(item) {
-      var card = makeEl('div', { class: 'equipment-card' });
-    
-    // Tier badge
-    var tierBadge = makeEl('div', { class: 'equipment-tier' });
-    tierBadge.textContent = 'Tier ' + item.tier;
-    card.appendChild(tierBadge);
-    
-    // Weight class badge
-    var weightBadge = makeEl('div', { class: 'equipment-weight weight-' + item.weight_class });
-    weightBadge.textContent = item.weight_class;
-    card.appendChild(weightBadge);
-    
-    // Icon (weapon or armor emoji)
-    var icon = makeEl('div', { class: 'equipment-icon' });
-    icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
-    card.appendChild(icon);
-    
-    // Name
-    var name = makeEl('div', { class: 'equipment-name' });
-    name.textContent = item.name;
-    card.appendChild(name);
-    
-    // Description
-    var desc = makeEl('div', { class: 'equipment-desc' });
-    desc.textContent = item.description;
-    card.appendChild(desc);
-    
-    // Stats
-    var statsDiv = makeEl('div', { class: 'equipment-stats' });
-    if (item.attack_bonus !== 0) {
-      var attackStat = makeEl('div', { class: 'equipment-stat' });
-      attackStat.innerHTML = '<span>Attack:</span><span class="' + (item.attack_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.attack_bonus > 0 ? '+' : '') + item.attack_bonus + '</span>';
-      statsDiv.appendChild(attackStat);
-    }
-    if (item.defense_bonus !== 0) {
-      var defStat = makeEl('div', { class: 'equipment-stat' });
-      defStat.innerHTML = '<span>Defense:</span><span class="' + (item.defense_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.defense_bonus > 0 ? '+' : '') + item.defense_bonus + '</span>';
-      statsDiv.appendChild(defStat);
-    }
-    if (item.speed_bonus !== 0) {
-      var speedStat = makeEl('div', { class: 'equipment-stat' });
-      speedStat.innerHTML = '<span>Speed:</span><span class="' + (item.speed_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.speed_bonus > 0 ? '+' : '') + item.speed_bonus + '</span>';
-      statsDiv.appendChild(speedStat);
-    }
-    if (item.hp_bonus !== 0) {
-      var hpStat = makeEl('div', { class: 'equipment-stat' });
-      hpStat.innerHTML = '<span>HP:</span><span class="' + (item.hp_bonus > 0 ? 'equipment-stat-positive' : 'equipment-stat-negative') + '">' + (item.hp_bonus > 0 ? '+' : '') + item.hp_bonus + '</span>';
-      statsDiv.appendChild(hpStat);
-    }
-    card.appendChild(statsDiv);
-    
-    // Price with event discount
-    var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
-    var price = makeEl('div', { class: 'equipment-price' });
-    if (displayPrice < item.price) {
-      price.innerHTML = displayPrice + ' PP <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
-    } else {
-      price.textContent = displayPrice + ' PP';
-    }
-    card.appendChild(price);
-    
-    // Buy button
-    var buyBtn = makeEl('button', { class: 'btn btn-primary' });
-    buyBtn.textContent = 'Buy';
-    buyBtn.onclick = function() { buyEquipment(item.id, item.name, displayPrice); };
-    card.appendChild(buyBtn);
-    
-    grid.appendChild(card);
-    }); // Close items forEach
-  }); // Close tiers forEach
-}
 
 async function buyEquipment(equipmentId, equipmentName, price) {
   if (!currentUser) return;
@@ -4802,6 +4676,11 @@ async function buyEquipment(equipmentId, equipmentName, price) {
       return;
     }
   }
+  
+  // Track stats (for new stats system)
+  trackStat('items_purchased', 1);
+  trackStat('pp_spent', price);
+  trackStat('total_items_purchased', 1, true);
   
   updateAllPoints(newPoints);
   showToast('Bought ' + equipmentName + '!');
@@ -13616,7 +13495,7 @@ function getTimeUntilRotation() {
  * REPLACES or MODIFIES your existing loadShop/loadEquipmentShop function
  */
 async function loadEquipmentShop() {
-  var container = el('shop-grid'); // Adjust this ID to match your shop container
+  var container = el('equipment-shop-grid'); // Adjust this ID to match your shop container
   if (!container) return;
   
   container.innerHTML = '<div class="spinner"></div>';
@@ -13702,7 +13581,7 @@ async function loadEquipmentShop() {
         } else {
           var canAfford = currentPoints >= item.price;
           if (canAfford) {
-            html += '<button class="btn btn-primary" onclick="buyEquipment(' + item.id + ')">Buy</button>';
+            html += '<button class="btn btn-primary" onclick="buyEquipment(' + item.id + ', \'' + item.name.replace(/'/g, "\\'") + '\', ' + item.price + ')">Buy</button>';
           } else {
             html += '<button class="btn btn-locked" disabled>Need ' + item.price + ' PP</button>';
           }
@@ -13740,86 +13619,6 @@ function updateRotationCountdown() {
   if (countdown) {
     countdown.textContent = getTimeUntilRotation();
   }
-}
-
-/**
- * Buy equipment (modify your existing buyEquipment function or create new one)
- */
-async function buyEquipment(equipmentId) {
-  if (!currentUser) {
-    alert('Please log in to purchase equipment!');
-    return;
-  }
-  
-  try {
-    // Get equipment details
-    var equipRes = await supabaseClient
-      .from('equipment')
-      .select('*')
-      .eq('id', equipmentId)
-      .single();
-    
-    if (equipRes.error) throw equipRes.error;
-    
-    var equipment = equipRes.data;
-    
-    // Check if player can afford it
-    if (currentPoints < equipment.price) {
-      alert('Not enough PawketPoints! You need ' + equipment.price + ' PP.');
-      return;
-    }
-    
-    // Check if already owned
-    var ownedCheck = await supabaseClient
-      .from('player_equipment')
-      .select('id')
-      .eq('user_id', currentUser.id)
-      .eq('equipment_id', equipmentId)
-      .single();
-    
-    if (ownedCheck.data) {
-      alert('You already own this item!');
-      return;
-    }
-    
-    // Confirm purchase
-    var confirmMsg = 'Purchase ' + equipment.name + ' for ' + equipment.price + ' PP?';
-    if (!confirm(confirmMsg)) return;
-    
-    // Deduct PP
-    var newPoints = currentPoints - equipment.price;
-    var updateRes = await supabaseClient
-      .from('players')
-      .update({ points: newPoints })
-      .eq('user_id', currentUser.id);
-    
-    if (updateRes.error) throw updateRes.error;
-    
-    // Add equipment to player inventory
-    var addRes = await supabaseClient
-      .from('player_equipment')
-      .insert({
-        user_id: currentUser.id,
-        equipment_id: equipmentId,
-        is_equipped: false
-      });
-    
-    if (addRes.error) throw addRes.error;
-    
-    // Update UI
-    currentPoints = newPoints;
-    updatePointsDisplay();
-    
-    // Track stat
-    trackStat('items_purchased', 1);
-    trackStat('pp_spent', equipment.price);
-    trackStat('total_items_purchased', 1, true);
-    
-    alert('✅ ' + equipment.name + ' purchased!');
-    
-    // Reload shop
-    loadEquipmentShop();
-    
   } catch (err) {
     alert('Purchase failed: ' + err.message);
     console.error('Buy equipment error:', err);
