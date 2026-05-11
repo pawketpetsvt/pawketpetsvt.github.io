@@ -60,16 +60,9 @@ a { color: var(--purple-dark) !important; text-decoration: none !important; tran
 a:hover { color: var(--pink) !important; }
 
 /* MUSIC BAR */
+/* OLD MUSIC BAR - NOW INTEGRATED INTO NAVBAR */
 .music-bar { 
-  background: linear-gradient(90deg, #ff66cc, #9966ff, #00ddff) !important; 
-  padding: 8px 20px !important; 
-  display: flex !important; 
-  align-items: center !important; 
-  justify-content: flex-end !important; 
-  gap: 12px !important; 
-  z-index: 101 !important; 
-  position: relative !important;
-  box-shadow: 0 2px 10px rgba(153,102,255,0.3) !important;
+  display: none !important; /* Music controls now in navbar */
 }
 .music-bar-label { 
   font-family: 'Chewy', cursive !important; 
@@ -130,6 +123,143 @@ a:hover { color: var(--pink) !important; }
   text-shadow: 1px 1px 0 rgba(255,255,255,0.5) !important;
 }
 @keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+
+/* CONSOLIDATED NAVBAR STYLES */
+.navbar-consolidated .navbar-inner {
+  display: grid !important;
+  grid-template-columns: auto 1fr auto !important;
+  align-items: center !important;
+  gap: 20px !important;
+  height: 70px !important;
+}
+
+.navbar-center {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  padding: 0 10px !important;
+}
+
+.beta-tag-inline {
+  background: rgba(0, 0, 0, 0.3) !important;
+  color: white !important;
+  padding: 4px 10px !important;
+  border-radius: 15px !important;
+  font-weight: bold !important;
+  font-size: 0.75rem !important;
+  letter-spacing: 1px !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+}
+
+.beta-text-inline {
+  color: rgba(255, 255, 255, 0.95) !important;
+  font-size: 0.8rem !important;
+  font-weight: 600 !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+  white-space: nowrap !important;
+}
+
+.beta-contact-inline {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: white !important;
+  padding: 5px 12px !important;
+  border-radius: 15px !important;
+  font-size: 0.75rem !important;
+  font-weight: bold !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+}
+
+.beta-contact-inline:hover {
+  background: rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+.music-controls-inline {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 0 8px !important;
+  border-left: 2px solid rgba(255,255,255,0.2) !important;
+  margin-left: 4px !important;
+}
+
+.music-title-inline {
+  font-size: 1.1rem !important;
+  opacity: 0.9 !important;
+}
+
+.music-btn-inline {
+  background: rgba(255,255,255,0.2) !important;
+  border: 1px solid rgba(255,255,255,0.4) !important;
+  color: var(--white) !important;
+  font-size: 0.75rem !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 50% !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+}
+
+.music-btn-inline:hover {
+  background: rgba(255,255,255,0.35) !important;
+  transform: scale(1.1) !important;
+}
+
+.music-volume-inline {
+  width: 70px !important;
+  height: 4px !important;
+  accent-color: var(--yellow) !important;
+  cursor: pointer !important;
+  background: rgba(255,255,255,0.2) !important;
+  border-radius: 2px !important;
+}
+
+/* Responsive adjustments for consolidated navbar */
+@media (max-width: 1200px) {
+  .beta-text-inline {
+    font-size: 0.7rem !important;
+    max-width: 200px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .navbar-consolidated .navbar-inner {
+    grid-template-columns: auto auto !important;
+    gap: 10px !important;
+  }
+  
+  .navbar-center {
+    grid-column: 1 / -1 !important;
+    order: 3 !important;
+    padding: 8px 0 !important;
+  }
+  
+  .beta-text-inline {
+    display: none !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .music-volume-inline {
+    width: 50px !important;
+  }
+  
+  .music-controls-inline {
+    gap: 6px !important;
+  }
+}
 
 /* NAVBAR - ROUNDED BOTTOM CORNERS */
 .navbar { 
@@ -5617,15 +5747,9 @@ body.boss-ui-glitch header {
 }
 
 /* ===== BETA BANNER ===== */
+/* OLD BETA BANNER - NOW INTEGRATED INTO NAVBAR */
 .beta-banner {
-  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
-  padding: 10px 20px;
-  text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  position: sticky;
-  top: 0;
-  z-index: 999;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  display: none !important; /* Beta warning now in navbar center */
 }
 
 .beta-banner-inner {
