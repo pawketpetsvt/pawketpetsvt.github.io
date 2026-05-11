@@ -4940,7 +4940,7 @@ async function buyEquipment(equipmentId, equipmentName, price) {
   loadEquipmentShop();
 }
 
-function filterEquipment(type) {
+function filterEquipment(type, evt) {
   currentEquipmentFilter = type;
   
   // Update active tab
@@ -4948,7 +4948,7 @@ function filterEquipment(type) {
   tabs.forEach(function(tab) {
     tab.classList.remove('active');
   });
-  event.target.classList.add('active');
+  if (evt && evt.target) evt.target.classList.add('active');
   
   loadEquipmentShop();
 }
