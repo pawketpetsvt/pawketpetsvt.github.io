@@ -2448,7 +2448,8 @@ async function checkSidebarStreamStatus() {
     
     // Check both streamers
         var logins = TEAM_MEMBERS.map(function(m) { return 'user_login=' + m.login; }).join('&');
-    var resp = await fetch('https://api.twitch.tv/helix/streams?' + logins, {
+        var resp = await fetch('https://api.twitch.tv/helix/streams?' + logins, {
+      headers: {
         'Client-Id': TWITCH_CLIENT_ID,
         'Authorization': 'Bearer ' + token
       }
