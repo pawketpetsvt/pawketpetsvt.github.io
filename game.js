@@ -3143,41 +3143,62 @@ function guessShell(pos) {
 var slotSpinning = false;
 var slotSymbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🎰'];
 var slotReels = [0, 0, 0]; // Current symbol index for each reel
-var SLOT_COST = 50; // Cost to play
+var selectedSlotBet = 50; // Default bet amount
+
+function selectSlotBet(amount) {
+  if (slotSpinning) return;
+  selectedSlotBet = amount;
+  
+  // Update button states
+  var buttons = document.querySelectorAll('.bet-btn');
+  buttons.forEach(function(btn) {
+    btn.classList.remove('active');
+    if (parseInt(btn.getAttribute('data-bet')) === amount) {
+      btn.classList.add('active');
+    }
+  });
+  
+  // Update spin button text
+  var spinBtn = el('slot-spin-btn');
+  if (spinBtn) {
+    spinBtn.textContent = '🎰 Spin! (' + amount + ' PP)';
+  }
+}
 
 function spinSlots() {
   if (slotSpinning || isCD('slots')) return;
   
   // Check if user has enough PP
-  if (currentPoints < SLOT_COST) {
-    var result = el('slots-result');
+  if (currentPoints < selectedSlotBet) {
+    var result = el('slot-result');
     if (result) {
-      result.textContent = 'Not enough PP! Need ' + SLOT_COST + ' PP to play.';
+      result.textContent = 'Not enough PP! Need ' + selectedSlotBet + ' PP to play.';
       result.style.color = '#ff6eb4';
     }
     return;
   }
   
-  // Deduct 50 PP to play
-  deductPP(SLOT_COST);
+  // Deduct bet amount to play
+  deductPP(selectedSlotBet);
   
   slotSpinning = true;
   
-  var btn = el('slots-btn');
+  var btn = el('slot-spin-btn');
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Spinning...';
   }
   
   // Clear previous result
-  var result = el('slots-result');
+  var result = el('slot-result');
   if (result) {
     result.textContent = '';
   }
   
-  var reel1 = el('slot-reel-0');
-  var reel2 = el('slot-reel-1');
-  var reel3 = el('slot-reel-2');
+  // Note: HTML has slot-reel-1, slot-reel-2, slot-reel-3 (not 0-indexed!)
+  var reel1 = el('slot-reel-1');
+  var reel2 = el('slot-reel-2');
+  var reel3 = el('slot-reel-3');
   
   // Random final positions
   var final = [
@@ -3214,57 +3235,47 @@ function spinSlots() {
       slotReels[2] = final[2];
       if (reel3) reel3.textContent = slotSymbols[final[2]];
       
-      // Check for win - GROSS prizes before the 50 PP cost
+      // Calculate prizes based on bet amount
+      // Match 2 = get bet back (break even)
+      // Match 3 = 4x bet (3x profit)
       var grossPrize = 0;
       var netProfit = 0;
       
       if (final[0] === final[1] && final[1] === final[2]) {
-        // All three match!
-        var symbol = slotSymbols[final[0]];
-        if (symbol === '7️⃣') {
-          grossPrize = 150; // Costs 50, wins 150, net profit = 100
-          netProfit = 100;
-        } else if (symbol === '💎') {
-          grossPrize = 100; // Costs 50, wins 100, net profit = 50
-          netProfit = 50;
-        } else {
-          grossPrize = 60; // Costs 50, wins 60, net profit = 10
-          netProfit = 10;
-        }
+        // All three match! 4x payout
+        grossPrize = selectedSlotBet * 4;
+        netProfit = selectedSlotBet * 3; // 3x profit after cost
       } else if (final[0] === final[1] || final[1] === final[2] || final[0] === final[2]) {
         // Two match - break even
-        grossPrize = 50; // Costs 50, wins 50, net profit = 0
-        netProfit = 0;
+        grossPrize = selectedSlotBet;
+        netProfit = 0; // Got bet back
       }
       
       slotSpinning = false;
       setCD('slots');
       
-      var result = el('slots-result');
+      var result = el('slot-result');
       if (result) {
         if (grossPrize > 0) {
           // Award the gross prize
           awardPP(grossPrize);
           
           if (netProfit > 0) {
-            result.textContent = 'You won ' + netProfit + ' PP! (Paid ' + grossPrize + ' PP)';
+            result.textContent = '🎉 Triple Match! Won ' + netProfit + ' PP profit! (Paid ' + grossPrize + ' PP total)';
             result.style.color = '#5dde7a';
-          } else if (netProfit === 0) {
-            result.textContent = 'Break even! Got your ' + SLOT_COST + ' PP back!';
+          } else {
+            result.textContent = '🎯 Two Match! Break even - got your ' + selectedSlotBet + ' PP back!';
             result.style.color = '#ffdd57';
           }
         } else {
-          // Lost - already deducted 50 PP
-          result.textContent = 'No match! Lost ' + SLOT_COST + ' PP. Try again tomorrow!';
+          // Lost - already deducted bet
+          result.textContent = '❌ No match! Lost ' + selectedSlotBet + ' PP. Try again tomorrow!';
           result.style.color = '#ff6eb4';
         }
       }
       
-      var cooldown = el('slots-cooldown');
-      if (cooldown) cooldown.style.display = 'block';
-      
       if (btn) {
-        btn.textContent = 'Spin! (50 PP)';
+        btn.textContent = '🎰 Spin! (' + selectedSlotBet + ' PP)';
         btn.disabled = false;
       }
     }
