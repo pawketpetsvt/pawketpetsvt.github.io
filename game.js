@@ -2423,6 +2423,37 @@ function closeContactModal() {
 // ── SIDEBAR TWITCH LIVE STATUS CHECK ──────────────────
 // Track if we've already logged about missing Twitch token
 var twitchTokenLoggedOnce = false;
+function sortStreamerList() {
+  var streamersWidget = document.querySelector('.streamers-widget');
+  if (!streamersWidget) return;
+  
+  var streamerItems = streamersWidget.querySelectorAll('.streamer-item');
+  if (!streamerItems.length) return;
+  
+  // Convert NodeList to Array for sorting
+  var itemsArray = Array.prototype.slice.call(streamerItems);
+  
+  // Sort: LIVE streamers first, then alphabetically
+  itemsArray.sort(function(a, b) {
+    var aLive = a.querySelector('.live-indicator') && 
+                a.querySelector('.live-indicator').style.display !== 'none';
+    var bLive = b.querySelector('.live-indicator') && 
+                b.querySelector('.live-indicator').style.display !== 'none';
+    
+    if (aLive && !bLive) return -1;
+    if (!aLive && bLive) return 1;
+    
+    // Both live or both offline - sort by name
+    var aName = a.querySelector('.streamer-name').textContent.trim();
+    var bName = b.querySelector('.streamer-name').textContent.trim();
+    return aName.localeCompare(bName);
+  });
+  
+  // Re-append in sorted order
+  itemsArray.forEach(function(item) {
+    streamersWidget.appendChild(item);
+  });
+}
 
 async function checkSidebarStreamStatus() {
   // Check if Embertail and Pyxshuul are live using public Twitch API
@@ -2494,10 +2525,10 @@ async function checkSidebarStreamStatus() {
     }
     
     console.log('✅ Sidebar stream status checked');
+    sortStreamerList();
   } catch (err) {
     console.error('❌ Error checking sidebar stream status:', err);
   }
-}
 
 
 async function useOnPet(petId,petNickname) {
