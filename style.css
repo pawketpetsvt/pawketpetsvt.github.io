@@ -2591,6 +2591,35 @@ body::after {
   position: relative !important;
   flex: 1 !important;
   min-height: 220px !important;
+  max-height: 600px !important; /* Add max height */
+  overflow-y: auto !important; /* Add vertical scrolling */
+  overflow-x: hidden !important; /* Hide horizontal scroll */
+}
+
+/* Custom scrollbar for streamers widget */
+.streamers-widget::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.streamers-widget::-webkit-scrollbar-track {
+  background: rgba(153, 102, 255, 0.1) !important;
+  border-radius: 10px !important;
+}
+
+.streamers-widget::-webkit-scrollbar-thumb {
+  background: var(--purple-light) !important;
+  border-radius: 10px !important;
+  transition: background 0.2s !important;
+}
+
+.streamers-widget::-webkit-scrollbar-thumb:hover {
+  background: var(--purple) !important;
+}
+
+/* Firefox scrollbar */
+.streamers-widget {
+  scrollbar-width: thin !important;
+  scrollbar-color: var(--purple-light) rgba(153, 102, 255, 0.1) !important;
 }
 
 /* LIVE indicator decoration on streamer widget */
@@ -8228,6 +8257,23 @@ body.night-mode .streamers-widget {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
 }
 
+/* Night mode scrollbar for streamers widget */
+body.night-mode .streamers-widget::-webkit-scrollbar-track {
+  background: rgba(102, 68, 170, 0.2) !important;
+}
+
+body.night-mode .streamers-widget::-webkit-scrollbar-thumb {
+  background: #6644aa !important;
+}
+
+body.night-mode .streamers-widget::-webkit-scrollbar-thumb:hover {
+  background: #7755bb !important;
+}
+
+body.night-mode .streamers-widget {
+  scrollbar-color: #6644aa rgba(102, 68, 170, 0.2) !important;
+}
+
 body.night-mode .streamer-item {
   background: rgba(102, 68, 170, 0.2) !important;
   border: 2px solid #6644aa !important;
@@ -9065,3 +9111,279 @@ body.night-mode .stat-item.global .stat-value {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════
+   EQUIPMENT ROTATION SYSTEM - CSS Styles
+   Add this to your style.css file
+   ═══════════════════════════════════════════════════════════ */
+
+/* Rotation Banner */
+.shop-rotation-banner {
+  background: linear-gradient(135deg, #9966ff, #ff66cc);
+  padding: 20px;
+  border-radius: 15px;
+  margin-bottom: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.3);
+}
+
+.rotation-week {
+  font-family: 'Chewy', cursive;
+  font-size: 1.5rem;
+  color: white;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.rotation-timer {
+  font-family: 'Chewy', cursive;
+  font-size: 1.1rem;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+#rotation-countdown {
+  color: #ffdd00;
+  font-weight: bold;
+}
+
+/* Equipment Grid */
+.equipment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+/* Equipment Card */
+.equipment-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  border-radius: 15px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.15);
+  border: 3px solid rgba(153, 102, 255, 0.3);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.equipment-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 20px rgba(153, 102, 255, 0.3);
+}
+
+/* Rarity Colors */
+.equipment-card.rarity-common {
+  border-color: rgba(153, 153, 153, 0.5);
+}
+
+.equipment-card.rarity-uncommon {
+  border-color: rgba(46, 204, 113, 0.6);
+}
+
+.equipment-card.rarity-rare {
+  border-color: rgba(52, 152, 219, 0.7);
+}
+
+.equipment-card.rarity-legendary {
+  border-color: rgba(241, 196, 15, 0.8);
+  background: linear-gradient(135deg, rgba(255, 248, 220, 0.95), rgba(255, 243, 205, 0.85));
+  box-shadow: 0 4px 20px rgba(241, 196, 15, 0.4);
+}
+
+.equipment-card.rarity-legendary:hover {
+  box-shadow: 0 8px 30px rgba(241, 196, 15, 0.6);
+}
+
+/* Already Owned */
+.equipment-card.owned {
+  opacity: 0.7;
+  border-style: dashed;
+}
+
+/* Boss Drop Badge */
+.boss-drop-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  box-shadow: 0 2px 6px rgba(231, 76, 60, 0.4);
+}
+
+/* Equipment Name */
+.equipment-name {
+  font-family: 'Chewy', cursive;
+  font-size: 1.3rem;
+  color: var(--purple);
+  margin: 0 0 8px 0;
+  text-shadow: 1px 1px 2px rgba(153, 102, 255, 0.2);
+}
+
+.equipment-card.rarity-legendary .equipment-name {
+  color: #f39c12;
+}
+
+/* Equipment Description */
+.equipment-description {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin: 0 0 12px 0;
+  font-style: italic;
+  min-height: 40px;
+}
+
+/* Equipment Stats */
+.equipment-stats {
+  background: rgba(153, 102, 255, 0.1);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.equipment-type {
+  font-family: 'Chewy', cursive;
+  font-size: 0.95rem;
+  color: var(--purple-dark);
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.equipment-tier {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.equipment-stats .stat {
+  font-size: 0.9rem;
+  color: var(--text);
+  margin: 4px 0;
+  font-weight: 600;
+}
+
+/* Equipment Price */
+.equipment-price {
+  font-family: 'Chewy', cursive;
+  font-size: 1.2rem;
+  color: var(--yellow);
+  text-align: center;
+  margin-bottom: 12px;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(255, 153, 51, 0.3);
+}
+
+.equipment-price.boss-drop-price {
+  color: #e74c3c;
+  font-size: 0.9rem;
+}
+
+/* Buttons */
+.equipment-card .btn {
+  width: 100%;
+  padding: 10px;
+  font-family: 'Chewy', cursive;
+  font-size: 1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.equipment-card .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #ff66cc);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 8px rgba(153, 102, 255, 0.3);
+}
+
+.equipment-card .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(153, 102, 255, 0.4);
+}
+
+.equipment-card .btn-owned {
+  background: rgba(46, 204, 113, 0.8);
+  color: white;
+  border: none;
+  cursor: default;
+}
+
+.equipment-card .btn-locked {
+  background: rgba(149, 165, 166, 0.8);
+  color: white;
+  border: none;
+  cursor: not-allowed;
+}
+
+.equipment-card .btn-legendary {
+  background: linear-gradient(135deg, #f39c12, #e67e22);
+  color: white;
+  border: none;
+  cursor: default;
+  box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+}
+
+/* Night Mode */
+body.night-mode .shop-rotation-banner {
+  background: linear-gradient(135deg, #6a4dbf, #bf4d9a);
+}
+
+body.night-mode .equipment-card {
+  background: linear-gradient(135deg, rgba(42, 36, 64, 0.95), rgba(42, 36, 64, 0.85));
+  border-color: rgba(153, 102, 255, 0.5);
+}
+
+body.night-mode .equipment-card.rarity-legendary {
+  background: linear-gradient(135deg, rgba(64, 48, 16, 0.95), rgba(64, 48, 16, 0.85));
+}
+
+body.night-mode .equipment-name {
+  color: #b589ff;
+}
+
+body.night-mode .equipment-card.rarity-legendary .equipment-name {
+  color: #ffd700;
+}
+
+body.night-mode .equipment-description {
+  color: #e8d5ff;
+}
+
+body.night-mode .equipment-stats {
+  background: rgba(153, 102, 255, 0.2);
+}
+
+body.night-mode .equipment-type {
+  color: #b589ff;
+}
+
+body.night-mode .equipment-tier,
+body.night-mode .equipment-stats .stat {
+  color: #e8d5ff;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .shop-rotation-banner {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+  
+  .equipment-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  
+  .rotation-week {
+    font-size: 1.2rem;
+  }
+  
+  .rotation-timer {
+    font-size: 0.95rem;
+  }
+}
