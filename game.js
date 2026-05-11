@@ -13335,3 +13335,219 @@ var worldEvents = {
    }
    
    ═══════════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STATISTICS TRACKING SYSTEM
+   Global and player-level stat tracking for achievements, community goals, etc.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Stat batching for performance
+var statBatch = [];
+var statBatchTimeout = null;
+
+/**
+ * Track a single statistic (batched)
+ * @param {string} statKey - Stat identifier (e.g., "enemies_defeated")
+ * @param {number} increment - Amount to increment (default 1)
+ * @param {boolean} isGlobal - Track globally for all players (default false)
+ */
+function trackStat(statKey, increment, isGlobal) {
+  if (increment === undefined) increment = 1;
+  if (isGlobal === undefined) isGlobal = false;
+  if (!currentUser) return;
+  
+  statBatch.push({ statKey: statKey, increment: increment, isGlobal: isGlobal });
+  
+  clearTimeout(statBatchTimeout);
+  statBatchTimeout = setTimeout(flushStatBatch, 2000); // Flush every 2 seconds
+}
+
+/**
+ * Flush batched stats to database
+ */
+async function flushStatBatch() {
+  if (statBatch.length === 0) return;
+  
+  var batch = statBatch.slice(); // Copy batch
+  statBatch = []; // Clear batch
+  
+  // Group by statKey + isGlobal and sum increments
+  var grouped = {};
+  batch.forEach(function(stat) {
+    var key = stat.statKey + '_' + stat.isGlobal;
+    if (!grouped[key]) {
+      grouped[key] = { statKey: stat.statKey, increment: stat.increment, isGlobal: stat.isGlobal };
+    } else {
+      grouped[key].increment += stat.increment;
+    }
+  });
+  
+  // Execute all stat updates
+  var promises = Object.values(grouped).map(function(stat) {
+    return executeStatUpdate(stat.statKey, stat.increment, stat.isGlobal);
+  });
+  
+  try {
+    await Promise.all(promises);
+  } catch (err) {
+    console.error('Stat batch flush error:', err);
+    // Silent fail - don't break gameplay
+  }
+}
+
+/**
+ * Execute a single stat update
+ */
+async function executeStatUpdate(statKey, increment, isGlobal) {
+  try {
+    if (isGlobal) {
+      // Update global community stats
+      await supabaseClient.rpc('increment_global_stat', {
+        p_stat_key: statKey,
+        p_increment: increment
+      });
+    } else {
+      // Update player stats
+      await supabaseClient.rpc('increment_player_stat', {
+        p_user_id: currentUser.id,
+        p_stat_key: statKey,
+        p_increment: increment
+      });
+    }
+  } catch (err) {
+    console.error('Stat update error for ' + statKey + ':', err);
+    // Silent fail - don't break gameplay
+  }
+}
+
+/**
+ * Get player stats
+ */
+async function getPlayerStats() {
+  if (!currentUser) return {};
+  
+  try {
+    var res = await supabaseClient
+      .from('player_stats')
+      .select('stat_key, stat_value')
+      .eq('user_id', currentUser.id);
+    
+    if (res.error) throw res.error;
+    
+    var stats = {};
+    (res.data || []).forEach(function(stat) {
+      stats[stat.stat_key] = stat.stat_value;
+    });
+    
+    return stats;
+  } catch (err) {
+    console.error('Error fetching player stats:', err);
+    return {};
+  }
+}
+
+/**
+ * Get global stats
+ */
+async function getGlobalStats() {
+  try {
+    var res = await supabaseClient
+      .from('global_stats')
+      .select('stat_key, stat_value');
+    
+    if (res.error) throw res.error;
+    
+    var stats = {};
+    (res.data || []).forEach(function(stat) {
+      stats[stat.stat_key] = stat.stat_value;
+    });
+    
+    return stats;
+  } catch (err) {
+    console.error('Error fetching global stats:', err);
+    return {};
+  }
+}
+
+/**
+ * Display stats page
+ */
+async function loadStatsPage() {
+  var container = el('stats-container');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var playerStats = await getPlayerStats();
+    var globalStats = await getGlobalStats();
+    
+    var html = '<div class="stats-grid">';
+    
+    // Player Stats Section
+    html += '<div class="stats-section">';
+    html += '<h2 class="stats-section-title">📊 Your Statistics</h2>';
+    html += '<div class="stats-list">';
+    
+    var playerStatLabels = {
+      'battles_won': '⚔️ Battles Won',
+      'battles_lost': '💀 Battles Lost',
+      'enemies_defeated': '🎯 Enemies Defeated',
+      'damage_dealt': '💥 Damage Dealt',
+      'items_purchased': '🛒 Items Purchased',
+      'items_used': '🎁 Items Used',
+      'pp_earned': '🪙 PP Earned',
+      'pp_spent': '💸 PP Spent',
+      'pets_adopted': '🐾 Pets Adopted',
+      'minigames_played': '🎮 Minigames Played'
+    };
+    
+    Object.keys(playerStatLabels).forEach(function(key) {
+      var value = playerStats[key] || 0;
+      html += '<div class="stat-item">';
+      html += '<span class="stat-label">' + playerStatLabels[key] + '</span>';
+      html += '<span class="stat-value">' + value.toLocaleString() + '</span>';
+      html += '</div>';
+    });
+    
+    html += '</div></div>';
+    
+    // Global Stats Section
+    html += '<div class="stats-section">';
+    html += '<h2 class="stats-section-title">🌍 Community Statistics</h2>';
+    html += '<div class="stats-list">';
+    
+    var globalStatLabels = {
+      'total_enemies_defeated': '🎯 Total Enemies Defeated',
+      'total_pets_adopted': '🐾 Total Pets Adopted',
+      'total_battles_won': '⚔️ Total Battles Won',
+      'total_pp_earned': '🪙 Total PP Earned',
+      'total_items_purchased': '🛒 Total Items Purchased',
+      'total_minigames_played': '🎮 Total Minigames Played',
+      'mushrooms_defeated': '🍄 Mushrooms Defeated',
+      'spoon_weapon_equips': '🥄 Spoon Weapons Equipped'
+    };
+    
+    Object.keys(globalStatLabels).forEach(function(key) {
+      var value = globalStats[key] || 0;
+      html += '<div class="stat-item global">';
+      html += '<span class="stat-label">' + globalStatLabels[key] + '</span>';
+      html += '<span class="stat-value">' + value.toLocaleString() + '</span>';
+      html += '</div>';
+    });
+    
+    html += '</div></div>';
+    html += '</div>';
+    
+    container.innerHTML = html;
+  } catch (err) {
+    container.innerHTML = '<div class="error-state"><p>Failed to load statistics.</p></div>';
+    console.error('Stats page error:', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   STAT TRACKING INTEGRATION POINTS
+   
+   Add these calls to your existing game systems for automatic tracking.
+   ═══════════════════════════════════════════════════════════════════════ */
