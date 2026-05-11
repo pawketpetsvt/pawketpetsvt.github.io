@@ -13551,3 +13551,287 @@ async function loadStatsPage() {
    
    Add these calls to your existing game systems for automatic tracking.
    ═══════════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════════
+   EQUIPMENT ROTATION SYSTEM - JavaScript Code
+   Add this to your game.js file
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/**
+ * Get current rotation week (A, B, or C) based on current date
+ * Rotates every Monday at midnight
+ */
+function getCurrentRotationWeek() {
+  var now = new Date();
+  
+  // Calculate weeks since epoch (Jan 1, 1970)
+  var epochStart = new Date(1970, 0, 1);
+  var millisecondsSinceEpoch = now - epochStart;
+  var weeksSinceEpoch = Math.floor(millisecondsSinceEpoch / (7 * 24 * 60 * 60 * 1000));
+  
+  // Cycle through A, B, C
+  var weekIndex = weeksSinceEpoch % 3;
+  var weeks = ['A', 'B', 'C'];
+  
+  return weeks[weekIndex];
+}
+
+/**
+ * Get next rotation date (next Monday at midnight)
+ */
+function getNextRotationDate() {
+  var now = new Date();
+  var daysUntilMonday = (8 - now.getDay()) % 7;
+  if (daysUntilMonday === 0) daysUntilMonday = 7; // If today is Monday, show next Monday
+  
+  var nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + daysUntilMonday);
+  nextMonday.setHours(0, 0, 0, 0);
+  
+  return nextMonday;
+}
+
+/**
+ * Get time remaining until next rotation (formatted string)
+ */
+function getTimeUntilRotation() {
+  var now = new Date();
+  var nextRotation = getNextRotationDate();
+  var diff = nextRotation - now;
+  
+  var days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  var hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  var minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (days > 0) {
+    return days + 'd ' + hours + 'h ' + minutes + 'm';
+  } else if (hours > 0) {
+    return hours + 'h ' + minutes + 'm';
+  } else {
+    return minutes + ' minutes';
+  }
+}
+
+/**
+ * Load equipment shop with rotation filtering
+ * REPLACES or MODIFIES your existing loadShop/loadEquipmentShop function
+ */
+async function loadEquipmentShop() {
+  var container = el('shop-grid'); // Adjust this ID to match your shop container
+  if (!container) return;
+  
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    var currentWeek = getCurrentRotationWeek();
+    
+    // Fetch equipment for current rotation week (or boss drops if player owns them)
+    var res = await supabaseClient
+      .from('equipment')
+      .select('*')
+      .or('rotation_week.eq.' + currentWeek + ',is_boss_drop.eq.true')
+      .order('tier', { ascending: true })
+      .order('weight_class', { ascending: true });
+    
+    if (res.error) throw res.error;
+    
+    var equipment = res.data || [];
+    
+    // Display rotation info
+    var html = '<div class="shop-rotation-banner">';
+    html += '<div class="rotation-week">📅 Week ' + currentWeek + ' Rotation</div>';
+    html += '<div class="rotation-timer">⏰ Next rotation in: <span id="rotation-countdown">' + getTimeUntilRotation() + '</span></div>';
+    html += '</div>';
+    
+    // Check what user already owns
+    var ownedEquipment = [];
+    if (currentUser) {
+      var ownedRes = await supabaseClient
+        .from('player_equipment')
+        .select('equipment_id')
+        .eq('user_id', currentUser.id);
+      
+      if (ownedRes.data) {
+        ownedEquipment = ownedRes.data.map(function(e) { return e.equipment_id; });
+      }
+    }
+    
+    // Display equipment cards
+    html += '<div class="equipment-grid">';
+    
+    equipment.forEach(function(item) {
+      var isOwned = ownedEquipment.indexOf(item.id) !== -1;
+      var isBossDrop = item.is_boss_drop;
+      
+      html += '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '">';
+      
+      // Boss drop badge
+      if (isBossDrop) {
+        html += '<div class="boss-drop-badge">👑 BOSS DROP</div>';
+      }
+      
+      // Item name and description
+      html += '<h3 class="equipment-name">' + item.name + '</h3>';
+      html += '<p class="equipment-description">' + (item.description || '') + '</p>';
+      
+      // Stats
+      html += '<div class="equipment-stats">';
+      html += '<div class="equipment-type">' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') + '</div>';
+      html += '<div class="equipment-tier">Tier ' + item.tier + ' ' + item.weight_class.charAt(0).toUpperCase() + item.weight_class.slice(1) + '</div>';
+      
+      if (item.attack_bonus > 0) {
+        html += '<div class="stat">⚔️ Attack: +' + item.attack_bonus + '</div>';
+      }
+      if (item.defense_bonus > 0) {
+        html += '<div class="stat">🛡️ Defense: +' + item.defense_bonus + '</div>';
+      }
+      if (item.speed_bonus !== 0) {
+        html += '<div class="stat">⚡ Speed: ' + (item.speed_bonus > 0 ? '+' : '') + item.speed_bonus + '</div>';
+      }
+      if (item.hp_bonus > 0) {
+        html += '<div class="stat">❤️ HP: +' + item.hp_bonus + '</div>';
+      }
+      
+      html += '</div>';
+      
+      // Price and buy button
+      if (!isBossDrop) {
+        html += '<div class="equipment-price">🪙 ' + item.price.toLocaleString() + ' PP</div>';
+        
+        if (isOwned) {
+          html += '<button class="btn btn-owned" disabled>Already Owned</button>';
+        } else {
+          var canAfford = currentPoints >= item.price;
+          if (canAfford) {
+            html += '<button class="btn btn-primary" onclick="buyEquipment(' + item.id + ')">Buy</button>';
+          } else {
+            html += '<button class="btn btn-locked" disabled>Need ' + item.price + ' PP</button>';
+          }
+        }
+      } else {
+        html += '<div class="equipment-price boss-drop-price">Cannot be purchased</div>';
+        if (isOwned) {
+          html += '<button class="btn btn-legendary" disabled>In Your Collection</button>';
+        } else {
+          html += '<button class="btn btn-locked" disabled>Defeat Boss to Obtain</button>';
+        }
+      }
+      
+      html += '</div>';
+    });
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+    
+    // Update countdown every minute
+    setInterval(updateRotationCountdown, 60000);
+    
+  } catch (err) {
+    container.innerHTML = '<div class="error-state"><p>Failed to load shop.</p></div>';
+    console.error('Equipment shop error:', err);
+  }
+}
+
+/**
+ * Update rotation countdown display
+ */
+function updateRotationCountdown() {
+  var countdown = el('rotation-countdown');
+  if (countdown) {
+    countdown.textContent = getTimeUntilRotation();
+  }
+}
+
+/**
+ * Buy equipment (modify your existing buyEquipment function or create new one)
+ */
+async function buyEquipment(equipmentId) {
+  if (!currentUser) {
+    alert('Please log in to purchase equipment!');
+    return;
+  }
+  
+  try {
+    // Get equipment details
+    var equipRes = await supabaseClient
+      .from('equipment')
+      .select('*')
+      .eq('id', equipmentId)
+      .single();
+    
+    if (equipRes.error) throw equipRes.error;
+    
+    var equipment = equipRes.data;
+    
+    // Check if player can afford it
+    if (currentPoints < equipment.price) {
+      alert('Not enough PawketPoints! You need ' + equipment.price + ' PP.');
+      return;
+    }
+    
+    // Check if already owned
+    var ownedCheck = await supabaseClient
+      .from('player_equipment')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('equipment_id', equipmentId)
+      .single();
+    
+    if (ownedCheck.data) {
+      alert('You already own this item!');
+      return;
+    }
+    
+    // Confirm purchase
+    var confirmMsg = 'Purchase ' + equipment.name + ' for ' + equipment.price + ' PP?';
+    if (!confirm(confirmMsg)) return;
+    
+    // Deduct PP
+    var newPoints = currentPoints - equipment.price;
+    var updateRes = await supabaseClient
+      .from('players')
+      .update({ points: newPoints })
+      .eq('user_id', currentUser.id);
+    
+    if (updateRes.error) throw updateRes.error;
+    
+    // Add equipment to player inventory
+    var addRes = await supabaseClient
+      .from('player_equipment')
+      .insert({
+        user_id: currentUser.id,
+        equipment_id: equipmentId,
+        is_equipped: false
+      });
+    
+    if (addRes.error) throw addRes.error;
+    
+    // Update UI
+    currentPoints = newPoints;
+    updatePointsDisplay();
+    
+    // Track stat
+    trackStat('items_purchased', 1);
+    trackStat('pp_spent', equipment.price);
+    trackStat('total_items_purchased', 1, true);
+    
+    alert('✅ ' + equipment.name + ' purchased!');
+    
+    // Reload shop
+    loadEquipmentShop();
+    
+  } catch (err) {
+    alert('Purchase failed: ' + err.message);
+    console.error('Buy equipment error:', err);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   USAGE INSTRUCTIONS:
+   
+   1. Replace your existing equipment shop loading function with loadEquipmentShop()
+   2. Make sure you call loadEquipmentShop() when the shop tab is opened
+   3. The rotation will automatically cycle every Monday at midnight
+   4. Boss drops will appear in shop but cannot be purchased (defeat bosses to obtain)
+   
+   ═══════════════════════════════════════════════════════════════════════ */
