@@ -728,6 +728,40 @@ async function loginUser(email, password) {
   return data;
 }
 
+async function registerUser(email, password, username) {
+  // Step 1: Create auth user with Supabase
+  var { data: authData, error: authError } = await supabaseClient.auth.signUp({
+    email: email,
+    password: password,
+    options: {
+      data: {
+        username: username
+      }
+    }
+  });
+  
+  if (authError) throw authError;
+  
+  // Step 2: Create player profile in database
+  var userId = authData.user.id;
+  
+  var { error: profileError } = await supabaseClient
+    .from('players')
+    .insert([{
+      id: userId,
+      username: username,
+      pawketpoints: 0,
+      created_at: new Date().toISOString()
+    }]);
+  
+  if (profileError) {
+    console.error('Error creating player profile:', profileError);
+    // Don't throw here - auth account was created, they can still log in
+  }
+  
+  return authData;
+}
+
 async function requireLogin() {
   // Check if user is already logged in
   var { data, error } = await supabaseClient.auth.getSession();
