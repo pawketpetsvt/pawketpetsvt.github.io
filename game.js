@@ -953,8 +953,19 @@ async function loadAdopt() {
 function makePetCard(pet) {
   var isPlaceholder = pet.name === '???';
   var isOwned = ownedPetIds.indexOf(pet.id) !== -1;
-  var isFree = totalOwnedCount === 0;
-  var price = isFree ? 0 : pet.price;
+  
+  // DYNAMIC PRICING: Calculate price based on how many pets player already owns
+  // 1st pet = 0, 2nd = 100, 3rd = 150, 4th = 200, etc. (+50 each time)
+  var price = 0;
+  if (totalOwnedCount === 0) {
+    price = 0; // First pet is always free
+  } else if (totalOwnedCount === 1) {
+    price = 100; // Second pet costs 100
+  } else {
+    // 3rd pet onwards: 150, 200, 250, 300, etc.
+    price = 100 + ((totalOwnedCount - 1) * 50);
+  }
+  
   var canAfford = currentPoints >= price;
 
   var card = document.createElement('div');
@@ -974,14 +985,14 @@ function makePetCard(pet) {
   card.appendChild(makeEl('div', {class:'pet-description'}, isPlaceholder ? 'A mystery pet...' : (pet.description || '')));
 
   if (!isPlaceholder) {
-    var priceEl = makeEl('span', {class: price === 0 ? 'pet-price free' : 'pet-price'}, price === 0 ? 'FREE' : '\uD83E\uDE99 ' + pet.price + ' PP');
+    var priceEl = makeEl('span', {class: price === 0 ? 'pet-price free' : 'pet-price'}, price === 0 ? 'FREE' : '\uD83E\uDE99 ' + price + ' PP');
     card.appendChild(priceEl);
   }
 
   var btn = document.createElement('button');
   if (isPlaceholder) { btn.className='btn-locked'; btn.textContent='Coming Soon'; }
   else if (isOwned) { btn.className='btn-owned'; btn.textContent='Already Adopted!'; }
-  else if (!canAfford) { btn.className='btn-locked'; btn.textContent='Need '+pet.price+' PP'; }
+  else if (!canAfford) { btn.className='btn-locked'; btn.textContent='Need '+price+' PP'; }
   else {
     btn.className='btn btn-primary btn-adopt';
     btn.textContent='Adopt!';
