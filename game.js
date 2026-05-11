@@ -3349,7 +3349,13 @@ async function initTwitchTab() {
 // Team members config — add new members here as they join
 var TEAM_MEMBERS = [
   { name: 'Embertail', login: 'embertail', twitchUrl: 'https://twitch.tv/Embertail', petName: 'Ember' },
-  { name: 'Pyxshuul',  login: 'pyxshuul',  twitchUrl: 'https://twitch.tv/Pyxshuul',  petName: 'Pyxie' }
+  { name: 'Pyxshuul',  login: 'pyxshuul',  twitchUrl: 'https://twitch.tv/Pyxshuul',  petName: 'Pyxie' },
+  { name: 'Aria',      login: 'ariadoestwitch', twitchUrl: 'https://twitch.tv/ariadoestwitch', petName: 'Aria' },
+  { name: 'Blushimia', login: 'realblushimia',  twitchUrl: 'https://twitch.tv/realblushimia',  petName: 'Blushimia' },
+  { name: 'Cowbee',    login: 'cowbeevt',       twitchUrl: 'https://twitch.tv/cowbeevt',       petName: 'Cowbee' },
+  { name: 'Kelta',     login: 'keltathepomeranian', twitchUrl: 'https://twitch.tv/keltathepomeranian', petName: 'Kelta' },
+  { name: 'Jess',      login: 'teatimejess',    twitchUrl: 'https://twitch.tv/teatimejess',    petName: 'Jess' },
+  { name: 'Gnarly',    login: 'gnarly_neon_smilodon', twitchUrl: 'https://twitch.tv/gnarly_neon_smilodon', petName: 'Gnarly' }
 ];
 
 async function loadTeamShowcase() {
