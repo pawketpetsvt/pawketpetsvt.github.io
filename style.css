@@ -7451,3 +7451,231 @@ body.boss-ui-glitch header {
     opacity: 0.85;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2B: DAILY FORTUNE SYSTEM - CSS STYLING
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Fortune Overlay - Full screen backdrop */
+.fortune-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.fortune-overlay.fortune-visible {
+  opacity: 1;
+}
+
+/* Fortune Card - Retro pixel aesthetic */
+.fortune-card {
+  background: linear-gradient(135deg, #2a1a4a 0%, #1a0a3a 100%);
+  border: 4px solid #9966ff;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 
+    0 8px 32px rgba(153, 102, 255, 0.4),
+    inset 0 0 20px rgba(153, 102, 255, 0.1),
+    0 0 0 8px rgba(153, 102, 255, 0.2);
+  text-align: center;
+  animation: fortuneAppear 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes fortuneAppear {
+  0% {
+    transform: scale(0.7) rotate(-5deg);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+
+/* Sparkle effect background */
+.fortune-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255,255,255,0.1) 1px, transparent 1px);
+  background-size: 20px 20px;
+  animation: sparkleMove 20s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes sparkleMove {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(20px, 20px); }
+}
+
+/* Fortune Header */
+.fortune-header {
+  position: relative;
+  z-index: 1;
+  margin-bottom: 24px;
+}
+
+.fortune-header h2 {
+  font-family: 'Chewy', cursive;
+  font-size: 2rem;
+  color: #fff;
+  text-shadow: 
+    0 0 10px rgba(153, 102, 255, 0.8),
+    0 0 20px rgba(153, 102, 255, 0.6),
+    2px 2px 0 rgba(0, 0, 0, 0.5);
+  margin: 0 0 12px 0;
+  animation: fortuneGlow 2s ease-in-out infinite;
+}
+
+@keyframes fortuneGlow {
+  0%, 100% { 
+    text-shadow: 
+      0 0 10px rgba(153, 102, 255, 0.8),
+      0 0 20px rgba(153, 102, 255, 0.6),
+      2px 2px 0 rgba(0, 0, 0, 0.5);
+  }
+  50% { 
+    text-shadow: 
+      0 0 20px rgba(153, 102, 255, 1),
+      0 0 30px rgba(153, 102, 255, 0.8),
+      2px 2px 0 rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Fortune Category Badge */
+.fortune-category {
+  display: inline-block;
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-family: 'Chewy', cursive;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  font-weight: bold;
+  letter-spacing: 1px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.fortune-category-wholesome {
+  background: linear-gradient(135deg, #ff6b9d, #ffa07a);
+  color: #fff;
+}
+
+.fortune-category-cursed {
+  background: linear-gradient(135deg, #6a0dad, #4a0080);
+  color: #fff;
+}
+
+.fortune-category-funny {
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  color: #2a1a4a;
+}
+
+.fortune-category-mysterious {
+  background: linear-gradient(135deg, #483d8b, #2f2f4f);
+  color: #e0e0ff;
+}
+
+.fortune-category-chaotic {
+  background: linear-gradient(135deg, #ff1493, #ff69b4);
+  color: #fff;
+  animation: chaosShake 0.3s infinite;
+}
+
+@keyframes chaosShake {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+/* Fortune Content */
+.fortune-content {
+  position: relative;
+  z-index: 1;
+  margin: 24px 0;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  border: 2px solid rgba(153, 102, 255, 0.3);
+}
+
+.fortune-text {
+  font-family: 'Chewy', cursive;
+  font-size: 1.3rem;
+  line-height: 1.6;
+  color: #fff;
+  margin: 0;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  font-style: italic;
+}
+
+/* Fortune Close Button */
+.fortune-close-btn {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(135deg, #9966ff, #ff66cc);
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 12px;
+  padding: 12px 32px;
+  font-family: 'Chewy', cursive;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 
+    0 4px 12px rgba(153, 102, 255, 0.4),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.fortune-close-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 16px rgba(153, 102, 255, 0.6),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.2);
+}
+
+.fortune-close-btn:active {
+  transform: translateY(0);
+  box-shadow: 
+    0 2px 8px rgba(153, 102, 255, 0.4),
+    inset 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Mobile Responsive */
+@media (max-width: 600px) {
+  .fortune-card {
+    padding: 24px 16px;
+    max-width: 95%;
+  }
+  
+  .fortune-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .fortune-text {
+    font-size: 1.1rem;
+  }
+  
+  .fortune-close-btn {
+    font-size: 1rem;
+    padding: 10px 24px;
+  }
+}

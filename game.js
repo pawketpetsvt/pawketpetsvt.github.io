@@ -8200,6 +8200,301 @@ async function updateProfileButtons() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 // Character counter for guestbook
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2A: NEWS TICKER SYSTEM - Rotating Flavor Messages
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var newsTicker = {
+  messages: [
+    "BREAKING: Local Pyxie banned from spoon dueling tournament for 'excessive enthusiasm'.",
+    "Deep Woods mushrooms behaving strangely tonight... locals advised to avoid eye contact.",
+    "Market alert: Wooden spoon prices surge 400% after celebrity endorsement.",
+    "WARNING: Do NOT feed glitter to your pets. We repeat: DO NOT FEED GLITTER.",
+    "EXCLUSIVE: Golden Bunny spotted near ruins, still refuses to comment on allegations.",
+    "Weather report: 60% chance of cursed fog tomorrow. Bring your emotional support spoon.",
+    "Community notice: If you see a mushroom wearing a tiny hat, please report immediately.",
+    "Breaking news: Scientists confirm pets DO judge you when you snack without sharing.",
+    "SCANDAL: Embertail caught hoarding all the good snacks. Investigation pending.",
+    "Public service: The void is watching. Not judgmentally, just... watching. Respectfully.",
+    "URGENT: Please stop asking pets about cryptocurrency. They don't know. They're pets.",
+    "Local Ember spotted teaching battle tactics to confused woodland creatures.",
+    "ALERT: Suspicious activity in Deep Woods. Mushrooms organizing into 'battle formations.'",
+    "Breaking: Pyxshuul denies starting underground spoon fighting ring. Evidence suggests otherwise.",
+    "Weather update: Today's chaos energy levels at 87%. Stay hydrated.",
+    "REMINDER: Pets cannot sign legal documents. Please stop trying.",
+    "Community bulletin: The ruins are NOT a good first date location. Trust us on this.",
+    "Breaking news: Local pet achieves enlightenment, immediately forgets and chases butterfly.",
+    "SCANDAL: Someone taught the mushrooms to dance. Investigations ongoing.",
+    "Public notice: If your pet starts whispering in ancient languages, that's probably fine.",
+    "Market report: Snack futures looking strong. Invest in cuddles while you can.",
+    "Breaking: Witnesses report Embertail performing 'sick flips' near the marketplace.",
+    "URGENT: Do not challenge random forest creatures to duels. This should be obvious.",
+    "Weather advisory: Emotionally unstable mushrooms detected in sector 7.",
+    "Community update: The Deep Woods are NOT 'just vibes.' There are actual monsters.",
+    "BREAKING: Pyxshuul's latest scheme involves 'tactical napping.' Details at 11.",
+    "Alert: If you hear ominous flute music, that's just the Pied Piper. Probably fine.",
+    "Public service: Wooden spoons make terrible weapons. Golden spoons make EXCELLENT weapons.",
+    "Breaking news: Local pet discovers mirror, has existential crisis, recovers.",
+    "SCANDAL: Someone's been stealing everyone's left socks. Pet involvement suspected.",
+    "Market alert: Friendship prices at all-time high. Wholesome vibes surging.",
+    "Community notice: Please stop trying to adopt the battle arena mushrooms.",
+    "BREAKING: Embertail rated 'Most Likely to Start Chaos' for third year running.",
+    "Weather report: Today's aesthetic is 'cozy apocalypse.' Dress accordingly.",
+    "Alert: The golden bunny is NOT your friend. The golden bunny is NOBODY'S friend.",
+    "Public notice: Stop feeding the void. It doesn't need snacks. It IS the snack.",
+    "Breaking: Scientists discover pets can sense when you're about to leave. Technology stolen.",
+    "URGENT: The mushrooms are plotting something. Keep your spoons close.",
+    "Community update: Battle Arena now serving emotional support tea. Still violent though.",
+    "Market report: Cuddle economy booming. Invest in soft things immediately.",
+    "BREAKING: Pyxshuul caught napping in public fountain. Claims it was 'tactical research.'",
+    "Alert: If your pet starts glowing, that's either very good or very bad. Hard to say.",
+    "Weather advisory: Today's mood is 'slightly cursed but manageable.' Stay safe out there.",
+    "Public service: Remember to tell your pets they're doing a great job. They work hard.",
+    "Breaking news: Local Ember achieves 'maximum cuteness,' scientists baffled.",
+    "SCANDAL: Underground pet cuddle syndicate discovered. All participants suspiciously happy.",
+    "Community notice: The ruins are having a 'bad vibe day.' Visit at your own risk.",
+    "ALERT: Suspicious butterfly activity near the marketplace. Remain vigilant.",
+    "Breaking: Embertail's new hobby is 'aggressive wholesomeness.' Casualties: zero. Smiles: many."
+  ],
+  
+  currentIndex: 0,
+  rotationInterval: null,
+  
+  init: function() {
+    this.shuffle();
+    this.updateTicker();
+    // Rotate message every 8 seconds
+    this.rotationInterval = setInterval(function() {
+      newsTicker.updateTicker();
+    }, 8000);
+  },
+  
+  shuffle: function() {
+    // Fisher-Yates shuffle
+    for (var i = this.messages.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var temp = this.messages[i];
+      this.messages[i] = this.messages[j];
+      this.messages[j] = temp;
+    }
+  },
+  
+  updateTicker: function() {
+    var tickerElement = document.querySelector('.news-ticker-inner');
+    if (tickerElement) {
+      // Add separator between messages
+      var message = this.messages[this.currentIndex];
+      tickerElement.textContent = '📰 ' + message + ' ✨ ';
+      
+      this.currentIndex = (this.currentIndex + 1) % this.messages.length;
+      
+      // Re-shuffle when we complete a cycle
+      if (this.currentIndex === 0) {
+        this.shuffle();
+      }
+    }
+  },
+  
+  stop: function() {
+    if (this.rotationInterval) {
+      clearInterval(this.rotationInterval);
+    }
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2B: DAILY FORTUNE SYSTEM - One Fortune Per Day
+   ═══════════════════════════════════════════════════════════════════════ */
+
+var dailyFortune = {
+  fortunes: {
+    wholesome: [
+      "Today is ideal for pet cuddles. Maximum coziness energy detected.",
+      "A friendly encounter awaits you in the Deep Woods today.",
+      "Your pets will be extra adorable today. Prepare your heart.",
+      "Fortune favors the kind today. Share snacks, receive blessings.",
+      "Today brings unexpected friendship. Keep your heart open.",
+      "The stars align for peaceful adventures. Enjoy the calm.",
+      "Your pets believe in you. You should too.",
+      "Today is perfect for trying something new. The void approves.",
+      "Kindness will be returned to you threefold today.",
+      "A pleasant surprise awaits in the marketplace.",
+      "Today your pets will teach you something important. Pay attention.",
+      "The universe suggests: take it easy today. Rest is productive.",
+      "Your collection grows stronger. Trust the journey.",
+      "Today brings good news from an unexpected source.",
+      "The Deep Woods whisper encouragement. You've got this."
+    ],
+    
+    cursed: [
+      "Beware emotionally unstable mushrooms today. They're having a day.",
+      "The golden bunny is watching. Stay alert.",
+      "Today the void feels... chatty. This is concerning.",
+      "Strange energies in the ruins today. Maybe visit tomorrow instead.",
+      "The mushrooms are plotting something. We don't know what.",
+      "Mercury is in retrograde. Also there's no mercury. Still cursed though.",
+      "Today's chaos levels: moderately concerning. Proceed with caution.",
+      "The Deep Woods are feeling 'extra' today. Tread carefully.",
+      "Warning: Today's aesthetic is 'mildly ominous.' Embrace it or hide.",
+      "The spoons are restless today. Lock them up.",
+      "A mysterious figure will judge your life choices today. It's you. You're the figure.",
+      "Today the ruins are having 'bad vibes.' Recommend staying away.",
+      "The butterflies know something you don't. This is fine. Probably.",
+      "Beware of overconfidence today. The mushrooms are watching.",
+      "Today's energy: 'what could possibly go wrong?' (Everything. Everything could.)"
+    ],
+    
+    funny: [
+      "A spoon shall guide your path today. Yes, really.",
+      "Lucky numbers: 7, 13, and the number of snacks in your inventory.",
+      "Today you will meet someone who REALLY likes mushrooms. Be polite.",
+      "Your pet will do something incredibly stupid today. Love them anyway.",
+      "Fortune says: 'lol good luck' - we don't know what this means either.",
+      "Today's power move: aggressive napping. Channel your inner Pyxshuul.",
+      "A wooden spoon brings unexpected fortune. We're as confused as you are.",
+      "Today you will witness peak comedy. It will be your pet falling over.",
+      "The prophecy states: 'snacks solve everything.' The prophecy is correct.",
+      "Your destiny involves exactly three (3) silly shenanigans today.",
+      "Today's quest: pet every single creature you meet. This is mandatory.",
+      "The universe suggests: chaos, but make it cute.",
+      "Fortune cookie says: 'pet the dog.' (There are no dogs here. Pet something else.)",
+      "Today's mood: unhinged but supportive. Embrace it.",
+      "A great adventure awaits! It's probably just finding your lost spoon."
+    ],
+    
+    mysterious: [
+      "The Deep Woods call to you today. Will you answer?",
+      "Something ancient stirs in the ruins. Approach with respect.",
+      "Today you will understand something you didn't yesterday.",
+      "The boundary between worlds grows thin today. Stay curious.",
+      "A secret will reveal itself when you least expect it.",
+      "The void is watching respectfully. No need for concern.",
+      "Today the forest remembers. Listen closely.",
+      "An old friend returns. Or perhaps they never left.",
+      "The stars align in ways we don't fully understand. Trust your instincts.",
+      "Today you walk between destinies. Choose wisely.",
+      "Something important is hidden in plain sight today.",
+      "The mushrooms know more than they let on. As always.",
+      "Today the world is softer than usual. Move gently through it.",
+      "A choice you make today echoes further than you know.",
+      "The ruins whisper secrets to those who listen."
+    ],
+    
+    chaotic: [
+      "Today's energy: GO ABSOLUTELY FERAL. (In a fun way.)",
+      "The prophecy is unclear but VERY ENTHUSIASTIC.",
+      "Today: maximum chaos, zero regrets. The void approves.",
+      "Fortune says: 'yeet yourself into adventure.' We don't make the rules.",
+      "Today you are unstoppable. Probably. We'll see.",
+      "The stars spell out: 'DO IT.' We don't know what 'it' is. Neither do the stars.",
+      "Today's vibe: unhinged but productive. Channel that energy.",
+      "Chaos reigns today, but like, in a supportive way.",
+      "The universe is in your corner today. Fight everything. (Or don't.)",
+      "Today you have protagonist energy. Use it wisely. Or don't. Your call.",
+      "Fortune favors the bold, the brave, and the slightly unhinged today.",
+      "Today: be the chaos you wish to see in the world.",
+      "The void says: 'send it.' This is either good advice or terrible advice.",
+      "Today's forecast: 100% chance of shenanigans. Dress accordingly.",
+      "The Deep Woods are EXTRA today. Match that energy."
+    ]
+  },
+  
+  init: function() {
+    // Check if user should see fortune
+    var lastFortune = localStorage.getItem('lastFortuneDate');
+    var today = this.getTodayDate();
+    
+    if (lastFortune !== today) {
+      // Show fortune popup after a brief delay
+      setTimeout(function() {
+        dailyFortune.showFortune();
+      }, 2000);
+    }
+  },
+  
+  getTodayDate: function() {
+    var date = new Date();
+    return date.getFullYear() + '-' + 
+           String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+           String(date.getDate()).padStart(2, '0');
+  },
+  
+  getRandomFortune: function() {
+    var categories = ['wholesome', 'cursed', 'funny', 'mysterious', 'chaotic'];
+    var category = categories[Math.floor(Math.random() * categories.length)];
+    var categoryFortunes = this.fortunes[category];
+    var fortune = categoryFortunes[Math.floor(Math.random() * categoryFortunes.length)];
+    
+    return {
+      text: fortune,
+      category: category
+    };
+  },
+  
+  showFortune: function() {
+    var fortune = this.getRandomFortune();
+    
+    // Create modal overlay
+    var overlay = document.createElement('div');
+    overlay.className = 'fortune-overlay';
+    overlay.innerHTML = `
+      <div class="fortune-card">
+        <div class="fortune-header">
+          <h2>🔮 Daily Fortune 🔮</h2>
+          <div class="fortune-category fortune-category-${fortune.category}">${fortune.category}</div>
+        </div>
+        <div class="fortune-content">
+          <p class="fortune-text">"${fortune.text}"</p>
+        </div>
+        <button class="fortune-close-btn" onclick="dailyFortune.closeFortune()">Accept Destiny</button>
+      </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Save that we showed fortune today
+    localStorage.setItem('lastFortuneDate', this.getTodayDate());
+    
+    // Add fade-in animation
+    setTimeout(function() {
+      overlay.classList.add('fortune-visible');
+    }, 10);
+  },
+  
+  closeFortune: function() {
+    var overlay = document.querySelector('.fortune-overlay');
+    if (overlay) {
+      overlay.classList.remove('fortune-visible');
+      setTimeout(function() {
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+      }, 300);
+    }
+  },
+  
+  // Manual trigger for testing or UI button
+  triggerFortune: function() {
+    this.showFortune();
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   INITIALIZE NEWS TICKER & DAILY FORTUNE ON PAGE LOAD
+   ═══════════════════════════════════════════════════════════════════════ */
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    newsTicker.init();
+    dailyFortune.init();
+  });
+} else {
+  // DOM already loaded
+  newsTicker.init();
+  dailyFortune.init();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   var guestbookInput = document.getElementById('guestbook-message-input');
   var charCount = document.getElementById('guestbook-char-count');
