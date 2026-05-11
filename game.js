@@ -13495,7 +13495,7 @@ function getTimeUntilRotation() {
  * REPLACES or MODIFIES your existing loadShop/loadEquipmentShop function
  */
 async function loadEquipmentShop() {
-  var container = el('equipment-shop-grid'); // Adjust this ID to match your shop container
+  var container = el('equipment-shop-grid');
   if (!container) return;
   
   container.innerHTML = '<div class="spinner"></div>';
@@ -13503,7 +13503,6 @@ async function loadEquipmentShop() {
   try {
     var currentWeek = getCurrentRotationWeek();
     
-    // Fetch equipment for current rotation week (or boss drops if player owns them)
     var res = await supabaseClient
       .from('equipment')
       .select('*')
@@ -13515,13 +13514,11 @@ async function loadEquipmentShop() {
     
     var equipment = res.data || [];
     
-    // Display rotation info
     var html = '<div class="shop-rotation-banner">';
     html += '<div class="rotation-week">📅 Week ' + currentWeek + ' Rotation</div>';
     html += '<div class="rotation-timer">⏰ Next rotation in: <span id="rotation-countdown">' + getTimeUntilRotation() + '</span></div>';
     html += '</div>';
     
-    // Check what user already owns
     var ownedEquipment = [];
     if (currentUser) {
       var ownedRes = await supabaseClient
@@ -13534,7 +13531,6 @@ async function loadEquipmentShop() {
       }
     }
     
-    // Display equipment cards
     html += '<div class="equipment-grid">';
     
     equipment.forEach(function(item) {
@@ -13543,16 +13539,13 @@ async function loadEquipmentShop() {
       
       html += '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '">';
       
-      // Boss drop badge
       if (isBossDrop) {
         html += '<div class="boss-drop-badge">👑 BOSS DROP</div>';
       }
       
-      // Item name and description
       html += '<h3 class="equipment-name">' + item.name + '</h3>';
       html += '<p class="equipment-description">' + (item.description || '') + '</p>';
       
-      // Stats
       html += '<div class="equipment-stats">';
       html += '<div class="equipment-type">' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') + '</div>';
       html += '<div class="equipment-tier">Tier ' + item.tier + ' ' + item.weight_class.charAt(0).toUpperCase() + item.weight_class.slice(1) + '</div>';
@@ -13572,7 +13565,6 @@ async function loadEquipmentShop() {
       
       html += '</div>';
       
-      // Price and buy button
       if (!isBossDrop) {
         html += '<div class="equipment-price">🪙 ' + item.price.toLocaleString() + ' PP</div>';
         
@@ -13602,7 +13594,6 @@ async function loadEquipmentShop() {
     
     container.innerHTML = html;
     
-    // Update countdown every minute
     setInterval(updateRotationCountdown, 60000);
     
   } catch (err) {
@@ -13611,15 +13602,12 @@ async function loadEquipmentShop() {
   }
 }
 
-/**
- * Update rotation countdown display
- */
 function updateRotationCountdown() {
   var countdown = el('rotation-countdown');
   if (countdown) {
     countdown.textContent = getTimeUntilRotation();
   }
-
+}
 
 /* ═══════════════════════════════════════════════════════════════════════
    USAGE INSTRUCTIONS:
