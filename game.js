@@ -3400,7 +3400,13 @@ async function loadTeamShowcase() {
     // Map pet names to lowercase image filenames
     var petImageMap = {
       'Ember': 'ember.png',
-      'Pyxie': 'pyxie.png'
+      'Pyxie': 'pyxie.png',
+      'Aria': 'aria.png',
+      'Blushimia': 'blushimia.png',
+      'Cowbee': 'cowbee.png',
+      'Kelta': 'kelta.png',
+      'Jess': 'jess.png',
+      'Gnarly': 'gnarly.png'
     };
     
     var imageName = petImageMap[member.petName] || member.petName.toLowerCase() + '.png';
