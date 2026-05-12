@@ -13871,9 +13871,11 @@ async function loadEquipmentShop() {
       }
     }
     
+    // Separate weapons and armor
     var weapons = equipment.filter(function(item) { return item.equipment_type === 'weapon'; });
     var armor = equipment.filter(function(item) { return item.equipment_type === 'armor'; });
     
+    // Helper function to render equipment cards
     function renderEquipmentCard(item) {
       var isOwned = ownedEquipment.indexOf(item.id) !== -1;
       var isBossDrop = item.is_boss_drop;
@@ -13932,8 +13934,10 @@ async function loadEquipmentShop() {
       return cardHtml;
     }
     
+    // Create two-column layout
     html += '<div class="equipment-shop-columns">';
     
+    // Left column: Weapons
     html += '<div class="equipment-column">';
     html += '<h3 class="equipment-column-title">⚔️ Weapons</h3>';
     html += '<div class="equipment-grid-column">';
@@ -13942,6 +13946,7 @@ async function loadEquipmentShop() {
     });
     html += '</div></div>';
     
+    // Right column: Armor
     html += '<div class="equipment-column">';
     html += '<h3 class="equipment-column-title">🛡️ Armor</h3>';
     html += '<div class="equipment-grid-column">';
@@ -13949,6 +13954,22 @@ async function loadEquipmentShop() {
       html += renderEquipmentCard(item);
     });
     html += '</div></div>';
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+    
+    setInterval(updateRotationCountdown, 60000);
+    
+  } catch (err) {
+    container.innerHTML = '<div class="error-state"><p>Failed to load shop.</p></div>';
+    console.error('Equipment shop error:', err);
+  }
+}
+      }
+      
+      html += '</div>';
+    });
     
     html += '</div>';
     
@@ -14101,13 +14122,5 @@ function updateVolumeDisplay() {
   
   if (volumeSlider && volumeDisplay) {
     volumeDisplay.textContent = volumeSlider.value + '%';
-  }
-}
-
-function replayTutorial() {
-  if (typeof Tutorial !== 'undefined') {
-    Tutorial.start();
-  } else {
-    showToast('Tutorial system not loaded');
   }
 }
