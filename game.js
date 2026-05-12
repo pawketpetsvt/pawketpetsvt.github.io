@@ -14093,15 +14093,6 @@ async function loadSettings() {
   }
 }
 
-      if (spookyToggle) {
-        spookyToggle.checked = res.data.spooky_enabled || false;
-      }
-    }
-  } catch (err) {
-    console.error('Error loading settings:', err);
-  }
-}
-
 async function saveSettings() {
   if (!currentUser) return;
   
@@ -14192,12 +14183,5 @@ function applySettings() {
     if (typeof weatherSystem !== 'undefined' && weatherSystem.applyWeather) {
       weatherSystem.applyWeather();
     }
-  }
-}
-
-    
-  } catch (err) {
-    console.error('Error saving settings:', err);
-    showToast('Failed to save settings');
   }
 }
