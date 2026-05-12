@@ -2504,7 +2504,9 @@ async function loadShop() {
       if (displayPrice < item.price) {
         priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
       }
-      card.appendChild(makeEl('div',{class:'shop-item-price'},priceText));
+      var priceDiv = makeEl('div',{class:'shop-item-price'});
+      priceDiv.innerHTML = priceText;
+      card.appendChild(priceDiv);
       
       var canAfford=currentPoints>=displayPrice;
       var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+displayPrice+' PP');
@@ -2537,7 +2539,9 @@ async function loadShop() {
       if (displayPrice < item.price) {
         priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
       }
-      card.appendChild(makeEl('div',{class:'shop-item-price'},priceText));
+      var priceDiv = makeEl('div',{class:'shop-item-price'});
+      priceDiv.innerHTML = priceText;
+      card.appendChild(priceDiv);
       
       var canAfford=currentPoints>=displayPrice;
       var buyBtn=makeEl('button',{class:'btn-buy'},canAfford?'Buy':'Need '+displayPrice+' PP');
