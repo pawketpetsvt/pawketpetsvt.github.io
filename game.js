@@ -1116,37 +1116,25 @@ async function confirmAdopt() {
   if (!selectedPet || !currentUser) return;
   var btn = el('confirm-adopt-btn');
   var nickname = el('nickname-input').value.trim() || selectedPet.name;
-  btn.textContent='Adopting...'; btn.disabled=true;
-  var res = await supabaseClient.from('user_pets').insert([{
-    user_id: currentUser.id, 
-    pet_id: selectedPet.id, 
-    nickname: nickname,
-    level: 1, 
-    xp: 0, 
-    hunger: 80,  // Start well-fed
-    energy: 80,  // Start energized
-    happiness: 80,  // Start happy
-    max_hunger: 100, 
-    max_energy: 100, 
-    max_happiness: 100,
-    // Battle stats - CRITICAL for new pets!
-    base_hp: 60,  // Our new doubled starting HP
-    max_hp: 60,
-    current_hp: 60,  // Start at full HP
-    base_attack: 5,
-    base_defense: 3,
-    base_speed: 4,
-    total_battles: 0,
-    battles_won: 0,
-    last_fed: new Date().toISOString(),
-    last_played: new Date().toISOString()
-  }]);
-  if (res.error) { showToast('Error: '+res.error.message); btn.textContent='Adopt!'; btn.disabled=false; return; }
-  if (selectedPet.price > 0) {
-    var np = currentPoints - selectedPet.price;
-    await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
-    updateAllPoints(np);
+  btn.textContent = 'Adopting...'; 
+  btn.disabled = true;
+  
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('adopt_pet_secure', {
+    p_pet_id: selectedPet.id,
+    p_nickname: nickname,
+    p_price: selectedPet.price
+  });
+  
+  if (error) {
+    showToast('Adoption failed: ' + error.message);
+    btn.textContent = 'Adopt!'; 
+    btn.disabled = false; 
+    return;
   }
+  
+  // Update display
+  updateAllPoints(currentPoints - (result.price_paid || 0));
   
   // Store for social sharing
   lastAdoptedPet = {
@@ -1175,9 +1163,11 @@ async function confirmAdopt() {
     Tutorial.onPetAdopted();
   }
   
-  ownedPetIds.push(selectedPet.id); totalOwnedCount++;
+  ownedPetIds.push(selectedPet.id); 
+  totalOwnedCount++;
   tabsLoaded['mypets'] = false;
-  btn.textContent='Adopt!'; btn.disabled=false;
+  btn.textContent = 'Adopt!'; 
+  btn.disabled = false;
 }
 
 // ── MY PETS TAB ──────────────────────────
@@ -2167,176 +2157,100 @@ async function feed(petId) {
   var pet = petState[petId]; 
   if (!pet || pet.hunger >= pet.max_hunger) return;
   
-  // Check daily limit (once per day per pet)
-  var feedKey = 'feed_' + petId + '_' + today;
-  if (localStorage.getItem(feedKey) === 'done') {
-    showFlash(petId, 'Already fed today! Use items for more.', '#ff9f43');
+  var btn = el('feed-'+petId); 
+  btn.disabled = true; 
+  btn.textContent = '...';
+  
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
+    p_pet_id: petId
+  });
+  
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    btn.disabled = false; 
+    btn.textContent = 'Feed'; 
     return;
   }
   
-  var btn = el('feed-'+petId); btn.disabled=true; btn.textContent='...';
-  
-  // Base gains
-  var baseHungerGain = 20;
-  var baseHappinessGain = 5;
-  
-  // Apply event bonuses (snackEfficiency affects how much stats increase)
-  var actualHungerGain = worldEvents.applyEventModifier(baseHungerGain, 'snackEfficiency');
-  var actualHappinessGain = worldEvents.applyEventModifier(baseHappinessGain, 'happinessGain');
-  
-  var nh=Math.min(pet.hunger+actualHungerGain,pet.max_hunger);
-  var nhap=Math.min(pet.happiness+actualHappinessGain,pet.max_happiness);
-  var lu=calculateLevelUp(
-    pet.xp+10,
-    pet.level,
-    pet.max_hunger,
-    pet.max_energy,
-    pet.max_happiness,
-    pet.base_hp || 25,
-    pet.base_attack || 4,
-    pet.base_defense || 2,
-    pet.base_speed || 3
-  );
-  var upd={hunger:nh,happiness:nhap,xp:lu.xp,level:lu.level,last_fed:new Date().toISOString()};
-  if(lu.leveled){
-    upd.max_hunger=lu.maxHunger;
-    upd.max_energy=lu.maxEnergy;
-    upd.max_happiness=lu.maxHappiness;
-    upd.base_hp=lu.base_hp;
-    upd.base_attack=lu.base_attack;
-    upd.base_defense=lu.base_defense;
-    upd.base_speed=lu.base_speed;
-    upd.max_hp=lu.base_hp; // Update max_hp to match new base_hp
-  }
-  var res=await supabaseClient.from('user_pets').update(upd).eq('id',petId);
-  if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Feed';return;}
-  Object.assign(petState[petId],upd);
-  updateBar(petId,'hunger',nh,lu.maxHunger); updateBar(petId,'happiness',nhap,lu.maxHappiness); updateXpBar(petId,lu.xp,lu.level);
-  
   // Mark as used today
-  localStorage.setItem(feedKey, 'done');
+  localStorage.setItem('feed_' + petId + '_' + today, 'done');
   
-  if(lu.leveled){
-    // Build stat increase message
-    var statMsg = 'Level '+lu.level+'! +5 Max Stats';
-    if (lu.statIncreases.hp) statMsg += ', +' + lu.statIncreases.hp + ' HP';
-    if (lu.statIncreases.atk) statMsg += ', +' + lu.statIncreases.atk + ' ATK';
-    if (lu.statIncreases.def) statMsg += ', +' + lu.statIncreases.def + ' DEF';
-    if (lu.statIncreases.spd) statMsg += ', +' + lu.statIncreases.spd + ' SPD';
-    
-    showFlash(petId, statMsg, '#b06aff');
-    updateLvl(petId,lu.level,lu.maxHunger);
-    
-    // Reload the pet card to show new stats
+  // Update local state
+  petState[petId].hunger = result.hunger;
+  petState[petId].happiness = result.happiness;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
+  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
     
-    // Award level badges
-    if (lu.level === 5) await awardBadge('level_5');
-    if (lu.level === 10) await awardBadge('level_10');
-    if (lu.level === 20) await awardBadge('level_20');
-    
-    // Check for variant unlock at levels 5, 10, 15, 20
-    if ([5, 10, 15, 20].includes(lu.level)) {
-      await checkVariantUnlock(petId, lu.level);
-    }
-    
-    // Check for pet title unlocks after level up
-    await checkPetTitleUnlocks(petId, 'level_up');
-  }
-  else {
-    showFlash(petId,'+20 Hunger +5 Happiness +10 XP','#5dde7a');
-    
-    // 💖 FLOATING HEARTS!
-    var card = el('pet-card-' + petId);
-    if (card) {
-      var rect = card.getBoundingClientRect();
-      createHeartFloat(rect.left + rect.width / 2, rect.top + rect.height / 2);
-    }
+    if (result.new_level === 5) await awardBadge('level_5');
+    if (result.new_level === 10) await awardBadge('level_10');
+    if (result.new_level === 20) await awardBadge('level_20');
+  } else {
+    showFlash(petId, '+20 Hunger +5 Happiness +10 XP', '#5dde7a');
   }
   
-  // Update button to show already used
-  btn.textContent='Fed Today!';
-  btn.disabled=true;
-  btn.style.opacity='0.6';
+  btn.textContent = 'Fed Today!';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
 }
 
 async function play(petId) {
   var pet = petState[petId]; 
   if (!pet || pet.energy < 10) return;
   
-  // Check daily limit (once per day per pet)
-  var playKey = 'play_' + petId + '_' + today;
-  if (localStorage.getItem(playKey) === 'done') {
-    showFlash(petId, 'Already played today! Use items for more.', '#ff9f43');
+  var btn = el('play-'+petId); 
+  btn.disabled = true; 
+  btn.textContent = '...';
+  
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
+    p_pet_id: petId
+  });
+  
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    btn.disabled = false; 
+    btn.textContent = 'Play'; 
     return;
   }
   
-  var btn=el('play-'+petId); btn.disabled=true; btn.textContent='...';
-  var ne=Math.max(pet.energy-10,0);
-  var nhap=Math.min(pet.happiness+15,pet.max_happiness);
-  var lu=calculateLevelUp(
-    pet.xp+15,
-    pet.level,
-    pet.max_hunger,
-    pet.max_energy,
-    pet.max_happiness,
-    pet.base_hp || 25,
-    pet.base_attack || 4,
-    pet.base_defense || 2,
-    pet.base_speed || 3
-  );
-  var upd={energy:ne,happiness:nhap,xp:lu.xp,level:lu.level,last_played:new Date().toISOString()};
-  if(lu.leveled){
-    upd.max_hunger=lu.maxHunger;
-    upd.max_energy=lu.maxEnergy;
-    upd.max_happiness=lu.maxHappiness;
-    upd.base_hp=lu.base_hp;
-    upd.base_attack=lu.base_attack;
-    upd.base_defense=lu.base_defense;
-    upd.base_speed=lu.base_speed;
-    upd.max_hp=lu.base_hp;
-  }
-  var res=await supabaseClient.from('user_pets').update(upd).eq('id',petId);
-  if(res.error){showFlash(petId,'Error!','#ff6eb4');btn.disabled=false;btn.textContent='Play';return;}
-  Object.assign(petState[petId],upd);
-  updateBar(petId,'energy',ne,lu.maxEnergy); updateBar(petId,'happiness',nhap,lu.maxHappiness); updateXpBar(petId,lu.xp,lu.level);
-  
   // Mark as used today
-  localStorage.setItem(playKey, 'done');
+  localStorage.setItem('play_' + petId + '_' + today, 'done');
   
-  if(lu.leveled){
-    // Build stat increase message
-    var statMsg = 'Level '+lu.level+'! +5 Max Stats';
-    if (lu.statIncreases.hp) statMsg += ', +' + lu.statIncreases.hp + ' HP';
-    if (lu.statIncreases.atk) statMsg += ', +' + lu.statIncreases.atk + ' ATK';
-    if (lu.statIncreases.def) statMsg += ', +' + lu.statIncreases.def + ' DEF';
-    if (lu.statIncreases.spd) statMsg += ', +' + lu.statIncreases.spd + ' SPD';
-    
-    showFlash(petId, statMsg, '#b06aff');
-    updateLvl(petId,lu.level,lu.maxHunger);
-    
-    // Reload the pet card to show new stats
+  // Update local state
+  petState[petId].energy = result.energy;
+  petState[petId].happiness = result.happiness;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'energy', result.energy, pet.max_energy);
+  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
     
-    // Award level badges
-    if (lu.level === 5) await awardBadge('level_5');
-    if (lu.level === 10) await awardBadge('level_10');
-    if (lu.level === 20) await awardBadge('level_20');
-    
-    // Check for variant unlock at levels 5, 10, 15, 20
-    if ([5, 10, 15, 20].includes(lu.level)) {
-      await checkVariantUnlock(petId, lu.level);
-    }
-    
-    // Check for pet title unlocks after level up
-    await checkPetTitleUnlocks(petId, 'level_up');
+    if (result.new_level === 5) await awardBadge('level_5');
+    if (result.new_level === 10) await awardBadge('level_10');
+    if (result.new_level === 20) await awardBadge('level_20');
+  } else {
+    showFlash(petId, '-10 Energy +15 Happiness +15 XP', '#5dde7a');
   }
-  else showFlash(petId,'-10 Energy +15 Happiness +15 XP','#5dde7a');
   
-  // Update button to show already used
-  btn.textContent='Played Today!';
-  btn.disabled=true;
-  btn.style.opacity='0.6';
+  btn.textContent = 'Played Today!';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
 }
 
 function updateBar(petId,stat,val,max) {
@@ -2553,40 +2467,35 @@ async function loadShop() {
   }
 }
 
-async function buyItem(itemId,itemName,price) {
-  if(currentPoints<price||!currentUser)return;
-  var np=currentPoints-price;
+async function buyItem(itemId, itemName, price) {
+  if (!currentUser) return;
   
-  // Get current total_spent first
-  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id',currentUser.id).single();
-  var newTotalSpent = (playerRes.data?.total_spent || 0) + price;
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('buy_item_secure', {
+    p_item_id: itemId,
+    p_item_price: price,
+    p_item_name: itemName
+  });
   
-  // Update points AND total_spent
-  var r1=await supabaseClient.from('players').update({
-    pawketpoints:np,
-    total_spent: newTotalSpent
-  }).eq('id',currentUser.id);
-  
-  if(r1.error){showToast('Error deducting points.');return;}
+  if (error) {
+    showToast('Purchase failed: ' + error.message);
+    return;
+  }
   
   // Check spending badges
-  if (newTotalSpent >= 500) {
+  if (currentPoints >= 500) {
     await awardBadge('mega_spender');
-  } else if (newTotalSpent >= 100) {
+  } else if (currentPoints >= 100) {
     await awardBadge('big_spender');
   }
   
-  var existing=await supabaseClient.from('user_inventory').select('id,quantity').eq('user_id',currentUser.id).eq('item_id',itemId).limit(1);
-  if(existing.data&&existing.data.length>0){
-    await supabaseClient.from('user_inventory').update({quantity:existing.data[0].quantity+1}).eq('id',existing.data[0].id);
-  } else {
-    var ins=await supabaseClient.from('user_inventory').insert([{user_id:currentUser.id,item_id:itemId,quantity:1}]);
-    if(ins.error){showToast('Bought but inventory failed: '+ins.error.message);return;}
-  }
-  updateAllPoints(np);
-  showToast('Bought '+itemName+'!');
-  tabsLoaded['shop']=false; loadShop(); loadInventory();
-  tabsLoaded['mypets']=false;
+  // Update display
+  updateAllPoints(result.new_points);
+  showToast('Bought ' + result.item_name + '!');
+  tabsLoaded['shop'] = false; 
+  loadShop(); 
+  loadInventory();
+  tabsLoaded['mypets'] = false;
 }
 
 async function loadInventory() {
@@ -2812,61 +2721,54 @@ async function loadUserBadges() {
   console.log('[Badges] User has earned:', earnedBadges);
 }
 
-async function awardBadge(badgeKey, showNotification = true) {
-  if (!currentUser) return;
+async function play(petId) {
+  var pet = petState[petId]; 
+  if (!pet || pet.energy < 10) return;
   
-  // Check if already earned
-  if (earnedBadges.includes(badgeKey)) {
-    console.log('[Badges] Already earned:', badgeKey);
-    return;
-  }
+  var btn = el('play-'+petId); 
+  btn.disabled = true; 
+  btn.textContent = '...';
   
-  // Get badge info
-  var badgeRes = await supabaseClient
-    .from('badges')
-    .select('*')
-    .eq('badge_key', badgeKey)
-    .single();
-  
-  if (badgeRes.error || !badgeRes.data) {
-    console.error('[Badges] Badge not found:', badgeKey);
-    return;
-  }
-  
-  var badge = badgeRes.data;
-  
-  // Award badge
-  var res = await supabaseClient
-    .from('user_badges')
-    .insert([{
-      user_id: currentUser.id,
-      badge_id: badge.id
-    }]);
-  
-  if (res.error) {
-    // Might be duplicate - that's ok
-    console.log('[Badges] Error awarding (probably duplicate):', res.error);
-    return;
-  }
-  
-  // Add to cache
-  earnedBadges.push(badgeKey);
-  
-  // Log activity to feed
-  await logActivity('badge_earned', {
-    badge_name: badge.name,
-    badge_icon: badge.icon
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
+    p_pet_id: petId
   });
   
-  // Track in analytics
-  trackBadgeUnlock(badge.name);
-  
-  // Show notification
-  if (showNotification) {
-    showBadgeNotification(badge);
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    btn.disabled = false; 
+    btn.textContent = 'Play'; 
+    return;
   }
   
-  console.log('[Badges] Awarded:', badgeKey);
+  // Mark as used today
+  localStorage.setItem('play_' + petId + '_' + today, 'done');
+  
+  // Update local state
+  petState[petId].energy = result.energy;
+  petState[petId].happiness = result.happiness;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'energy', result.energy, pet.max_energy);
+  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
+    tabsLoaded['mypets'] = false;
+    
+    if (result.new_level === 5) await awardBadge('level_5');
+    if (result.new_level === 10) await awardBadge('level_10');
+    if (result.new_level === 20) await awardBadge('level_20');
+  } else {
+    showFlash(petId, '-10 Energy +15 Happiness +15 XP', '#5dde7a');
+  }
+  
+  btn.textContent = 'Played Today!';
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
 }
 
 function showBadgeNotification(badge) {
@@ -2920,7 +2822,6 @@ async function awardPP(amount, reason) {
   if(!currentUser) return;
   if (!reason) reason = 'unknown';
   
-  // Call the secure database function
   var { data, error } = await supabaseClient.rpc('award_pp_secure', {
     p_amount: amount,
     p_reason: reason
@@ -2932,16 +2833,14 @@ async function awardPP(amount, reason) {
     return;
   }
   
-  // Update the local display
   currentPoints = data;
   updateAllPoints(data);
-  
-  // Check if user is now in top 10
   await checkTop10Badge();
 }
-  
-  // Check if user is now in top 10
-  await checkTop10Badge();
+
+async function checkTop10Badge() {
+  if (!currentUser) return;
+  // ... rest of function
 }
 
 async function checkTop10Badge() {
@@ -3566,12 +3465,16 @@ function spinSlots() {
 async function deductPP(amount) {
   if (!currentUser) return;
   
-  var newPoints = currentPoints - amount;
+  var { data: newPoints, error } = await supabaseClient.rpc('deduct_pp_secure', {
+    p_amount: amount,
+    p_reason: 'slot_machine'
+  });
   
-  await supabaseClient
-    .from('players')
-    .update({ pawketpoints: newPoints })
-    .eq('id', currentUser.id);
+  if (error) {
+    console.error('Deduct PP error:', error.message);
+    showToast('Error processing bet!', 'error');
+    return;
+  }
   
   currentPoints = newPoints;
   updateAllPoints(currentPoints);
