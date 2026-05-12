@@ -4377,42 +4377,47 @@ async function loadLeaderboard(type) {
           };
         });
       
-    } else if (type === 'pets') {
-      // Top players by pet count
-      var res = await supabaseClient.rpc('get_leaderboard_pets');
+        } else if (type === 'pets') {
+      // Top players by pet count - query user_pets directly and group
+      var petsRes = await supabaseClient
+        .from('user_pets')
+        .select('user_id');
       
-      if (res.error) {
-        // Fallback if RPC doesn't exist - manual query
-        var petsRes = await supabaseClient
-          .from('user_pets')
-          .select('user_id, players(username)');
-        
-        if (petsRes.error) throw petsRes.error;
-        
-        var counts = {};
-        petsRes.data.forEach(function(pet) {
-          var username = pet.players.username;
-          counts[username] = (counts[username] || 0) + 1;
-        });
-        
-        data = Object.entries(counts)
-          .sort(function(a, b) { return b[1] - a[1]; })
-          .slice(0, 10)
-          .map(function(entry) {
-            return {
-              username: entry[0],
-              value: entry[1] + ' pets',
-              stat: entry[1] + ' pets owned'
-            };
-          });
+      if (petsRes.error) throw petsRes.error;
+      
+      // Count pets per user
+      var petCounts = {};
+      petsRes.data.forEach(function(pet) {
+        petCounts[pet.user_id] = (petCounts[pet.user_id] || 0) + 1;
+      });
+      
+      // Get usernames for all users with pets
+      var userIds = Object.keys(petCounts);
+      
+      if (userIds.length === 0) {
+        data = [];
       } else {
-        data = res.data.map(function(p) {
+        var usersRes = await supabaseClient
+          .from('players')
+          .select('id, username')
+          .in('id', userIds);
+        
+        if (usersRes.error) throw usersRes.error;
+        
+        // Match usernames to pet counts and sort
+        var playersWithCounts = usersRes.data.map(function(player) {
           return {
-            username: p.username,
-            value: p.pet_count + ' pets',
-            stat: p.pet_count + ' pets owned'
+            username: player.username,
+            count: petCounts[player.id] || 0,
+            value: (petCounts[player.id] || 0) + ' pets',
+            stat: (petCounts[player.id] || 0) + ' pets owned'
           };
         });
+        
+        // Sort by pet count (highest first)
+        playersWithCounts.sort(function(a, b) { return b.count - a.count; });
+        
+        data = playersWithCounts;
       }
       
     } else if (type === 'levels') {
