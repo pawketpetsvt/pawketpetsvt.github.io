@@ -5031,10 +5031,7 @@ async function showEquipmentModal(petId) {
       return;
     }
     
-    if (!allEquipRes.data || allEquipRes.data.length === 0) {
-      showToast('You don\'t own any equipment yet! Visit the shop to buy some.');
-      return;
-    }
+    var ownedEquipment = allEquipRes.data || [];
   
   console.log('Creating modal...');
   
@@ -5158,45 +5155,78 @@ async function showEquipmentModal(petId) {
   
   var equipGrid = makeEl('div', { class: 'shop-grid' });
   
-  allEquipRes.data.forEach(function(playerEquip) {
-    var item = playerEquip.equipment;
-    var card = makeEl('div', { class: 'equipment-card' });
-    card.style.cssText = 'font-size:0.85rem;padding:15px;border:2px solid var(--purple-light);border-radius:12px;text-align:center;';
+  if (ownedEquipment.length === 0) {
+    // No equipment owned - show helpful message
+    var emptyState = makeEl('div');
+    emptyState.style.cssText = 'text-align:center;padding:40px 20px;background:rgba(153,102,255,0.1);border-radius:12px;margin:20px 0;';
     
-    var icon = makeEl('div', { class: 'equipment-icon' });
-    icon.style.fontSize = '2.5rem';
-    icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
-    card.appendChild(icon);
+    var emptyIcon = makeEl('div');
+    emptyIcon.style.fontSize = '4rem';
+    emptyIcon.textContent = '🛡️';
+    emptyState.appendChild(emptyIcon);
     
-    var name = makeEl('div', { class: 'equipment-name' });
-    name.style.cssText = 'font-weight:bold;color:var(--purple);margin:8px 0;';
-    name.textContent = item.name;
-    card.appendChild(name);
+    var emptyText = makeEl('p');
+    emptyText.style.cssText = 'color:var(--purple);font-size:1.1rem;margin:16px 0 8px 0;';
+    emptyText.textContent = 'You don\'t own any equipment yet!';
+    emptyState.appendChild(emptyText);
     
-    // Show stat bonuses
-    var bonuses = [];
-    if (item.attack_bonus) bonuses.push('+' + item.attack_bonus + ' ATK');
-    if (item.defense_bonus) bonuses.push('+' + item.defense_bonus + ' DEF');
-    if (item.speed_bonus) bonuses.push('+' + item.speed_bonus + ' SPD');
-    if (item.hp_bonus) bonuses.push('+' + item.hp_bonus + ' HP');
-    if (bonuses.length > 0) {
-      var bonusDiv = makeEl('div', { class: 'equipment-bonuses' });
-      bonusDiv.style.cssText = 'font-size:0.75rem;color:#5dde7a;margin:8px 0;';
-      bonusDiv.textContent = bonuses.join(', ');
-      card.appendChild(bonusDiv);
-    }
+    var emptySubtext = makeEl('p');
+    emptySubtext.style.cssText = 'color:var(--text-light);font-size:0.9rem;margin-bottom:20px;';
+    emptySubtext.textContent = 'Visit the Equipment Shop to buy weapons and armor for your pets.';
+    emptyState.appendChild(emptySubtext);
     
-    var equipBtn = makeEl('button', { class: 'btn btn-sm btn-primary' });
-    equipBtn.textContent = 'Equip';
-    equipBtn.style.marginTop = '10px';
-    equipBtn.onclick = function() { 
-      equipItem(playerEquip.id, item.equipment_type);
+    var shopBtn = makeEl('button', { class: 'btn btn-primary' });
+    shopBtn.textContent = '🛒 Go to Equipment Shop';
+    shopBtn.onclick = function() {
       document.body.removeChild(modal);
+      showTab('shop');
+      showShopTab('equipment');
     };
-    card.appendChild(equipBtn);
+    emptyState.appendChild(shopBtn);
     
-    equipGrid.appendChild(card);
-  });
+    equipGrid.appendChild(emptyState);
+  } else {
+    // Has equipment - show list
+    ownedEquipment.forEach(function(playerEquip) {
+      var item = playerEquip.equipment;
+      var card = makeEl('div', { class: 'equipment-card' });
+      card.style.cssText = 'font-size:0.85rem;padding:15px;border:2px solid var(--purple-light);border-radius:12px;text-align:center;';
+      
+      var icon = makeEl('div', { class: 'equipment-icon' });
+      icon.style.fontSize = '2.5rem';
+      icon.textContent = item.equipment_type === 'weapon' ? '⚔️' : '🛡️';
+      card.appendChild(icon);
+      
+      var name = makeEl('div', { class: 'equipment-name' });
+      name.style.cssText = 'font-weight:bold;color:var(--purple);margin:8px 0;';
+      name.textContent = item.name;
+      card.appendChild(name);
+      
+      // Show stat bonuses
+      var bonuses = [];
+      if (item.attack_bonus) bonuses.push('+' + item.attack_bonus + ' ATK');
+      if (item.defense_bonus) bonuses.push('+' + item.defense_bonus + ' DEF');
+      if (item.speed_bonus) bonuses.push('+' + item.speed_bonus + ' SPD');
+      if (item.hp_bonus) bonuses.push('+' + item.hp_bonus + ' HP');
+      if (bonuses.length > 0) {
+        var bonusDiv = makeEl('div', { class: 'equipment-bonuses' });
+        bonusDiv.style.cssText = 'font-size:0.75rem;color:#5dde7a;margin:8px 0;';
+        bonusDiv.textContent = bonuses.join(', ');
+        card.appendChild(bonusDiv);
+      }
+      
+      var equipBtn = makeEl('button', { class: 'btn btn-sm btn-primary' });
+      equipBtn.textContent = 'Equip';
+      equipBtn.style.marginTop = '10px';
+      equipBtn.onclick = function() { 
+        equipItem(playerEquip.id, item.equipment_type);
+        document.body.removeChild(modal);
+      };
+      card.appendChild(equipBtn);
+      
+      equipGrid.appendChild(card);
+    });
+  }
   
   modalContent.appendChild(equipGrid);
   
