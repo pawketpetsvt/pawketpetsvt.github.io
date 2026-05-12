@@ -1724,6 +1724,90 @@ body.night-mode .settings-modal-label p{color:#b399dd}
     </div>
   </div>
 
+  <!-- ═════════════════════════════════════════════════════════
+       SETTINGS PAGE
+       ═════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-settings">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">⚙️ ✦ ⚙️</div>
+        <h1>Settings</h1>
+        <p>Customize your experience</p>
+      </div>
+      
+      <div style="max-width: 500px; margin: 40px auto;">
+        <!-- Spooky Content -->
+        <div class="settings-modal-item">
+          <div class="settings-modal-label">
+            <strong>👻 Spooky Content</strong>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-spooky" onchange="saveSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Music Toggle -->
+        <div class="settings-modal-item" style="margin-top: 15px;">
+          <div class="settings-modal-label">
+            <strong>🎵 Music</strong>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-music-enabled" onchange="saveSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Music Volume -->
+        <div class="settings-modal-item" style="margin-top: 15px;">
+          <div class="settings-modal-label">
+            <strong>🎼 Music Volume</strong>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="range" id="setting-music-volume" min="0" max="100" value="70" 
+                   style="width: 150px;" onchange="saveSettings()">
+            <span id="music-volume-display" style="min-width: 40px; font-weight: bold;">70%</span>
+          </div>
+        </div>
+        
+        <!-- SFX Volume -->
+        <div class="settings-modal-item" style="margin-top: 15px;">
+          <div class="settings-modal-label">
+            <strong>🔊 Sound Effects Volume</strong>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <input type="range" id="setting-sfx-volume" min="0" max="100" value="80" 
+                   style="width: 150px;" onchange="saveSettings()">
+            <span id="sfx-volume-display" style="min-width: 40px; font-weight: bold;">80%</span>
+          </div>
+        </div>
+        
+        <!-- Day/Night Effects -->
+        <div class="settings-modal-item" style="margin-top: 15px;">
+          <div class="settings-modal-label">
+            <strong>🌙 Day/Night Effects</strong>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-daynight" checked onchange="saveSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Weather Effects -->
+        <div class="settings-modal-item" style="margin-top: 15px;">
+          <div class="settings-modal-label">
+            <strong>🌦️ Weather Effects</strong>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-weather" checked onchange="saveSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
 
 </div><!-- end app-content -->
 
@@ -2058,91 +2142,6 @@ body.night-mode .settings-modal-label p{color:#b399dd}
         <div style="text-align:center;padding:20px;color:var(--text-light);">Loading news...</div>
       </div>
     </div>
-
-
-  <!-- ═════════════════════════════════════════════════════════
-       SETTINGS PAGE
-       ═════════════════════════════════════════════════════════ -->
-  <div class="page-section" id="section-settings">
-    <div class="page-wrap">
-      <div class="page-hero">
-        <div class="sparkle-row">⚙️ ✦ ⚙️</div>
-        <h1>Settings</h1>
-        <p>Customize your experience</p>
-      </div>
-      
-      <div style="max-width: 500px; margin: 40px auto;">
-        <!-- Spooky Content -->
-        <div class="settings-modal-item">
-          <div class="settings-modal-label">
-            <strong>👻 Spooky Content</strong>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="setting-spooky" onchange="saveSettings()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        
-        <!-- Music Toggle -->
-        <div class="settings-modal-item" style="margin-top: 15px;">
-          <div class="settings-modal-label">
-            <strong>🎵 Music</strong>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="setting-music-enabled" onchange="saveSettings()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        
-        <!-- Music Volume -->
-        <div class="settings-modal-item" style="margin-top: 15px;">
-          <div class="settings-modal-label">
-            <strong>🎼 Music Volume</strong>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="range" id="setting-music-volume" min="0" max="100" value="70" 
-                   style="width: 150px;" onchange="saveSettings()">
-            <span id="music-volume-display" style="min-width: 40px; font-weight: bold;">70%</span>
-          </div>
-        </div>
-        
-        <!-- SFX Volume -->
-        <div class="settings-modal-item" style="margin-top: 15px;">
-          <div class="settings-modal-label">
-            <strong>🔊 Sound Effects Volume</strong>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <input type="range" id="setting-sfx-volume" min="0" max="100" value="80" 
-                   style="width: 150px;" onchange="saveSettings()">
-            <span id="sfx-volume-display" style="min-width: 40px; font-weight: bold;">80%</span>
-          </div>
-        </div>
-        
-        <!-- Day/Night Effects -->
-        <div class="settings-modal-item" style="margin-top: 15px;">
-          <div class="settings-modal-label">
-            <strong>🌙 Day/Night Effects</strong>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="setting-daynight" checked onchange="saveSettings()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        
-        <!-- Weather Effects -->
-        <div class="settings-modal-item" style="margin-top: 15px;">
-          <div class="settings-modal-label">
-            <strong>🌦️ Weather Effects</strong>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="setting-weather" checked onchange="saveSettings()">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-      
-    </div>
-  </div>
 
 
   </div>
