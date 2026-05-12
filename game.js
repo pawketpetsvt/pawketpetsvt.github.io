@@ -3548,12 +3548,16 @@ function spinSlots() {
 async function deductPP(amount) {
   if (!currentUser) return;
   
-  var newPoints = currentPoints - amount;
+  var { data: newPoints, error } = await supabaseClient.rpc('deduct_pp_secure', {
+    p_amount: amount,
+    p_reason: 'slot_machine'
+  });
   
-  await supabaseClient
-    .from('players')
-    .update({ pawketpoints: newPoints })
-    .eq('id', currentUser.id);
+  if (error) {
+    console.error('Deduct PP error:', error.message);
+    showToast('Error processing bet!', 'error');
+    return;
+  }
   
   currentPoints = newPoints;
   updateAllPoints(currentPoints);
