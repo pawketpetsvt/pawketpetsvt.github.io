@@ -13845,60 +13845,101 @@ async function loadEquipmentShop() {
       }
     }
     
-    html += '<div class="equipment-grid">';
+    // Separate weapons and armor
+    var weapons = equipment.filter(function(item) { return item.equipment_type === 'weapon'; });
+    var armor = equipment.filter(function(item) { return item.equipment_type === 'armor'; });
     
-    equipment.forEach(function(item) {
+    // Helper function to render equipment cards
+    function renderEquipmentCard(item) {
       var isOwned = ownedEquipment.indexOf(item.id) !== -1;
       var isBossDrop = item.is_boss_drop;
       
-      html += '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '">';
+      var cardHtml = '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '">';
       
       if (isBossDrop) {
-        html += '<div class="boss-drop-badge">👑 BOSS DROP</div>';
+        cardHtml += '<div class="boss-drop-badge">👑 BOSS DROP</div>';
       }
       
-      html += '<h3 class="equipment-name">' + item.name + '</h3>';
-      html += '<p class="equipment-description">' + (item.description || '') + '</p>';
+      cardHtml += '<h3 class="equipment-name">' + item.name + '</h3>';
+      cardHtml += '<p class="equipment-description">' + (item.description || '') + '</p>';
       
-      html += '<div class="equipment-stats">';
-      html += '<div class="equipment-type">' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') + '</div>';
-      html += '<div class="equipment-tier">Tier ' + item.tier + ' ' + item.weight_class.charAt(0).toUpperCase() + item.weight_class.slice(1) + '</div>';
+      cardHtml += '<div class="equipment-stats">';
+      cardHtml += '<div class="equipment-type">' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') + '</div>';
+      cardHtml += '<div class="equipment-tier">Tier ' + item.tier + ' ' + item.weight_class.charAt(0).toUpperCase() + item.weight_class.slice(1) + '</div>';
       
       if (item.attack_bonus > 0) {
-        html += '<div class="stat">⚔️ Attack: +' + item.attack_bonus + '</div>';
+        cardHtml += '<div class="stat">⚔️ Attack: +' + item.attack_bonus + '</div>';
       }
       if (item.defense_bonus > 0) {
-        html += '<div class="stat">🛡️ Defense: +' + item.defense_bonus + '</div>';
+        cardHtml += '<div class="stat">🛡️ Defense: +' + item.defense_bonus + '</div>';
       }
       if (item.speed_bonus !== 0) {
-        html += '<div class="stat">⚡ Speed: ' + (item.speed_bonus > 0 ? '+' : '') + item.speed_bonus + '</div>';
+        cardHtml += '<div class="stat">⚡ Speed: ' + (item.speed_bonus > 0 ? '+' : '') + item.speed_bonus + '</div>';
       }
       if (item.hp_bonus > 0) {
-        html += '<div class="stat">❤️ HP: +' + item.hp_bonus + '</div>';
+        cardHtml += '<div class="stat">❤️ HP: +' + item.hp_bonus + '</div>';
       }
       
-      html += '</div>';
+      cardHtml += '</div>';
       
       if (!isBossDrop) {
-        html += '<div class="equipment-price">🪙 ' + item.price.toLocaleString() + ' PP</div>';
+        cardHtml += '<div class="equipment-price">🪙 ' + item.price.toLocaleString() + ' PP</div>';
         
         if (isOwned) {
-          html += '<button class="btn btn-owned" disabled>Already Owned</button>';
+          cardHtml += '<button class="btn btn-owned" disabled>Already Owned</button>';
         } else {
           var canAfford = currentPoints >= item.price;
           if (canAfford) {
-            html += '<button class="btn btn-primary" onclick="buyEquipment(' + item.id + ', \'' + item.name.replace(/'/g, "\\'") + '\', ' + item.price + ')">Buy</button>';
+            cardHtml += '<button class="btn btn-primary" onclick="buyEquipment(' + item.id + ', \'' + item.name.replace(/'/g, "\\'") + '\', ' + item.price + ')">Buy</button>';
           } else {
-            html += '<button class="btn btn-locked" disabled>Need ' + item.price + ' PP</button>';
+            cardHtml += '<button class="btn btn-locked" disabled>Need ' + item.price + ' PP</button>';
           }
         }
       } else {
-        html += '<div class="equipment-price boss-drop-price">Cannot be purchased</div>';
+        cardHtml += '<div class="equipment-price boss-drop-price">Cannot be purchased</div>';
         if (isOwned) {
-          html += '<button class="btn btn-legendary" disabled>In Your Collection</button>';
+          cardHtml += '<button class="btn btn-legendary" disabled>In Your Collection</button>';
         } else {
-          html += '<button class="btn btn-locked" disabled>Defeat Boss to Obtain</button>';
+          cardHtml += '<button class="btn btn-locked" disabled>Defeat Boss to Obtain</button>';
         }
+      }
+      
+      cardHtml += '</div>';
+      return cardHtml;
+    }
+    
+    // Create two-column layout
+    html += '<div class="equipment-shop-columns">';
+    
+    // Left column: Weapons
+    html += '<div class="equipment-column">';
+    html += '<h3 class="equipment-column-title">⚔️ Weapons</h3>';
+    html += '<div class="equipment-grid-column">';
+    weapons.forEach(function(item) {
+      html += renderEquipmentCard(item);
+    });
+    html += '</div></div>';
+    
+    // Right column: Armor
+    html += '<div class="equipment-column">';
+    html += '<h3 class="equipment-column-title">🛡️ Armor</h3>';
+    html += '<div class="equipment-grid-column">';
+    armor.forEach(function(item) {
+      html += renderEquipmentCard(item);
+    });
+    html += '</div></div>';
+    
+    html += '</div>';
+    
+    container.innerHTML = html;
+    
+    setInterval(updateRotationCountdown, 60000);
+    
+  } catch (err) {
+    container.innerHTML = '<div class="error-state"><p>Failed to load shop.</p></div>';
+    console.error('Equipment shop error:', err);
+  }
+}
       }
       
       html += '</div>';

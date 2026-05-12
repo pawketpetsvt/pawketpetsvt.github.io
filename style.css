@@ -9155,6 +9155,52 @@ body.night-mode .stat-item.global .stat-value {
   gap: 20px;
 }
 
+/* Two-Column Equipment Shop Layout */
+.equipment-shop-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+  margin-top: 24px;
+}
+
+.equipment-column {
+  display: flex;
+  flex-direction: column;
+}
+
+.equipment-column-title {
+  font-family: 'Chewy', cursive;
+  font-size: 1.5rem;
+  color: var(--purple);
+  margin: 0 0 16px 0;
+  text-align: center;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(153, 102, 255, 0.15), rgba(255, 102, 204, 0.15));
+  border-radius: 12px;
+  border: 2px solid var(--purple-light);
+}
+
+.equipment-grid-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Responsive - Stack columns on mobile */
+@media (max-width: 900px) {
+  .equipment-shop-columns {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .equipment-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
 /* Equipment Card */
 .equipment-card {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
@@ -9364,6 +9410,13 @@ body.night-mode .equipment-type {
 body.night-mode .equipment-tier,
 body.night-mode .equipment-stats .stat {
   color: #e8d5ff;
+}
+
+/* Equipment Column Titles Night Mode */
+body.night-mode .equipment-column-title {
+  color: #b589ff;
+  background: linear-gradient(135deg, rgba(153, 102, 255, 0.25), rgba(255, 102, 204, 0.25));
+  border-color: #9966ff;
 }
 
 /* ═══════════════════════════════════════════════════════════
