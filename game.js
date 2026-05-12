@@ -9010,18 +9010,15 @@ var dayNightCycle = {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
-    // dailyFortune.init(); // MOVED to showApp() after login/tutorial
     dayNightCycle.init();
-    weatherSystem.init();
-    worldEvents.init();
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+    if (typeof worldEvents !== 'undefined') worldEvents.init();
   });
 } else {
-  // DOM already loaded
   newsTicker.init();
-  // dailyFortune.init(); // MOVED to showApp() after login/tutorial
   dayNightCycle.init();
-  weatherSystem.init();
-  worldEvents.init();
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+  if (typeof worldEvents !== 'undefined') worldEvents.init();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
