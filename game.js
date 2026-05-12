@@ -1240,6 +1240,131 @@ function previewItem(petId) {
   btn.disabled = false;
 }
 
+// ── EDIT PET NICKNAME ─────────────────────────────
+function openEditNicknameModal(petId, currentNickname) {
+  // Create modal overlay
+  var overlay = makeEl('div', {class:'modal-overlay', id:'edit-nickname-overlay'});
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  
+  // Create modal
+  var modal = makeEl('div', {class:'modal-content'});
+  modal.style.cssText = 'background:var(--cream);border:4px solid var(--purple);border-radius:24px;padding:30px;max-width:400px;width:90%;box-shadow:0 8px 32px rgba(153,102,255,0.4);';
+  
+  // Title
+  var title = makeEl('h2', {style:'font-family:Chewy,cursive;color:var(--purple);margin:0 0 20px 0;text-align:center;'});
+  title.textContent = 'Edit Nickname';
+  modal.appendChild(title);
+  
+  // Input
+  var input = makeEl('input', {type:'text', id:'nickname-input', maxlength:'30', value:currentNickname});
+  input.style.cssText = 'width:100%;padding:12px;font-size:1.1rem;border:3px solid var(--purple-light);border-radius:12px;font-family:Fredoka One,cursive;margin-bottom:20px;box-sizing:border-box;';
+  input.placeholder = 'Enter new nickname...';
+  modal.appendChild(input);
+  
+  // Character count
+  var charCount = makeEl('div', {id:'char-count', style:'text-align:right;color:var(--text-light);font-size:0.9rem;margin:-10px 0 15px 0;'});
+  charCount.textContent = currentNickname.length + '/30';
+  modal.appendChild(charCount);
+  
+  input.oninput = function() {
+    var count = this.value.length;
+    charCount.textContent = count + '/30';
+    if (count > 25) {
+      charCount.style.color = 'var(--pink)';
+    } else {
+      charCount.style.color = 'var(--text-light)';
+    }
+  };
+  
+  // Buttons
+  var btnRow = makeEl('div', {style:'display:flex;gap:10px;justify-content:center;'});
+  
+  var cancelBtn = makeEl('button', {class:'btn btn-outline'});
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = function() { closeEditNicknameModal(); };
+  
+  var saveBtn = makeEl('button', {class:'btn btn-primary'});
+  saveBtn.textContent = 'Save';
+  saveBtn.onclick = function() { saveNickname(petId); };
+  
+  btnRow.appendChild(cancelBtn);
+  btnRow.appendChild(saveBtn);
+  modal.appendChild(btnRow);
+  
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  
+  // Focus input and select all
+  setTimeout(function() {
+    input.focus();
+    input.select();
+  }, 100);
+  
+  // Enter key to save
+  input.onkeypress = function(e) {
+    if (e.key === 'Enter') {
+      saveNickname(petId);
+    }
+  };
+}
+
+function closeEditNicknameModal() {
+  var overlay = el('edit-nickname-overlay');
+  if (overlay && overlay.parentNode) {
+    overlay.parentNode.removeChild(overlay);
+  }
+}
+
+async function saveNickname(petId) {
+  var input = el('nickname-input');
+  if (!input) return;
+  
+  var newNickname = input.value.trim();
+  
+  // Validation
+  if (!newNickname) {
+    showToast('Please enter a nickname! ❌');
+    return;
+  }
+  
+  if (newNickname.length > 30) {
+    showToast('Nickname too long! (Max 30 characters) ❌');
+    return;
+  }
+  
+  try {
+    // Update in database
+    var res = await supabaseClient
+      .from('user_pets')
+      .update({ nickname: newNickname })
+      .eq('id', petId)
+      .eq('user_id', currentUser.id);
+    
+    if (res.error) {
+      console.error('Error updating nickname:', res.error);
+      showToast('Failed to update nickname ❌');
+      return;
+    }
+    
+    // Update local state
+    if (petState[petId]) {
+      petState[petId].nickname = newNickname;
+    }
+    
+    // Close modal
+    closeEditNicknameModal();
+    
+    // Reload pets page to show new nickname
+    loadMyPets();
+    
+    showToast('Nickname updated! ✨');
+    
+  } catch (err) {
+    console.error('Error saving nickname:', err);
+    showToast('Failed to update nickname ❌');
+  }
+}
+
 async function useItem(petId) {
   var sel = el('sel-'+petId); 
   if (!sel || !sel.value) return;
@@ -1473,7 +1598,19 @@ function makeMyPetCard(pet) {
   var evolutionEmoji = getEvolutionEmoji(evolutionStage);
   var stageName = evolutionStage.charAt(0).toUpperCase() + evolutionStage.slice(1);
   
-  headerInfo.appendChild(makeEl('div', {class:'pet-card-nickname'}, evolutionEmoji + ' ' + pet.nickname + ' (' + stageName + ')'));
+  // Add edit nickname button
+  var editNicknameBtn = makeEl('button', {class:'btn-edit-nickname', title:'Edit nickname'});
+  editNicknameBtn.innerHTML = '✏️';
+  editNicknameBtn.style.cssText = 'margin-left:8px;padding:4px 8px;font-size:1rem;cursor:pointer;background:var(--cream);border:2px solid var(--purple-light);border-radius:8px;transition:all 0.2s;';
+  editNicknameBtn.onmouseover = function() { this.style.borderColor = 'var(--purple)'; this.style.background = 'var(--purple-light)'; };
+  editNicknameBtn.onmouseout = function() { this.style.borderColor = 'var(--purple-light)'; this.style.background = 'var(--cream)'; };
+  editNicknameBtn.onclick = function() { openEditNicknameModal(pet.id, pet.nickname); };
+  
+  var nicknameRow = makeEl('div', {style:'display:flex;align-items:center;justify-content:space-between;'});
+  var nicknameText = makeEl('div', {class:'pet-card-nickname'}, evolutionEmoji + ' ' + pet.nickname + ' (' + stageName + ')');
+  nicknameRow.appendChild(nicknameText);
+  nicknameRow.appendChild(editNicknameBtn);
+  headerInfo.appendChild(nicknameRow);
   
   // Add variant badge if pet has variant
   if (pet.variant) {
@@ -13055,46 +13192,46 @@ function getPetFullDisplayName(pet) {
 var weatherSystem = {
   weatherTypes: [
     {
-      id: 'sunny',
-      name: 'Sunny',
+      id: 'clear',
+      name: 'Clear',
       icon: '☀️',
       description: 'Perfect weather for pet adventures!',
-      weight: 30 // More common
+      weight: 50 // Most common - no weather effects
     },
     {
       id: 'rainy',
       name: 'Rainy',
       icon: '🌧️',
       description: 'The mushrooms are extra happy today.',
-      weight: 20
+      weight: 15
     },
     {
       id: 'foggy',
       name: 'Foggy',
       icon: '🌫️',
       description: 'Mysterious mists drift through the Deep Woods...',
-      weight: 15
+      weight: 12
     },
     {
       id: 'windy',
       name: 'Windy',
       icon: '💨',
       description: 'Hold onto your spoons! Gusty conditions today.',
-      weight: 15
+      weight: 10
     },
     {
       id: 'starry',
       name: 'Starry Night',
       icon: '✨',
       description: 'The cosmos align. Make a wish!',
-      weight: 10
+      weight: 8
     },
     {
       id: 'cursed',
       name: 'Cursed Fog',
       icon: '🟣',
       description: 'Strange purple fog emanates from the ruins. Proceed with caution.',
-      weight: 10 // Rare but not too rare
+      weight: 5 // Rare
     }
   ],
   
@@ -13104,24 +13241,24 @@ var weatherSystem = {
   init: function() {
     // Load saved weather or generate new
     var saved = localStorage.getItem('currentWeather');
-    var savedDate = localStorage.getItem('weatherDate');
-    var today = new Date().toDateString();
+    var savedTime = localStorage.getItem('weatherTime');
+    var currentTime = Date.now();
+    var oneHour = 3600000; // 1 hour in milliseconds
     
-    if (saved && savedDate === today) {
-      // Use saved weather for today
+    if (saved && savedTime && (currentTime - parseInt(savedTime)) < oneHour) {
+      // Use saved weather if less than 1 hour old
       this.currentWeather = JSON.parse(saved);
     } else {
       // Generate new weather
       this.generateWeather();
-      localStorage.setItem('weatherDate', today);
     }
     
     this.applyWeather();
     
-    // Change weather every 2 hours
+    // Change weather every 1 hour
     this.changeInterval = setInterval(function() {
       weatherSystem.generateWeather();
-    }, 7200000); // 2 hours
+    }, 3600000); // 1 hour
   },
   
   generateWeather: function() {
@@ -13138,8 +13275,9 @@ var weatherSystem = {
       }
     }
     
-    // Save to localStorage
+    // Save to localStorage with timestamp
     localStorage.setItem('currentWeather', JSON.stringify(this.currentWeather));
+    localStorage.setItem('weatherTime', Date.now().toString());
     
     this.applyWeather();
   },
@@ -13150,7 +13288,7 @@ var weatherSystem = {
     var body = document.body;
     
     // Remove all weather classes
-    body.classList.remove('weather-sunny', 'weather-rainy', 'weather-foggy', 
+    body.classList.remove('weather-clear', 'weather-rainy', 'weather-foggy', 
                           'weather-windy', 'weather-starry', 'weather-cursed');
     
     // Add current weather class
@@ -14198,7 +14336,7 @@ function applySettings() {
   if (!playerSettings.weather_enabled) {
     // Disable weather
     var body = document.body;
-    body.classList.remove('weather-sunny', 'weather-rainy', 'weather-foggy', 
+    body.classList.remove('weather-clear', 'weather-rainy', 'weather-foggy', 
                           'weather-windy', 'weather-starry', 'weather-cursed');
   } else {
     // Re-apply weather
