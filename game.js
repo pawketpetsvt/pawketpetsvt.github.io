@@ -723,7 +723,10 @@ async function awardStreakReward(streak) {
   }
 }
 
-async function handleLogout() { await logoutUser(); }
+async function handleLogout() { 
+  await supabaseClient.auth.signOut(); 
+  location.reload();
+}
 function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
 
 // ── LOGIN / REGISTER ─────────────────────
