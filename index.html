@@ -123,6 +123,25 @@ body.night-mode .settings-modal-label p{color:#b399dd}
 .weather-cursed::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(138,43,226,0.03) 2px,rgba(138,43,226,0.03) 4px);animation:cursedScan 8s linear infinite;pointer-events:none;z-index:2}
 @keyframes cursedFog{0%{opacity:0.4;transform:scale(1) rotate(0deg)}50%{opacity:0.7;transform:scale(1.1) rotate(5deg)}100%{opacity:0.4;transform:scale(1) rotate(0deg)}}
 @keyframes cursedScan{0%{transform:translateY(0)}100%{transform:translateY(20px)}}
+/* Event Announcement Ticker */
+.event-announcement{background:linear-gradient(135deg,#ff4444 0%,#cc0000 100%);color:#fff;font-weight:bold;padding:2px 12px;border-radius:6px;margin-right:8px;box-shadow:0 2px 8px rgba(255,68,68,0.4);animation:eventPulse 2s ease-in-out infinite}
+@keyframes eventPulse{0%,100%{box-shadow:0 2px 8px rgba(255,68,68,0.4)}50%{box-shadow:0 2px 12px rgba(255,68,68,0.7)}}
+/* Night Mode - Friends Page Fix */
+body.night .friends-tabs{border-bottom-color:rgba(153,102,255,0.3)!important}
+body.night .friends-tab{background:rgba(153,102,255,0.15)!important;color:var(--cream)!important;border:2px solid rgba(153,102,255,0.3)!important}
+body.night .friends-tab.active{background:rgba(153,102,255,0.3)!important;border-color:var(--purple)!important}
+body.night .friends-tab:hover{background:rgba(153,102,255,0.25)!important}
+body.night #friends-list,body.night #friend-requests-list,body.night #blocked-users-list{color:var(--cream)!important}
+body.night .friend-card,body.night .friend-request-card,body.night .blocked-user-card{background:rgba(153,102,255,0.1)!important;border-color:rgba(153,102,255,0.3)!important;color:var(--cream)!important}
+body.night .friend-name,body.night .blocked-username{color:var(--cream)!important}
+body.night .friend-pets,body.night .blocked-reason{color:rgba(255,245,230,0.7)!important}
+body.night .add-friend-section{background:rgba(153,102,255,0.1)!important;border-color:rgba(153,102,255,0.3)!important}
+body.night .add-friend-input{background:rgba(153,102,255,0.15)!important;border-color:rgba(153,102,255,0.3)!important;color:var(--cream)!important}
+body.night .add-friend-input::placeholder{color:rgba(255,245,230,0.5)!important}
+body.night .empty-state{color:rgba(255,245,230,0.7)!important}
+/* Leaderboard - Darker Numbers for Better Legibility */
+.leaderboard-rank{color:#6b4ba8!important;font-weight:bold}
+.leaderboard-points,.leaderboard-count,.leaderboard-stat{color:#7c5caa!important;font-weight:600}
   </style>
 
 </head>

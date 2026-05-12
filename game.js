@@ -8566,6 +8566,35 @@ async function updateProfileButtons() {
 
 // Character counter for guestbook
 /* ═══════════════════════════════════════════════════════════════════════
+   EVENT ANNOUNCEMENT TICKER
+   ═══════════════════════════════════════════════════════════════════════ */
+
+function getEventAnnouncement() {
+  if (!worldEvents || !worldEvents.currentEvent) return '';
+  
+  var event = worldEvents.currentEvent;
+  var announcements = {
+    'mushroom_migration': '🍄 Mushroom Migration Day! +25% Battle XP & 50% more encounters!',
+    'spoon_week': '🥄 Spoon Appreciation Week! Spoon weapons deal 50% more damage & 25% off spoons!',
+    'pyxie_chaos': '✨ Pyxie Chaos Festival! 30% chance of random bonuses & 50% more PP from everything!',
+    'golden_bunny': '🐰 Golden Bunny Sighting! 2x rare item drops & 50% more critical hits!',
+    'strange_fog': '🌫️ Strange Fog in the Deep Woods! Happiness decays 50% slower & 25% more exploration rewards!',
+    'pet_parade': '🎉 Grand Pet Parade! 2x happiness from interactions & 25% more pet XP!',
+    'marketplace_madness': '🛒 Marketplace Madness! 30% off all shop items!',
+    'void_watching': '👁️ The Void is Watching! 15% bonus to all stats & 20% mystery reward chance!',
+    'arena_championship': '⚔️ Arena Championship! Double PP from battles & 50% more battle XP!',
+    'snack_shortage': '🍪 Great Snack Shortage! Snacks 25% less effective but 50% cheaper!',
+    'full_moon': '🌕 Full Moon Night! 40% stronger at night & 50% faster energy regen!',
+    'butterfly_swarm': '🦋 Suspicious Butterfly Swarm! 2x discovery chance & 50% more exploration rewards!',
+    'napping_day': '😴 Tactical Napping Day! 2.5x faster energy regen!',
+    'ruins_rumbling': '🏛️ The Ruins are Rumbling! DOUBLE all rewards & 3x legendary drop chance!',
+    'friendship_festival': '💖 Friendship Festival! Double friendship XP & 50% more happiness!'
+  };
+  
+  return announcements[event.id] || '';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
    PHASE 2A: NEWS TICKER SYSTEM - Rotating Flavor Messages
    ═══════════════════════════════════════════════════════════════════════ */
 
@@ -8712,8 +8741,18 @@ var newsTicker = {
       this.currentIndex = this.getRandomUnusedIndex();
       var message = this.messages[this.currentIndex];
       
-      // Update message
-      tickerElement.textContent = '📰 ' + message + ' ✨ ';
+      // Get event announcement if active
+      var eventAnnouncement = getEventAnnouncement();
+      
+      // Build final message
+      var finalMessage = '';
+      if (eventAnnouncement) {
+        finalMessage = '<span class="event-announcement">' + eventAnnouncement + '</span> | ';
+      }
+      finalMessage += '📰 ' + message + ' ✨';
+      
+      // Update message with HTML
+      tickerElement.innerHTML = finalMessage;
       
       // Reset animation by removing and re-adding the element
       var parent = tickerElement.parentElement;
