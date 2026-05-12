@@ -468,6 +468,9 @@ async function showApp(user) {
   el('app-content').style.display = 'block';
   el('nav-logout').style.display = 'inline-block';
   el('nav-profile').style.display = 'inline-block';
+  
+  // Clean up any leftover spooky effects
+  cleanupSpookyEffects();
 
   // Check if player exists, create if missing (auto-recovery from database issues)
   var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).maybeSingle();
@@ -3796,6 +3799,25 @@ async function unlinkTwitch(){
   showToast('Twitch unlinked.');
 }
 // ── REDEEM CODES ─────────────────────────────
+
+// Clean up any leftover spooky effects on page load
+function cleanupSpookyEffects() {
+  var overlay = document.getElementById('spooky-overlay');
+  if (overlay && overlay.parentNode) {
+    overlay.parentNode.removeChild(overlay);
+  }
+  
+  // Remove any CRT scanline divs
+  var allDivs = document.querySelectorAll('div');
+  for (var i = 0; i < allDivs.length; i++) {
+    var div = allDivs[i];
+    if (div.style.animation && div.style.animation.includes('crt-flicker')) {
+      if (div.parentNode) div.parentNode.removeChild(div);
+    }
+  }
+  
+  console.log('✨ Cleaned up spooky effects');
+}
 
 // Spooky effect for THEYWENTMISSING code
 function triggerSpookyEffect() {
