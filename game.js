@@ -2526,6 +2526,8 @@ async function checkSidebarStreamStatus() {
   } catch (err) {
     console.error('❌ Error checking sidebar stream status:', err);
   }
+}
+
 
 
 async function useOnPet(petId,petNickname) {
