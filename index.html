@@ -47,6 +47,68 @@
   
   <link rel="stylesheet" href="style.css?v=20260504215426">
 
+  <!-- Tutorial System Styles -->
+  <style>
+/* ═══════════════════════════════════════════════════════════
+   TUTORIAL SYSTEM STYLES
+   ═══════════════════════════════════════════════════════════ */
+.tutorial-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;pointer-events:all}
+.tutorial-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px)}
+.tutorial-mascot{position:fixed;right:100px;bottom:280px;z-index:1000001;text-align:center;pointer-events:none;animation:tutorial-mascot-bounce 2s ease-in-out infinite}
+.tutorial-mascot-image{font-size:8rem;line-height:1;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));animation:tutorial-mascot-float 3s ease-in-out infinite}
+.tutorial-mascot-name{font-family:'Chewy',cursive;font-size:1.2rem;color:#fff;margin-top:12px;text-shadow:0 2px 8px rgba(0,0,0,0.5)}
+.tutorial-mascot-excited .tutorial-mascot-image{animation:tutorial-mascot-excited 0.5s ease-in-out infinite}
+.tutorial-mascot-concerned .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,165,0,0.3))}
+.tutorial-mascot-worried .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,100,100,0.3))}
+.tutorial-mascot-scared .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,0,0,0.5));animation:tutorial-mascot-shake 0.3s ease-in-out infinite}
+.tutorial-mascot-serious .tutorial-mascot-image{filter:grayscale(0.3) drop-shadow(0 8px 24px rgba(100,0,150,0.4))}
+.tutorial-dialogue-box{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);width:90%;max-width:700px;z-index:1000002;background:linear-gradient(135deg,#fff,#fff5ff);border:4px solid var(--purple);border-radius:24px;padding:30px;box-shadow:0 12px 48px rgba(153,102,255,0.4);animation:tutorial-dialogue-enter 0.3s ease-out}
+.tutorial-dialogue-content{position:relative}
+.tutorial-dialogue-text{font-family:'Chewy',cursive;font-size:1.3rem;color:var(--purple-dark);line-height:1.6;margin-bottom:20px;min-height:80px}
+.tutorial-progress{display:flex;justify-content:center;gap:8px;margin-bottom:20px}
+.tutorial-dot{width:10px;height:10px;border-radius:50%;background:var(--purple-light);opacity:0.3;transition:all 0.3s}
+.tutorial-dot.active{opacity:1;background:var(--purple);transform:scale(1.3)}
+.tutorial-buttons{display:flex;gap:12px;justify-content:flex-end;align-items:center}
+.tutorial-skip{background:transparent!important;color:var(--purple)!important;border:none!important;font-size:0.95rem!important;opacity:0.7}
+.tutorial-skip:hover{opacity:1;text-decoration:underline}
+.tutorial-next{min-width:140px}
+.tutorial-next:disabled{opacity:0.5;cursor:not-allowed}
+.tutorial-choice-buttons{display:flex;flex-direction:column;gap:12px;width:100%}
+.tutorial-choice-buttons .btn{width:100%;padding:16px 24px;font-size:1.1rem}
+@keyframes tutorial-dialogue-enter{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes tutorial-mascot-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes tutorial-mascot-float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-15px) rotate(3deg)}}
+@keyframes tutorial-mascot-excited{0%,100%{transform:scale(1) rotate(0)}25%{transform:scale(1.1) rotate(-5deg)}75%{transform:scale(1.1) rotate(5deg)}}
+@keyframes tutorial-mascot-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+body.night-mode .tutorial-dialogue-box{background:linear-gradient(135deg,#2a2440,#3a3050);border-color:#9966ff;box-shadow:0 12px 48px rgba(153,102,255,0.6)}
+body.night-mode .tutorial-dialogue-text{color:#e8d5ff}
+body.night-mode .tutorial-dot{background:#9966ff}
+body.night-mode .tutorial-dot.active{background:#b589ff}
+body.night-mode .tutorial-skip{color:#b589ff!important}
+@media (max-width:768px){.tutorial-mascot{right:20px;bottom:220px;transform:scale(0.7)}.tutorial-mascot-image{font-size:6rem}.tutorial-dialogue-box{bottom:20px;width:95%;padding:20px}.tutorial-dialogue-text{font-size:1.1rem;min-height:60px}.tutorial-buttons{flex-direction:column;gap:8px}.tutorial-skip,.tutorial-next{width:100%}}
+@media (max-width:480px){.tutorial-mascot{right:10px;bottom:200px;transform:scale(0.5)}.tutorial-dialogue-text{font-size:1rem}}
+.settings-container{max-width:800px;margin:0 auto;padding:20px}
+.setting-item{display:flex;justify-content:space-between;align-items:center;padding:24px;background:var(--cream);border:3px solid var(--purple-light);border-radius:16px;margin-bottom:20px;transition:all 0.3s}
+.setting-item:hover{border-color:var(--purple);box-shadow:0 4px 12px rgba(153,102,255,0.2)}
+.setting-info{flex:1;padding-right:20px}
+.setting-info h3{font-family:'Chewy',cursive;font-size:1.3rem;color:var(--purple);margin:0 0 8px 0}
+.setting-info p{font-size:0.95rem;color:var(--text-light);margin:0}
+.toggle-switch{position:relative;display:inline-block;width:60px;height:34px;cursor:pointer}
+.toggle-switch input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background-color:#ccc;border-radius:34px;transition:0.3s}
+.toggle-slider:before{position:absolute;content:"";height:26px;width:26px;left:4px;bottom:4px;background-color:white;border-radius:50%;transition:0.3s}
+.toggle-switch input:checked+.toggle-slider{background:linear-gradient(135deg,var(--purple),var(--pink))}
+.toggle-switch input:checked+.toggle-slider:before{transform:translateX(26px)}
+.setting-item input[type="range"]{width:200px;margin-right:12px}
+#volume-display{font-family:'Chewy',cursive;font-size:1.1rem;color:var(--purple);min-width:50px;text-align:center}
+body.night-mode .setting-item{background:rgba(153,102,255,0.1);border-color:#9966ff}
+body.night-mode .setting-item:hover{border-color:#b589ff;box-shadow:0 4px 12px rgba(153,102,255,0.3)}
+body.night-mode .setting-info h3{color:#b589ff}
+body.night-mode .setting-info p{color:#b399dd}
+body.night-mode #volume-display{color:#b589ff}
+@media (max-width:768px){.setting-item{flex-direction:column;align-items:flex-start;padding:20px}.setting-info{padding-right:0;margin-bottom:16px}.setting-item input[type="range"]{width:100%;margin-right:0;margin-bottom:8px}.toggle-switch,.setting-item button{align-self:flex-end}}
+  </style>
+
 </head>
 <body class="three-column-layout">
 
@@ -140,6 +202,7 @@
         <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-forum" onclick="showTab('forum')">💬 Forum</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-settings" onclick="showTab('settings')">⚙️ Settings</button>
       </div>
     </div>
     
@@ -1981,12 +2044,84 @@
     </div>
 
 
+  <!-- ═════════════════════════════════════════════════════════
+       SETTINGS PAGE
+       ═════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-settings">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">⚙️ ✦ ⚙️</div>
+        <h1>Settings</h1>
+        <p>Customize your PawketPets experience</p>
+      </div>
+      
+      <div class="settings-container">
+        
+        <!-- Spooky Content Setting -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>👻 Spooky Content</h3>
+            <p>Enable creepy events, horror bosses, unsettling encounters, and hidden secrets</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="setting-spooky" onchange="saveSettings()">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        
+        <!-- Music Volume Setting -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>🎵 Music Volume</h3>
+            <p>Adjust background music volume</p>
+          </div>
+          <div style="display: flex; align-items: center;">
+            <input type="range" id="setting-music-volume" min="0" max="100" 
+                   value="50" onchange="updateVolumeDisplay(); saveSettings()">
+            <span id="volume-display">50%</span>
+          </div>
+        </div>
+        
+        <!-- Tutorial Replay -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>📚 Tutorial</h3>
+            <p>Replay the onboarding tutorial with Melon</p>
+          </div>
+          <button class="btn btn-outline" onclick="replayTutorial()">
+            🔄 Replay Tutorial
+          </button>
+        </div>
+        
+        <!-- Account Info -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <h3>👤 Account</h3>
+            <p>Your account information</p>
+          </div>
+          <div style="text-align: right;">
+            <div id="settings-username" style="font-weight: bold; color: var(--purple);">Loading...</div>
+            <div id="settings-email" style="font-size: 0.9rem; color: var(--text-light); margin-top: 4px;">Loading...</div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+
   </div>
 </div><!-- close app-container -->
 
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="game.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// TUTORIAL SYSTEM
+// ═══════════════════════════════════════════════════════════
+var Tutorial={active:false,currentStep:0,overlay:null,waitingForPet:false,steps:[{id:'welcome',tab:'home',dialogue:[{text:"Hi there! I'm Melon, your guide to PawketPets! 🍈",mascot:"happy"},{text:"This is your Home page. You can always come back here to see what's new!",mascot:"explaining"},{text:"Ready to meet your first pet? Let's go!",mascot:"excited"}]},{id:'adoption',tab:'adopt',dialogue:[{text:"Welcome to the Adoption Center! This is where you'll find your new companion.",mascot:"happy"},{text:"Your FIRST pet is completely FREE! But each pet after that costs PawketPoints.",mascot:"explaining"},{text:"Pets have different personalities and looks. Choose one you like!",mascot:"happy"},{text:"Go ahead - click on a pet to adopt them! I'll wait here while you choose! 😊",mascot:"excited",waitForPet:true}]},{id:'mypets',tab:'mypets',requiresPet:true,dialogue:[{text:"Aww, what a cutie! Welcome to your new friend! 💕",mascot:"happy"},{text:"This is your My Pets page. You can see all your pets here!",mascot:"explaining"},{text:"Pets have Hunger and Energy levels. Keep them fed and rested to keep them happy!",mascot:"explaining"},{text:"You can play with them, feed them items, and even equip them with gear!",mascot:"excited"}]},{id:'shop',tab:'shop',dialogue:[{text:"The Shop is where you buy items with PawketPoints (PP).",mascot:"explaining"},{text:"You can buy food, toys, equipment, and more!",mascot:"happy"},{text:"But how do you earn PP? Let me show you!",mascot:"excited"}]},{id:'minigames',tab:'minigames',dialogue:[{text:"The Minigames page is where you earn PP!",mascot:"excited"},{text:"Play games like Memory Match, Dice Roll, and more!",mascot:"happy"},{text:"Each game gives you PP as a reward. You can play most of them once per day!",mascot:"explaining"},{text:"Try them out whenever you like! The more you play, the more you earn!",mascot:"excited"}]},{id:'battle',tab:'battle',dialogue:[{text:"The Battle Arena lets your pets fight opponents and earn rewards!",mascot:"explaining"},{text:"Battles are automatic - just click Battle and watch! Your pet's stats determine who wins.",mascot:"happy"},{text:"Win battles to earn PP, items, and level up your pets!",mascot:"excited"},{text:"That covers the basics! You're all set to play! But... there's one more thing...",mascot:"concerned"}]},{id:'spooky',tab:null,dialogue:[{text:"I've been here a while, and... something feels off about this place.",mascot:"worried"},{text:"Sometimes I see things. Shadows. Glitches in the code. Strange encounters...",mascot:"scared"},{text:"There are rumors of creepy bosses, unsettling events, and hidden secrets.",mascot:"serious"},{text:"Are you okay with things that go bump in the night?",mascot:"serious",showChoice:true}]}],start:function(){console.log('🎓 Starting tutorial...');this.active=true;this.currentStep=0;this.createOverlay();this.runStep()},createOverlay:function(){var overlay=document.createElement('div');overlay.id='tutorial-overlay';overlay.className='tutorial-overlay';overlay.innerHTML='<div class="tutorial-backdrop"></div><div class="tutorial-mascot" id="tutorial-mascot"><div class="tutorial-mascot-image">🍈</div><div class="tutorial-mascot-name">Melon</div></div><div class="tutorial-dialogue-box"><div class="tutorial-dialogue-content"><div class="tutorial-dialogue-text" id="tutorial-text">Welcome to PawketPets!</div><div class="tutorial-progress" id="tutorial-progress"></div><div class="tutorial-buttons" id="tutorial-buttons"><button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button></div></div></div>';document.body.appendChild(overlay);this.overlay=overlay},runStep:function(){var step=this.steps[this.currentStep];if(!step){console.error('Invalid tutorial step:',this.currentStep);return}console.log('📖 Tutorial step:',step.id);if(step.tab&&typeof showTab==='function'){showTab(step.tab)}setTimeout(function(){Tutorial.showDialogue(0)},500)},showDialogue:function(dialogueIndex){var step=this.steps[this.currentStep];if(!step||!step.dialogue[dialogueIndex])return;var dialogue=step.dialogue[dialogueIndex];var textEl=document.getElementById('tutorial-text');var progressEl=document.getElementById('tutorial-progress');var buttonsEl=document.getElementById('tutorial-buttons');if(textEl){textEl.textContent=dialogue.text}var mascotEl=document.getElementById('tutorial-mascot');if(mascotEl){mascotEl.className='tutorial-mascot tutorial-mascot-'+(dialogue.mascot||'happy')}if(progressEl){var dots='';for(var i=0;i<step.dialogue.length;i++){dots+='<span class="tutorial-dot'+(i===dialogueIndex?' active':'')+'"></span>'}progressEl.innerHTML=dots}if(dialogue.showChoice){buttonsEl.innerHTML='<div class="tutorial-choice-buttons"><button class="btn btn-primary btn-lg" onclick="Tutorial.makeChoice(true)">👻 YES - Bring on the spooky!</button><button class="btn btn-outline btn-lg" onclick="Tutorial.makeChoice(false)">🌈 NO - Keep it cozy</button></div>'}else if(dialogue.waitForPet){this.waitingForPet=true;buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" disabled>⏳ Adopt a pet to continue...</button>'}else{this.waitingForPet=false;buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>'}this.currentDialogueIndex=dialogueIndex},next:function(){var step=this.steps[this.currentStep];var nextDialogueIndex=this.currentDialogueIndex+1;if(nextDialogueIndex<step.dialogue.length){this.showDialogue(nextDialogueIndex)}else{this.currentStep++;if(this.currentStep>=this.steps.length){this.complete(false)}else{this.runStep()}}},onPetAdopted:function(){if(this.active&&this.waitingForPet){console.log('🐾 Pet adopted! Continuing tutorial...');this.waitingForPet=false;var buttonsEl=document.getElementById('tutorial-buttons');if(buttonsEl){buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>'}setTimeout(function(){Tutorial.next()},1500)}},makeChoice:function(enableSpooky){console.log('👻 Spooky choice:',enableSpooky);this.complete(enableSpooky)},complete:async function(spookyEnabled){console.log('✅ Tutorial complete! Spooky:',spookyEnabled);if(currentUser&&typeof supabaseClient!=='undefined'){try{var ppReward=100;await supabaseClient.from('players').update({tutorial_completed:true,spooky_enabled:spookyEnabled,pawketpoints:currentPoints+ppReward}).eq('id',currentUser.id);currentPoints+=ppReward;if(typeof updatePointsDisplay==='function'){updatePointsDisplay()}if(typeof playerSettings!=='undefined'){playerSettings.tutorial_completed=true;playerSettings.spooky_enabled=spookyEnabled}console.log('💾 Tutorial progress saved!');console.log('🎁 Awarded '+ppReward+' PP!')}catch(err){console.error('Error saving tutorial progress:',err)}}var textEl=document.getElementById('tutorial-text');var buttonsEl=document.getElementById('tutorial-buttons');if(textEl){if(spookyEnabled){textEl.innerHTML="Brave choice! Here's <strong>100 PP</strong> to get you started. Keep your eyes open... you never know what you might find. 👁️✨"}else{textEl.innerHTML="A wise choice! Here's <strong>100 PP</strong> to get you started. Enjoy your cozy adventure with your new pet! 🌈✨"}}if(buttonsEl){buttonsEl.innerHTML='<button class="btn btn-primary btn-lg" onclick="Tutorial.close()">Let\\'s Go! 🚀</button>'}setTimeout(function(){Tutorial.close()},4000)},skip:function(){if(!confirm('Are you sure you want to skip the tutorial? You can replay it later from Settings.')){return}console.log('⏭️ Tutorial skipped');this.complete(false)},close:function(){this.active=false;if(this.overlay&&this.overlay.parentNode){this.overlay.parentNode.removeChild(this.overlay)}this.overlay=null;console.log('Tutorial closed')}};window.Tutorial=Tutorial;console.log('🎓 Tutorial system loaded!');
+</script>
   <script>
 // Sync sidebar navigation with main tab switching
 var originalShowTab = window.showTab;

@@ -122,6 +122,13 @@ var currentUser = null;
 var currentPoints = 0;
 var tabsLoaded = {};
 
+// ── TUTORIAL & SETTINGS ──────────────────
+var playerSettings = {
+  spooky_enabled: false,
+  music_volume: 50,
+  tutorial_completed: false
+};
+
 // Daily tips array for home page
 var dailyTips = [
   "Pets with higher happiness perform better in battles!",
@@ -371,6 +378,8 @@ function showTab(tab) {
     setTimeout(function() {
       initForum();
     }, 100);
+  } else if (tab === 'settings') {
+    loadSettings();
   } else if (tab === 'myprofile') {
     loadMyProfile();
   } else if (tab === 'profile' && window.currentProfileUsername) {
@@ -526,6 +535,9 @@ async function showApp(user) {
   
   // Initialize referral system
   await initReferralSystem(user.id);
+  
+  // Check tutorial status and start if needed
+  await checkTutorialStatus();
   
   // Check sidebar stream status
   await checkSidebarStreamStatus();
@@ -1081,6 +1093,11 @@ async function confirmAdopt() {
   setTimeout(function() {
     createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
   }, 100);
+  
+  // Notify tutorial if active
+  if (typeof Tutorial !== 'undefined' && Tutorial.active) {
+    Tutorial.onPetAdopted();
+  }
   
   ownedPetIds.push(selectedPet.id); totalOwnedCount++;
   tabsLoaded['mypets'] = false;
@@ -13973,3 +13990,136 @@ function updateRotationCountdown() {
    4. Boss drops will appear in shop but cannot be purchased (defeat bosses to obtain)
    
    ═══════════════════════════════════════════════════════════════════════ */
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// TUTORIAL SYSTEM
+// ═══════════════════════════════════════════════════════════════════════
+
+async function checkTutorialStatus() {
+  if (!currentUser) return;
+  
+  try {
+    var res = await supabaseClient
+      .from('players')
+      .select('tutorial_completed, spooky_enabled')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (res.data) {
+      playerSettings.tutorial_completed = res.data.tutorial_completed || false;
+      playerSettings.spooky_enabled = res.data.spooky_enabled || false;
+      
+      console.log('Tutorial status:', playerSettings.tutorial_completed);
+      console.log('Spooky enabled:', playerSettings.spooky_enabled);
+      
+      // Start tutorial if not completed
+      if (!playerSettings.tutorial_completed) {
+        console.log('Starting tutorial for new player...');
+        setTimeout(function() {
+          if (typeof Tutorial !== 'undefined') {
+            Tutorial.start();
+          }
+        }, 1500);
+      }
+    }
+  } catch (err) {
+    console.error('Error checking tutorial status:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SETTINGS PAGE
+// ═══════════════════════════════════════════════════════════════════════
+
+async function loadSettings() {
+  console.log('Loading settings page...');
+  
+  if (!currentUser) return;
+  
+  try {
+    // Load current settings from database
+    var res = await supabaseClient
+      .from('players')
+      .select('spooky_enabled, username, email')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (res.data) {
+      // Update spooky toggle
+      var spookyToggle = el('setting-spooky');
+      if (spookyToggle) {
+        spookyToggle.checked = res.data.spooky_enabled || false;
+      }
+      
+      // Update account info
+      var usernameEl = el('settings-username');
+      var emailEl = el('settings-email');
+      
+      if (usernameEl) {
+        usernameEl.textContent = res.data.username || 'Unknown';
+      }
+      if (emailEl) {
+        emailEl.textContent = currentUser.email || 'No email';
+      }
+      
+      // Update music volume
+      var volumeSlider = el('setting-music-volume');
+      if (volumeSlider) {
+        volumeSlider.value = playerSettings.music_volume || 50;
+        updateVolumeDisplay();
+      }
+    }
+  } catch (err) {
+    console.error('Error loading settings:', err);
+  }
+}
+
+async function saveSettings() {
+  if (!currentUser) return;
+  
+  try {
+    // Get current values
+    var spookyToggle = el('setting-spooky');
+    var volumeSlider = el('setting-music-volume');
+    
+    var spookyEnabled = spookyToggle ? spookyToggle.checked : false;
+    var musicVolume = volumeSlider ? parseInt(volumeSlider.value) : 50;
+    
+    // Update local settings
+    playerSettings.spooky_enabled = spookyEnabled;
+    playerSettings.music_volume = musicVolume;
+    
+    // Save to database
+    await supabaseClient
+      .from('players')
+      .update({
+        spooky_enabled: spookyEnabled
+      })
+      .eq('id', currentUser.id);
+    
+    console.log('Settings saved!');
+    showToast('Settings saved! ✅');
+    
+  } catch (err) {
+    console.error('Error saving settings:', err);
+    showToast('Failed to save settings');
+  }
+}
+
+function updateVolumeDisplay() {
+  var volumeSlider = el('setting-music-volume');
+  var volumeDisplay = el('volume-display');
+  
+  if (volumeSlider && volumeDisplay) {
+    volumeDisplay.textContent = volumeSlider.value + '%';
+  }
+}
+
+function replayTutorial() {
+  if (typeof Tutorial !== 'undefined') {
+    Tutorial.start();
+  } else {
+    showToast('Tutorial system not loaded');
+  }
+}
