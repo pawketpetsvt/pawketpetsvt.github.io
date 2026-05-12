@@ -734,7 +734,7 @@ async function awardStreakReward(streak) {
   }
   
   if (reward) {
-    await awardPP(reward.pp);
+    await awardPP(reward.pp, 'streak_bonus');
     showPixelToast(reward.message, 'success');
   }
 }
@@ -2873,7 +2873,7 @@ async function rollDice() {
     var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
     var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
-    await awardPP(earned); setCD('dice');
+    await awardPP(earned, 'dice_roll'); setCD('dice');
     
     // Award badges
     await awardBadge('dice_first_play'); // First time playing
@@ -2911,7 +2911,7 @@ async function makeGuess() {
   guessAttempts++;
   
   if(guess===secretNumber){
-    await awardPP(25); setCD('guess');
+    await awardPP(25, 'guess_game'); setCD('guess');
     
     // Award badges
     await awardBadge('guess_first_play'); // First time playing
@@ -2969,7 +2969,7 @@ function flipCard(btn) {
       
       if(matchedPairs===6){
         // Game complete!
-        awardPP(memoryEarned);setCD('memory');
+        awardPP(memoryEarned, 'memory_match');setCD('memory');
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -2989,7 +2989,7 @@ function flipCard(btn) {
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
         if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned);setCD('memory');
+          awardPP(memoryEarned, 'memory_match');setCD('memory');
           awardBadge('memory_first_play'); // Award badge even if lost
           var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
         }
@@ -3090,7 +3090,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize);
+      awardPP(winningPrize, 'treasure_wheel');
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -3160,7 +3160,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = Math.min(whackScore * 5, 50);
-  awardPP(earned);
+  awardPP(earned, 'whack_a_mole');
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! +' + earned + ' PP!';
@@ -3300,7 +3300,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30);
+        awardPP(30, 'shell_game');
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -3437,7 +3437,7 @@ function spinSlots() {
       if (result) {
         if (grossPrize > 0) {
           // Award the gross prize
-          awardPP(grossPrize);
+          awardPP(grossPrize, 'slot_machine');
           
           if (netProfit > 0) {
             result.textContent = '🎉 Triple Match! Won ' + netProfit + ' PP profit! (Paid ' + grossPrize + ' PP total)';
@@ -3530,7 +3530,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned);
+  awardPP(earned, 'typing_challenge');
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -3585,7 +3585,7 @@ function castLine() {
     document.querySelector('.pond-text').textContent = caught.emoji + ' Caught: ' + caught.name + ' (+' + caught.pp + ' PP)';
     
     if (fishingCasts <= 0) {
-      awardPP(fishingTotal);
+      awardPP(fishingTotal, 'fishing');
       setCD('fishing');
       setTimeout(function() {
         var r = el('fishing-result');
@@ -6818,7 +6818,7 @@ async function handleItemEncounter() {
   }
   
   // Award PP
-  await awardPP(ppReward);
+  await awardPP(ppReward, 'item_found');
   
   // Show in battle screen
   showExplorationResult(
@@ -6872,7 +6872,7 @@ async function handleTreasureEncounter() {
   }
   
   // Award PP
-  await awardPP(ppReward);
+  await awardPP(ppReward, 'treasure_discovered');
   
   // Show in battle screen
   showExplorationResult(
@@ -6904,7 +6904,7 @@ async function handleFlavorEncounter() {
   var event = flavorEvents[Math.floor(Math.random() * flavorEvents.length)];
   
   // Award PP
-  await awardPP(event.pp);
+  await awardPP(event.pp, 'flavor_event');
   
   // Show in battle screen
   showExplorationResult(
@@ -10084,7 +10084,7 @@ async function completeDungeon() {
   dungeonState.rewards.pp += bonusPP;
   
   // Save rewards
-  await awardPP(dungeonState.rewards.pp);
+  await awardPP(dungeonState.rewards.pp, 'dungeon_reward');
   
   // Award XP to pet
   var petData = await supabaseClient
@@ -10265,7 +10265,7 @@ function triggerRandomEvent() {
   
   // Award PP (if any)
   if (event.pp > 0) {
-    awardPP(event.pp);
+    awardPP(event.pp, 'random_event');
   }
   
   // Handle modifier events
