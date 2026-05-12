@@ -546,6 +546,15 @@ async function showApp(user) {
   // Check tutorial status and start if needed
   await checkTutorialStatus();
   
+  // Initialize daily fortune AFTER tutorial (only for logged-in users)
+  if (typeof dailyFortune !== 'undefined' && dailyFortune.init) {
+    // Check if tutorial is completed before showing fortune
+    var tutorialDone = playerSettings.tutorial_completed;
+    if (tutorialDone) {
+      dailyFortune.init();
+    }
+  }
+  
   // Check sidebar stream status
   await checkSidebarStreamStatus();
   
@@ -9119,7 +9128,7 @@ var dayNightCycle = {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
-    dailyFortune.init();
+    // dailyFortune.init(); // MOVED to showApp() after login/tutorial
     dayNightCycle.init();
     weatherSystem.init();
     worldEvents.init();
@@ -9127,7 +9136,7 @@ if (document.readyState === 'loading') {
 } else {
   // DOM already loaded
   newsTicker.init();
-  dailyFortune.init();
+  // dailyFortune.init(); // MOVED to showApp() after login/tutorial
   dayNightCycle.init();
   weatherSystem.init();
   worldEvents.init();
