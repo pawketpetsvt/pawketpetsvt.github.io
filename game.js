@@ -125,7 +125,11 @@ var tabsLoaded = {};
 // ── TUTORIAL & SETTINGS ──────────────────
 var playerSettings = {
   spooky_enabled: false,
-  music_volume: 50,
+  music_enabled: true,
+  music_volume: 70,
+  sfx_volume: 80,
+  daynight_enabled: true,
+  weather_enabled: true,
   tutorial_completed: false
 };
 
@@ -14034,16 +14038,61 @@ async function loadSettings() {
   if (!currentUser) return;
   
   try {
-    // Load spooky setting from database
+    // Load settings from database
     var res = await supabaseClient
       .from('players')
       .select('spooky_enabled')
       .eq('id', currentUser.id)
       .single();
     
+    // Load from localStorage (for new settings not in DB yet)
+    var localSettings = localStorage.getItem('playerSettings_' + currentUser.id);
+    if (localSettings) {
+      var saved = JSON.parse(localSettings);
+      Object.assign(playerSettings, saved);
+    }
+    
     if (res.data) {
       // Update spooky toggle
+      playerSettings.spooky_enabled = res.data.spooky_enabled || false;
       var spookyToggle = el('setting-spooky');
+      if (spookyToggle) {
+        spookyToggle.checked = playerSettings.spooky_enabled;
+      }
+    }
+    
+    // Update all UI elements
+    var musicEnabledToggle = el('setting-music-enabled');
+    if (musicEnabledToggle) musicEnabledToggle.checked = playerSettings.music_enabled;
+    
+    var musicVolumeSlider = el('setting-music-volume');
+    if (musicVolumeSlider) {
+      musicVolumeSlider.value = playerSettings.music_volume;
+      var display = el('music-volume-display');
+      if (display) display.textContent = playerSettings.music_volume + '%';
+    }
+    
+    var sfxVolumeSlider = el('setting-sfx-volume');
+    if (sfxVolumeSlider) {
+      sfxVolumeSlider.value = playerSettings.sfx_volume;
+      var display = el('sfx-volume-display');
+      if (display) display.textContent = playerSettings.sfx_volume + '%';
+    }
+    
+    var daynightToggle = el('setting-daynight');
+    if (daynightToggle) daynightToggle.checked = playerSettings.daynight_enabled;
+    
+    var weatherToggle = el('setting-weather');
+    if (weatherToggle) weatherToggle.checked = playerSettings.weather_enabled;
+    
+    // Apply settings immediately
+    applySettings();
+    
+  } catch (err) {
+    console.error('Error loading settings:', err);
+  }
+}
+
       if (spookyToggle) {
         spookyToggle.checked = res.data.spooky_enabled || false;
       }
@@ -14057,23 +14106,95 @@ async function saveSettings() {
   if (!currentUser) return;
   
   try {
-    // Get spooky toggle value
+    // Get all setting values
     var spookyToggle = el('setting-spooky');
-    var spookyEnabled = spookyToggle ? spookyToggle.checked : false;
+    var musicEnabledToggle = el('setting-music-enabled');
+    var musicVolumeSlider = el('setting-music-volume');
+    var sfxVolumeSlider = el('setting-sfx-volume');
+    var daynightToggle = el('setting-daynight');
+    var weatherToggle = el('setting-weather');
     
-    // Update local settings
-    playerSettings.spooky_enabled = spookyEnabled;
+    // Update playerSettings object
+    playerSettings.spooky_enabled = spookyToggle ? spookyToggle.checked : false;
+    playerSettings.music_enabled = musicEnabledToggle ? musicEnabledToggle.checked : true;
+    playerSettings.music_volume = musicVolumeSlider ? parseInt(musicVolumeSlider.value) : 70;
+    playerSettings.sfx_volume = sfxVolumeSlider ? parseInt(sfxVolumeSlider.value) : 80;
+    playerSettings.daynight_enabled = daynightToggle ? daynightToggle.checked : true;
+    playerSettings.weather_enabled = weatherToggle ? weatherToggle.checked : true;
     
-    // Save to database
+    // Update volume displays
+    var musicDisplay = el('music-volume-display');
+    if (musicDisplay) musicDisplay.textContent = playerSettings.music_volume + '%';
+    
+    var sfxDisplay = el('sfx-volume-display');
+    if (sfxDisplay) sfxDisplay.textContent = playerSettings.sfx_volume + '%';
+    
+    // Save to database (spooky only, for now)
     await supabaseClient
       .from('players')
       .update({
-        spooky_enabled: spookyEnabled
+        spooky_enabled: playerSettings.spooky_enabled
       })
       .eq('id', currentUser.id);
     
-    console.log('Settings saved!');
+    // Save all settings to localStorage
+    localStorage.setItem('playerSettings_' + currentUser.id, JSON.stringify(playerSettings));
+    
+    // Apply settings immediately
+    applySettings();
+    
+    console.log('Settings saved!', playerSettings);
     showToast('Settings saved! ✅');
+    
+  } catch (err) {
+    console.error('Error saving settings:', err);
+    showToast('Failed to save settings');
+  }
+}
+
+// Apply settings to the game
+function applySettings() {
+  console.log('Applying settings...', playerSettings);
+  
+  // Music toggle
+  if (playerSettings.music_enabled) {
+    // Resume music if available
+    if (typeof bgMusic !== 'undefined' && bgMusic) {
+      bgMusic.volume = playerSettings.music_volume / 100;
+      bgMusic.play().catch(function(){}); // Ignore autoplay errors
+    }
+  } else {
+    // Pause music
+    if (typeof bgMusic !== 'undefined' && bgMusic) {
+      bgMusic.pause();
+    }
+  }
+  
+  // Day/Night effects
+  if (!playerSettings.daynight_enabled) {
+    // Force daytime
+    document.body.classList.remove('night-mode');
+  } else {
+    // Allow night mode system to work normally
+    if (typeof applyNightMode === 'function') {
+      applyNightMode();
+    }
+  }
+  
+  // Weather effects
+  if (!playerSettings.weather_enabled) {
+    // Disable weather
+    var body = document.body;
+    body.classList.remove('weather-sunny', 'weather-rainy', 'weather-foggy', 
+                          'weather-windy', 'weather-starry', 'weather-cursed');
+  } else {
+    // Re-apply weather
+    if (typeof weatherSystem !== 'undefined' && weatherSystem.applyWeather) {
+      weatherSystem.applyWeather();
+    }
+  }
+}
+
     
   } catch (err) {
     console.error('Error saving settings:', err);
