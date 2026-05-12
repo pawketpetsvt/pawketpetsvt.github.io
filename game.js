@@ -2916,11 +2916,29 @@ function initMinigames() {
   else initMemory();
 }
 
-async function awardPP(amount) {
-  if(!currentUser)return;
-  var np=currentPoints+amount;
-  await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
-  updateAllPoints(np);
+async function awardPP(amount, reason) {
+  if(!currentUser) return;
+  if (!reason) reason = 'unknown';
+  
+  // Call the secure database function
+  var { data, error } = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: amount,
+    p_reason: reason
+  });
+  
+  if (error) {
+    console.error('PP award error:', error.message);
+    showPixelToast('Error awarding points!', 'error');
+    return;
+  }
+  
+  // Update the local display
+  currentPoints = data;
+  updateAllPoints(data);
+  
+  // Check if user is now in top 10
+  await checkTop10Badge();
+}
   
   // Check if user is now in top 10
   await checkTop10Badge();
