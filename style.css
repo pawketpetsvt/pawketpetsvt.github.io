@@ -9462,6 +9462,46 @@ body.night-mode .equipment-modal-dynamic p {
   color: #e8d5ff !important;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   NIGHT MODE - PROFILE/LOGOUT BUTTONS & WARNINGS
+   ═══════════════════════════════════════════════════════════ */
+
+/* Profile & Logout Buttons - Better Contrast */
+body.night-mode .btn-nav-action {
+  background: linear-gradient(135deg, #ffd700, #ffaa00) !important;
+  color: #1a0a2e !important;
+  border: 3px solid rgba(255, 215, 0, 0.6) !important;
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3) !important;
+}
+
+body.night-mode .btn-nav-action:hover {
+  background: linear-gradient(135deg, #ffed4e, #ffd700) !important;
+  color: #0f0619 !important;
+  box-shadow: 0 6px 16px rgba(255, 215, 0, 0.5) !important;
+}
+
+/* Pet Needs Attention Warning - Better Contrast */
+body.night-mode .sadness-warning {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.25), rgba(255, 82, 82, 0.25)) !important;
+  border: 3px solid #ff6b6b !important;
+  color: #ffcccc !important;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3) !important;
+}
+
+/* View All Team Members Button - Better Contrast */
+body.night-mode .btn-outline {
+  background: rgba(153, 102, 255, 0.15) !important;
+  border: 3px solid #9966ff !important;
+  color: #e8d5ff !important;
+  font-weight: 600 !important;
+}
+
+body.night-mode .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.3) !important;
+  border-color: #b589ff !important;
+  color: #ffffff !important;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .shop-rotation-banner {
