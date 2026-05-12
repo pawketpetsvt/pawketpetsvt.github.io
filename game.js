@@ -3908,6 +3908,15 @@ async function redeemCode() {
 
     var promo = codeRes.data;
 
+    // CHECK: Block spooky codes if setting is OFF
+    if (code === 'THEYWENTMISSING' && !playerSettings.spooky_enabled) {
+      errEl.textContent = '👻 Your in-game settings prevent you from seeing this content.';
+      errEl.classList.add('show');
+      btn.textContent = '✨ Redeem!';
+      btn.disabled = false;
+      return;
+    }
+
     // 2. Check max uses
     if (promo.max_uses !== null && promo.times_used >= promo.max_uses) {
       errEl.textContent = 'This code has been fully claimed — sorry!';
@@ -6913,7 +6922,7 @@ async function getRandomEnemy(zone, playerLevel) {
   // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 0.03) {  // 3% chance (~1 in 33 battles)
+  if (bossRoll < 0.03 && playerSettings.spooky_enabled) {  // 3% chance (~1 in 33 battles) + spooky enabled
     console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
@@ -7687,7 +7696,7 @@ function initMelonDialogue() {
   // 3% chance for spooky dialogue (was 10%, now much rarer!)
   var isSpooky = Math.random() < 0.03;
   
-  if (isSpooky) {
+  if (isSpooky && playerSettings.spooky_enabled) {
     showSpookyDialogue();
   } else {
     showNormalDialogue();
