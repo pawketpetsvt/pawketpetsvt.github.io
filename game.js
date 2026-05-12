@@ -2920,7 +2920,6 @@ async function awardPP(amount, reason) {
   if(!currentUser) return;
   if (!reason) reason = 'unknown';
   
-  // Call the secure database function
   var { data, error } = await supabaseClient.rpc('award_pp_secure', {
     p_amount: amount,
     p_reason: reason
@@ -2932,16 +2931,14 @@ async function awardPP(amount, reason) {
     return;
   }
   
-  // Update the local display
   currentPoints = data;
   updateAllPoints(data);
-  
-  // Check if user is now in top 10
   await checkTop10Badge();
 }
-  
-  // Check if user is now in top 10
-  await checkTop10Badge();
+
+async function checkTop10Badge() {
+  if (!currentUser) return;
+  // ... rest of function
 }
 
 async function checkTop10Badge() {
