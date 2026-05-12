@@ -5054,6 +5054,7 @@ async function showEquipmentModal(petId) {
   
   var title = makeEl('h2');
   title.textContent = 'Manage Equipment';
+  title.style.cssText = 'color:var(--purple);margin:0 0 20px 0;font-family:Chewy,cursive;';
   modalContent.appendChild(title);
   
   console.log('Modal content created');
@@ -5150,7 +5151,7 @@ async function showEquipmentModal(petId) {
   // List available equipment to equip
   var availableTitle = makeEl('h3');
   availableTitle.textContent = 'Available Equipment';
-  availableTitle.style.marginTop = '20px';
+  availableTitle.style.cssText = 'margin-top:20px;color:var(--purple);font-family:Chewy,cursive;';
   modalContent.appendChild(availableTitle);
   
   var equipGrid = makeEl('div', { class: 'shop-grid' });

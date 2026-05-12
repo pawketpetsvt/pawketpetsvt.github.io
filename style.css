@@ -9366,6 +9366,102 @@ body.night-mode .equipment-stats .stat {
   color: #e8d5ff;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   NIGHT MODE - MANAGE BUTTON & EQUIPMENT MODAL
+   ═══════════════════════════════════════════════════════════ */
+
+/* Manage Button Night Mode */
+body.night-mode .btn-sm {
+  background: rgba(153, 102, 255, 0.3) !important;
+  color: #e8d5ff !important;
+  border: 1px solid #9966ff !important;
+}
+
+body.night-mode .btn-sm:hover {
+  background: rgba(153, 102, 255, 0.5) !important;
+  color: #ffffff !important;
+}
+
+/* Equipment Modal Dynamic Night Mode */
+body.night-mode .equipment-modal-dynamic .equipment-modal-content {
+  background: rgba(42, 36, 64, 0.98) !important;
+  color: #e8d5ff !important;
+  border: 3px solid #9966ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic h2,
+body.night-mode .equipment-modal-dynamic h3 {
+  color: #b589ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-slot {
+  background: rgba(153, 102, 255, 0.15) !important;
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-slot.equipped {
+  background: rgba(153, 102, 255, 0.25) !important;
+  border-color: #b589ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-slot-label {
+  color: #b589ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-slot-name {
+  color: #ffffff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-slot-bonus {
+  color: #5dde7a !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-card {
+  background: rgba(153, 102, 255, 0.1) !important;
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-name {
+  color: #ffffff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .equipment-bonuses {
+  color: #5dde7a !important;
+}
+
+body.night-mode .equipment-modal-dynamic .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #b589ff) !important;
+  color: #ffffff !important;
+  border: none !important;
+}
+
+body.night-mode .equipment-modal-dynamic .btn-primary:hover {
+  background: linear-gradient(135deg, #b589ff, #c9a3ff) !important;
+  transform: translateY(-2px);
+}
+
+body.night-mode .equipment-modal-dynamic .btn-outline {
+  background: transparent !important;
+  color: #b589ff !important;
+  border: 2px solid #9966ff !important;
+}
+
+body.night-mode .equipment-modal-dynamic .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.2) !important;
+  color: #ffffff !important;
+}
+
+/* Empty State Night Mode */
+body.night-mode .equipment-modal-dynamic .shop-grid > div[style*="background:rgba(153,102,255,0.1)"] {
+  background: rgba(153, 102, 255, 0.15) !important;
+}
+
+body.night-mode .equipment-modal-dynamic p {
+  color: #e8d5ff !important;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .shop-rotation-banner {
