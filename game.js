@@ -2916,11 +2916,29 @@ function initMinigames() {
   else initMemory();
 }
 
-async function awardPP(amount) {
-  if(!currentUser)return;
-  var np=currentPoints+amount;
-  await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
-  updateAllPoints(np);
+async function awardPP(amount, reason) {
+  if(!currentUser) return;
+  if (!reason) reason = 'unknown';
+  
+  // Call the secure database function
+  var { data, error } = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: amount,
+    p_reason: reason
+  });
+  
+  if (error) {
+    console.error('PP award error:', error.message);
+    showPixelToast('Error awarding points!', 'error');
+    return;
+  }
+  
+  // Update the local display
+  currentPoints = data;
+  updateAllPoints(data);
+  
+  // Check if user is now in top 10
+  await checkTop10Badge();
+}
   
   // Check if user is now in top 10
   await checkTop10Badge();
@@ -4377,42 +4395,47 @@ async function loadLeaderboard(type) {
           };
         });
       
-    } else if (type === 'pets') {
-      // Top players by pet count
-      var res = await supabaseClient.rpc('get_leaderboard_pets');
+        } else if (type === 'pets') {
+      // Top players by pet count - query user_pets directly and group
+      var petsRes = await supabaseClient
+        .from('user_pets')
+        .select('user_id');
       
-      if (res.error) {
-        // Fallback if RPC doesn't exist - manual query
-        var petsRes = await supabaseClient
-          .from('user_pets')
-          .select('user_id, players(username)');
-        
-        if (petsRes.error) throw petsRes.error;
-        
-        var counts = {};
-        petsRes.data.forEach(function(pet) {
-          var username = pet.players.username;
-          counts[username] = (counts[username] || 0) + 1;
-        });
-        
-        data = Object.entries(counts)
-          .sort(function(a, b) { return b[1] - a[1]; })
-          .slice(0, 10)
-          .map(function(entry) {
-            return {
-              username: entry[0],
-              value: entry[1] + ' pets',
-              stat: entry[1] + ' pets owned'
-            };
-          });
+      if (petsRes.error) throw petsRes.error;
+      
+      // Count pets per user
+      var petCounts = {};
+      petsRes.data.forEach(function(pet) {
+        petCounts[pet.user_id] = (petCounts[pet.user_id] || 0) + 1;
+      });
+      
+      // Get usernames for all users with pets
+      var userIds = Object.keys(petCounts);
+      
+      if (userIds.length === 0) {
+        data = [];
       } else {
-        data = res.data.map(function(p) {
+        var usersRes = await supabaseClient
+          .from('players')
+          .select('id, username')
+          .in('id', userIds);
+        
+        if (usersRes.error) throw usersRes.error;
+        
+        // Match usernames to pet counts and sort
+        var playersWithCounts = usersRes.data.map(function(player) {
           return {
-            username: p.username,
-            value: p.pet_count + ' pets',
-            stat: p.pet_count + ' pets owned'
+            username: player.username,
+            count: petCounts[player.id] || 0,
+            value: (petCounts[player.id] || 0) + ' pets',
+            stat: (petCounts[player.id] || 0) + ' pets owned'
           };
         });
+        
+        // Sort by pet count (highest first)
+        playersWithCounts.sort(function(a, b) { return b.count - a.count; });
+        
+        data = playersWithCounts;
       }
       
     } else if (type === 'levels') {
@@ -6057,42 +6080,35 @@ async function executeBattle(playerStats, enemyStats, petId) {
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   
-  var expGained = battleResult.victory ? enemyStats.exp_reward : 0;
-  var ppGained = battleResult.victory ? enemyStats.pp_reward : 0;
+  // ═══════════════════════════════════════════════════════════
+  // CALL SECURE SERVER-SIDE FUNCTION for rewards & point awarding
+  // ═══════════════════════════════════════════════════════════
+  var { data: result, error: rpcError } = await supabaseClient.rpc('save_battle_result', {
+    p_pet_id: petId,
+    p_enemy_id: enemyId,
+    p_victory: battleResult.victory,
+    p_turns_taken: battleResult.turns,
+    p_player_final_hp: battleResult.playerFinalHP,
+    p_battle_log: battleResult.log
+  });
   
-  // Apply event bonuses FIRST (before variant multipliers)
-  if (battleResult.victory) {
-    expGained = worldEvents.applyEventModifier(expGained, 'battleXpBonus');
-    ppGained = worldEvents.applyEventModifier(ppGained, 'ppGainBonus');
-    ppGained = worldEvents.applyEventModifier(ppGained, 'battleRewards');
+  var expGained = 0;
+  var ppGained = 0;
+  
+  if (rpcError) {
+    console.error('❌ Battle save error:', rpcError);
+    // Fall back to client-side if server function fails
+    expGained = battleResult.victory ? (enemyStats.exp_reward || 0) : 0;
+    ppGained = battleResult.victory ? (enemyStats.pp_reward || 0) : 0;
+  } else {
+    expGained = result.exp_gained || 0;
+    ppGained = result.pp_gained || 0;
+    console.log('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
   }
   
-  // Scale rewards based on enemy variant and level
-  if (battleResult.victory && enemyStats.variant) {
-    var variantMultiplier = 1.0;
-    
-    // Variant bonuses
-    if (enemyStats.variant === 'adult') variantMultiplier = 1.3;
-    else if (enemyStats.variant === 'elder') variantMultiplier = 1.6;
-    else if (enemyStats.variant === 'king') variantMultiplier = 2.0;
-    
-    // Elemental bonus
-    if (enemyStats.elementalType) {
-      variantMultiplier *= 1.2;
-    }
-    
-    // Special variant bonus (Golden/Shiny/Rare/Corrupted/Glitched)
-    if (enemyStats.rewardMultiplier) {
-      variantMultiplier *= enemyStats.rewardMultiplier;
-    }
-    
-    // Apply multipliers
-    expGained = Math.floor(expGained * variantMultiplier);
-    ppGained = Math.floor(ppGained * variantMultiplier);
-    
-    console.log('💰 Rewards scaled by variant:', enemyStats.variant, 'Elemental:', enemyStats.elementalType, 'Special:', enemyStats.specialVariant, 'Multiplier:', variantMultiplier);
-  }
-  
+  // ═══════════════════════════════════════════════════════════
+  // ITEM DROPS - Still handled here (cosmetic/reward, not economy-critical)
+  // ═══════════════════════════════════════════════════════════
   var itemDropped = null;
   
   // BOSS DROP - Guaranteed item if you beat a boss!
@@ -6126,13 +6142,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         .single();
       
       if (existingItem.data) {
-        // Increase quantity
         await supabaseClient
           .from('user_inventory')
           .update({ quantity: existingItem.data.quantity + 1 })
           .eq('id', existingItem.data.id);
       } else {
-        // Add new item to inventory
         await supabaseClient
           .from('user_inventory')
           .insert([{
@@ -6146,14 +6160,10 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   // Normal 10% chance for item drop on victory (only if not boss)
   if (battleResult.victory && !enemyStats.is_boss) {
-    // Base drop chance
-    var dropChance = 0.1; // 10% base chance
-    
-    // Apply event bonus for rare drops
+    var dropChance = 0.1;
     dropChance = dropChance * worldEvents.getActiveBonus('rareFindChance');
     
     if (Math.random() < dropChance) {
-      // Get random cheap item from shop (under 100 PP)
       var itemsRes = await supabaseClient
         .from('items')
         .select('*')
@@ -6163,7 +6173,6 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
         itemDropped = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
         
-        // Add to player inventory
         await supabaseClient
           .from('user_inventory')
           .insert([{
@@ -6175,23 +6184,10 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     }
   }
   
-  // Save to battle_history
-  await supabaseClient
-    .from('battle_history')
-    .insert([{
-      user_id: currentUser.id,
-      pet_id: petId,
-      enemy_id: enemyId,
-      victory: battleResult.victory,
-      turns_taken: battleResult.turns,
-      exp_gained: expGained,
-      pp_gained: ppGained,
-      battle_log: battleResult.log
-    }]);
-  
-  // Update pet stats AND save current HP
+  // ═══════════════════════════════════════════════════════════
+  // FETCH UPDATED PET DATA for level-up display
+  // ═══════════════════════════════════════════════════════════
   if (battleResult.victory) {
-    // Get current stats first to check for level up
     var petData = await supabaseClient
       .from('user_pets')
       .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, total_battles, battles_won, energy')
@@ -6200,16 +6196,10 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     
     if (petData.data) {
       var pet = petData.data;
-      var newXp = (pet.xp || 0) + expGained;
       
-      // Deduct 5 energy for the battle
-      var newEnergy = Math.max((pet.energy || 0) - 5, 0);
-      
-      console.log('⚡ Energy deducted - Was:', pet.energy, 'Now:', newEnergy);
-      
-      // Check for level up with combat stat scaling
+      // Check for level up for display purposes
       var lu = calculateLevelUp(
-        newXp,
+        pet.xp || 0,
         pet.level,
         pet.max_hunger,
         pet.max_energy,
@@ -6219,32 +6209,6 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         pet.base_defense || 2,
         pet.base_speed || 3
       );
-      
-      var updates = {
-        xp: lu.xp,
-        level: lu.level,
-        total_battles: (pet.total_battles || 0) + 1,
-        battles_won: (pet.battles_won || 0) + 1,
-        current_hp: battleResult.playerFinalHP,  // SAVE HP!
-        energy: newEnergy  // SAVE reduced energy!
-      };
-      
-      // If leveled up, add the stat increases
-      if (lu.leveled) {
-        updates.max_hunger = lu.maxHunger;
-        updates.max_energy = lu.maxEnergy;
-        updates.max_happiness = lu.maxHappiness;
-        updates.base_hp = lu.base_hp;
-        updates.base_attack = lu.base_attack;
-        updates.base_defense = lu.base_defense;
-        updates.base_speed = lu.base_speed;
-        updates.max_hp = lu.base_hp;
-      }
-      
-      await supabaseClient
-        .from('user_pets')
-        .update(updates)
-        .eq('id', petId);
       
       // Store level up info for the rewards modal
       if (lu.leveled) {
@@ -6277,39 +6241,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         }
       }
     }
-    
-    // Award PP to player
-    await awardPP(ppGained);
-  } else {
-    // Loss - just update battle count, HP, and deduct energy
-    console.log('🔴 DEFEAT - Saving HP:', battleResult.playerFinalHP);
-    
-    var petData = await supabaseClient
-      .from('user_pets')
-      .select('total_battles, energy')
-      .eq('id', petId)
-      .single();
-    
-    if (petData.data) {
-      // Deduct 5 energy even on loss
-      var newEnergy = Math.max((petData.data.energy || 0) - 5, 0);
-      
-      console.log('⚡ Energy deducted (loss) - Was:', petData.data.energy, 'Now:', newEnergy);
-      
-      var updateResult = await supabaseClient
-        .from('user_pets')
-        .update({
-          total_battles: (petData.data.total_battles || 0) + 1,
-          current_hp: battleResult.playerFinalHP,  // SAVE HP even on loss!
-          energy: newEnergy  // SAVE reduced energy!
-        })
-        .eq('id', petId);
-      
-      console.log('💾 HP Update Result:', updateResult.error || 'Success!', 'New HP:', battleResult.playerFinalHP, 'New Energy:', newEnergy);
-    }
   }
   
-  // Store rewards for the modal
+  // ═══════════════════════════════════════════════════════════
+  // RETURN REWARDS for the battle rewards modal
+  // ═══════════════════════════════════════════════════════════
   return {
     victory: battleResult.victory,
     expGained: expGained,
