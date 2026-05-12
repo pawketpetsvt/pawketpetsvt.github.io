@@ -13966,22 +13966,6 @@ async function loadEquipmentShop() {
     console.error('Equipment shop error:', err);
   }
 }
-      }
-      
-      html += '</div>';
-    });
-    
-    html += '</div>';
-    
-    container.innerHTML = html;
-    
-    setInterval(updateRotationCountdown, 60000);
-    
-  } catch (err) {
-    container.innerHTML = '<div class="error-state"><p>Failed to load shop.</p></div>';
-    console.error('Equipment shop error:', err);
-  }
-}
 
 function updateRotationCountdown() {
   var countdown = el('rotation-countdown');
@@ -14047,10 +14031,10 @@ async function loadSettings() {
   if (!currentUser) return;
   
   try {
-    // Load current settings from database
+    // Load spooky setting from database
     var res = await supabaseClient
       .from('players')
-      .select('spooky_enabled, username, email')
+      .select('spooky_enabled')
       .eq('id', currentUser.id)
       .single();
     
@@ -14059,24 +14043,6 @@ async function loadSettings() {
       var spookyToggle = el('setting-spooky');
       if (spookyToggle) {
         spookyToggle.checked = res.data.spooky_enabled || false;
-      }
-      
-      // Update account info
-      var usernameEl = el('settings-username');
-      var emailEl = el('settings-email');
-      
-      if (usernameEl) {
-        usernameEl.textContent = res.data.username || 'Unknown';
-      }
-      if (emailEl) {
-        emailEl.textContent = currentUser.email || 'No email';
-      }
-      
-      // Update music volume
-      var volumeSlider = el('setting-music-volume');
-      if (volumeSlider) {
-        volumeSlider.value = playerSettings.music_volume || 50;
-        updateVolumeDisplay();
       }
     }
   } catch (err) {
@@ -14088,16 +14054,12 @@ async function saveSettings() {
   if (!currentUser) return;
   
   try {
-    // Get current values
+    // Get spooky toggle value
     var spookyToggle = el('setting-spooky');
-    var volumeSlider = el('setting-music-volume');
-    
     var spookyEnabled = spookyToggle ? spookyToggle.checked : false;
-    var musicVolume = volumeSlider ? parseInt(volumeSlider.value) : 50;
     
     // Update local settings
     playerSettings.spooky_enabled = spookyEnabled;
-    playerSettings.music_volume = musicVolume;
     
     // Save to database
     await supabaseClient
@@ -14113,14 +14075,5 @@ async function saveSettings() {
   } catch (err) {
     console.error('Error saving settings:', err);
     showToast('Failed to save settings');
-  }
-}
-
-function updateVolumeDisplay() {
-  var volumeSlider = el('setting-music-volume');
-  var volumeDisplay = el('volume-display');
-  
-  if (volumeSlider && volumeDisplay) {
-    volumeDisplay.textContent = volumeSlider.value + '%';
   }
 }

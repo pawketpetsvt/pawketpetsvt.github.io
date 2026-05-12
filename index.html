@@ -87,26 +87,25 @@ body.night-mode .tutorial-dot.active{background:#b589ff}
 body.night-mode .tutorial-skip{color:#b589ff!important}
 @media (max-width:768px){.tutorial-mascot{right:20px;bottom:220px;transform:scale(0.7)}.tutorial-mascot-image{font-size:6rem}.tutorial-dialogue-box{bottom:20px;width:95%;padding:20px}.tutorial-dialogue-text{font-size:1.1rem;min-height:60px}.tutorial-buttons{flex-direction:column;gap:8px}.tutorial-skip,.tutorial-next{width:100%}}
 @media (max-width:480px){.tutorial-mascot{right:10px;bottom:200px;transform:scale(0.5)}.tutorial-dialogue-text{font-size:1rem}}
-.settings-container{max-width:800px;margin:0 auto;padding:20px}
-.setting-item{display:flex;justify-content:space-between;align-items:center;padding:24px;background:var(--cream);border:3px solid var(--purple-light);border-radius:16px;margin-bottom:20px;transition:all 0.3s}
-.setting-item:hover{border-color:var(--purple);box-shadow:0 4px 12px rgba(153,102,255,0.2)}
-.setting-info{flex:1;padding-right:20px}
-.setting-info h3{font-family:'Chewy',cursive;font-size:1.3rem;color:var(--purple);margin:0 0 8px 0}
-.setting-info p{font-size:0.95rem;color:var(--text-light);margin:0}
-.toggle-switch{position:relative;display:inline-block;width:60px;height:34px;cursor:pointer}
+.settings-modal-overlay{position:fixed;top:0;left:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;padding:20px;z-index:10}
+.settings-modal{background:var(--cream);border:4px solid var(--purple);border-radius:24px;padding:40px;max-width:500px;width:100%;box-shadow:0 8px 32px rgba(153,102,255,0.3)}
+.settings-modal h2{font-family:'Chewy',cursive;font-size:2rem;color:var(--purple);margin:0 0 30px 0;text-align:center}
+.settings-modal-item{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:20px;background:rgba(153,102,255,0.05);border:2px solid var(--purple-light);border-radius:16px}
+.settings-modal-label{flex:1}
+.settings-modal-label strong{font-size:1.2rem;color:var(--purple);display:block;margin-bottom:4px}
+.settings-modal-label p{font-size:0.9rem;color:var(--text-light);margin:0}
+.toggle-switch{position:relative;display:inline-block;width:60px;height:34px;cursor:pointer;flex-shrink:0}
 .toggle-switch input{opacity:0;width:0;height:0}
 .toggle-slider{position:absolute;top:0;left:0;right:0;bottom:0;background-color:#ccc;border-radius:34px;transition:0.3s}
 .toggle-slider:before{position:absolute;content:"";height:26px;width:26px;left:4px;bottom:4px;background-color:white;border-radius:50%;transition:0.3s}
 .toggle-switch input:checked+.toggle-slider{background:linear-gradient(135deg,var(--purple),var(--pink))}
 .toggle-switch input:checked+.toggle-slider:before{transform:translateX(26px)}
-.setting-item input[type="range"]{width:200px;margin-right:12px}
-#volume-display{font-family:'Chewy',cursive;font-size:1.1rem;color:var(--purple);min-width:50px;text-align:center}
-body.night-mode .setting-item{background:rgba(153,102,255,0.1);border-color:#9966ff}
-body.night-mode .setting-item:hover{border-color:#b589ff;box-shadow:0 4px 12px rgba(153,102,255,0.3)}
-body.night-mode .setting-info h3{color:#b589ff}
-body.night-mode .setting-info p{color:#b399dd}
-body.night-mode #volume-display{color:#b589ff}
-@media (max-width:768px){.setting-item{flex-direction:column;align-items:flex-start;padding:20px}.setting-info{padding-right:0;margin-bottom:16px}.setting-item input[type="range"]{width:100%;margin-right:0;margin-bottom:8px}.toggle-switch,.setting-item button{align-self:flex-end}}
+body.night-mode .settings-modal{background:#2a2440;border-color:#9966ff;box-shadow:0 8px 32px rgba(153,102,255,0.5)}
+body.night-mode .settings-modal h2{color:#b589ff}
+body.night-mode .settings-modal-item{background:rgba(153,102,255,0.15);border-color:#9966ff}
+body.night-mode .settings-modal-label strong{color:#b589ff}
+body.night-mode .settings-modal-label p{color:#b399dd}
+@media (max-width:768px){.settings-modal{padding:30px}.settings-modal h2{font-size:1.6rem}.settings-modal-item{flex-direction:column;align-items:flex-start;gap:12px}.toggle-switch{align-self:flex-end}}
   </style>
 
 </head>
@@ -2048,50 +2047,20 @@ body.night-mode #volume-display{color:#b589ff}
        SETTINGS PAGE
        ═════════════════════════════════════════════════════════ -->
   <div class="page-section" id="section-settings">
-    <div class="page-wrap">
-      <div class="page-hero">
-        <div class="sparkle-row">⚙️ ✦ ⚙️</div>
-        <h1>Settings</h1>
-        <p>Customize your PawketPets experience</p>
-      </div>
-      
-      <div class="settings-container">
+    <div class="settings-modal-overlay">
+      <div class="settings-modal">
+        <h2>⚙️ Settings</h2>
         
-        <!-- Spooky Content Setting -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <h3>👻 Spooky Content</h3>
-            <p>Enable creepy events, horror bosses, unsettling encounters, and hidden secrets</p>
+        <!-- Spooky Content Toggle -->
+        <div class="settings-modal-item">
+          <div class="settings-modal-label">
+            <strong>👻 Spooky Content</strong>
+            <p>Enable creepy events, horror bosses, and hidden secrets</p>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="setting-spooky" onchange="saveSettings()">
             <span class="toggle-slider"></span>
           </label>
-        </div>
-        
-        <!-- Music Volume Setting -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <h3>🎵 Music Volume</h3>
-            <p>Adjust background music volume</p>
-          </div>
-          <div style="display: flex; align-items: center;">
-            <input type="range" id="setting-music-volume" min="0" max="100" 
-                   value="50" onchange="updateVolumeDisplay(); saveSettings()">
-            <span id="volume-display">50%</span>
-          </div>
-        </div>
-        
-        <!-- Account Info -->
-        <div class="setting-item">
-          <div class="setting-info">
-            <h3>👤 Account</h3>
-            <p>Your account information</p>
-          </div>
-          <div style="text-align: right;">
-            <div id="settings-username" style="font-weight: bold; color: var(--purple);">Loading...</div>
-            <div id="settings-email" style="font-size: 0.9rem; color: var(--text-light); margin-top: 4px;">Loading...</div>
-          </div>
         </div>
         
       </div>
