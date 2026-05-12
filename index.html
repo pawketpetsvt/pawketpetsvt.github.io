@@ -142,6 +142,15 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
 /* Leaderboard - Darker Numbers for Better Legibility */
 .leaderboard-rank{color:#6b4ba8!important;font-weight:bold}
 .leaderboard-points,.leaderboard-count,.leaderboard-stat{color:#7c5caa!important;font-weight:600}
+@media (max-width: 768px) {
+  .weather-rainy::before,
+  .weather-foggy::before,
+  .weather-windy::before,
+  .weather-cursed::before,
+  .weather-cursed::after { 
+    display: none !important; 
+  }
+}    
   </style>
 
 </head>
@@ -2167,8 +2176,8 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
 </div><!-- close app-container -->
 
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="game.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<script src="game.js" defer></script>
 <script>
 // ═══════════════════════════════════════════════════════════
 // TUTORIAL SYSTEM

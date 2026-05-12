@@ -2720,7 +2720,66 @@ async function loadUserBadges() {
   earnedBadges = res.data.map(b => b.badges.badge_key);
   console.log('[Badges] User has earned:', earnedBadges);
 }
-
+async function awardBadge(badgeKey) {
+  if (!currentUser) return;
+  
+  // Check if already earned
+  if (earnedBadges.includes(badgeKey)) {
+    return;
+  }
+  
+  try {
+    // Get badge info
+    var { data: badge, error: badgeError } = await supabaseClient
+      .from('badges')
+      .select('*')
+      .eq('badge_key', badgeKey)
+      .single();
+    
+    if (badgeError || !badge) {
+      console.log('[Badges] Badge not found in database:', badgeKey);
+      return;
+    }
+    
+    // Award badge to user
+    var { error: insertError } = await supabaseClient
+      .from('user_badges')
+      .insert([{
+        user_id: currentUser.id,
+        badge_id: badge.id
+      }]);
+    
+    if (insertError) {
+      if (insertError.code === '23505') {
+        console.log('[Badges] User already has badge:', badgeKey);
+        return;
+      }
+      console.error('[Badges] Error awarding badge:', insertError);
+      return;
+    }
+    
+    // Add to local cache
+    earnedBadges.push(badgeKey);
+    
+    // Show notification
+    if (typeof showBadgeNotification === 'function') {
+      showBadgeNotification(badge);
+    }
+    
+    // Log activity
+    if (typeof logActivity === 'function') {
+      await logActivity('badge_earned', {
+        badge_name: badge.name,
+        badge_icon: badge.icon
+      });
+    }
+    
+    console.log('[Badges] Awarded:', badgeKey, '-', badge.name);
+    
+  } catch (err) {
+    console.error('[Badges] Error in awardBadge:', err);
+  }
+}
 async function play(petId) {
   var pet = petState[petId]; 
   if (!pet || pet.energy < 10) return;
@@ -9010,18 +9069,15 @@ var dayNightCycle = {
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
-    // dailyFortune.init(); // MOVED to showApp() after login/tutorial
     dayNightCycle.init();
-    weatherSystem.init();
-    worldEvents.init();
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+    if (typeof worldEvents !== 'undefined') worldEvents.init();
   });
 } else {
-  // DOM already loaded
   newsTicker.init();
-  // dailyFortune.init(); // MOVED to showApp() after login/tutorial
   dayNightCycle.init();
-  weatherSystem.init();
-  worldEvents.init();
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+  if (typeof worldEvents !== 'undefined') worldEvents.init();
 }
 
 document.addEventListener('DOMContentLoaded', function() {
