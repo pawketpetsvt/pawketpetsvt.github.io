@@ -827,6 +827,55 @@ async function handleLogin() {
   }
 }
 
+// ── USERNAME PROFANITY FILTER ─────────────────────────────
+var PROFANITY_LIST = [
+  'fuck', 'shit', 'bitch', 'ass', 'damn', 'hell', 'crap', 'piss',
+  'dick', 'cock', 'pussy', 'cunt', 'fag', 'whore', 'slut', 'bastard',
+  'nigger', 'nigga', 'chink', 'spic', 'kike', 'retard', 'rape',
+  'sex', 'porn', 'nude', 'xxx', 'anal', 'penis', 'vagina', 'testicle',
+  'nazi', 'hitler', 'kkk', 'isis', 'kill', 'death', 'murder', 'suicide'
+];
+
+function containsProfanity(text) {
+  if (!text) return false;
+  
+  var lowerText = text.toLowerCase();
+  
+  // Check for exact matches and common variations
+  for (var i = 0; i < PROFANITY_LIST.length; i++) {
+    var word = PROFANITY_LIST[i];
+    
+    // Check exact word (with word boundaries)
+    var regex = new RegExp('\\b' + word + '\\b', 'i');
+    if (regex.test(lowerText)) {
+      return true;
+    }
+    
+    // Check for leetspeak and common substitutions
+    var variations = word
+      .replace(/a/g, '[a@4]')
+      .replace(/e/g, '[e3]')
+      .replace(/i/g, '[i1!]')
+      .replace(/o/g, '[o0]')
+      .replace(/s/g, '[s5$]')
+      .replace(/t/g, '[t7]');
+    
+    var variationRegex = new RegExp(variations, 'i');
+    if (variationRegex.test(lowerText)) {
+      return true;
+    }
+    
+    // Check for word with extra characters (f.u.c.k, f-u-c-k, etc)
+    var spacedWord = word.split('').join('[^a-z]*');
+    var spacedRegex = new RegExp(spacedWord, 'i');
+    if (spacedRegex.test(lowerText)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 async function handleRegister() {
   var username = el('reg-username').value.trim();
   var email = el('reg-email').value.trim();
@@ -839,6 +888,14 @@ async function handleRegister() {
   suc.classList.remove('show');
   if (!username||!email||!password||!confirm) { err.textContent='Fill in all fields!'; err.classList.add('show'); return; }
   if (username.length < 3) { err.textContent='Username must be 3+ chars!'; err.classList.add('show'); return; }
+  
+  // Check for profanity
+  if (containsProfanity(username)) {
+    err.textContent='Name cannot contain offensive language';
+    err.classList.add('show');
+    return;
+  }
+  
   if (password.length < 6) { err.textContent='Password must be 6+ chars!'; err.classList.add('show'); return; }
   if (password !== confirm) { err.textContent='Passwords do not match!'; err.classList.add('show'); return; }
   btn.textContent='Creating...'; btn.disabled=true;
@@ -4914,6 +4971,16 @@ async function saveProfile() {
   
   if (newBio.length > 200) {
     errorEl.textContent = 'Bio must be 200 characters or less!';
+    errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
+    return;
+  }
+  
+  // Check for profanity in username
+  if (containsProfanity(newUsername)) {
+    errorEl.textContent = 'Name cannot contain offensive language';
     errorEl.style.display = 'block';
     saveBtn.innerHTML = originalBtnText;
     saveBtn.disabled = false;
