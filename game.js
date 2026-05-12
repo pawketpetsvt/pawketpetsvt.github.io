@@ -5049,7 +5049,7 @@ async function showEquipmentModal(petId) {
   };
   
   var modalContent = makeEl('div', { class: 'equipment-modal-content' });
-  modalContent.style.cssText = 'background:white !important;border-radius:16px !important;padding:30px !important;max-width:600px !important;width:90% !important;max-height:80vh !important;overflow-y:auto !important;box-shadow:0 8px 32px rgba(0,0,0,0.3) !important;position:relative !important;z-index:1000000 !important;display:block !important;';
+  modalContent.style.cssText = 'background:var(--cream) !important;color:var(--text) !important;border-radius:16px !important;padding:30px !important;max-width:600px !important;width:90% !important;max-height:80vh !important;overflow-y:auto !important;box-shadow:0 8px 32px rgba(0,0,0,0.3) !important;position:relative !important;z-index:1000000 !important;display:block !important;border:3px solid var(--purple) !important;';
   modalContent.onclick = function(e) { e.stopPropagation(); };
   
   var title = makeEl('h2');
@@ -5085,7 +5085,7 @@ async function showEquipmentModal(petId) {
     if (equipped.weapon.hp_bonus) bonuses.push('+' + equipped.weapon.hp_bonus + ' HP');
     if (bonuses.length > 0) {
       var bonusText = makeEl('div', { class: 'equipment-slot-bonus' });
-      bonusText.style.cssText = 'font-size:0.75rem;color:#666;margin-top:4px;';
+      bonusText.style.cssText = 'font-size:0.75rem;color:var(--text-light);margin-top:4px;';
       bonusText.textContent = bonuses.join(', ');
       weaponSlot.appendChild(bonusText);
     }
@@ -5127,7 +5127,7 @@ async function showEquipmentModal(petId) {
     if (equipped.armor.hp_bonus) bonuses.push('+' + equipped.armor.hp_bonus + ' HP');
     if (bonuses.length > 0) {
       var bonusText = makeEl('div', { class: 'equipment-slot-bonus' });
-      bonusText.style.cssText = 'font-size:0.75rem;color:#666;margin-top:4px;';
+      bonusText.style.cssText = 'font-size:0.75rem;color:var(--text-light);margin-top:4px;';
       bonusText.textContent = bonuses.join(', ');
       armorSlot.appendChild(bonusText);
     }
