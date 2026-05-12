@@ -1116,37 +1116,25 @@ async function confirmAdopt() {
   if (!selectedPet || !currentUser) return;
   var btn = el('confirm-adopt-btn');
   var nickname = el('nickname-input').value.trim() || selectedPet.name;
-  btn.textContent='Adopting...'; btn.disabled=true;
-  var res = await supabaseClient.from('user_pets').insert([{
-    user_id: currentUser.id, 
-    pet_id: selectedPet.id, 
-    nickname: nickname,
-    level: 1, 
-    xp: 0, 
-    hunger: 80,  // Start well-fed
-    energy: 80,  // Start energized
-    happiness: 80,  // Start happy
-    max_hunger: 100, 
-    max_energy: 100, 
-    max_happiness: 100,
-    // Battle stats - CRITICAL for new pets!
-    base_hp: 60,  // Our new doubled starting HP
-    max_hp: 60,
-    current_hp: 60,  // Start at full HP
-    base_attack: 5,
-    base_defense: 3,
-    base_speed: 4,
-    total_battles: 0,
-    battles_won: 0,
-    last_fed: new Date().toISOString(),
-    last_played: new Date().toISOString()
-  }]);
-  if (res.error) { showToast('Error: '+res.error.message); btn.textContent='Adopt!'; btn.disabled=false; return; }
-  if (selectedPet.price > 0) {
-    var np = currentPoints - selectedPet.price;
-    await supabaseClient.from('players').update({pawketpoints:np}).eq('id',currentUser.id);
-    updateAllPoints(np);
+  btn.textContent = 'Adopting...'; 
+  btn.disabled = true;
+  
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('adopt_pet_secure', {
+    p_pet_id: selectedPet.id,
+    p_nickname: nickname,
+    p_price: selectedPet.price
+  });
+  
+  if (error) {
+    showToast('Adoption failed: ' + error.message);
+    btn.textContent = 'Adopt!'; 
+    btn.disabled = false; 
+    return;
   }
+  
+  // Update display
+  updateAllPoints(currentPoints - (result.price_paid || 0));
   
   // Store for social sharing
   lastAdoptedPet = {
@@ -1175,9 +1163,11 @@ async function confirmAdopt() {
     Tutorial.onPetAdopted();
   }
   
-  ownedPetIds.push(selectedPet.id); totalOwnedCount++;
+  ownedPetIds.push(selectedPet.id); 
+  totalOwnedCount++;
   tabsLoaded['mypets'] = false;
-  btn.textContent='Adopt!'; btn.disabled=false;
+  btn.textContent = 'Adopt!'; 
+  btn.disabled = false;
 }
 
 // ── MY PETS TAB ──────────────────────────
@@ -2553,40 +2543,35 @@ async function loadShop() {
   }
 }
 
-async function buyItem(itemId,itemName,price) {
-  if(currentPoints<price||!currentUser)return;
-  var np=currentPoints-price;
+async function buyItem(itemId, itemName, price) {
+  if (!currentUser) return;
   
-  // Get current total_spent first
-  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id',currentUser.id).single();
-  var newTotalSpent = (playerRes.data?.total_spent || 0) + price;
+  // Call secure database function
+  var { data: result, error } = await supabaseClient.rpc('buy_item_secure', {
+    p_item_id: itemId,
+    p_item_price: price,
+    p_item_name: itemName
+  });
   
-  // Update points AND total_spent
-  var r1=await supabaseClient.from('players').update({
-    pawketpoints:np,
-    total_spent: newTotalSpent
-  }).eq('id',currentUser.id);
-  
-  if(r1.error){showToast('Error deducting points.');return;}
+  if (error) {
+    showToast('Purchase failed: ' + error.message);
+    return;
+  }
   
   // Check spending badges
-  if (newTotalSpent >= 500) {
+  if (currentPoints >= 500) {
     await awardBadge('mega_spender');
-  } else if (newTotalSpent >= 100) {
+  } else if (currentPoints >= 100) {
     await awardBadge('big_spender');
   }
   
-  var existing=await supabaseClient.from('user_inventory').select('id,quantity').eq('user_id',currentUser.id).eq('item_id',itemId).limit(1);
-  if(existing.data&&existing.data.length>0){
-    await supabaseClient.from('user_inventory').update({quantity:existing.data[0].quantity+1}).eq('id',existing.data[0].id);
-  } else {
-    var ins=await supabaseClient.from('user_inventory').insert([{user_id:currentUser.id,item_id:itemId,quantity:1}]);
-    if(ins.error){showToast('Bought but inventory failed: '+ins.error.message);return;}
-  }
-  updateAllPoints(np);
-  showToast('Bought '+itemName+'!');
-  tabsLoaded['shop']=false; loadShop(); loadInventory();
-  tabsLoaded['mypets']=false;
+  // Update display
+  updateAllPoints(result.new_points);
+  showToast('Bought ' + result.item_name + '!');
+  tabsLoaded['shop'] = false; 
+  loadShop(); 
+  loadInventory();
+  tabsLoaded['mypets'] = false;
 }
 
 async function loadInventory() {
