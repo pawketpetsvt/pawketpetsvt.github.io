@@ -4022,7 +4022,7 @@ body::after {
   image-rendering: crisp-edges;
   width: 64px;
   height: 64px;
-  background-size: 256px auto;
+  /* background-size now set dynamically via JavaScript */
   background-repeat: no-repeat;
   transition: transform 0.1s ease;
 }
@@ -4032,13 +4032,10 @@ body::after {
 }
 
 .battle-sprite.enemy-sprite {
-  animation: sprite-idle 0.8s steps(4) infinite;
+  /* animation now handled by JavaScript */
 }
 
-@keyframes sprite-idle {
-  from { background-position-x: 0; }
-  to { background-position-x: -256px; }
-}
+/* Removed fixed sprite-idle animation - now dynamic per sprite */
 
 @keyframes sprite-attack {
   0% { background-position-y: -128px; }
@@ -6957,7 +6954,7 @@ body.boss-ui-glitch header {
 /* Shiny Variant - Prismatic hue shift with sparkle */
 .enemy-sprite.variant-shiny {
   filter: hue-rotate(45deg) brightness(1.3) saturate(1.4);
-  animation: shiny-pulse 2s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+  animation: shiny-pulse 2s ease-in-out infinite;
 }
 
 @keyframes shiny-pulse {
@@ -6968,7 +6965,7 @@ body.boss-ui-glitch header {
 /* Golden Variant - Rich golden glow */
 .enemy-sprite.variant-golden {
   filter: sepia(1) hue-rotate(15deg) saturate(3) brightness(1.2);
-  animation: golden-glow 2s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+  animation: golden-glow 2s ease-in-out infinite;
   box-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
 }
 
@@ -6980,7 +6977,7 @@ body.boss-ui-glitch header {
 /* Rare Variant - Subtle diamond shimmer */
 .enemy-sprite.variant-rare {
   filter: brightness(1.2) contrast(1.15) saturate(1.2);
-  animation: rare-shimmer 3s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+  animation: rare-shimmer 3s ease-in-out infinite;
 }
 
 @keyframes rare-shimmer {
@@ -6991,7 +6988,7 @@ body.boss-ui-glitch header {
 /* Corrupted Variant - Dark red/black corruption */
 .enemy-sprite.variant-corrupted {
   filter: hue-rotate(290deg) saturate(1.5) brightness(0.9) contrast(1.2);
-  animation: corrupt-pulse 1.5s ease-in-out infinite, sprite-idle 0.8s steps(4) infinite;
+  animation: corrupt-pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes corrupt-pulse {
@@ -7001,7 +6998,7 @@ body.boss-ui-glitch header {
 
 /* Glitched Variant - Digital glitch effect */
 .enemy-sprite.variant-glitched {
-  animation: glitch-effect 0.8s steps(2) infinite, sprite-idle 0.8s steps(4) infinite;
+  animation: glitch-effect 0.8s steps(2) infinite;
 }
 
 @keyframes glitch-effect {

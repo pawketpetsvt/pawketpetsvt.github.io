@@ -6350,9 +6350,21 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     enemySprite.innerHTML = '<div class="boss-sprite">?</div>';
   } else {
     enemySprite.innerHTML = '';
-    var spriteFile = getSpriteFile(enemyStats.species);
-    enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
-    enemySprite.style.backgroundPosition = '0 0'; // idle animation top row
+    
+    // Get sprite configuration
+    var config = getSpriteConfig(enemyStats.species);
+    var sheetWidth = config.frameWidth * config.framesPerRow;
+    var sheetHeight = config.frameHeight * config.rows;
+    
+    // Set up sprite
+    enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
+    enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+    enemySprite.style.backgroundPosition = '0 0';
+    enemySprite.style.width = config.frameWidth + 'px';
+    enemySprite.style.height = config.frameHeight + 'px';
+    
+    // Start animation
+    startSpriteAnimation(enemySprite, enemyStats.species);
     
     // Apply special variant visual effect
     if (enemyStats.specialVariant) {
@@ -6382,22 +6394,146 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   playBattleTurn();
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// SPRITE ANIMATION SYSTEM - Dynamic configuration for varying sprite sheets
+// ══════════════════════════════════════════════════════════════════════════
+
+var enemySpriteConfig = {
+  'bird': {
+    file: 'MiniBird.png',
+    frameWidth: 64,
+    frameHeight: 48,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'bunny': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 2,
+    totalFrames: 4,
+    rows: 2
+  },
+  'rabbit': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 2,
+    totalFrames: 4,
+    rows: 2
+  },
+  'squirrel': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 2,
+    totalFrames: 4,
+    rows: 2
+  },
+  'fox': {
+    file: 'MiniFox.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 3,
+    totalFrames: 4,
+    rows: 2
+  },
+  'boar': {
+    file: 'MiniBoar.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 2,
+    totalFrames: 4,
+    rows: 2
+  },
+  'wolf': {
+    file: 'MiniWolf.png',
+    frameWidth: 22,
+    frameHeight: 64,
+    framesPerRow: 1,
+    totalFrames: 4,
+    rows: 4
+  },
+  'bear': {
+    file: 'MiniBear.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 5,
+    totalFrames: 4,
+    rows: 1
+  },
+  'deer': {
+    file: 'MiniDeer1.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 2,
+    totalFrames: 4,
+    rows: 2
+  },
+  'mushroom': {
+    file: 'MonsterMushroom.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'slime': {
+    file: 'MonsterSlime.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  }
+};
+
+function getSpriteConfig(species) {
+  return enemySpriteConfig[species] || enemySpriteConfig['bird'];
+}
+
 function getSpriteFile(species) {
-  var spriteMap = {
-    'bird': 'MiniBird.png',
-    'bunny': 'MiniBunny.png',
-    'rabbit': 'MiniBunny.png',
-    'squirrel': 'MiniBunny.png', // using bunny as placeholder
-    'fox': 'MiniFox.png',
-    'raccoon': 'MiniFox.png', // using fox as placeholder
-    'boar': 'MiniBoar.png',
-    'wolf': 'MiniWolf.png',
-    'bear': 'MiniBear.png',
-    'deer': 'MiniDeer1.png',
-    'mushroom': 'MonsterMushroom.png',
-    'slime': 'MonsterSlime.png'
-  };
-  return spriteMap[species] || 'MiniBird.png';
+  var config = getSpriteConfig(species);
+  return config.file;
+}
+
+function startSpriteAnimation(spriteElement, species) {
+  if (!spriteElement) return;
+  
+  var config = getSpriteConfig(species);
+  var currentFrame = 0;
+  var totalFrames = config.totalFrames;
+  
+  // Clear any existing animation
+  if (spriteElement._spriteInterval) {
+    clearInterval(spriteElement._spriteInterval);
+  }
+  
+  // Set up the animation interval
+  var animationSpeed = 200; // ms per frame
+  
+  spriteElement._spriteInterval = setInterval(function() {
+    // Calculate position
+    var col = currentFrame % config.framesPerRow;
+    var row = Math.floor(currentFrame / config.framesPerRow);
+    
+    var xPos = -(col * config.frameWidth);
+    var yPos = -(row * config.frameHeight);
+    
+    spriteElement.style.backgroundPosition = xPos + 'px ' + yPos + 'px';
+    
+    currentFrame = (currentFrame + 1) % totalFrames;
+  }, animationSpeed);
+}
+
+function stopSpriteAnimation(spriteElement) {
+  if (!spriteElement) return;
+  
+  if (spriteElement._spriteInterval) {
+    clearInterval(spriteElement._spriteInterval);
+    spriteElement._spriteInterval = null;
+  }
 }
 
 function playBattleTurn() {
@@ -6669,6 +6805,12 @@ function closeBattleRewardsModal() {
 }
 
 async function closeBattle() {
+  // Stop sprite animation
+  var enemySprite = el('enemy-battle-sprite');
+  if (enemySprite) {
+    stopSpriteAnimation(enemySprite);
+  }
+  
   // Wait longer for database updates to fully complete and propagate
   await new Promise(resolve => setTimeout(resolve, 500));
   
@@ -10048,8 +10190,21 @@ async function startDungeonBattle(playerStats, enemyStats) {
   
   var enemySprite = el('enemy-battle-sprite');
   enemySprite.innerHTML = '';
-  var spriteFile = getSpriteFile(enemyStats.species);
-  enemySprite.style.backgroundImage = 'url(images/' + spriteFile + ')';
+  
+  // Get sprite configuration
+  var config = getSpriteConfig(enemyStats.species);
+  var sheetWidth = config.frameWidth * config.framesPerRow;
+  var sheetHeight = config.frameHeight * config.rows;
+  
+  // Set up sprite
+  enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
+  enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+  enemySprite.style.backgroundPosition = '0 0';
+  enemySprite.style.width = config.frameWidth + 'px';
+  enemySprite.style.height = config.frameHeight + 'px';
+  
+  // Start animation
+  startSpriteAnimation(enemySprite, enemyStats.species);
   
   // Clear battle log
   el('battle-log').innerHTML = '';
