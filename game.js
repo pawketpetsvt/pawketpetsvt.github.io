@@ -6733,55 +6733,26 @@ async function executeBattle(playerStats, enemyStats, petId) {
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   
-  // FIX: Get the correct UUID for the enemy
+  // FIX: Handle integer enemy IDs correctly
   var actualEnemyId = enemyId;
   
-  // If enemyId is a number (like 5), we need to look up the actual UUID
-  if (typeof enemyId === 'number' || (typeof enemyId === 'string' && !enemyId.includes('-'))) {
-    console.log('Enemy ID is numeric, looking up UUID for species:', enemyStats.species);
-    
-    // Find the enemy by species
-    var enemyLookup = await supabaseClient
-      .from('enemy_pets')
-      .select('id')
-      .eq('species', enemyStats.species)
-      .limit(1)
-      .single();
-    
-    if (enemyLookup.data) {
-      actualEnemyId = enemyLookup.data.id;
-      console.log('✅ Found enemy UUID:', actualEnemyId);
-    } else {
-      console.error('❌ Could not find enemy UUID for species:', enemyStats.species);
-      // Fallback: Try any enemy
-      var anyEnemy = await supabaseClient
-        .from('enemy_pets')
-        .select('id')
-        .limit(1)
-        .single();
-      
-      if (anyEnemy.data) {
-        actualEnemyId = anyEnemy.data.id;
-        console.log('⚠️ Using fallback enemy UUID:', actualEnemyId);
-      } else {
-        console.error('❌ No enemies found in database at all!');
-        // Return minimal rewards without saving
-        return {
-          victory: battleResult.victory,
-          expGained: battleResult.victory ? (enemyStats.exp_reward || 10) : 0,
-          ppGained: battleResult.victory ? (enemyStats.pp_reward || 10) : 0,
-          itemDropped: null
-        };
-      }
-    }
+  // If enemyId is a number or string number, keep it as number (don't try to convert to UUID)
+  if (typeof enemyId === 'number' || (typeof enemyId === 'string' && !isNaN(parseInt(enemyId)))) {
+    console.log('Enemy ID is numeric:', enemyId, '- using as integer');
+    actualEnemyId = parseInt(enemyId);
   }
+  
+  console.log('Saving battle with enemy ID:', actualEnemyId, 'type:', typeof actualEnemyId);
+  
+  // ⚠️ IMPORTANT: Your RPC needs to accept INTEGER for p_enemy_id
+  // See SQL file: create_save_battle_result_integer.sql
   
   // ═══════════════════════════════════════════════════════════
   // CALL SECURE SERVER-SIDE FUNCTION for rewards & point awarding
   // ═══════════════════════════════════════════════════════════
   var { data: result, error: rpcError } = await supabaseClient.rpc('save_battle_result', {
     p_pet_id: petId,
-    p_enemy_id: actualEnemyId,
+    p_enemy_id: actualEnemyId,  // Now passes as integer
     p_victory: battleResult.victory,
     p_turns_taken: battleResult.turns,
     p_player_final_hp: battleResult.playerFinalHP,
@@ -6794,15 +6765,15 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (rpcError) {
     console.error('❌ Battle save error:', rpcError);
     // Fall back to client-side if server function fails
-    expGained = battleResult.victory ? (enemyStats.exp_reward || 0) : 0;
-    ppGained = battleResult.victory ? (enemyStats.pp_reward || 0) : 0;
+    expGained = battleResult.victory ? (enemyStats.exp_reward || 10) : 0;
+    ppGained = battleResult.victory ? (enemyStats.pp_reward || 10) : 0;
   } else {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     console.log('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
   }
   
-  // CRITICAL: Ensure HP is properly updated after battle (remove updated_at field)
+  // CRITICAL: Ensure HP is properly updated after battle
   if (battleResult.victory || battleResult.playerFinalHP > 0) {
     var hpUpdate = await supabaseClient
       .from('user_pets')
@@ -7101,15 +7072,23 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     // Get sprite configuration
     var config = getSpriteConfig(enemyStats.species);
     
-    // SIMPLE APPROACH: Just show the image as a static sprite
-    enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
-    enemySprite.style.backgroundSize = 'contain';
-    enemySprite.style.backgroundRepeat = 'no-repeat';
-    enemySprite.style.backgroundPosition = 'center';
-    enemySprite.style.width = '80px';
-    enemySprite.style.height = '80px';
+    // Calculate full sheet dimensions
+    var sheetWidth = config.frameWidth * config.framesPerRow;
+    var sheetHeight = config.frameHeight;
     
-    console.log('Static sprite loaded:', config.file);
+    // CRITICAL: Show ONLY the FIRST frame (col 0, row 0)
+    enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
+    enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+    enemySprite.style.backgroundRepeat = 'no-repeat';
+    enemySprite.style.backgroundPosition = '0 0';  // First frame only
+    enemySprite.style.width = config.frameWidth + 'px';
+    enemySprite.style.height = config.frameHeight + 'px';
+    
+    // SCALE UP the sprite to make it more visible
+    enemySprite.style.transform = 'scale(1.5)';
+    enemySprite.style.imageRendering = 'pixelated';
+    
+    console.log('Sprite set to first frame only - width:', config.frameWidth, 'height:', config.frameHeight);
     
     // Apply special variant visual effect (if any)
     if (enemyStats.specialVariant) {
@@ -7132,17 +7111,94 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
 // ══════════════════════════════════════════════════════════════════════════
 
 var enemySpriteConfig = {
-  'bird': { file: 'MiniBird.png', isSpriteSheet: false },
-  'bunny': { file: 'MiniBunny.png', isSpriteSheet: false },
-  'rabbit': { file: 'MiniBunny.png', isSpriteSheet: false },
-  'squirrel': { file: 'MiniBunny.png', isSpriteSheet: false },
-  'fox': { file: 'MiniFox.png', isSpriteSheet: false },
-  'boar': { file: 'MiniBoar.png', isSpriteSheet: false },
-  'wolf': { file: 'MiniWolf.png', isSpriteSheet: false },
-  'bear': { file: 'MiniBear.png', isSpriteSheet: false },
-  'deer': { file: 'MiniDeer1.png', isSpriteSheet: false },
-  'mushroom': { file: 'MonsterMushroom.png', isSpriteSheet: false },
-  'slime': { file: 'MonsterSlime.png', isSpriteSheet: false }
+  'bird': {
+    file: 'MiniBird.png',
+    frameWidth: 64,
+    frameHeight: 48,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'bunny': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'rabbit': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'squirrel': {
+    file: 'MiniBunny.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'fox': {
+    file: 'MiniFox.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'boar': {
+    file: 'MiniBoar.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'wolf': {
+    file: 'MiniWolf.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'bear': {
+    file: 'MiniBear.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'deer': {
+    file: 'MiniDeer1.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'mushroom': {
+    file: 'MonsterMushroom.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  },
+  'slime': {
+    file: 'MonsterSlime.png',
+    frameWidth: 64,
+    frameHeight: 64,
+    framesPerRow: 4,
+    totalFrames: 4,
+    rows: 1
+  }
 };
 
 function getSpriteConfig(species) {
@@ -7259,11 +7315,13 @@ function playBattleTurn() {
       playBattleSound(soundKey, enemyVolume);
     }
   } else if (entry.type === 'end') {
-    // Play victory/defeat sound
+    // Victory/defeat sounds temporarily disabled (missing MP3 files)
     if (entry.text.includes('Victory')) {
-      playBattleSound('victory', 0.40);
+      // playBattleSound('victory', 0.40);  // Disabled - file missing
+      console.log('🎉 Victory! (sound disabled until MP3 added)');
     } else {
-      playBattleSound('defeat', 0.35);
+      // playBattleSound('defeat', 0.35);  // Disabled - file missing
+      console.log('💀 Defeat! (sound disabled until MP3 added)');
     }
   }
   

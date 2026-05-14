@@ -10255,3 +10255,23 @@ body.night-mode .btn-outline:hover {
 .battle-container {
   background: transparent !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   SPRITE SCALING - Show first frame only, scaled up for visibility
+   ═══════════════════════════════════════════════════════════════════════ */
+.battle-sprite-container {
+  width: 120px !important;
+  height: 120px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+
+.battle-sprite.enemy-sprite {
+  transform: scale(1.8);
+  transform-origin: center;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
