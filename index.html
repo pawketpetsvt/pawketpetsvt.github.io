@@ -230,10 +230,34 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       <button id="hamburger-menu-btn" class="hamburger-menu-btn" aria-label="Menu">☰</button>
     </div>
     
-    <!-- Mobile Navigation Menu -->
+    <!-- DESKTOP NAVIGATION (visible on desktop) -->
+    <div class="sidebar-section desktop-nav">
+      <div class="sidebar-title">📋 Menu</div>
+      <div class="sidebar-nav-links">
+        <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-news" onclick="showTab('news')">📰 News</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-twitch" onclick="showTab('twitch')">🎬 Twitch</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-redeem" onclick="showTab('redeem')">🎟️ Redeem</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-friends" onclick="showTab('friends')">
+          👥 Friends
+          <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
+        </button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-forum" onclick="showTab('forum')">💬 Forum</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-settings" onclick="showTab('settings')">⚙️ Settings</button>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation Menu (hidden on desktop, visible on mobile via hamburger) -->
     <nav id="mobile-nav-menu" class="mobile-nav-menu">
       <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close menu">✕ Close</button>
-      
       <div class="sidebar-section">
         <div class="sidebar-nav-links">
           <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
@@ -257,8 +281,6 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         </div>
       </div>
     </nav>
-    
-    <div class="sidebar-section">
       <div class="sidebar-title">Your Stats</div>
       <div class="sidebar-stats">
         <div class="stat-row">
