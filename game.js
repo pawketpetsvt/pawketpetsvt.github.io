@@ -2289,7 +2289,7 @@ async function feed(petId) {
   // Get user's food inventory
   var { data: inventory, error: invError } = await supabaseClient
     .from('user_inventory')
-    .select('item_id, quantity, items(id, name, icon, food_category)')
+    .select('item_id, quantity, items(id, name, food_category, image_url)')
     .eq('user_id', currentUser.id)
     .gt('quantity', 0);
   
@@ -2825,7 +2825,7 @@ async function loadInventory() {
   var invRes=await supabaseClient.from('user_inventory').select('id,item_id,quantity').eq('user_id',currentUser.id).gt('quantity',0);
   if(invRes.error||!invRes.data||!invRes.data.length){grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">Inventory empty!</div>';return;}
   var itemIds=invRes.data.map(function(r){return r.item_id;});
-  var itemsRes=await supabaseClient.from('items').select('id,name,item_type,image_url,hunger_restore,health_restore,happiness_bonus,energy_restore').in('id',itemIds);
+  var itemsRes=await supabaseClient.from('items').select('id,name,item_type,image_url,hunger_effect,happiness_effect,energy_effect,xp_effect').in('id',itemIds);
   var itemMap={};
   if(itemsRes.data)itemsRes.data.forEach(function(i){itemMap[i.id]=i;});
   grid.innerHTML='';
@@ -2840,10 +2840,10 @@ async function loadInventory() {
     
     // Show item effects
     var effects = [];
-    if (item.hunger_restore) effects.push('Hunger +' + item.hunger_restore);
-    if (item.health_restore) effects.push('HP +' + item.health_restore);
-    if (item.happiness_bonus) effects.push('Happiness +' + item.happiness_bonus);
-    if (item.energy_restore) effects.push('Energy +' + item.energy_restore);
+    if (item.hunger_effect) effects.push('Hunger +' + item.hunger_effect);
+    if (item.happiness_effect) effects.push('Happiness +' + item.happiness_effect);
+    if (item.energy_effect) effects.push('Energy +' + item.energy_effect);
+    if (item.xp_effect) effects.push('XP +' + item.xp_effect);
     if (effects.length > 0) {
       var effectDiv = makeEl('div', {class:'inv-effect'}, effects.join(', '));
       effectDiv.style.cssText = 'font-size:0.85rem;color:var(--green);margin-top:4px;';

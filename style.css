@@ -10104,7 +10104,7 @@ body.night-mode .btn-outline:hover {
   top: 20px;
   bottom: 20px;
   width: 2px;
-  background: rgba(139, 69, 19, 0.5); /* Darker spine line */
+  background: transparent; /* REMOVED: Brown line */
   transform: translateX(-50%);
 }
 
