@@ -380,8 +380,9 @@ function closeModal() {
 }
 
 function updateAllPoints(pts) {
-  // Handle null/undefined points
-  if (pts === null || pts === undefined) {
+  // Handle null/undefined/non-number points
+  if (pts === null || pts === undefined || typeof pts !== 'number') {
+    console.warn('updateAllPoints received invalid value:', pts);
     pts = 0;
   }
   
@@ -390,7 +391,9 @@ function updateAllPoints(pts) {
   ['adopt-points','mypets-points','shop-points','games-points','redeem-points'].forEach(function(id){
     var e = el(id); if (e) e.textContent = str;
   });
-  el('nav-points').innerHTML = '&#129689; ' + pts + ' PP';
+  
+  var navPoints = el('nav-points');
+  if (navPoints) navPoints.innerHTML = '&#129689; ' + pts + ' PP';
   
   // Update sidebar points
   var sidebarPoints = document.getElementById('sidebar-points');
@@ -725,7 +728,10 @@ async function updateSidebarStats() {
     var streakEl = document.getElementById('sidebar-streak');
     
     if (petCountEl) petCountEl.textContent = (pets ? pets.length : 0);
-    if (pointsEl) pointsEl.textContent = (player ? player.pawketpoints.toLocaleString() : 0) + ' PP';
+    if (pointsEl) {
+      var ppValue = player && typeof player.pawketpoints === 'number' ? player.pawketpoints : 0;
+      pointsEl.textContent = ppValue.toLocaleString() + ' PP';
+    }
     if (itemsEl) itemsEl.textContent = totalItems;
     if (streakEl) streakEl.textContent = streak;
     
@@ -2284,7 +2290,11 @@ async function feed(petId) {
   }
   
   var pet = petState[petId]; 
-  if (!pet || pet.hunger >= pet.max_hunger) return;
+  if (!pet) return;
+  
+  // Check if already used free feed today
+  var today = new Date().toISOString().split('T')[0];
+  var alreadyFedToday = localStorage.getItem('feed_' + petId + '_' + today) === 'done';
   
   // Get user's food inventory
   var { data: inventory, error: invError } = await supabaseClient
@@ -2299,32 +2309,59 @@ async function feed(petId) {
   }
   
   // Filter to food items only
-  var foodItems = inventory.filter(function(inv) {
+  var foodItems = inventory ? inventory.filter(function(inv) {
     return inv.items && inv.items.name && 
            (inv.items.name.toLowerCase().includes('food') || 
             inv.items.name.toLowerCase().includes('ramen') ||
             inv.items.name.toLowerCase().includes('cake') ||
             inv.items.name.toLowerCase().includes('steak') ||
+            inv.items.name.toLowerCase().includes('burger') ||
+            inv.items.name.toLowerCase().includes('pie') ||
+            inv.items.name.toLowerCase().includes('cookie') ||
+            inv.items.name.toLowerCase().includes('juice') ||
+            inv.items.name.toLowerCase().includes('smoothie') ||
             inv.items.food_category); // Any item with food_category
-  });
+  }) : [];
   
-  if (foodItems.length === 0) {
-    showToast('No food in inventory! Buy some from the shop.', 3000);
-    return;
-  }
-  
-  // Show item picker modal
+  // Show picker modal with free option + food items
   var modal = makeModal();
-  modal.innerHTML = '<h2 style="text-align:center;margin-bottom:20px;">Choose Food to Feed</h2>';
+  modal.innerHTML = '<h2 style="text-align:center;margin-bottom:20px;">🍽️ Feed Your Pet</h2>';
   
   var grid = document.createElement('div');
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;';
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
+  // FREE DAILY OPTION (Always shown first)
+  var freeBtn = document.createElement('button');
+  freeBtn.style.cssText = 'padding:15px;border:3px solid ' + (alreadyFedToday ? '#ccc' : '#5dde7a') + ';background:' + (alreadyFedToday ? '#f5f5f5' : 'linear-gradient(135deg, #5dde7a 0%, #4caf50 100%)') + ';border-radius:12px;cursor:' + (alreadyFedToday ? 'not-allowed' : 'pointer') + ';transition:transform 0.2s;opacity:' + (alreadyFedToday ? '0.6' : '1') + ';';
+  freeBtn.innerHTML = '<div style="font-size:2rem;">✨</div>' +
+                  '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:' + (alreadyFedToday ? '#999' : '#fff') + ';">Free Daily Treat</div>' +
+                  '<div style="font-size:0.75rem;color:' + (alreadyFedToday ? '#999' : '#fff') + ';margin-top:3px;">' + (alreadyFedToday ? 'Used Today!' : '+30 Hunger +10 XP') + '</div>';
+  
+  if (!alreadyFedToday) {
+    freeBtn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+    freeBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+    
+    freeBtn.onclick = function() {
+      closeModal();
+      feedFree(petId);
+    };
+  }
+  
+  grid.appendChild(freeBtn);
+  
+  // FOOD ITEMS FROM INVENTORY
   foodItems.forEach(function(inv) {
     var item = inv.items;
     var btn = document.createElement('button');
     btn.style.cssText = 'padding:15px;border:3px solid #9966ff;background:white;border-radius:12px;cursor:pointer;transition:transform 0.2s;';
-    btn.innerHTML = '<div style="font-size:2rem;">' + (item.icon || '🍕') + '</div>' +
+    
+    // Try to show image or fallback to emoji
+    var iconHtml = '🍕';
+    if (item.image_url) {
+      iconHtml = '<img src="' + item.image_url + '" style="width:48px;height:48px;object-fit:contain;" onerror="this.outerHTML=\'🍕\';">';
+    }
+    
+    btn.innerHTML = '<div style="font-size:2rem;">' + iconHtml + '</div>' +
                     '<div style="font-size:0.8rem;font-weight:600;margin-top:5px;">' + item.name + '</div>' +
                     '<div style="font-size:0.7rem;color:#666;">x' + inv.quantity + '</div>';
     
@@ -2341,6 +2378,14 @@ async function feed(petId) {
   
   modal.appendChild(grid);
   
+  // Show helpful message if no food items
+  if (foodItems.length === 0) {
+    var noItemsMsg = document.createElement('div');
+    noItemsMsg.style.cssText = 'text-align:center;padding:20px;color:#666;font-size:0.9rem;';
+    noItemsMsg.textContent = '💡 No food items in inventory. Buy some from the shop or use the free daily treat!';
+    modal.appendChild(noItemsMsg);
+  }
+  
   var cancelBtn = document.createElement('button');
   cancelBtn.textContent = 'Cancel';
   cancelBtn.style.cssText = 'margin-top:20px;padding:10px 20px;background:#ccc;border:none;border-radius:8px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;';
@@ -2348,6 +2393,123 @@ async function feed(petId) {
   modal.appendChild(cancelBtn);
   
   openModal(modal);
+}
+
+// FREE DAILY FEED
+async function feedFree(petId) {
+  var pet = petState[petId];
+  if (!pet) return;
+  
+  var today = new Date().toISOString().split('T')[0];
+  
+  // Call RPC with null item_id for free feed
+  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
+    p_pet_id: petId,
+    p_item_id: null
+  });
+  
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    return;
+  }
+  
+  // Mark as used today
+  localStorage.setItem('feed_' + petId + '_' + today, 'done');
+  
+  // Update local state
+  petState[petId].hunger = result.hunger;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
+    tabsLoaded['mypets'] = false;
+  } else {
+    showFlash(petId, '✨ +30 Hunger +10 XP', '#5dde7a');
+  }
+}
+
+// SEPARATE FUNCTION: Feed with specific item (called from dropdown menu)
+async function showFeedItemPicker(petId) {
+  // Just call the main feed function - it now handles both!
+  feed(petId);
+}
+
+async function feedWithItem(petId, itemId, itemName) {
+  var pet = petState[petId];
+  if (!pet) return;
+  
+  // Call secure database function with item_id
+  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
+    p_pet_id: petId,
+    p_item_id: itemId
+  });
+  
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    return;
+  }
+  
+  // Update local state
+  petState[petId].hunger = result.hunger;
+  petState[petId].happiness = result.happiness;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
+  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
+    tabsLoaded['mypets'] = false;
+  }
+  
+  // Check for food preference reactions
+  var reactionType = result.reaction_type || 'normal';
+  var reactionMsg = '';
+  
+  if (reactionType === 'loved') {
+    reactionMsg = '💖 ' + itemName + '! (1.75x bonus!)';
+  } else if (reactionType === 'liked') {
+    reactionMsg = '😊 ' + itemName + '! (1.25x bonus)';
+  } else if (reactionType === 'disliked') {
+    reactionMsg = '😐 ' + itemName + '... (0.75x effect)';
+  } else if (reactionType === 'hated') {
+    reactionMsg = '😖 Ew, ' + itemName + '! (0.5x effect)';
+  } else {
+    reactionMsg = '🍽️ Ate ' + itemName + '!';
+  }
+  
+  if (result.hunger_gained || result.happiness_gained || result.xp_gained) {
+    var effects = [];
+    if (result.hunger_gained) effects.push('+' + result.hunger_gained + ' Hunger');
+    if (result.happiness_gained) effects.push('+' + result.happiness_gained + ' Happiness');
+    if (result.xp_gained) effects.push('+' + result.xp_gained + ' XP');
+    reactionMsg += '\n' + effects.join(', ');
+  }
+  
+  showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
+  
+  // 🐾 COMPANION REACTION - Feeding!
+  if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+    setTimeout(function() {
+      var feedMessages = {
+        loved: ["They LOVE it! 💖", "Best food ever! ✨"],
+        liked: ["Yummy! 😋", "Tasty treat! 🍕"],
+        disliked: ["Hmm, not their favorite... 😐"],
+        hated: ["Ew, they hate that! 😖"],
+        normal: ["Nom nom! 🍪", "Snack time! 🍕"]
+      };
+      var msgPool = feedMessages[reactionType] || feedMessages.normal;
+      CompanionBuddy.showMessage(msgPool[Math.floor(Math.random() * msgPool.length)]);
+    }, 1000);
+  }
 }
 
 async function feedWithItem(petId, itemId, itemName) {
@@ -2459,21 +2621,128 @@ async function play(petId) {
   }
   
   var pet = petState[petId]; 
+  if (!pet) return;
+  
+  // Check if already played today
+  var today = new Date().toISOString().split('T')[0];
+  var alreadyPlayedToday = localStorage.getItem('play_' + petId + '_' + today) === 'done';
+  
+  // Get user's toy inventory
+  var { data: inventory, error: invError } = await supabaseClient
+    .from('user_inventory')
+    .select('item_id, quantity, items(id, name, item_type, image_url)')
+    .eq('user_id', currentUser.id)
+    .gt('quantity', 0);
+  
+  if (invError) {
+    showToast('Error loading inventory', 3000);
+    return;
+  }
+  
+  // Filter to toy/fun items
+  var toyItems = inventory ? inventory.filter(function(inv) {
+    return inv.items && inv.items.item_type && 
+           (inv.items.item_type.toLowerCase() === 'toy' ||
+            inv.items.item_type.toLowerCase() === 'fun' ||
+            inv.items.name.toLowerCase().includes('toy') ||
+            inv.items.name.toLowerCase().includes('ball') ||
+            inv.items.name.toLowerCase().includes('frisbee') ||
+            inv.items.name.toLowerCase().includes('game'));
+  }) : [];
+  
+  // Show picker modal with free option + toy items
+  var modal = makeModal();
+  modal.innerHTML = '<h2 style="text-align:center;margin-bottom:20px;">🎮 Play With Your Pet</h2>';
+  
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
+  
+  // FREE DAILY OPTION (Always shown first)
+  var freeBtn = document.createElement('button');
+  freeBtn.style.cssText = 'padding:15px;border:3px solid ' + (alreadyPlayedToday ? '#ccc' : '#ff9f43') + ';background:' + (alreadyPlayedToday ? '#f5f5f5' : 'linear-gradient(135deg, #ff9f43 0%, #ffa726 100%)') + ';border-radius:12px;cursor:' + (alreadyPlayedToday ? 'not-allowed' : 'pointer') + ';transition:transform 0.2s;opacity:' + (alreadyPlayedToday ? '0.6' : '1') + ';';
+  freeBtn.innerHTML = '<div style="font-size:2rem;">🎾</div>' +
+                  '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:' + (alreadyPlayedToday ? '#999' : '#fff') + ';">Free Playtime</div>' +
+                  '<div style="font-size:0.75rem;color:' + (alreadyPlayedToday ? '#999' : '#fff') + ';margin-top:3px;">' + (alreadyPlayedToday ? 'Played Today!' : '+15 Happiness +15 XP') + '</div>';
+  
+  if (!alreadyPlayedToday && pet.energy >= 10) {
+    freeBtn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+    freeBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+    
+    freeBtn.onclick = function() {
+      closeModal();
+      playFree(petId);
+    };
+  } else if (pet.energy < 10) {
+    freeBtn.style.opacity = '0.5';
+    freeBtn.style.cursor = 'not-allowed';
+    var lowEnergyNote = document.createElement('div');
+    lowEnergyNote.style.cssText = 'font-size:0.7rem;color:#999;margin-top:2px;';
+    lowEnergyNote.textContent = 'Need 10 Energy';
+    freeBtn.appendChild(lowEnergyNote);
+  }
+  
+  grid.appendChild(freeBtn);
+  
+  // TOY ITEMS FROM INVENTORY
+  toyItems.forEach(function(inv) {
+    var item = inv.items;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:15px;border:3px solid #9966ff;background:white;border-radius:12px;cursor:pointer;transition:transform 0.2s;';
+    
+    // Try to show image or fallback to emoji
+    var iconHtml = '🎮';
+    if (item.image_url) {
+      iconHtml = '<img src="' + item.image_url + '" style="width:48px;height:48px;object-fit:contain;" onerror="this.outerHTML=\'🎮\';">';
+    }
+    
+    btn.innerHTML = '<div style="font-size:2rem;">' + iconHtml + '</div>' +
+                    '<div style="font-size:0.8rem;font-weight:600;margin-top:5px;">' + item.name + '</div>' +
+                    '<div style="font-size:0.7rem;color:#666;">x' + inv.quantity + '</div>';
+    
+    btn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+    btn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+    
+    btn.onclick = function() {
+      closeModal();
+      playWithToy(petId, item.id, item.name);
+    };
+    
+    grid.appendChild(btn);
+  });
+  
+  modal.appendChild(grid);
+  
+  // Show helpful message if no toy items
+  if (toyItems.length === 0) {
+    var noItemsMsg = document.createElement('div');
+    noItemsMsg.style.cssText = 'text-align:center;padding:20px;color:#666;font-size:0.9rem;';
+    noItemsMsg.textContent = '💡 No toys in inventory. Buy some from the shop or use free playtime!';
+    modal.appendChild(noItemsMsg);
+  }
+  
+  var cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'margin-top:20px;padding:10px 20px;background:#ccc;border:none;border-radius:8px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;';
+  cancelBtn.onclick = closeModal;
+  modal.appendChild(cancelBtn);
+  
+  openModal(modal);
+}
+
+// FREE DAILY PLAY
+async function playFree(petId) {
+  var pet = petState[petId];
   if (!pet || pet.energy < 10) return;
   
-  var btn = el('play-'+petId); 
-  btn.disabled = true; 
-  btn.textContent = '...';
+  var today = new Date().toISOString().split('T')[0];
   
-  // Call secure database function
+  // Call RPC for free play
   var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
     p_pet_id: petId
   });
   
   if (error) {
     showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    btn.disabled = false; 
-    btn.textContent = 'Play'; 
     return;
   }
   
@@ -2491,7 +2760,7 @@ async function play(petId) {
   
   if (result.leveled_up) {
     petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
+    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
     updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
     
@@ -2499,12 +2768,46 @@ async function play(petId) {
     if (result.new_level === 10) await awardBadge('level_10');
     if (result.new_level === 20) await awardBadge('level_20');
   } else {
-    showFlash(petId, '-10 Energy +15 Happiness +15 XP', '#5dde7a');
+    showFlash(petId, '🎾 -10 Energy +15 Happiness +15 XP', '#5dde7a');
+  }
+}
+
+// PLAY WITH TOY ITEM
+async function playWithToy(petId, toyId, toyName) {
+  var pet = petState[petId];
+  if (!pet || pet.energy < 5) {
+    showFlash(petId, 'Not enough energy!', '#ff6eb4');
+    return;
   }
   
-  btn.textContent = 'Played Today!';
-  btn.disabled = true;
-  btn.style.opacity = '0.6';
+  // Call RPC to play with toy (if you have a function for it)
+  // For now, use the same play function
+  var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
+    p_pet_id: petId
+  });
+  
+  if (error) {
+    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+    return;
+  }
+  
+  // Update local state
+  petState[petId].energy = result.energy;
+  petState[petId].happiness = result.happiness;
+  petState[petId].xp = result.xp;
+  
+  updateBar(petId, 'energy', result.energy, pet.max_energy);
+  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+  updateXpBar(petId, result.xp, pet.level);
+  
+  if (result.leveled_up) {
+    petState[petId].level = result.new_level;
+    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
+    updateLvl(petId, result.new_level, pet.max_hunger);
+    tabsLoaded['mypets'] = false;
+  } else {
+    showFlash(petId, '🎮 Played with ' + toyName + '! +20 Happiness +10 XP', '#5dde7a');
+  }
 }
 
 function updateBar(petId,stat,val,max) {
@@ -2804,6 +3107,11 @@ async function buyItem(itemId, itemName, price) {
     return;
   }
   
+  if (!result || !result.success) {
+    showToast('Purchase failed!');
+    return;
+  }
+  
   // Check spending badges
   if (currentPoints >= 500) {
     await awardBadge('mega_spender');
@@ -2811,8 +3119,8 @@ async function buyItem(itemId, itemName, price) {
     await awardBadge('big_spender');
   }
   
-  // Update display
-  updateAllPoints(result.new_points);
+  // Update display with correct field name from RPC
+  updateAllPoints(result.new_pp);
   showToast('Bought ' + result.item_name + '!');
   tabsLoaded['shop'] = false; 
   loadShop(); 
