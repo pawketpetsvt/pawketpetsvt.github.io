@@ -3903,7 +3903,7 @@ async function initTwitchTab() {
     window.history.replaceState({},'',window.location.pathname);
   }
   await checkTwitchLinked();
-  await loadTeamShowcase();
+  // Team showcase removed - loadTeamShowcase() function still exists for other uses
 }
 
 // Team members config — add new members here as they join
