@@ -10049,9 +10049,23 @@ function renderJournalPage() {
   var content = el('journal-page-content');
   if (!content) return;
   
+  // Map pet types to their PNG filenames
+  var petImageMap = {
+    'Ember': 'ember.png',
+    'Pyxie': 'pyxie.png',
+    'Cowbee': 'cowbee.png',
+    'Bunny': 'bunny.png',
+    'Fox': 'fox.png',
+    'Wolf': 'wolf.png',
+    'Deer': 'deer.png',
+    'Bird': 'bird.png'
+  };
+  
+  var imageSrc = 'images/pets/' + (petImageMap[petType] || petType.toLowerCase() + '.png');
+  
   var html = '';
   html += '<div class="journal-pet-header">';
-  html += '  <div class="journal-pet-image" style="font-size:5rem;">' + getPetEmoji(petType) + '</div>';
+  html += '  <div class="journal-pet-image" style="background-image:url(' + imageSrc + ');background-size:contain;background-repeat:no-repeat;background-position:center;"></div>';
   html += '  <div class="journal-pet-name">' + petType + '</div>';
   html += '</div>';
   
