@@ -6733,12 +6733,38 @@ async function executeBattle(playerStats, enemyStats, petId) {
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   
+  console.log('Saving battle with:', {
+    petId: petId,
+    enemyId: enemyId,
+    victory: battleResult.victory,
+    turns: battleResult.turns,
+    finalHP: battleResult.playerFinalHP
+  });
+  
+  // Make sure enemyId is a valid UUID, not a number
+  var validEnemyId = enemyId;
+  if (typeof enemyId === 'number' || !enemyId || !enemyId.includes('-')) {
+    // If enemyId is a number or not a UUID, we need to fetch the actual enemy UUID
+    console.warn('Enemy ID is not a UUID, attempting to fix:', enemyId);
+    var enemyRes = await supabaseClient
+      .from('enemy_pets')
+      .select('id')
+      .limit(1)
+      .single();
+    
+    if (enemyRes.data) {
+      validEnemyId = enemyRes.data.id;
+    } else {
+      console.error('Could not find a valid enemy UUID, battle save may fail');
+    }
+  }
+  
   // ═══════════════════════════════════════════════════════════
   // CALL SECURE SERVER-SIDE FUNCTION for rewards & point awarding
   // ═══════════════════════════════════════════════════════════
   var { data: result, error: rpcError } = await supabaseClient.rpc('save_battle_result', {
     p_pet_id: petId,
-    p_enemy_id: enemyId,
+    p_enemy_id: validEnemyId,
     p_victory: battleResult.victory,
     p_turns_taken: battleResult.turns,
     p_player_final_hp: battleResult.playerFinalHP,
@@ -6757,6 +6783,23 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     console.log('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
+  }
+  
+  // CRITICAL: Ensure HP is properly updated after battle
+  if (battleResult.victory || battleResult.playerFinalHP > 0) {
+    var hpUpdate = await supabaseClient
+      .from('user_pets')
+      .update({ 
+        current_hp: battleResult.playerFinalHP,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', petId);
+    
+    if (hpUpdate.error) {
+      console.error('Failed to update pet HP directly:', hpUpdate.error);
+    } else {
+      console.log('✅ Pet HP updated to:', battleResult.playerFinalHP);
+    }
   }
   
   // ═══════════════════════════════════════════════════════════
@@ -7032,16 +7075,18 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   // Set enemy sprite based on species
   var enemySprite = el('enemy-battle-sprite');
   
-  // Clear any existing variant classes
+  // CRITICAL: Completely reset the sprite
+  enemySprite.innerHTML = '';
   enemySprite.className = 'battle-sprite enemy-sprite';
+  
+  // Clear any inline styles that might be interfering
+  enemySprite.style.cssText = '';
   
   // BOSS SPRITE - Show glitchy question mark
   if (enemyStats.is_boss) {
     enemySprite.style.backgroundImage = 'none';
     enemySprite.innerHTML = '<div class="boss-sprite">?</div>';
   } else {
-    enemySprite.innerHTML = '';
-    
     // Get sprite configuration
     var config = getSpriteConfig(enemyStats.species);
     
@@ -7049,15 +7094,25 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     var sheetWidth = config.frameWidth * config.framesPerRow;
     var sheetHeight = config.frameHeight * config.rows;
     
-    // CRITICAL FIX: Set up sprite container properly
+    // Log what we're doing
+    console.log('Setting up enemy sprite:', {
+      species: enemyStats.species,
+      file: config.file,
+      frameWidth: config.frameWidth,
+      frameHeight: config.frameHeight,
+      sheetWidth: sheetWidth,
+      sheetHeight: sheetHeight
+    });
+    
+    // Apply styles directly - use setAttribute for maximum reliability
     enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
     enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
-    enemySprite.style.backgroundRepeat = 'no-repeat';  // ADDED: Prevent tiling
+    enemySprite.style.backgroundRepeat = 'no-repeat';
     enemySprite.style.backgroundPosition = '0 0';
     enemySprite.style.width = config.frameWidth + 'px';
     enemySprite.style.height = config.frameHeight + 'px';
-    enemySprite.style.overflow = 'hidden';  // ADDED: Hide frames outside viewport
-    enemySprite.style.display = 'block';  // ADDED: Ensure block display
+    enemySprite.style.overflow = 'hidden';
+    enemySprite.style.display = 'block';
     
     // Start animation
     startSpriteAnimation(enemySprite, enemyStats.species);
@@ -7206,10 +7261,12 @@ function startSpriteAnimation(spriteElement, species) {
     clearInterval(spriteElement._spriteInterval);
   }
   
-  // CRITICAL: Set proper background sizing
+  // CRITICAL: Calculate exact sheet dimensions
   var sheetWidth = config.frameWidth * config.framesPerRow;
   var sheetHeight = config.frameHeight * config.rows;
   
+  // FORCE these styles - use setAttribute for maximum priority
+  spriteElement.style.backgroundImage = 'url(images/' + config.file + ')';
   spriteElement.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
   spriteElement.style.backgroundRepeat = 'no-repeat';
   spriteElement.style.backgroundPosition = '0 0';
@@ -7217,6 +7274,17 @@ function startSpriteAnimation(spriteElement, species) {
   spriteElement.style.height = config.frameHeight + 'px';
   spriteElement.style.overflow = 'hidden';
   spriteElement.style.display = 'block';
+  
+  // Log for debugging
+  console.log('Sprite animation started for:', species, {
+    file: config.file,
+    frameWidth: config.frameWidth,
+    frameHeight: config.frameHeight,
+    framesPerRow: config.framesPerRow,
+    totalFrames: totalFrames,
+    sheetWidth: sheetWidth,
+    sheetHeight: sheetHeight
+  });
   
   // Set up the animation interval
   var animationSpeed = 200; // ms per frame

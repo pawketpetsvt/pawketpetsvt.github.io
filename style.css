@@ -10221,3 +10221,37 @@ body.night-mode .btn-outline:hover {
   min-width: 80px;
   min-height: 80px;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CRITICAL SPRITE FIX - Override anything that might be breaking sprites
+   ═══════════════════════════════════════════════════════════════════════ */
+.battle-sprite {
+  image-rendering: crisp-edges !important;
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  background-repeat: no-repeat !important;
+}
+
+.battle-sprite.enemy-sprite {
+  overflow: hidden !important;
+  background-repeat: no-repeat !important;
+  position: relative !important;
+}
+
+/* Force the sprite container to respect dimensions */
+.battle-sprite-container {
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 80px !important;
+  min-height: 80px !important;
+  background: transparent !important;
+}
+
+/* Remove any potential background from parent elements */
+.battle-sprite-container,
+.battle-side,
+.battle-container {
+  background: transparent !important;
+}
