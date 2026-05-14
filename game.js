@@ -575,6 +575,14 @@ async function showApp(user) {
   
   // Refresh stream status every 2 minutes
   setInterval(checkSidebarStreamStatus, 120000);
+  
+  // PHASE 8 - Growth Features Initialization
+  await checkDailyLogin(); // Daily rewards and buffs
+  checkReferralCode(); // Check for referral code in URL
+  await updateNotificationBadge(); // Update notification count
+  
+  // Refresh notifications every 60 seconds
+  setInterval(updateNotificationBadge, 60000);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -1194,6 +1202,9 @@ async function confirmAdopt() {
   
   // Award first pet badge
   await awardBadge('first_pet');
+  
+  // PHASE 8 - Process referral on first adoption
+  await processReferral();
   
   // Track adoption in analytics
   trackPetAdoption(selectedPet.name);
@@ -10199,6 +10210,16 @@ function getNotificationIcon(type) {
     case 'guestbook_message': return '📝';
     case 'badge_earned': return '🎖️';
     case 'level_up': return '⭐';
+    // PHASE 8 - Pet milestone notifications
+    case 'pet_hungry': return '🍽️';
+    case 'pet_needs_attention': return '💔';
+    case 'pet_evolved': return '✨';
+    case 'pet_birthday': return '🎂';
+    case 'variant_unlocked': return '🌈';
+    case 'battle_victory': return '⚔️';
+    case 'daily_reward': return '🎁';
+    case 'event_started': return '🎉';
+    case 'referral_reward': return '💰';
     default: return '🔔';
   }
 }
@@ -10305,6 +10326,541 @@ async function createNotification(userId, type, title, message, link, fromUserId
       }]);
   } catch (err) {
     console.error('Error creating notification:', err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// TIME-BASED BUFFS & DAILY REWARDS (Phase 8)
+// ══════════════════════════════════════════════════════════════════════════
+
+var dailyLoginStreak = 0;
+var dailyBuffsActive = [];
+
+// Check daily login and award rewards
+async function checkDailyLogin() {
+  if (!currentUser) return;
+  
+  var today = new Date().toISOString().split('T')[0];
+  var lastLogin = localStorage.getItem('lastLoginDate_' + currentUser.id);
+  
+  if (lastLogin === today) {
+    console.log('[DailyLogin] Already claimed today');
+    return; // Already claimed today
+  }
+  
+  try {
+    // Get player data
+    var { data: player, error } = await supabaseClient
+      .from('players')
+      .select('last_login, login_streak, pawket_points')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (error) throw error;
+    
+    var streak = player.login_streak || 0;
+    var lastDate = player.last_login ? new Date(player.last_login).toISOString().split('T')[0] : null;
+    var yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    var yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    // Calculate streak
+    if (lastDate === yesterdayStr) {
+      // Consecutive day
+      streak++;
+    } else if (lastDate !== today) {
+      // Streak broken, reset to 1
+      streak = 1;
+    }
+    
+    // Cap streak at 30 days
+    if (streak > 30) streak = 30;
+    
+    dailyLoginStreak = streak;
+    
+    // Calculate rewards
+    var ppReward = 50 + (streak * 5); // 50 base + 5 per day
+    if (streak >= 7) ppReward += 50; // Week bonus
+    if (streak >= 14) ppReward += 100; // 2 week bonus
+    if (streak >= 30) ppReward += 200; // Month bonus!
+    
+    // Update database
+    await supabaseClient
+      .from('players')
+      .update({
+        last_login: new Date().toISOString(),
+        login_streak: streak,
+        pawket_points: (player.pawket_points || 0) + ppReward
+      })
+      .eq('id', currentUser.id);
+    
+    // Update local storage
+    localStorage.setItem('lastLoginDate_' + currentUser.id, today);
+    
+    // Award PP via RPC (for tracking)
+    await supabaseClient.rpc('award_pp_secure', {
+      p_user_id: currentUser.id,
+      p_amount: ppReward,
+      p_reason: 'Daily login day ' + streak
+    });
+    
+    // Show reward notification
+    showDailyLoginReward(streak, ppReward);
+    
+    // Create notification
+    await createNotification(
+      currentUser.id,
+      'daily_reward',
+      '🎁 Daily Login Reward!',
+      'Day ' + streak + ' streak! Earned ' + ppReward + ' PP',
+      'tab:home'
+    );
+    
+    // Apply daily buffs
+    applyDailyBuffs(streak);
+    
+    console.log('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
+    
+  } catch (err) {
+    console.error('[DailyLogin] Error:', err);
+  }
+}
+
+// Show daily login reward modal
+function showDailyLoginReward(streak, ppReward) {
+  var modal = makeModal();
+  var content = makeEl('div');
+  content.style.cssText = 'text-align:center;padding:20px;';
+  
+  var icon = makeEl('div');
+  icon.textContent = '🎁';
+  icon.style.cssText = 'font-size:4rem;margin-bottom:15px;';
+  content.appendChild(icon);
+  
+  var title = makeEl('h2');
+  title.textContent = 'Daily Login Reward!';
+  title.style.cssText = 'color:var(--purple);margin-bottom:10px;';
+  content.appendChild(title);
+  
+  var streakText = makeEl('p');
+  streakText.innerHTML = '🔥 <strong>' + streak + ' Day Streak!</strong>';
+  streakText.style.cssText = 'font-size:1.3rem;margin-bottom:15px;color:var(--orange);';
+  content.appendChild(streakText);
+  
+  var reward = makeEl('p');
+  reward.innerHTML = '🪙 <strong>+' + ppReward + ' PawketPoints</strong>';
+  reward.style.cssText = 'font-size:1.2rem;margin-bottom:15px;color:var(--purple);';
+  content.appendChild(reward);
+  
+  // Milestone bonuses
+  if (streak === 7) {
+    var bonus = makeEl('p');
+    bonus.innerHTML = '⭐ <strong>Week Milestone Bonus!</strong>';
+    bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
+    content.appendChild(bonus);
+  } else if (streak === 14) {
+    var bonus = makeEl('p');
+    bonus.innerHTML = '🌟 <strong>2 Week Milestone Bonus!</strong>';
+    bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
+    content.appendChild(bonus);
+  } else if (streak === 30) {
+    var bonus = makeEl('p');
+    bonus.innerHTML = '💫 <strong>MONTH MILESTONE BONUS!</strong>';
+    bonus.style.cssText = 'color:var(--gold);font-size:1.3rem;font-weight:bold;';
+    content.appendChild(bonus);
+  }
+  
+  var tip = makeEl('p');
+  tip.textContent = 'Come back tomorrow to keep your streak!';
+  tip.style.cssText = 'font-size:0.9rem;color:var(--text-light);margin-top:15px;';
+  content.appendChild(tip);
+  
+  var closeBtn = makeEl('button', {class: 'btn btn-primary'});
+  closeBtn.textContent = 'Awesome!';
+  closeBtn.style.cssText = 'margin-top:20px;';
+  closeBtn.onclick = function() { closeModal(); };
+  content.appendChild(closeBtn);
+  
+  modal.appendChild(content);
+  openModal(modal);
+}
+
+// Apply daily buffs based on streak
+function applyDailyBuffs(streak) {
+  dailyBuffsActive = [];
+  
+  // Streak buffs
+  if (streak >= 3) {
+    dailyBuffsActive.push({
+      name: 'XP Boost',
+      icon: '⭐',
+      effect: 'xp_boost',
+      multiplier: 1.1,
+      description: '+10% XP from all activities'
+    });
+  }
+  
+  if (streak >= 7) {
+    dailyBuffsActive.push({
+      name: 'Lucky Day',
+      icon: '🍀',
+      effect: 'item_drop_boost',
+      multiplier: 1.2,
+      description: '+20% better item drops'
+    });
+  }
+  
+  if (streak >= 14) {
+    dailyBuffsActive.push({
+      name: 'Happiness Boost',
+      icon: '💖',
+      effect: 'happiness_boost',
+      multiplier: 1.5,
+      description: '+50% happiness from interactions'
+    });
+  }
+  
+  if (streak >= 30) {
+    dailyBuffsActive.push({
+      name: 'Super Streak!',
+      icon: '🔥',
+      effect: 'all_boost',
+      multiplier: 1.25,
+      description: '+25% to all pet activities!'
+    });
+  }
+  
+  console.log('[Buffs] Active buffs:', dailyBuffsActive);
+}
+
+// Get active buff multiplier for effect type
+function getBuffMultiplier(effectType) {
+  var multiplier = 1.0;
+  
+  dailyBuffsActive.forEach(function(buff) {
+    if (buff.effect === effectType || buff.effect === 'all_boost') {
+      multiplier *= buff.multiplier;
+    }
+  });
+  
+  return multiplier;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SHARING SYSTEM (Phase 8)
+// ══════════════════════════════════════════════════════════════════════════
+
+// Share progress to social media
+async function shareProgress() {
+  if (!currentUser) {
+    showToast('Please log in to share!');
+    return;
+  }
+  
+  try {
+    // Get user stats
+    var { data: player, error } = await supabaseClient
+      .from('players')
+      .select('username, pawket_points')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (error) throw error;
+    
+    // Get pet count
+    var { data: pets, error: petError } = await supabaseClient
+      .from('user_pets')
+      .select('id')
+      .eq('user_id', currentUser.id);
+    
+    if (petError) throw petError;
+    
+    var petCount = pets ? pets.length : 0;
+    
+    // Generate share text
+    var shareText = 'I have ' + petCount + ' pets and ' + player.pawket_points + ' PawketPoints on PawketPetsVT! 🐾✨\n\nAdopt your favorite VTuber\'s pet: https://pawketpets.vt';
+    
+    // Try native share API (mobile)
+    if (navigator.share) {
+      await navigator.share({
+        title: 'My PawketPetsVT Progress',
+        text: shareText,
+        url: 'https://pawketpets.vt'
+      });
+      
+      // Award bonus for sharing
+      await awardShareBonus();
+      
+    } else {
+      // Desktop - show share modal
+      showShareModal(shareText);
+    }
+    
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('[Share] Error:', err);
+      showToast('Failed to share. Please try again!');
+    }
+  }
+}
+
+// Show share modal with options
+function showShareModal(shareText) {
+  var modal = makeModal();
+  var content = makeEl('div');
+  content.style.cssText = 'padding:20px;';
+  
+  var title = makeEl('h2');
+  title.textContent = '📤 Share Your Progress';
+  title.style.cssText = 'text-align:center;color:var(--purple);margin-bottom:20px;';
+  content.appendChild(title);
+  
+  // Share text box
+  var textBox = makeEl('textarea');
+  textBox.value = shareText;
+  textBox.readOnly = true;
+  textBox.style.cssText = 'width:100%;height:100px;padding:10px;border:2px solid var(--border);border-radius:8px;font-family:inherit;margin-bottom:15px;resize:none;';
+  content.appendChild(textBox);
+  
+  // Share buttons
+  var buttons = makeEl('div');
+  buttons.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:15px;';
+  
+  var twitterBtn = makeEl('button', {class: 'btn btn-primary'});
+  twitterBtn.innerHTML = '🐦 Twitter';
+  twitterBtn.onclick = function() {
+    window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText), '_blank');
+    awardShareBonus();
+    closeModal();
+  };
+  buttons.appendChild(twitterBtn);
+  
+  var copyBtn = makeEl('button', {class: 'btn btn-outline'});
+  copyBtn.textContent = '📋 Copy Text';
+  copyBtn.onclick = function() {
+    textBox.select();
+    document.execCommand('copy');
+    showToast('Copied to clipboard!');
+    awardShareBonus();
+  };
+  buttons.appendChild(copyBtn);
+  
+  content.appendChild(buttons);
+  
+  var closeBtn = makeEl('button', {class: 'btn btn-secondary'});
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = function() { closeModal(); };
+  closeBtn.style.cssText = 'display:block;margin:0 auto;';
+  content.appendChild(closeBtn);
+  
+  modal.appendChild(content);
+  openModal(modal);
+}
+
+// Award bonus for sharing
+async function awardShareBonus() {
+  if (!currentUser) return;
+  
+  // Check if already claimed today
+  var today = new Date().toISOString().split('T')[0];
+  var lastShare = localStorage.getItem('lastShareBonus_' + currentUser.id);
+  
+  if (lastShare === today) {
+    console.log('[Share] Bonus already claimed today');
+    return;
+  }
+  
+  try {
+    // Award 100 PP for sharing
+    await supabaseClient.rpc('award_pp_secure', {
+      p_user_id: currentUser.id,
+      p_amount: 100,
+      p_reason: 'Shared progress on social media'
+    });
+    
+    localStorage.setItem('lastShareBonus_' + currentUser.id, today);
+    showToast('🎉 +100 PP for sharing! Thanks for spreading the word!', 4000);
+    
+    // Update points display
+    await loadPlayerPoints();
+    
+  } catch (err) {
+    console.error('[Share] Error awarding bonus:', err);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// REFERRAL SYSTEM (Phase 8)
+// ══════════════════════════════════════════════════════════════════════════
+
+// Generate referral code for user
+function generateReferralCode(username) {
+  // Simple base64 encode of username with timestamp
+  var code = btoa(username + ':' + Date.now()).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
+  return code;
+}
+
+// Show referral modal
+async function showReferralModal() {
+  if (!currentUser) {
+    showToast('Please log in to access referrals!');
+    return;
+  }
+  
+  try {
+    // Get or create referral code
+    var { data: player, error } = await supabaseClient
+      .from('players')
+      .select('username, referral_code, referral_count')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (error) throw error;
+    
+    var referralCode = player.referral_code;
+    
+    // Create code if doesn't exist
+    if (!referralCode) {
+      referralCode = generateReferralCode(player.username);
+      
+      await supabaseClient
+        .from('players')
+        .update({ referral_code: referralCode })
+        .eq('id', currentUser.id);
+    }
+    
+    var referralLink = 'https://pawketpets.vt?ref=' + referralCode;
+    var referralCount = player.referral_count || 0;
+    
+    // Show modal
+    var modal = makeModal();
+    var content = makeEl('div');
+    content.style.cssText = 'padding:20px;max-width:500px;';
+    
+    var title = makeEl('h2');
+    title.textContent = '💰 Refer Friends!';
+    title.style.cssText = 'text-align:center;color:var(--purple);margin-bottom:15px;';
+    content.appendChild(title);
+    
+    var desc = makeEl('p');
+    desc.innerHTML = 'Invite friends and earn <strong>250 PP</strong> for each friend who adopts their first pet!';
+    desc.style.cssText = 'text-align:center;margin-bottom:20px;color:var(--text-light);';
+    content.appendChild(desc);
+    
+    var stats = makeEl('div');
+    stats.innerHTML = '<div style="text-align:center;background:rgba(153,102,255,0.1);padding:15px;border-radius:12px;margin-bottom:20px;">' +
+      '<div style="font-size:2rem;color:var(--purple);font-weight:bold;">' + referralCount + '</div>' +
+      '<div style="color:var(--text-light);">Friends Referred</div>' +
+      '<div style="color:var(--purple);margin-top:5px;">🪙 ' + (referralCount * 250) + ' PP Earned</div>' +
+      '</div>';
+    content.appendChild(stats);
+    
+    var label = makeEl('div');
+    label.textContent = 'Your Referral Link:';
+    label.style.cssText = 'font-weight:bold;margin-bottom:8px;';
+    content.appendChild(label);
+    
+    var linkBox = makeEl('input');
+    linkBox.value = referralLink;
+    linkBox.readOnly = true;
+    linkBox.style.cssText = 'width:100%;padding:10px;border:2px solid var(--purple);border-radius:8px;font-family:monospace;margin-bottom:15px;';
+    linkBox.onclick = function() { this.select(); };
+    content.appendChild(linkBox);
+    
+    var copyBtn = makeEl('button', {class: 'btn btn-primary'});
+    copyBtn.innerHTML = '📋 Copy Link';
+    copyBtn.style.cssText = 'width:100%;margin-bottom:10px;';
+    copyBtn.onclick = function() {
+      linkBox.select();
+      document.execCommand('copy');
+      showToast('Referral link copied!');
+    };
+    content.appendChild(copyBtn);
+    
+    var closeBtn = makeEl('button', {class: 'btn btn-secondary'});
+    closeBtn.textContent = 'Close';
+    closeBtn.style.cssText = 'width:100%;';
+    closeBtn.onclick = function() { closeModal(); };
+    content.appendChild(closeBtn);
+    
+    modal.appendChild(content);
+    openModal(modal);
+    
+  } catch (err) {
+    console.error('[Referral] Error:', err);
+    showToast('Failed to load referral info!');
+  }
+}
+
+// Check for referral code on signup
+async function checkReferralCode() {
+  var urlParams = new URLSearchParams(window.location.search);
+  var refCode = urlParams.get('ref');
+  
+  if (!refCode) return;
+  
+  // Store referral code for signup
+  localStorage.setItem('pendingReferralCode', refCode);
+  console.log('[Referral] Referral code detected:', refCode);
+}
+
+// Process referral after first pet adoption
+async function processReferral() {
+  var refCode = localStorage.getItem('pendingReferralCode');
+  
+  if (!refCode || !currentUser) return;
+  
+  try {
+    // Find referrer
+    var { data: referrer, error } = await supabaseClient
+      .from('players')
+      .select('id, username, referral_count')
+      .eq('referral_code', refCode)
+      .single();
+    
+    if (error || !referrer) {
+      console.log('[Referral] Referrer not found');
+      localStorage.removeItem('pendingReferralCode');
+      return;
+    }
+    
+    // Don't allow self-referral
+    if (referrer.id === currentUser.id) {
+      console.log('[Referral] Cannot refer yourself');
+      localStorage.removeItem('pendingReferralCode');
+      return;
+    }
+    
+    // Award referrer
+    await supabaseClient.rpc('award_pp_secure', {
+      p_user_id: referrer.id,
+      p_amount: 250,
+      p_reason: 'Referral: ' + currentUser.email
+    });
+    
+    // Increment referral count
+    await supabaseClient
+      .from('players')
+      .update({ referral_count: (referrer.referral_count || 0) + 1 })
+      .eq('id', referrer.id);
+    
+    // Notify referrer
+    await createNotification(
+      referrer.id,
+      'referral_reward',
+      '💰 Referral Bonus!',
+      'Your friend joined PawketPetsVT! +250 PP',
+      'tab:stats'
+    );
+    
+    // Clear pending referral
+    localStorage.removeItem('pendingReferralCode');
+    
+    console.log('✅ Referral processed for:', referrer.username);
+    showToast('Welcome! Your friend has been credited with a referral bonus! 🎉');
+    
+  } catch (err) {
+    console.error('[Referral] Error processing:', err);
   }
 }
 

@@ -1087,6 +1087,13 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         <h1>Statistics</h1>
         <p>Track your progress and see community achievements! 📈</p>
       </div>
+      
+      <!-- Share Button -->
+      <div style="text-align:center;margin:20px 0;">
+        <button class="btn btn-primary" onclick="shareProgress()" style="background:linear-gradient(135deg,#ff6eb4 0%,#9966ff 100%);">
+          📤 Share My Progress
+        </button>
+      </div>
 
       <div id="stats-container">
         <div class="spinner"></div>
@@ -1844,6 +1851,17 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             <input type="checkbox" id="setting-weather" checked onchange="saveSettings()">
             <span class="toggle-slider"></span>
           </label>
+        </div>
+        
+        <!-- Referral System -->
+        <div style="margin-top:40px;padding-top:30px;border-top:2px solid var(--border);">
+          <h3 style="text-align:center;color:var(--purple);margin-bottom:15px;">💰 Invite Friends</h3>
+          <p style="text-align:center;color:var(--text-light);margin-bottom:20px;">
+            Earn 250 PP for each friend who adopts their first pet!
+          </p>
+          <button class="btn btn-primary" onclick="showReferralModal()" style="display:block;margin:0 auto;background:linear-gradient(135deg,#9966ff 0%,#ff66cc 100%);">
+            📤 Get Referral Link
+          </button>
         </div>
       </div>
       
