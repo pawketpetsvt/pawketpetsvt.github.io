@@ -7107,70 +7107,65 @@ var enemySpriteConfig = {
     file: 'MiniBunny.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 2,
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 2
+    rows: 1
   },
   'rabbit': {
     file: 'MiniBunny.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 2,
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 2
+    rows: 1
   },
   'squirrel': {
     file: 'MiniBunny.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 2,
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 2
+    rows: 1
   },
-  // FIXED: Fox - First 4 frames only (top row)
   'fox': {
     file: 'MiniFox.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 4,  // Top row has 4 frames
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 1  // Only use first row
+    rows: 1
   },
-  // FIXED: Boar - First 4 frames (top row)
   'boar': {
     file: 'MiniBoar.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 4,  // Top row has 4 frames
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 1  // Only use first row
+    rows: 1
   },
-  // FIXED: Wolf - First 4 frames (top row)
   'wolf': {
     file: 'MiniWolf.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 4,  // Top row has 4 frames
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 1  // Only use first row
+    rows: 1
   },
-  // FIXED: Bear - First 4 frames (top row)
   'bear': {
     file: 'MiniBear.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 4,  // Top row has 4 frames
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 1  // Only use first row
+    rows: 1
   },
-  // FIXED: Deer - First 4 frames (top row)
   'deer': {
     file: 'MiniDeer1.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 4,  // Top row has 4 frames
+    framesPerRow: 4,
     totalFrames: 4,
-    rows: 1  // Only use first row
+    rows: 1
   },
   'mushroom': {
     file: 'MonsterMushroom.png',
@@ -7211,11 +7206,22 @@ function startSpriteAnimation(spriteElement, species) {
     clearInterval(spriteElement._spriteInterval);
   }
   
+  // CRITICAL: Set proper background sizing
+  var sheetWidth = config.frameWidth * config.framesPerRow;
+  var sheetHeight = config.frameHeight * config.rows;
+  
+  spriteElement.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+  spriteElement.style.backgroundRepeat = 'no-repeat';
+  spriteElement.style.backgroundPosition = '0 0';
+  spriteElement.style.width = config.frameWidth + 'px';
+  spriteElement.style.height = config.frameHeight + 'px';
+  spriteElement.style.overflow = 'hidden';
+  spriteElement.style.display = 'block';
+  
   // Set up the animation interval
   var animationSpeed = 200; // ms per frame
   
   spriteElement._spriteInterval = setInterval(function() {
-    // Calculate position
     var col = currentFrame % config.framesPerRow;
     var row = Math.floor(currentFrame / config.framesPerRow);
     
@@ -7969,9 +7975,20 @@ async function getRandomEnemy(zone, playerLevel) {
     return null;
   }
   
+  // CRITICAL: Filter out raccoons completely
+  var filteredEnemies = res.data.filter(function(enemy) {
+    return enemy.species !== 'raccoon' && 
+           enemy.name.toLowerCase().indexOf('raccoon') === -1;
+  });
+  
+  if (filteredEnemies.length === 0) {
+    console.error('No enemies found after filtering raccoons');
+    return null;
+  }
+  
   // Pick random base enemy
-  var randomIndex = Math.floor(Math.random() * res.data.length);
-  var baseEnemy = res.data[randomIndex];
+  var randomIndex = Math.floor(Math.random() * filteredEnemies.length);
+  var baseEnemy = filteredEnemies[randomIndex];
   
   // Pick random level within range
   var enemyLevel = minLevel + Math.floor(Math.random() * (maxLevel - minLevel + 1));
@@ -11779,7 +11796,15 @@ async function generateDungeonEnemies(playerStats) {
     return [];
   }
   
-  var baseEnemy = res.data[Math.floor(Math.random() * res.data.length)];
+  // CRITICAL: Filter out raccoons completely
+  var filteredEnemies = res.data.filter(function(enemy) {
+    return enemy.species !== 'raccoon' && 
+           enemy.name.toLowerCase().indexOf('raccoon') === -1;
+  });
+  
+  if (filteredEnemies.length === 0) return [];
+  
+  var baseEnemy = filteredEnemies[Math.floor(Math.random() * filteredEnemies.length)];
   var enemies = [];
   
   // Wave 1: Baby variant (-1 level, 0.7x stats)
