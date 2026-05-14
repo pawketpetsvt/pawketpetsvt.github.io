@@ -9680,6 +9680,11 @@ body.night-mode .btn-outline:hover {
     display: none !important;
   }
   
+  /* Hide all desktop-nav sections on mobile */
+  .desktop-nav {
+    display: none !important;
+  }
+  
   /* Alternatively, more precisely target the nav section */
   .left-sidebar .sidebar-section .sidebar-nav-links {
     display: none !important;
