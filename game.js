@@ -2426,6 +2426,21 @@ async function feedWithItem(petId, itemId, itemName) {
     }
     
     showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
+    
+    // 🐾 COMPANION REACTION - Feeding!
+    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+      setTimeout(function() {
+        var feedMessages = {
+          loved: ["They LOVE it! 💖", "Best food ever! ✨"],
+          liked: ["Yummy! 😋", "Tasty treat! 🍕"],
+          disliked: ["Hmm, not their favorite... 😐"],
+          hated: ["Ew, they hate that! 😖"],
+          normal: ["Nom nom! 🍪", "Snack time! 🍕"]
+        };
+        var msgPool = feedMessages[reactionType] || feedMessages.normal;
+        CompanionBuddy.showMessage(msgPool[Math.floor(Math.random() * msgPool.length)]);
+      }, 1000);
+    }
   } else {
     showFlash(petId, '+20 Hunger +5 Happiness +10 XP', '#5dde7a');
   }
@@ -3383,6 +3398,14 @@ async function makeGuess() {
     
     result.textContent='Correct! +25 PP!'; result.style.color='#5dde7a';
     el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
+    
+    // 🐾 COMPANION REACTION - Minigame win!
+    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+      setTimeout(function() {
+        var winMessages = ["You got it! 🌟", "Amazing guess! 🎯", "You're so smart! 💡", "Perfect! ✨"];
+        CompanionBuddy.showMessage(winMessages[Math.floor(Math.random() * winMessages.length)]);
+      }, 500);
+    }
   } else if(guessesLeft===0){
     setCD('guess');
     await awardBadge('guess_first_play'); // Award badge even if lost
@@ -6825,45 +6848,50 @@ var enemySpriteConfig = {
     totalFrames: 4,
     rows: 2
   },
+  // FIXED: Fox - First 4 frames only (top row)
   'fox': {
     file: 'MiniFox.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 3,
+    framesPerRow: 4,  // Top row has 4 frames
     totalFrames: 4,
-    rows: 2
+    rows: 1  // Only use first row
   },
+  // FIXED: Boar - First 4 frames (top row)
   'boar': {
     file: 'MiniBoar.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 2,
+    framesPerRow: 4,  // Top row has 4 frames
     totalFrames: 4,
-    rows: 2
+    rows: 1  // Only use first row
   },
+  // FIXED: Wolf - First 4 frames (top row)
   'wolf': {
     file: 'MiniWolf.png',
-    frameWidth: 22,
+    frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 1,
+    framesPerRow: 4,  // Top row has 4 frames
     totalFrames: 4,
-    rows: 4
+    rows: 1  // Only use first row
   },
+  // FIXED: Bear - First 4 frames (top row)
   'bear': {
     file: 'MiniBear.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 5,
+    framesPerRow: 4,  // Top row has 4 frames
     totalFrames: 4,
-    rows: 1
+    rows: 1  // Only use first row
   },
+  // FIXED: Deer - First 4 frames (top row)
   'deer': {
     file: 'MiniDeer1.png',
     frameWidth: 64,
     frameHeight: 64,
-    framesPerRow: 2,
+    framesPerRow: 4,  // Top row has 4 frames
     totalFrames: 4,
-    rows: 2
+    rows: 1  // Only use first row
   },
   'mushroom': {
     file: 'MonsterMushroom.png',
@@ -7138,6 +7166,18 @@ function showBattleRewardsModal() {
     expText.textContent = '+' + battleRewards.expGained + ' EXP';
     ppText.textContent = '+' + battleRewards.ppGained + ' PP';
     
+    // 🐾 COMPANION REACTION - Battle victory!
+    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+      var victoryMessages = [
+        "That was incredible! ⚔️✨",
+        "You're so strong! 💪",
+        "Amazing battle! 🌟",
+        "We won! 🎉",
+        "Victory is ours! ⭐"
+      ];
+      CompanionBuddy.showMessage(victoryMessages[Math.floor(Math.random() * victoryMessages.length)]);
+    }
+    
     // ⭐ STAR BURST!
     setTimeout(function() {
       createStarBurst(window.innerWidth / 2, window.innerHeight / 3);
@@ -7146,6 +7186,13 @@ function showBattleRewardsModal() {
     // Check for level up
     if (battleRewards.leveledUp) {
       var levelUpText = '⭐ LEVEL UP! Now Level ' + battleRewards.newLevel + '!\n';
+      
+      // 🐾 COMPANION REACTION - Level up!
+      if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+        setTimeout(function() {
+          CompanionBuddy.showMessage("You're getting stronger! 💪⭐");
+        }, 3000);
+      }
       
       // Check for evolution!
       if (battleRewards.evolved) {
@@ -15781,21 +15828,6 @@ async function loadStatsPage() {
  * Get current rotation week (A, B, or C) based on current date
  * Rotates every Monday at midnight
  */
-function getCurrentRotationWeek() {
-  var now = new Date();
-  
-  // Calculate weeks since epoch (Jan 1, 1970)
-  var epochStart = new Date(1970, 0, 1);
-  var millisecondsSinceEpoch = now - epochStart;
-  var weeksSinceEpoch = Math.floor(millisecondsSinceEpoch / (7 * 24 * 60 * 60 * 1000));
-  
-  // Cycle through A, B, C
-  var weekIndex = weeksSinceEpoch % 3;
-  var weeks = ['A', 'B', 'C'];
-  
-  return weeks[weekIndex];
-}
-
 /**
  * Get next rotation date (next Monday at midnight)
  */
