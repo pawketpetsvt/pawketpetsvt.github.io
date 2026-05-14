@@ -338,6 +338,47 @@ function makeEl(tag, attrs, text) {
   return e;
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// MODAL HELPER FUNCTIONS - Required for variant gallery & nickname editing
+// ══════════════════════════════════════════════════════════════════════════
+
+function makeModal() {
+  var overlay = makeEl('div');
+  overlay.className = 'modal-overlay-custom';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  
+  var modal = makeEl('div');
+  modal.className = 'modal-content-custom';
+  modal.style.cssText = 'background:white;border-radius:20px;padding:30px;max-width:90%;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+  
+  overlay.appendChild(modal);
+  
+  // Click overlay to close
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) {
+      closeModal();
+    }
+  });
+  
+  return modal;
+}
+
+function openModal(modalElement) {
+  var overlay = modalElement.parentElement;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden'; // Prevent background scroll
+}
+
+function closeModal() {
+  var overlays = document.querySelectorAll('.modal-overlay-custom');
+  overlays.forEach(function(overlay) {
+    if (overlay.parentElement) {
+      overlay.parentElement.removeChild(overlay);
+    }
+  });
+  document.body.style.overflow = ''; // Restore scroll
+}
+
 function updateAllPoints(pts) {
   // Handle null/undefined points
   if (pts === null || pts === undefined) {
