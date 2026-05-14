@@ -9605,12 +9605,12 @@ body.night-mode .btn-outline:hover {
   transform: scale(0.95);
 }
 
-/* Mobile Navigation Menu */
+/* Mobile Navigation Menu - Hidden by default */
 .mobile-nav-menu {
   position: fixed;
   top: 0;
   left: 0;
-  width: 300px;
+  width: 280px;
   height: 100vh;
   background: linear-gradient(180deg, #ffddee 0%, #e6ccff 100%);
   box-shadow: 4px 0 20px rgba(0, 0, 0, 0.2);
@@ -9625,7 +9625,6 @@ body.night-mode .btn-outline:hover {
   transform: translateX(0);
 }
 
-/* Mobile Menu Close Button */
 .mobile-menu-close {
   display: block;
   width: 100%;
@@ -9645,7 +9644,6 @@ body.night-mode .btn-outline:hover {
   transform: scale(1.02);
 }
 
-/* Mobile Overlay */
 .mobile-nav-overlay {
   display: none;
   position: fixed;
@@ -9664,16 +9662,28 @@ body.night-mode .btn-outline:hover {
   opacity: 1;
 }
 
-/* Mobile Layout Adjustments */
-@media (max-width: 1024px) {
-  /* Show Hamburger Button */
+/* ========== MOBILE LAYOUT (width < 900px) ========== */
+@media (max-width: 900px) {
+  /* Show Hamburger Button on mobile */
   .hamburger-menu-btn {
     display: block !important;
   }
   
-  /* Hide Desktop Sidebar Nav */
-  .left-sidebar > .sidebar-section:nth-child(2) {
+  /* Hide the DESKTOP left sidebar navigation buttons */
+  /* Keep the stats section visible, hide the nav section */
+  .left-sidebar > .sidebar-section:first-of-type + .sidebar-section {
     display: none !important;
+  }
+  
+  /* Alternatively, more precisely target the nav section */
+  .left-sidebar .sidebar-section .sidebar-nav-links {
+    display: none !important;
+  }
+  
+  /* But keep the stats and daily bonus sections visible in mobile sidebar */
+  .left-sidebar .sidebar-section:has(.sidebar-stats),
+  .left-sidebar .sidebar-section:has(.daily-bonus-btn) {
+    display: block !important;
   }
   
   /* App Container - Stack Vertically */
@@ -9681,15 +9691,28 @@ body.night-mode .btn-outline:hover {
     display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
+    padding: 10px !important;
   }
   
-  /* Left Sidebar - Compact Header */
+  /* Left Sidebar - Compact header with stats only */
   .left-sidebar {
     position: static !important;
     width: 100% !important;
     height: auto !important;
     padding: 10px !important;
+    margin: 0 !important;
     order: 1;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+  
+  /* Make sidebar sections horizontal on mobile */
+  .left-sidebar .sidebar-section {
+    flex: 1 !important;
+    min-width: 120px !important;
+    margin: 0 !important;
   }
   
   /* Center Content - Full Width */
@@ -9728,7 +9751,7 @@ body.night-mode .btn-outline:hover {
   }
   
   /* Responsive Grids */
-  .pet-grid,
+  .pets-grid,
   .shop-grid,
   .badges-grid,
   .leaderboard-list {
@@ -9737,11 +9760,7 @@ body.night-mode .btn-outline:hover {
   }
   
   /* Battle Screen Mobile */
-  .battle-screen {
-    padding: 10px !important;
-  }
-  
-  .battle-ui {
+  .battle-container {
     flex-direction: column !important;
     gap: 20px !important;
   }
@@ -9750,18 +9769,16 @@ body.night-mode .btn-outline:hover {
     width: 100% !important;
   }
   
-  /* Navbar Mobile */
-  .navbar {
-    flex-wrap: wrap !important;
-    padding: 10px !important;
+  .battle-vs {
+    order: 2 !important;
   }
   
-  .navbar-title {
-    font-size: 1.2rem !important;
+  .battle-player {
+    order: 1 !important;
   }
   
-  .navbar-points {
-    font-size: 1rem !important;
+  .battle-enemy {
+    order: 3 !important;
   }
   
   /* Modal Mobile */
@@ -9771,12 +9788,13 @@ body.night-mode .btn-outline:hover {
     margin: 10px !important;
   }
   
-  /* Activity Feed - Hide on Mobile */
+  /* Activity Feed - Show on mobile but condensed */
   .activity-feed-box {
-    display: none !important;
+    display: block !important;
+    font-size: 0.8rem !important;
   }
   
-  /* Stats Section - Horizontal */
+  /* Sidebar stats - horizontal layout */
   .sidebar-stats {
     display: flex !important;
     justify-content: space-around !important;
@@ -9786,6 +9804,7 @@ body.night-mode .btn-outline:hover {
   .stat-row {
     flex-direction: column !important;
     align-items: center !important;
+    text-align: center !important;
   }
 }
 
@@ -9800,24 +9819,58 @@ body.night-mode .btn-outline:hover {
   }
   
   .mobile-nav-menu {
-    width: 280px !important;
-  }
-  
-  .navbar-title {
-    font-size: 1rem !important;
-  }
-  
-  .navbar-points {
-    font-size: 0.9rem !important;
+    width: 260px !important;
   }
   
   .page-hero h1 {
-    font-size: 2rem !important;
+    font-size: 1.8rem !important;
   }
   
   .pet-card,
-  .shop-item-card {
+  .shop-card {
     padding: 16px !important;
+  }
+  
+  .left-sidebar .sidebar-section {
+    min-width: 100% !important;
+  }
+}
+
+/* ========== DESKTOP LAYOUT (width >= 901px) ========== */
+@media (min-width: 901px) {
+  /* Hamburger button hidden on desktop */
+  .hamburger-menu-btn {
+    display: none !important;
+  }
+  
+  /* Mobile menu hidden on desktop */
+  .mobile-nav-menu {
+    display: none !important;
+  }
+  
+  /* Desktop left sidebar - FULLY VISIBLE */
+  .left-sidebar {
+    display: block !important;
+  }
+  
+  .left-sidebar .sidebar-section {
+    display: block !important;
+  }
+  
+  .left-sidebar .sidebar-section .sidebar-nav-links {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  /* Ensure 3-column layout */
+  .app-container {
+    display: grid !important;
+    grid-template-columns: 260px 1fr 260px !important;
+    gap: 20px !important;
+    max-width: 1400px !important;
+    margin: 0 auto !important;
+    padding: 20px !important;
   }
 }
 
