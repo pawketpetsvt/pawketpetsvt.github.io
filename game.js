@@ -2262,6 +2262,25 @@ async function feed(petId) {
     showFlash(petId, '+20 Hunger +5 Happiness +10 XP', '#5dde7a');
   }
   
+  // FOOD REACTION SYSTEM - Show special reactions based on pet preferences
+  // Note: This is client-side display only. Server calculates actual bonuses.
+  var petType = pet.pet_type || pet.petType;
+  var prefs = getPetPreferences(petType);
+  if (prefs) {
+    // TODO: Get actual food category from item being fed
+    // For now, show generic positive reaction occasionally
+    if (Math.random() < 0.3) {
+      var reactions = [
+        pet.nickname + ' seems to enjoy this!',
+        pet.nickname + ' happily munches away!',
+        pet.nickname + ' wags excitedly!'
+      ];
+      setTimeout(function() {
+        showFlash(petId, reactions[Math.floor(Math.random() * reactions.length)], '#ffdd00');
+      }, 800);
+    }
+  }
+  
   btn.textContent = 'Fed Today!';
   btn.disabled = true;
   btn.style.opacity = '0.6';
@@ -2378,6 +2397,46 @@ function itemEmoji(type) {
   }[type]||'🎁';     // Gift box default
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// FOOD ROTATION SYSTEM - Weekly rotating food categories
+// ══════════════════════════════════════════════════════════════════════════
+
+var foodCategoryData = {
+  spicy: { name: 'Spicy', icon: '🌶️', color: '#ff4444' },
+  sweet: { name: 'Sweet', icon: '🍰', color: '#ff66cc' },
+  savory: { name: 'Savory', icon: '🍖', color: '#8B4513' },
+  fish: { name: 'Fish', icon: '🐟', color: '#4488ff' },
+  fruit: { name: 'Fruit', icon: '🍎', color: '#ff6666' },
+  basic: { name: 'Basic', icon: '🍞', color: '#d4a76a' }
+};
+
+// 3-week rotation (like equipment)
+function getFoodRotation() {
+  var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  var weekInCycle = weeksSinceEpoch % 3;
+  
+  var rotations = [
+    ['spicy', 'savory'],    // Week A: Hearty foods
+    ['sweet', 'fruit'],     // Week B: Treats
+    ['fish', 'basic']       // Week C: Essentials
+  ];
+  
+  return rotations[weekInCycle];
+}
+
+function isFoodFeatured(foodCategory) {
+  if (!foodCategory) return false;
+  var featured = getFoodRotation();
+  return featured.includes(foodCategory);
+}
+
+function getFoodCategoryLabel(category) {
+  if (!category) return '';
+  var data = foodCategoryData[category];
+  if (!data) return '';
+  return data.icon + ' ' + data.name;
+}
+
 
 async function loadShop() {
   var grid = el('shop-grid');
@@ -2468,6 +2527,16 @@ async function loadShop() {
       else iconDiv.innerHTML=itemEmoji(item.item_type);
       card.appendChild(iconDiv);
       card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
+      
+      // FOOD CATEGORY LABEL (for food items only)
+      if (config.key === 'food' && item.food_category) {
+        var categoryLabel = makeEl('div', {class: 'food-category-label'});
+        var featured = isFoodFeatured(item.food_category);
+        categoryLabel.textContent = getFoodCategoryLabel(item.food_category) + (featured ? ' ⭐ Featured' : '');
+        categoryLabel.style.cssText = 'font-size: 0.85rem; color: ' + (featured ? '#ff6600' : '#888') + '; margin: 4px 0; font-weight: ' + (featured ? 'bold' : 'normal');
+        card.appendChild(categoryLabel);
+      }
+      
       card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
       var tags=makeEl('div',{class:'shop-effects'});
       if(item.hunger_effect>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hunger_effect+' Hunger'));
@@ -2774,6 +2843,59 @@ async function useOnPet(petId,petNickname) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// PET FOOD PREFERENCES & PERSONALITIES
+// PLACEHOLDER_PET_DATA - Replace these with real streamer pet preferences!
+// Search for "PLACEHOLDER_PET_DATA" to find all placeholder data
+// ══════════════════════════════════════════════════════════════════════════
+
+var petFoodPreferences = {
+  // PLACEHOLDER_PET_DATA - Ember (Embertail's pet)
+  'Ember': {
+    favorite_category: 'spicy',
+    hated_category: 'sweet',
+    favorite_item_name: 'Spicy Ramen',  // Must match exact item name in database
+    hobby: 'dueling',
+    fun_fact: 'Ember once won a spoon dueling championship!',
+    personality: ['confident', 'competitive']
+  },
+  
+  // PLACEHOLDER_PET_DATA - Pyxie (Pyxshuul's pet)
+  'Pyxie': {
+    favorite_category: 'sweet',
+    hated_category: 'fish',
+    favorite_item_name: 'Candy',
+    hobby: 'napping',
+    fun_fact: 'Pyxie can sleep for 16 hours straight!',
+    personality: ['playful', 'chaotic']
+  },
+  
+  // PLACEHOLDER_PET_DATA - Cowbee
+  'Cowbee': {
+    favorite_category: 'fruit',
+    hated_category: 'spicy',
+    favorite_item_name: 'Apple',
+    hobby: 'gardening',
+    fun_fact: 'Cowbee grows their own vegetables!',
+    personality: ['gentle', 'sleepy']
+  },
+  
+  // PLACEHOLDER_PET_DATA - Add more pets as needed
+  // Template:
+  // 'PetName': {
+  //   favorite_category: 'spicy/sweet/savory/fish/fruit/basic',
+  //   hated_category: 'spicy/sweet/savory/fish/fruit/basic',
+  //   favorite_item_name: 'Exact Item Name',
+  //   hobby: 'activity name',
+  //   fun_fact: 'interesting fact',
+  //   personality: ['trait1', 'trait2']
+  // }
+};
+
+function getPetPreferences(petType) {
+  return petFoodPreferences[petType] || null;
+}
+
 // BADGES SYSTEM
 // ══════════════════════════════════════════════════════════════════════════
 
