@@ -316,6 +316,21 @@ function escapeHtml(text) {
 // ── UTILS ────────────────────────────────
 function el(id) { return document.getElementById(id); }
 
+// ══════════════════════════════════════════════════════════════════════════
+// RATE LIMITING - Client-side cooldowns to prevent spam
+// ══════════════════════════════════════════════════════════════════════════
+
+var actionCooldowns = {};
+
+function canPerformAction(actionKey, cooldownMs) {
+  var now = Date.now();
+  if (actionCooldowns[actionKey] && now - actionCooldowns[actionKey] < cooldownMs) {
+    return false;
+  }
+  actionCooldowns[actionKey] = now;
+  return true;
+}
+
 function makeEl(tag, attrs, text) {
   var e = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function(k){ e.setAttribute(k, attrs[k]); });
@@ -1114,14 +1129,48 @@ var lastAdoptedPet = null;
 
 async function confirmAdopt() {
   if (!selectedPet || !currentUser) return;
+  
+  // Rate limiting
+  if (!canPerformAction('adopt_pet', 1000)) {
+    showToast('Please wait before adopting again!');
+    return;
+  }
+  
   var btn = el('confirm-adopt-btn');
-  var nickname = el('nickname-input').value.trim() || selectedPet.name;
+  var nickname = el('nickname-input').value.trim();
+  
+  // Validation
+  if (!nickname || nickname === '') {
+    showToast('Please enter a nickname! ❌');
+    return;
+  }
+  
+  if (nickname.length > 50) {
+    showToast('Nickname must be 50 characters or less! ❌');
+    return;
+  }
+  
+  if (/<\/?[a-z][\s\S]*>/i.test(nickname)) {
+    showToast('Nickname cannot contain HTML tags! ❌');
+    return;
+  }
+  
+  if (containsProfanity(nickname)) {
+    showToast('Please choose a family-friendly nickname! ❌');
+    return;
+  }
+  
+  // Use provided nickname or fallback to pet name
+  if (nickname === '') {
+    nickname = selectedPet.name;
+  }
+  
   btn.textContent = 'Adopting...'; 
   btn.disabled = true;
   
   // Call secure database function
   var { data: result, error } = await supabaseClient.rpc('adopt_pet_secure', {
-    p_pet_id: selectedPet.id,
+    p_pet_type: selectedPet.name,
     p_nickname: nickname,
     p_price: selectedPet.price
   });
@@ -1385,6 +1434,16 @@ async function saveNickname(petId) {
   
   if (newNickname.length > 30) {
     showToast('Nickname too long! (Max 30 characters) ❌');
+    return;
+  }
+  
+  if (/<\/?[a-z][\s\S]*>/i.test(newNickname)) {
+    showToast('Nickname cannot contain HTML tags! ❌');
+    return;
+  }
+  
+  if (containsProfanity(newNickname)) {
+    showToast('Please choose a family-friendly nickname! ❌');
     return;
   }
   
@@ -2154,6 +2213,11 @@ function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnerg
 }
 
 async function feed(petId) {
+  // Rate limiting
+  if (!canPerformAction('feed_' + petId, 500)) {
+    return; // Silently reject if too fast
+  }
+  
   var pet = petState[petId]; 
   if (!pet || pet.hunger >= pet.max_hunger) return;
   
@@ -2204,6 +2268,11 @@ async function feed(petId) {
 }
 
 async function play(petId) {
+  // Rate limiting
+  if (!canPerformAction('play_' + petId, 500)) {
+    return; // Silently reject if too fast
+  }
+  
   var pet = petState[petId]; 
   if (!pet || pet.energy < 10) return;
   
@@ -2469,6 +2538,12 @@ async function loadShop() {
 
 async function buyItem(itemId, itemName, price) {
   if (!currentUser) return;
+  
+  // Rate limiting
+  if (!canPerformAction('buy_item', 500)) {
+    showToast('Please wait before purchasing again!');
+    return;
+  }
   
   // Call secure database function
   var { data: result, error } = await supabaseClient.rpc('buy_item_secure', {
@@ -9246,6 +9321,12 @@ document.addEventListener('DOMContentLoaded', function() {
 async function postGuestbookMessage() {
   if (!currentUser || !currentProfileUserId) return;
   
+  // Rate limiting
+  if (!canPerformAction('guestbook_post', 2000)) {
+    showToast('Please wait before posting again!');
+    return;
+  }
+  
   var messageInput = document.getElementById('guestbook-message-input');
   var message = messageInput.value.trim();
   
@@ -9885,7 +9966,7 @@ acceptFriendRequest = async function(friendshipId) {
         friendship.requester_id,
         'friend_accepted',
         'Friend Request Accepted!',
-        (player ? player.username : 'Someone') + ' accepted your friend request!',
+        escapeHtml(player ? player.username : 'Someone') + ' accepted your friend request!',
         'tab:friends',
         currentUser.id
       );
@@ -12243,7 +12324,7 @@ async function checkVariantUnlock(petId, level) {
     // Show notification
     var variantData = petVariants[variantToUnlock];
     showToast('✨ <strong>Variant Unlocked!</strong><br>' +
-      pet.nickname + ' became <span style="color: ' + variantData.color + ';">' + 
+      escapeHtml(pet.nickname) + ' became <span style="color: ' + variantData.color + ';">' + 
       variantData.icon + ' ' + variantData.name + '</span>!',
       6000, variantData.color);
     
