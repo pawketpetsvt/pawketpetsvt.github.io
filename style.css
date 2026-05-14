@@ -4028,7 +4028,9 @@ body::after {
   width: 64px;
   height: 64px;
   /* background-size now set dynamically via JavaScript */
-  background-repeat: no-repeat;
+  background-repeat: no-repeat !important;  /* CRITICAL: Prevent tiling */
+  overflow: hidden !important;  /* CRITICAL: Hide frames outside viewport */
+  display: block !important;  /* CRITICAL: Proper block display */
   transition: transform 0.1s ease;
 }
 
@@ -10087,7 +10089,7 @@ body.night-mode .btn-outline:hover {
 .journal-book {
   max-width: 700px;
   margin: 30px auto;
-  background: linear-gradient(135deg, #fff5e6 0%, #ffe6cc 100%);
+  background: linear-gradient(135deg, #d4b896 0%, #c9a885 100%); /* DARKER paper color */
   border: 6px solid #8B4513;
   border-radius: 16px;
   padding: 40px;
@@ -10102,14 +10104,14 @@ body.night-mode .btn-outline:hover {
   top: 20px;
   bottom: 20px;
   width: 2px;
-  background: rgba(139, 69, 19, 0.3);
+  background: rgba(139, 69, 19, 0.5); /* Darker spine line */
   transform: translateX(-50%);
 }
 
 .journal-page {
   min-height: 500px;
   padding: 20px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.95); /* MORE OPAQUE white background */
   border-radius: 8px;
 }
 
@@ -10138,25 +10140,29 @@ body.night-mode .btn-outline:hover {
 .journal-entry {
   margin: 20px 0;
   padding: 15px;
-  background: rgba(153, 102, 255, 0.1);
+  background: rgba(255, 255, 255, 0.95); /* SOLID white entries for contrast */
   border-left: 4px solid var(--purple);
   border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow for depth */
 }
 
 .journal-entry-label {
   font-weight: 700;
   color: var(--purple-dark);
   margin-bottom: 5px;
+  font-size: 0.95rem;
 }
 
 .journal-entry-value {
   color: var(--text);
   font-size: 1.1rem;
+  font-weight: 500; /* Slightly bolder text */
 }
 
 .journal-entry-unknown {
-  color: var(--text-light);
+  color: #999; /* Darker gray for ??? */
   font-style: italic;
+  font-weight: normal;
 }
 
 .journal-controls {

@@ -6770,15 +6770,20 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     
     // Get sprite configuration
     var config = getSpriteConfig(enemyStats.species);
+    
+    // Calculate full sheet dimensions
     var sheetWidth = config.frameWidth * config.framesPerRow;
     var sheetHeight = config.frameHeight * config.rows;
     
-    // Set up sprite
+    // CRITICAL FIX: Set up sprite container properly
     enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
     enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+    enemySprite.style.backgroundRepeat = 'no-repeat';  // ADDED: Prevent tiling
     enemySprite.style.backgroundPosition = '0 0';
     enemySprite.style.width = config.frameWidth + 'px';
     enemySprite.style.height = config.frameHeight + 'px';
+    enemySprite.style.overflow = 'hidden';  // ADDED: Hide frames outside viewport
+    enemySprite.style.display = 'block';  // ADDED: Ensure block display
     
     // Start animation
     startSpriteAnimation(enemySprite, enemyStats.species);
