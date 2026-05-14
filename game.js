@@ -12659,10 +12659,59 @@ function getPetTitleDisplay(petId) {
 
 // Variant types and their unlock levels
 var petVariants = {
-  golden: { level: 5, chance: 0.15, name: 'Golden', icon: '✨', color: '#FFD700' },
-  shiny: { level: 10, chance: 0.15, name: 'Shiny', icon: '💎', color: '#00CED1' },
-  rainbow: { level: 15, chance: 0.15, name: 'Rainbow', icon: '🌈', color: '#FF69B4' },
-  cosmic: { level: 20, chance: 0.15, name: 'Cosmic', icon: '🌌', color: '#9370DB' }
+  // Level-based variants (existing)
+  golden: { level: 5, chance: 0.15, name: 'Golden', icon: '✨', color: '#FFD700', unlockType: 'level' },
+  shiny: { level: 10, chance: 0.15, name: 'Shiny', icon: '💎', color: '#00CED1', unlockType: 'level' },
+  rainbow: { level: 15, chance: 0.15, name: 'Rainbow', icon: '🌈', color: '#FF69B4', unlockType: 'level' },
+  cosmic: { level: 20, chance: 0.15, name: 'Cosmic', icon: '🌌', color: '#9370DB', unlockType: 'level' },
+  
+  // STREAM REWARD VARIANTS - CSS effects only, add custom sprites later!
+  // These are unlocked via Twitch channel point redemptions
+  shadow: { 
+    unlockType: 'twitch_reward', 
+    rewardId: 'shadow_variant', 
+    name: 'Shadow', 
+    icon: '🌑', 
+    color: '#4a4a4a',
+    description: 'Mysterious dark variant',
+    cssEffect: 'shadow' // Pure CSS styling
+  },
+  fire: { 
+    unlockType: 'twitch_reward', 
+    rewardId: 'fire_variant', 
+    name: 'Fire', 
+    icon: '🔥', 
+    color: '#ff4400',
+    description: 'Blazing hot variant',
+    cssEffect: 'fire'
+  },
+  ice: { 
+    unlockType: 'twitch_reward', 
+    rewardId: 'ice_variant', 
+    name: 'Ice', 
+    icon: '❄️', 
+    color: '#88ddff',
+    description: 'Frosty cool variant',
+    cssEffect: 'ice'
+  },
+  spirit: { 
+    unlockType: 'twitch_reward', 
+    rewardId: 'spirit_variant', 
+    name: 'Spirit', 
+    icon: '👻', 
+    color: '#ccaaff',
+    description: 'Ghostly ethereal variant',
+    cssEffect: 'spirit'
+  },
+  crystal: { 
+    unlockType: 'twitch_reward', 
+    rewardId: 'crystal_variant', 
+    name: 'Crystal', 
+    icon: '💠', 
+    color: '#00ffff',
+    description: 'Crystalline variant',
+    cssEffect: 'crystal'
+  }
 };
 
 // Get variant badge HTML
@@ -12751,6 +12800,256 @@ async function checkVariantUnlock(petId, level) {
   } catch (err) {
     console.error('[Variant] Error unlocking variant:', err);
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// STREAM REWARD VARIANT UNLOCKS - Via Twitch Channel Points
+// ══════════════════════════════════════════════════════════════════════════
+
+// Unlock variant via Twitch reward redemption
+async function unlockTwitchVariant(petId, variantKey, rewardInfo) {
+  if (!currentUser) {
+    showToast('Please log in to unlock variants!');
+    return false;
+  }
+  
+  var pet = petState[petId];
+  if (!pet) {
+    console.error('[TwitchVariant] Pet not found:', petId);
+    return false;
+  }
+  
+  // Check if variant exists
+  var variantData = petVariants[variantKey];
+  if (!variantData || variantData.unlockType !== 'twitch_reward') {
+    console.error('[TwitchVariant] Invalid variant:', variantKey);
+    return false;
+  }
+  
+  // Check if pet already has this variant
+  if (pet.variant === variantKey) {
+    showToast('🐾 ' + escapeHtml(pet.nickname) + ' already has the ' + variantData.name + ' variant!');
+    return false;
+  }
+  
+  try {
+    // Update pet with new variant
+    var updateRes = await supabaseClient
+      .from('user_pets')
+      .update({ 
+        variant: variantKey,
+        variant_unlocked_at_level: pet.level,
+        variant_unlock_source: 'twitch_reward'
+      })
+      .eq('id', petId)
+      .eq('user_id', currentUser.id); // Security check
+    
+    if (updateRes.error) {
+      console.error('[TwitchVariant] Error unlocking variant:', updateRes.error);
+      showToast('Failed to unlock variant. Please try again!');
+      return false;
+    }
+    
+    // Update local state
+    petState[petId].variant = variantKey;
+    petState[petId].variant_unlocked_at_level = pet.level;
+    
+    // Show fancy unlock notification
+    showVariantUnlockNotification(pet.nickname, variantData);
+    
+    // Award badge for first Twitch variant unlock
+    await awardBadge('twitch_variant_unlock');
+    
+    // Log to activity feed
+    if (typeof logActivity === 'function') {
+      await logActivity('unlocked ' + variantData.icon + ' ' + variantData.name + ' variant for ' + pet.nickname);
+    }
+    
+    // Reload pet display
+    tabsLoaded['mypets'] = false;
+    
+    console.log('✨ Twitch variant unlocked:', variantKey, 'for pet', petId);
+    return true;
+    
+  } catch (err) {
+    console.error('[TwitchVariant] Error:', err);
+    showToast('Something went wrong. Please try again!');
+    return false;
+  }
+}
+
+// Show fancy variant unlock notification
+function showVariantUnlockNotification(petNickname, variantData) {
+  var notification = document.createElement('div');
+  notification.className = 'variant-unlock-notification';
+  notification.innerHTML = 
+    '<h2>' + variantData.icon + ' Variant Unlocked!</h2>' +
+    '<p><strong>' + escapeHtml(petNickname) + '</strong> is now</p>' +
+    '<p style="font-size:1.5rem;color:' + variantData.color + ';font-weight:bold;">' +
+    variantData.icon + ' ' + variantData.name + '</p>' +
+    '<p style="font-size:0.9rem;margin-top:10px;">' + variantData.description + '</p>';
+  
+  document.body.appendChild(notification);
+  
+  // Remove after 4 seconds
+  setTimeout(function() {
+    notification.style.animation = 'variantUnlockPop 0.3s ease reverse';
+    setTimeout(function() {
+      document.body.removeChild(notification);
+    }, 300);
+  }, 4000);
+}
+
+// Check for pending Twitch reward redemptions
+// This would be called periodically or when user visits the site
+async function checkTwitchRewardRedemptions() {
+  if (!currentUser) return;
+  
+  // In a real implementation, this would:
+  // 1. Check your backend for pending Twitch EventSub notifications
+  // 2. Process any variant unlock rewards
+  // 3. Mark them as processed
+  
+  // Example structure:
+  // var { data: redemptions, error } = await supabaseClient
+  //   .from('twitch_reward_queue')
+  //   .select('*')
+  //   .eq('user_id', currentUser.id)
+  //   .eq('processed', false)
+  //   .eq('reward_type', 'variant_unlock');
+  //
+  // if (redemptions && redemptions.length > 0) {
+  //   for (var i = 0; i < redemptions.length; i++) {
+  //     var redemption = redemptions[i];
+  //     await unlockTwitchVariant(
+  //       redemption.pet_id, 
+  //       redemption.variant_key,
+  //       redemption
+  //     );
+  //     // Mark as processed
+  //     await supabaseClient
+  //       .from('twitch_reward_queue')
+  //       .update({ processed: true })
+  //       .eq('id', redemption.id);
+  //   }
+  // }
+  
+  console.log('[TwitchVariant] Checked for pending redemptions');
+}
+
+// Get list of available stream reward variants for a pet
+function getAvailableTwitchVariants(petType) {
+  var available = [];
+  
+  for (var key in petVariants) {
+    var variant = petVariants[key];
+    if (variant.unlockType === 'twitch_reward') {
+      available.push({
+        key: key,
+        name: variant.name,
+        icon: variant.icon,
+        color: variant.color,
+        description: variant.description
+      });
+    }
+  }
+  
+  return available;
+}
+
+// Show variant gallery modal
+function showVariantGallery() {
+  var modal = makeModal();
+  var content = makeEl('div');
+  
+  // Title
+  var title = makeEl('h2');
+  title.textContent = '✨ Pet Variant Gallery';
+  title.style.cssText = 'text-align:center;color:var(--purple);margin-bottom:20px;';
+  content.appendChild(title);
+  
+  // Description
+  var desc = makeEl('p');
+  desc.textContent = 'Unlock special variants through leveling up or Twitch channel point rewards!';
+  desc.style.cssText = 'text-align:center;color:var(--text-light);margin-bottom:30px;';
+  content.appendChild(desc);
+  
+  // Level-based variants section
+  var levelSection = makeEl('div');
+  levelSection.innerHTML = '<h3 style="color:var(--purple);margin-bottom:15px;">🎯 Level Milestones</h3>';
+  
+  var levelGrid = makeEl('div');
+  levelGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-bottom:30px;';
+  
+  for (var key in petVariants) {
+    var variant = petVariants[key];
+    if (variant.unlockType === 'level') {
+      var card = makeEl('div');
+      card.style.cssText = 'background:' + variant.color + '20;border:2px solid ' + variant.color + ';border-radius:12px;padding:15px;text-align:center;';
+      card.innerHTML = 
+        '<div style="font-size:2rem;margin-bottom:8px;">' + variant.icon + '</div>' +
+        '<div style="font-weight:bold;color:' + variant.color + ';margin-bottom:5px;">' + variant.name + '</div>' +
+        '<div style="font-size:0.85rem;color:var(--text-light);">Unlock at Level ' + variant.level + '</div>' +
+        '<div style="font-size:0.75rem;color:var(--text-light);margin-top:5px;">' + (variant.chance * 100) + '% chance</div>';
+      levelGrid.appendChild(card);
+    }
+  }
+  
+  levelSection.appendChild(levelGrid);
+  content.appendChild(levelSection);
+  
+  // Twitch reward variants section
+  var twitchSection = makeEl('div');
+  twitchSection.innerHTML = '<h3 style="color:var(--purple);margin-bottom:15px;">📺 Twitch Rewards</h3>' +
+    '<p style="font-size:0.9rem;color:var(--text-light);margin-bottom:15px;">Unlock these exclusive variants with Twitch channel points on our streams!</p>';
+  
+  var twitchGrid = makeEl('div');
+  twitchGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:15px;';
+  
+  for (var key in petVariants) {
+    var variant = petVariants[key];
+    if (variant.unlockType === 'twitch_reward') {
+      var card = makeEl('div');
+      card.style.cssText = 'background:' + variant.color + '20;border:3px solid ' + variant.color + ';border-radius:12px;padding:15px;text-align:center;position:relative;';
+      
+      // Special styling preview (CSS-only, no AI art)
+      var preview = makeEl('div');
+      preview.style.cssText = 'width:80px;height:80px;margin:0 auto 10px;background:' + variant.color + '40;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2.5rem;';
+      preview.textContent = variant.icon;
+      
+      // Apply CSS effect preview
+      if (variant.cssEffect) {
+        preview.className = 'pet-variant-' + variant.cssEffect;
+      }
+      
+      card.appendChild(preview);
+      card.innerHTML += 
+        '<div style="font-weight:bold;color:' + variant.color + ';margin-bottom:5px;font-size:1.1rem;">' + variant.name + '</div>' +
+        '<div style="font-size:0.85rem;color:var(--text-light);line-height:1.4;">' + variant.description + '</div>' +
+        '<div style="margin-top:10px;padding:8px;background:var(--purple-light);border-radius:8px;font-size:0.75rem;color:var(--purple-dark);font-weight:600;">🎬 Redeem on Stream</div>';
+      
+      twitchGrid.appendChild(card);
+    }
+  }
+  
+  twitchSection.appendChild(twitchGrid);
+  content.appendChild(twitchSection);
+  
+  // Note about custom sprites
+  var note = makeEl('div');
+  note.style.cssText = 'margin-top:30px;padding:15px;background:rgba(153,102,255,0.1);border-radius:12px;text-align:center;';
+  note.innerHTML = '<p style="font-size:0.85rem;color:var(--text-light);"><strong>Note:</strong> Variants currently use CSS effects. Custom sprites coming soon!</p>';
+  content.appendChild(note);
+  
+  // Close button
+  var closeBtn = makeEl('button', {class: 'btn btn-primary'});
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'display:block;margin:20px auto 0;';
+  closeBtn.onclick = function() { closeModal(); };
+  content.appendChild(closeBtn);
+  
+  modal.appendChild(content);
+  openModal(modal);
 }
 
 // ═══════════════════════════════════════════════════════════════════════

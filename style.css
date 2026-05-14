@@ -9895,3 +9895,125 @@ body.night-mode .btn-outline:hover {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   PET VARIANT CSS EFFECTS - Pure CSS styling (no AI-generated art)
+   Custom sprites can be added later by replacing background images
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Shadow Variant - Dark mysterious effect */
+.pet-variant-shadow .pet-card-body {
+  background: linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 100%);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.6);
+}
+
+.pet-variant-shadow .pet-image,
+.pet-variant-shadow .pet-card-icon img {
+  filter: brightness(0.6) contrast(1.3);
+  box-shadow: 0 0 15px rgba(0, 0, 0, 0.8);
+}
+
+/* Fire Variant - Warm glowing effect */
+.pet-variant-fire .pet-card-body {
+  background: linear-gradient(135deg, #ff6600 0%, #ff0000 100%);
+  box-shadow: 0 0 20px rgba(255, 68, 0, 0.6);
+}
+
+.pet-variant-fire .pet-image,
+.pet-variant-fire .pet-card-icon img {
+  filter: hue-rotate(-10deg) saturate(1.5) brightness(1.2);
+  animation: fireGlow 2s ease-in-out infinite;
+}
+
+@keyframes fireGlow {
+  0%, 100% { filter: hue-rotate(-10deg) saturate(1.5) brightness(1.2); }
+  50% { filter: hue-rotate(-10deg) saturate(1.8) brightness(1.4); }
+}
+
+/* Ice Variant - Cool frosty effect */
+.pet-variant-ice .pet-card-body {
+  background: linear-gradient(135deg, #cce7ff 0%, #88ddff 100%);
+  box-shadow: 0 0 20px rgba(136, 221, 255, 0.6);
+}
+
+.pet-variant-ice .pet-image,
+.pet-variant-ice .pet-card-icon img {
+  filter: hue-rotate(180deg) saturate(1.2) brightness(1.3);
+  animation: iceShimmer 3s ease-in-out infinite;
+}
+
+@keyframes iceShimmer {
+  0%, 100% { filter: hue-rotate(180deg) saturate(1.2) brightness(1.3); }
+  50% { filter: hue-rotate(180deg) saturate(1.5) brightness(1.5); }
+}
+
+/* Spirit Variant - Ghostly ethereal effect */
+.pet-variant-spirit .pet-card-body {
+  background: linear-gradient(135deg, #e6d5ff 0%, #ccaaff 100%);
+  box-shadow: 0 0 20px rgba(204, 170, 255, 0.6);
+}
+
+.pet-variant-spirit .pet-image,
+.pet-variant-spirit .pet-card-icon img {
+  filter: brightness(1.3) contrast(0.8);
+  opacity: 0.85;
+  animation: spiritFloat 4s ease-in-out infinite;
+}
+
+@keyframes spiritFloat {
+  0%, 100% { transform: translateY(0); opacity: 0.85; }
+  50% { transform: translateY(-5px); opacity: 0.95; }
+}
+
+/* Crystal Variant - Prismatic shimmering effect */
+.pet-variant-crystal .pet-card-body {
+  background: linear-gradient(135deg, #e0ffff 0%, #00ffff 100%);
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+}
+
+.pet-variant-crystal .pet-image,
+.pet-variant-crystal .pet-card-icon img {
+  filter: saturate(1.5) brightness(1.2);
+  animation: crystalPrism 5s linear infinite;
+}
+
+@keyframes crystalPrism {
+  0% { filter: saturate(1.5) brightness(1.2) hue-rotate(0deg); }
+  25% { filter: saturate(1.5) brightness(1.2) hue-rotate(90deg); }
+  50% { filter: saturate(1.5) brightness(1.2) hue-rotate(180deg); }
+  75% { filter: saturate(1.5) brightness(1.2) hue-rotate(270deg); }
+  100% { filter: saturate(1.5) brightness(1.2) hue-rotate(360deg); }
+}
+
+/* Variant unlock notification styling */
+.variant-unlock-notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0);
+  background: linear-gradient(135deg, #9966ff 0%, #ff66cc 100%);
+  color: white;
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 10px 40px rgba(153, 102, 255, 0.6);
+  z-index: 10000;
+  text-align: center;
+  animation: variantUnlockPop 0.5s ease forwards;
+  max-width: 400px;
+}
+
+@keyframes variantUnlockPop {
+  0% { transform: translate(-50%, -50%) scale(0); }
+  60% { transform: translate(-50%, -50%) scale(1.1); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.variant-unlock-notification h2 {
+  font-size: 2rem;
+  margin: 0 0 10px 0;
+}
+
+.variant-unlock-notification p {
+  font-size: 1.2rem;
+  margin: 10px 0;
+}
+
