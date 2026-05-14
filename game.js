@@ -10736,7 +10736,7 @@ async function checkDailyLogin() {
     // Get player data
     var { data: player, error } = await supabaseClient
       .from('players')
-      .select('last_login, login_streak, pawket_points')
+      .select('last_login, login_streak, pawketpoints')
       .eq('id', currentUser.id)
       .single();
     
@@ -10774,7 +10774,7 @@ async function checkDailyLogin() {
       .update({
         last_login: new Date().toISOString(),
         login_streak: streak,
-        pawket_points: (player.pawket_points || 0) + ppReward
+        pawketpoints: (player.pawketpoints || 0) + ppReward
       })
       .eq('id', currentUser.id);
     
@@ -10945,7 +10945,7 @@ async function shareProgress() {
     // Get user stats
     var { data: player, error } = await supabaseClient
       .from('players')
-      .select('username, pawket_points')
+      .select('username, pawketpoints')
       .eq('id', currentUser.id)
       .single();
     
@@ -10962,7 +10962,7 @@ async function shareProgress() {
     var petCount = pets ? pets.length : 0;
     
     // Generate share text
-    var shareText = 'I have ' + petCount + ' pets and ' + player.pawket_points + ' PawketPoints on PawketPetsVT! 🐾✨\n\nAdopt your favorite VTuber\'s pet: https://pawketpets.vt';
+    var shareText = 'I have ' + petCount + ' pets and ' + player.pawketpoints + ' PawketPoints on PawketPetsVT! 🐾✨\n\nAdopt your favorite VTuber\'s pet: https://pawketpets.vt';
     
     // Try native share API (mobile)
     if (navigator.share) {
@@ -11629,12 +11629,15 @@ async function startDungeonBattle(playerStats, enemyStats) {
   var sheetWidth = config.frameWidth * config.framesPerRow;
   var sheetHeight = config.frameHeight * config.rows;
   
-  // Set up sprite
+  // Set up sprite with overflow fix
   enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
   enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+  enemySprite.style.backgroundRepeat = 'no-repeat';
   enemySprite.style.backgroundPosition = '0 0';
   enemySprite.style.width = config.frameWidth + 'px';
   enemySprite.style.height = config.frameHeight + 'px';
+  enemySprite.style.overflow = 'hidden';
+  enemySprite.style.display = 'block';
   
   // Start animation
   startSpriteAnimation(enemySprite, enemyStats.species);
