@@ -3332,7 +3332,7 @@ var petFoodPreferences = {
     fun_fact: 'Grows all their own vegetables!'
   },
   
-  'Bunny': {
+  'Kelta': {
     loved_item: 'Garden Salad',
     liked_item: 'Fresh Bread',
     disliked_item: 'Shrimp Tempura',
@@ -3341,7 +3341,7 @@ var petFoodPreferences = {
     fun_fact: 'Knows 37 different wildflowers by scent!'
   },
   
-  'Fox': {
+  'Blushimia': {
     loved_item: 'Sushi Roll',
     liked_item: 'Grilled Salmon',
     disliked_item: 'Banana Bread',
@@ -3350,7 +3350,7 @@ var petFoodPreferences = {
     fun_fact: 'Found a legendary golden acorn once!'
   },
   
-  'Wolf': {
+  'Aria': {
     loved_item: 'Grilled Steak',
     liked_item: 'Beef Jerky',
     disliked_item: 'Apple Pie',
@@ -3359,7 +3359,7 @@ var petFoodPreferences = {
     fun_fact: 'Can howl in perfect harmony with music!'
   },
   
-  'Deer': {
+  'Gnarly': {
     loved_item: 'Apple Pie',
     liked_item: 'Mango Delight',
     disliked_item: 'Roasted Chicken',
@@ -3368,7 +3368,7 @@ var petFoodPreferences = {
     fun_fact: 'Can sense weather changes 24 hours early!'
   },
   
-  'Bird': {
+  'Jess': {
     loved_item: 'Mango Delight',
     liked_item: 'Strawberry Parfait',
     disliked_item: 'Cheese Platter',
@@ -10245,7 +10245,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ══════════════════════════════════════════════════════════════════════════
 
 var currentJournalPage = 0;
-var journalPetTypes = ['Ember', 'Pyxie', 'Cowbee', 'Bunny', 'Fox', 'Wolf', 'Deer', 'Bird'];
+var journalPetTypes = ['Ember', 'Pyxie', 'Cowbee', 'Kelta', 'Blushimia', 'Aria', 'Gnarly', 'Jess'];
 var journalDiscoveries = {}; // { petType: { loved: true, liked: false, ... } }
 
 async function loadJournalDiscoveries() {
