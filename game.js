@@ -1890,6 +1890,18 @@ function makeMyPetCard(pet) {
   }
   
   actions.appendChild(feedBtn); actions.appendChild(playBtn);
+  
+  // COMPANION SELECTOR BUTTON
+  var companionBtn = makeEl('button', {class: 'btn-companion'});
+  companionBtn.textContent = '🐾 Set as Companion';
+  companionBtn.style.cssText = 'margin-top:8px;width:100%;padding:10px;background:linear-gradient(135deg,#9966ff 0%,#ff66cc 100%);color:white;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:transform 0.2s;';
+  companionBtn.onmouseover = function() { this.style.transform = 'scale(1.02)'; };
+  companionBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+  companionBtn.onclick = function() {
+    CompanionBuddy.setCompanion(pet.id);
+  };
+  actions.appendChild(companionBtn);
+  
   body.appendChild(actions);
 
   body.appendChild(makeDropdown(pet.id));
@@ -9487,6 +9499,234 @@ document.addEventListener('DOMContentLoaded', function() {
       closeMenu();
     }
   });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// COMPANION BUDDY SYSTEM - Pet in Corner
+// PLACEHOLDER_COMPANION_MESSAGES - Customize these messages!
+// ══════════════════════════════════════════════════════════════════════════
+
+var CompanionBuddy = {
+  currentCompanionId: null,
+  messageInterval: null,
+  bubbleTimeout: null,
+  
+  // PLACEHOLDER_COMPANION_MESSAGES - Message pools by context
+  messages: {
+    idle: [
+      "You're doing great! 🐾",
+      "I'm happy to be here! ✨",
+      "Having fun today? 😊",
+      "You're the best! 💖",
+      "Let's go on an adventure! 🌟",
+      "I love spending time with you! 🎉",
+      "What should we do next? 🤔",
+      "This is so cozy! 🛏️"
+    ],
+    shop: [
+      "Ooh, that looks tasty! 🍕",
+      "Can we get snacks? 🍪",
+      "So many treats! 😋",
+      "I want that one! ✨"
+    ],
+    minigames: [
+      "You got this! 💪",
+      "So close! 🎯",
+      "Amazing! 🌟",
+      "Let's try again! 🎮"
+    ],
+    battle: [
+      "Be careful! ⚔️",
+      "That was incredible! ✨",
+      "You're so strong! 💪",
+      "Watch out! 😮"
+    ],
+    adopt: [
+      "A new friend?! 🎉",
+      "They're so cute! 💖",
+      "Can we keep them? 🥺",
+      "Welcome to the family! 🐾"
+    ],
+    mypets: [
+      "My friends! 💕",
+      "Everyone looks happy! 😊",
+      "We're all here! 🎉",
+      "Let's play together! 🎾"
+    ],
+    home: [
+      "Cozy day today! 🏠",
+      "What should we do? 🤔",
+      "Ready for anything! ⚡",
+      "Home sweet home! 💖"
+    ]
+  },
+  
+  // PLACEHOLDER_PERSONALITY - Add personality-specific messages
+  personalityMessages: {
+    confident: ["I know we can do this!", "Piece of cake! 😎"],
+    playful: ["Wheee! This is fun!", "Let's goooo! 🎉"],
+    gentle: ["Take your time... 💕", "You're doing wonderfully..."],
+    chaotic: ["CHAOS TIME! ✨", "Let's break something! 😈"]
+  },
+  
+  init: function() {
+    // Check if user has set a companion
+    this.loadCompanion();
+  },
+  
+  loadCompanion: async function() {
+    if (!currentUser) return;
+    
+    // Get user's companion_pet_id from database
+    var { data, error } = await supabaseClient
+      .from('players')
+      .select('companion_pet_id')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (error || !data || !data.companion_pet_id) {
+      this.hide();
+      return;
+    }
+    
+    // Get companion pet details
+    var { data: pet, error: petError } = await supabaseClient
+      .from('user_pets')
+      .select('*, pets(*)')
+      .eq('id', data.companion_pet_id)
+      .single();
+    
+    if (petError || !pet) {
+      this.hide();
+      return;
+    }
+    
+    this.currentCompanionId = pet.id;
+    this.show(pet);
+    this.startMessageRotation();
+  },
+  
+  show: function(pet) {
+    var buddy = document.getElementById('companion-buddy');
+    var sprite = document.getElementById('companion-sprite');
+    
+    if (!buddy || !sprite) return;
+    
+    // Set sprite image
+    var petInfo = pet.pets || {};
+    if (petInfo.image_file) {
+      sprite.style.backgroundImage = 'url(images/' + petInfo.image_file + ')';
+    } else {
+      sprite.textContent = getPetEmoji(pet.pet_type) || '🐾';
+      sprite.style.fontSize = '3rem';
+      sprite.style.display = 'flex';
+      sprite.style.alignItems = 'center';
+      sprite.style.justifyContent = 'center';
+    }
+    
+    buddy.style.display = 'block';
+  },
+  
+  hide: function() {
+    var buddy = document.getElementById('companion-buddy');
+    if (buddy) buddy.style.display = 'none';
+    this.stopMessageRotation();
+  },
+  
+  showMessage: function(message) {
+    var bubble = document.getElementById('companion-bubble');
+    var messageEl = document.getElementById('companion-message');
+    
+    if (!bubble || !messageEl) return;
+    
+    // Clear existing timeout
+    if (this.bubbleTimeout) clearTimeout(this.bubbleTimeout);
+    
+    // Set message and show
+    messageEl.textContent = message;
+    bubble.classList.add('show');
+    
+    // Hide after 5 seconds
+    this.bubbleTimeout = setTimeout(function() {
+      bubble.classList.remove('show');
+    }, 5000);
+  },
+  
+  getRandomMessage: function(context) {
+    var pool = this.messages[context] || this.messages.idle;
+    var randomMsg = pool[Math.floor(Math.random() * pool.length)];
+    return randomMsg;
+  },
+  
+  getCurrentContext: function() {
+    // Detect which tab is active
+    var activeSection = document.querySelector('.page-section:not([style*="display: none"])');
+    if (!activeSection) return 'idle';
+    
+    var id = activeSection.id;
+    if (id.includes('shop')) return 'shop';
+    if (id.includes('minigame')) return 'minigames';
+    if (id.includes('battle')) return 'battle';
+    if (id.includes('adopt')) return 'adopt';
+    if (id.includes('mypets')) return 'mypets';
+    if (id.includes('home')) return 'home';
+    
+    return 'idle';
+  },
+  
+  startMessageRotation: function() {
+    var self = this;
+    
+    // Show first message after 3 seconds
+    setTimeout(function() {
+      var context = self.getCurrentContext();
+      var message = self.getRandomMessage(context);
+      self.showMessage(message);
+    }, 3000);
+    
+    // Then show messages every 60-90 seconds
+    this.messageInterval = setInterval(function() {
+      var context = self.getCurrentContext();
+      var message = self.getRandomMessage(context);
+      self.showMessage(message);
+    }, 75000); // 75 seconds average
+  },
+  
+  stopMessageRotation: function() {
+    if (this.messageInterval) {
+      clearInterval(this.messageInterval);
+      this.messageInterval = null;
+    }
+  },
+  
+  setCompanion: async function(petId) {
+    if (!currentUser) return;
+    
+    // Update database
+    var { error } = await supabaseClient
+      .from('players')
+      .update({ companion_pet_id: petId })
+      .eq('id', currentUser.id);
+    
+    if (error) {
+      showToast('Failed to set companion');
+      return;
+    }
+    
+    showToast('Companion set! 🐾');
+    
+    // Reload companion
+    await this.loadCompanion();
+  }
+};
+
+// Initialize companion when page loads
+document.addEventListener('DOMContentLoaded', function() {
+  setTimeout(function() {
+    if (currentUser) {
+      CompanionBuddy.init();
+    }
+  }, 2000); // Wait 2 seconds after page load
 });
 
 // Post guestbook message

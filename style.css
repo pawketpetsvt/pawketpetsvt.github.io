@@ -9821,3 +9821,77 @@ body.night-mode .btn-outline:hover {
   }
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   COMPANION BUDDY - Pet in Corner
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#companion-buddy {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1500;
+  pointer-events: none;
+}
+
+.companion-sprite {
+  width: 80px;
+  height: 80px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+  animation: companionFloat 3s ease-in-out infinite;
+}
+
+@keyframes companionFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.companion-bubble {
+  position: absolute;
+  bottom: 90px;
+  right: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: white;
+  border: 3px solid var(--purple);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.3);
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+
+.companion-bubble.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.companion-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  right: 30px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid var(--purple);
+}
+
+.companion-message {
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+/* Hide companion on small mobile */
+@media (max-width: 768px) {
+  #companion-buddy {
+    display: none !important;
+  }
+}
+
