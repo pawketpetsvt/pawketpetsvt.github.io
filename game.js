@@ -9317,6 +9317,56 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 
+// ══════════════════════════════════════════════════════════════════════════
+// MOBILE MENU FUNCTIONALITY
+// ══════════════════════════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', function() {
+  var hamburgerBtn = document.getElementById('hamburger-menu-btn');
+  var mobileMenu = document.getElementById('mobile-nav-menu');
+  var closeBtn = document.getElementById('mobile-menu-close');
+  
+  if (!hamburgerBtn || !mobileMenu || !closeBtn) return;
+  
+  // Create overlay
+  var overlay = document.createElement('div');
+  overlay.className = 'mobile-nav-overlay';
+  document.body.appendChild(overlay);
+  
+  // Open menu
+  hamburgerBtn.addEventListener('click', function() {
+    mobileMenu.classList.add('open');
+    overlay.classList.add('show');
+    document.body.style.overflow = 'hidden'; // Prevent background scroll
+  });
+  
+  // Close menu
+  function closeMenu() {
+    mobileMenu.classList.remove('open');
+    overlay.classList.remove('show');
+    document.body.style.overflow = ''; // Restore scroll
+  }
+  
+  closeBtn.addEventListener('click', closeMenu);
+  overlay.addEventListener('click', closeMenu);
+  
+  // Close menu when clicking any nav button
+  var navButtons = mobileMenu.querySelectorAll('.sidebar-nav-btn');
+  navButtons.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      // Small delay so the tab change happens first
+      setTimeout(closeMenu, 100);
+    });
+  });
+  
+  // Close on escape key
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && mobileMenu.classList.contains('open')) {
+      closeMenu();
+    }
+  });
+});
+
 // Post guestbook message
 async function postGuestbookMessage() {
   if (!currentUser || !currentProfileUserId) return;
