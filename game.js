@@ -466,6 +466,7 @@ function showTab(tab) {
 function loadTab(tab) {
   if (tab === 'adopt') loadAdopt();
   else if (tab === 'mypets') loadMyPets();
+  else if (tab === 'journal') initJournalTab();
   else if (tab === 'shop') { loadShop(); loadInventory(); }
   else if (tab === 'minigames') initMinigames();
   else if (tab === 'battle') loadBattlePets();
@@ -2285,23 +2286,97 @@ async function feed(petId) {
   var pet = petState[petId]; 
   if (!pet || pet.hunger >= pet.max_hunger) return;
   
-  var btn = el('feed-'+petId); 
-  btn.disabled = true; 
-  btn.textContent = '...';
+  // Get user's food inventory
+  var { data: inventory, error: invError } = await supabaseClient
+    .from('user_inventory')
+    .select('item_id, quantity, items(id, name, icon, food_category)')
+    .eq('user_id', currentUser.id)
+    .gt('quantity', 0);
   
-  // Call secure database function
+  if (invError) {
+    showToast('Error loading inventory', 3000);
+    return;
+  }
+  
+  // Filter to food items only
+  var foodItems = inventory.filter(function(inv) {
+    return inv.items && inv.items.name && 
+           (inv.items.name.toLowerCase().includes('food') || 
+            inv.items.name.toLowerCase().includes('ramen') ||
+            inv.items.name.toLowerCase().includes('cake') ||
+            inv.items.name.toLowerCase().includes('steak') ||
+            inv.items.food_category); // Any item with food_category
+  });
+  
+  if (foodItems.length === 0) {
+    showToast('No food in inventory! Buy some from the shop.', 3000);
+    return;
+  }
+  
+  // Show item picker modal
+  var modal = makeModal();
+  modal.innerHTML = '<h2 style="text-align:center;margin-bottom:20px;">Choose Food to Feed</h2>';
+  
+  var grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;';
+  
+  foodItems.forEach(function(inv) {
+    var item = inv.items;
+    var btn = document.createElement('button');
+    btn.style.cssText = 'padding:15px;border:3px solid #9966ff;background:white;border-radius:12px;cursor:pointer;transition:transform 0.2s;';
+    btn.innerHTML = '<div style="font-size:2rem;">' + (item.icon || '🍕') + '</div>' +
+                    '<div style="font-size:0.8rem;font-weight:600;margin-top:5px;">' + item.name + '</div>' +
+                    '<div style="font-size:0.7rem;color:#666;">x' + inv.quantity + '</div>';
+    
+    btn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+    btn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+    
+    btn.onclick = function() {
+      closeModal();
+      feedWithItem(petId, item.id, item.name);
+    };
+    
+    grid.appendChild(btn);
+  });
+  
+  modal.appendChild(grid);
+  
+  var cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'margin-top:20px;padding:10px 20px;background:#ccc;border:none;border-radius:8px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;';
+  cancelBtn.onclick = closeModal;
+  modal.appendChild(cancelBtn);
+  
+  openModal(modal);
+}
+
+async function feedWithItem(petId, itemId, itemName) {
+  var pet = petState[petId];
+  if (!pet) return;
+  
+  var btn = el('feed-'+petId); 
+  if (btn) {
+    btn.disabled = true; 
+    btn.textContent = '...';
+  }
+  
+  // Call secure database function with item_id
   var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
-    p_pet_id: petId
+    p_pet_id: petId,
+    p_item_id: itemId
   });
   
   if (error) {
     showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    btn.disabled = false; 
-    btn.textContent = 'Feed'; 
+    if (btn) {
+      btn.disabled = false; 
+      btn.textContent = 'Feed';
+    }
     return;
   }
   
   // Mark as used today
+  var today = new Date().toISOString().split('T')[0];
   localStorage.setItem('feed_' + petId + '_' + today, 'done');
   
   // Update local state
@@ -2322,32 +2397,44 @@ async function feed(petId) {
     if (result.new_level === 5) await awardBadge('level_5');
     if (result.new_level === 10) await awardBadge('level_10');
     if (result.new_level === 20) await awardBadge('level_20');
+  }
+  
+  // FOOD REACTION SYSTEM - Check pet preferences
+  var petType = pet.pet_type || pet.petType;
+  var prefs = getPetPreferences(petType);
+  
+  if (prefs) {
+    var reactionType = 'normal';
+    var reactionMsg = pet.nickname + ' ate ' + itemName + '!';
+    
+    if (itemName === prefs.loved_item) {
+      reactionType = 'loved';
+      reactionMsg = '💖 ' + pet.nickname + "'s eyes light up! This is their FAVORITE!";
+      logJournalDiscovery(petType, 'loved', itemName);
+    } else if (itemName === prefs.liked_item) {
+      reactionType = 'liked';
+      reactionMsg = '😊 ' + pet.nickname + ' really enjoys this!';
+      logJournalDiscovery(petType, 'liked', itemName);
+    } else if (itemName === prefs.disliked_item) {
+      reactionType = 'disliked';
+      reactionMsg = '😐 ' + pet.nickname + ' eats it reluctantly...';
+      logJournalDiscovery(petType, 'disliked', itemName);
+    } else if (itemName === prefs.hated_item) {
+      reactionType = 'hated';
+      reactionMsg = '😠 ' + pet.nickname + ' picks at it with disgust!';
+      logJournalDiscovery(petType, 'hated', itemName);
+    }
+    
+    showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
   } else {
     showFlash(petId, '+20 Hunger +5 Happiness +10 XP', '#5dde7a');
   }
   
-  // FOOD REACTION SYSTEM - Show special reactions based on pet preferences
-  // Note: This is client-side display only. Server calculates actual bonuses.
-  var petType = pet.pet_type || pet.petType;
-  var prefs = getPetPreferences(petType);
-  if (prefs) {
-    // TODO: Get actual food category from item being fed
-    // For now, show generic positive reaction occasionally
-    if (Math.random() < 0.3) {
-      var reactions = [
-        pet.nickname + ' seems to enjoy this!',
-        pet.nickname + ' happily munches away!',
-        pet.nickname + ' wags excitedly!'
-      ];
-      setTimeout(function() {
-        showFlash(petId, reactions[Math.floor(Math.random() * reactions.length)], '#ffdd00');
-      }, 800);
-    }
+  if (btn) {
+    btn.textContent = 'Fed Today!';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
   }
-  
-  btn.textContent = 'Fed Today!';
-  btn.disabled = true;
-  btn.style.opacity = '0.6';
 }
 
 async function play(petId) {
@@ -2501,6 +2588,13 @@ function getFoodCategoryLabel(category) {
   return data.icon + ' ' + data.name;
 }
 
+// Get current rotation week (A, B, or C)
+function getCurrentRotationWeek() {
+  var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  var weekInCycle = weeksSinceEpoch % 3;
+  return ['A', 'B', 'C'][weekInCycle];
+}
+
 
 async function loadShop() {
   var grid = el('shop-grid');
@@ -2532,6 +2626,8 @@ async function loadShop() {
     other: []
   };
   
+  var currentWeek = getCurrentRotationWeek();
+  
   deduped.forEach(function(item) {
     // Categorize based on primary effect
     if (item.effect === 'healing' || item.name.toLowerCase().includes('heal') || item.name.toLowerCase().includes('ointment') || item.name.toLowerCase().includes('potion')) {
@@ -2543,7 +2639,10 @@ async function loadShop() {
     } else if (item.happiness_effect > 0 && (item.hunger_effect === 0 || item.happiness_effect > item.hunger_effect)) {
       categories.toys.push(item);
     } else if (item.hunger_effect > 0) {
-      categories.food.push(item);
+      // FOOD ROTATION FILTER: Only show food for current week
+      if (!item.rotation_week || item.rotation_week === currentWeek) {
+        categories.food.push(item);
+      }
     } else {
       categories.other.push(item);
     }
@@ -2914,46 +3013,80 @@ async function useOnPet(petId,petNickname) {
 // ══════════════════════════════════════════════════════════════════════════
 
 var petFoodPreferences = {
-  // PLACEHOLDER_PET_DATA - Ember (Embertail's pet)
+  // PLACEHOLDER_PET_DATA - Replace these with real streamer pet data!
+  // Format: loved (1.75x), liked (1.25x), disliked (0.75x), hated (0.5x)
+  
   'Ember': {
-    favorite_category: 'spicy',
-    hated_category: 'sweet',
-    favorite_item_name: 'Spicy Ramen',  // Must match exact item name in database
-    hobby: 'dueling',
-    fun_fact: 'Ember once won a spoon dueling championship!',
-    personality: ['confident', 'competitive']
+    loved_item: 'Spicy Ramen',
+    liked_item: 'Hot Wings',
+    disliked_item: 'Rainbow Cake',
+    hated_item: 'Sushi Roll',
+    hobby: 'Competitive dueling',
+    fun_fact: 'Once won a spoon dueling championship!'
   },
   
-  // PLACEHOLDER_PET_DATA - Pyxie (Pyxshuul's pet)
   'Pyxie': {
-    favorite_category: 'sweet',
-    hated_category: 'fish',
-    favorite_item_name: 'Candy',
-    hobby: 'napping',
-    fun_fact: 'Pyxie can sleep for 16 hours straight!',
-    personality: ['playful', 'chaotic']
+    loved_item: 'Rainbow Cake',
+    liked_item: 'Honey Cookies',
+    disliked_item: 'Grilled Salmon',
+    hated_item: 'Spicy Burrito',
+    hobby: 'Professional napping',
+    fun_fact: 'Can sleep for 16 hours straight!'
   },
   
-  // PLACEHOLDER_PET_DATA - Cowbee
   'Cowbee': {
-    favorite_category: 'fruit',
-    hated_category: 'spicy',
-    favorite_item_name: 'Apple',
-    hobby: 'gardening',
-    fun_fact: 'Cowbee grows their own vegetables!',
-    personality: ['gentle', 'sleepy']
+    loved_item: 'Fresh Bread',
+    liked_item: 'Garden Salad',
+    disliked_item: 'Hot Wings',
+    hated_item: 'Curry Feast',
+    hobby: 'Organic gardening',
+    fun_fact: 'Grows all their own vegetables!'
   },
   
-  // PLACEHOLDER_PET_DATA - Add more pets as needed
-  // Template:
-  // 'PetName': {
-  //   favorite_category: 'spicy/sweet/savory/fish/fruit/basic',
-  //   hated_category: 'spicy/sweet/savory/fish/fruit/basic',
-  //   favorite_item_name: 'Exact Item Name',
-  //   hobby: 'activity name',
-  //   fun_fact: 'interesting fact',
-  //   personality: ['trait1', 'trait2']
-  // }
+  'Bunny': {
+    loved_item: 'Garden Salad',
+    liked_item: 'Fresh Bread',
+    disliked_item: 'Shrimp Tempura',
+    hated_item: 'Grilled Steak',
+    hobby: 'Flower arranging',
+    fun_fact: 'Knows 37 different wildflowers by scent!'
+  },
+  
+  'Fox': {
+    loved_item: 'Sushi Roll',
+    liked_item: 'Grilled Salmon',
+    disliked_item: 'Banana Bread',
+    hated_item: 'Honey Cookies',
+    hobby: 'Treasure hunting',
+    fun_fact: 'Found a legendary golden acorn once!'
+  },
+  
+  'Wolf': {
+    loved_item: 'Grilled Steak',
+    liked_item: 'Beef Jerky',
+    disliked_item: 'Apple Pie',
+    hated_item: 'Grape Juice',
+    hobby: 'Moonlight howling',
+    fun_fact: 'Can howl in perfect harmony with music!'
+  },
+  
+  'Deer': {
+    loved_item: 'Apple Pie',
+    liked_item: 'Mango Delight',
+    disliked_item: 'Roasted Chicken',
+    hated_item: 'Seafood Soup',
+    hobby: 'Forest meditation',
+    fun_fact: 'Can sense weather changes 24 hours early!'
+  },
+  
+  'Bird': {
+    loved_item: 'Mango Delight',
+    liked_item: 'Strawberry Parfait',
+    disliked_item: 'Cheese Platter',
+    hated_item: 'Veggie Noodles',
+    hobby: 'Sky acrobatics',
+    fun_fact: 'Performed in a famous aerial circus!'
+  }
 };
 
 function getPetPreferences(petType) {
@@ -9780,6 +9913,150 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }, 2000); // Wait 2 seconds after page load
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// PET JOURNAL SYSTEM - Discovery tracking for food preferences
+// ══════════════════════════════════════════════════════════════════════════
+
+var currentJournalPage = 0;
+var journalPetTypes = ['Ember', 'Pyxie', 'Cowbee', 'Bunny', 'Fox', 'Wolf', 'Deer', 'Bird'];
+var journalDiscoveries = {}; // { petType: { loved: true, liked: false, ... } }
+
+async function loadJournalDiscoveries() {
+  if (!currentUser) return;
+  
+  // Load from pet_journal table
+  var { data, error } = await supabaseClient
+    .from('pet_journal')
+    .select('*')
+    .eq('user_id', currentUser.id);
+  
+  if (error) {
+    console.error('[Journal] Error loading:', error);
+    return;
+  }
+  
+  // Parse discoveries
+  journalDiscoveries = {};
+  if (data) {
+    data.forEach(function(entry) {
+      var petType = entry.entry_data && entry.entry_data.pet_type;
+      if (!petType) return;
+      
+      if (!journalDiscoveries[petType]) {
+        journalDiscoveries[petType] = {};
+      }
+      
+      journalDiscoveries[petType][entry.entry_type] = true;
+    });
+  }
+}
+
+async function logJournalDiscovery(petType, discoveryType, itemName) {
+  if (!currentUser || !petType) return;
+  
+  // Check if already discovered
+  if (journalDiscoveries[petType] && journalDiscoveries[petType][discoveryType]) {
+    return; // Already logged
+  }
+  
+  try {
+    await supabaseClient.from('pet_journal').insert({
+      user_id: currentUser.id,
+      entry_type: discoveryType,
+      entry_data: {
+        pet_type: petType,
+        item_name: itemName,
+        discovered_at: new Date().toISOString()
+      }
+    });
+    
+    // Update local cache
+    if (!journalDiscoveries[petType]) journalDiscoveries[petType] = {};
+    journalDiscoveries[petType][discoveryType] = true;
+    
+    showToast('📓 New journal entry! Check the Pet Journal!', 4000);
+    
+  } catch (err) {
+    console.error('[Journal] Error logging:', err);
+  }
+}
+
+function initJournalTab() {
+  currentJournalPage = 0;
+  loadJournalDiscoveries().then(function() {
+    renderJournalPage();
+  });
+}
+
+function renderJournalPage() {
+  var petType = journalPetTypes[currentJournalPage];
+  var prefs = getPetPreferences(petType);
+  var discoveries = journalDiscoveries[petType] || {};
+  
+  var content = el('journal-page-content');
+  if (!content) return;
+  
+  var html = '';
+  html += '<div class="journal-pet-header">';
+  html += '  <div class="journal-pet-image" style="font-size:5rem;">' + getPetEmoji(petType) + '</div>';
+  html += '  <div class="journal-pet-name">' + petType + '</div>';
+  html += '</div>';
+  
+  if (!prefs) {
+    html += '<div style="text-align:center;padding:40px;color:var(--text-light);">No data available for this pet.</div>';
+  } else {
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">💖 LOVED Food:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.loved ? prefs.loved_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">😊 LIKED Food:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.liked ? prefs.liked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">😐 DISLIKED Food:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.disliked ? prefs.disliked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">😠 HATED Food:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.hated ? prefs.hated_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">🎨 Hobby:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.hobby ? prefs.hobby : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">✨ Fun Fact:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.fun_fact ? prefs.fun_fact : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+    
+    var total = 6;
+    var discovered = Object.keys(discoveries).length;
+    html += '<div style="text-align:center;margin-top:30px;padding:15px;background:rgba(153,102,255,0.2);border-radius:12px;">';
+    html += '  <strong>Discovery Progress:</strong> ' + discovered + ' / ' + total;
+    html += '</div>';
+  }
+  
+  content.innerHTML = html;
+  
+  // Update controls
+  el('journal-page-indicator').textContent = 'Page ' + (currentJournalPage + 1) + ' of ' + journalPetTypes.length;
+  el('journal-prev-btn').disabled = currentJournalPage === 0;
+  el('journal-next-btn').disabled = currentJournalPage === journalPetTypes.length - 1;
+}
+
+function changeJournalPage(delta) {
+  currentJournalPage += delta;
+  if (currentJournalPage < 0) currentJournalPage = 0;
+  if (currentJournalPage >= journalPetTypes.length) currentJournalPage = journalPetTypes.length - 1;
+  renderJournalPage();
+}
 
 // Post guestbook message
 async function postGuestbookMessage() {

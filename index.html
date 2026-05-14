@@ -237,6 +237,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-journal" onclick="showTab('journal')">📓 Pet Journal</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
@@ -263,6 +264,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
+          <button class="sidebar-nav-btn" id="sidebar-btn-journal" onclick="showTab('journal')">📓 Pet Journal</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
@@ -512,6 +514,29 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       </div>
       
       <div id="mypets-container"><div class="spinner"></div></div>
+    </div>
+  </div>
+
+  <!-- PET JOURNAL -->
+  <div class="page-section" id="section-journal">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">📓 ✦ 📓</div>
+        <h1>Pet Journal</h1>
+        <p>Discover your pets' favorite foods, hobbies, and secrets! ✨</p>
+      </div>
+      
+      <div class="journal-book">
+        <div class="journal-page" id="journal-page-content">
+          <div class="spinner"></div>
+        </div>
+        
+        <div class="journal-controls">
+          <button class="journal-nav-btn" id="journal-prev-btn" onclick="changeJournalPage(-1)">← Previous</button>
+          <span class="journal-page-indicator" id="journal-page-indicator">Page 1 of 8</span>
+          <button class="journal-nav-btn" id="journal-next-btn" onclick="changeJournalPage(1)">Next →</button>
+        </div>
+      </div>
     </div>
   </div>
 

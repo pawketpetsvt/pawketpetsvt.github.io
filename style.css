@@ -10080,3 +10080,116 @@ body.night-mode .btn-outline:hover {
   margin: 10px 0;
 }
 
+/* ══════════════════════════════════════════════════════════════════════════
+   PET JOURNAL - Book-Style Interface
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.journal-book {
+  max-width: 700px;
+  margin: 30px auto;
+  background: linear-gradient(135deg, #fff5e6 0%, #ffe6cc 100%);
+  border: 6px solid #8B4513;
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.journal-book::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  bottom: 20px;
+  width: 2px;
+  background: rgba(139, 69, 19, 0.3);
+  transform: translateX(-50%);
+}
+
+.journal-page {
+  min-height: 500px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+}
+
+.journal-pet-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 2px solid var(--purple);
+}
+
+.journal-pet-image {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 15px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.journal-pet-name {
+  font-size: 2rem;
+  color: var(--purple);
+  font-family: 'Chewy', cursive;
+}
+
+.journal-entry {
+  margin: 20px 0;
+  padding: 15px;
+  background: rgba(153, 102, 255, 0.1);
+  border-left: 4px solid var(--purple);
+  border-radius: 8px;
+}
+
+.journal-entry-label {
+  font-weight: 700;
+  color: var(--purple-dark);
+  margin-bottom: 5px;
+}
+
+.journal-entry-value {
+  color: var(--text);
+  font-size: 1.1rem;
+}
+
+.journal-entry-unknown {
+  color: var(--text-light);
+  font-style: italic;
+}
+
+.journal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 2px solid rgba(139, 69, 19, 0.3);
+}
+
+.journal-nav-btn {
+  background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.journal-nav-btn:hover {
+  transform: scale(1.05);
+}
+
+.journal-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.journal-page-indicator {
+  font-weight: 600;
+  color: var(--purple-dark);
+}
+
