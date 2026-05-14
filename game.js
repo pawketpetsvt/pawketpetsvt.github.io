@@ -2426,8 +2426,19 @@ async function feedFree(petId) {
     return;
   }
   
-  // CRITICAL FIX: The TABLE function returns an array of rows
-  var feedResult = Array.isArray(result) && result.length > 0 ? result[0] : result;
+  // Check for error in response
+  if (result && result.error) {
+    console.error('Feed error:', result.error);
+    showFlash(petId, result.error, '#ff6eb4');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Feed';
+    }
+    return;
+  }
+  
+  // JSONB response - direct object (not array)
+  var feedResult = result;
   
   // Mark as used today
   localStorage.setItem('feed_' + petId + '_' + today, 'done');
@@ -2478,8 +2489,15 @@ async function feedWithItem(petId, itemId, itemName) {
     return;
   }
   
-  // CRITICAL FIX: The TABLE function returns an array of rows
-  var feedResult = Array.isArray(result) && result.length > 0 ? result[0] : result;
+  // Check for error in response
+  if (result && result.error) {
+    console.error('Feed error:', result.error);
+    showFlash(petId, result.error, '#ff6eb4');
+    return;
+  }
+  
+  // JSONB response - direct object (not array)
+  var feedResult = result;
   
   // Update local state
   petState[petId].hunger = feedResult.hunger;
@@ -2879,10 +2897,17 @@ async function playFree(petId) {
     return;
   }
   
+  // Check for error in response
+  if (result && result.error) {
+    console.error('Play error:', result.error);
+    showFlash(petId, result.error, '#ff6eb4');
+    return;
+  }
+  
   // Mark as used today
   localStorage.setItem('play_' + petId + '_' + today, 'done');
   
-  // Update local state
+  // Update local state (JSONB returns direct object)
   petState[petId].energy = result.energy;
   petState[petId].happiness = result.happiness;
   petState[petId].xp = result.xp;
@@ -2924,7 +2949,14 @@ async function playWithToy(petId, toyId, toyName) {
     return;
   }
   
-  // Update local state
+  // Check for error in response
+  if (result && result.error) {
+    console.error('Play with toy error:', result.error);
+    showFlash(petId, result.error, '#ff6eb4');
+    return;
+  }
+  
+  // Update local state (JSONB returns direct object)
   petState[petId].energy = result.energy;
   petState[petId].happiness = result.happiness;
   petState[petId].xp = result.xp;
