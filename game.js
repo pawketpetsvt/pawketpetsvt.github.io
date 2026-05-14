@@ -6733,29 +6733,46 @@ async function executeBattle(playerStats, enemyStats, petId) {
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   
-  console.log('Saving battle with:', {
-    petId: petId,
-    enemyId: enemyId,
-    victory: battleResult.victory,
-    turns: battleResult.turns,
-    finalHP: battleResult.playerFinalHP
-  });
+  // FIX: Get the correct UUID for the enemy
+  var actualEnemyId = enemyId;
   
-  // Make sure enemyId is a valid UUID, not a number
-  var validEnemyId = enemyId;
-  if (typeof enemyId === 'number' || !enemyId || !enemyId.includes('-')) {
-    // If enemyId is a number or not a UUID, we need to fetch the actual enemy UUID
-    console.warn('Enemy ID is not a UUID, attempting to fix:', enemyId);
-    var enemyRes = await supabaseClient
+  // If enemyId is a number (like 5), we need to look up the actual UUID
+  if (typeof enemyId === 'number' || (typeof enemyId === 'string' && !enemyId.includes('-'))) {
+    console.log('Enemy ID is numeric, looking up UUID for species:', enemyStats.species);
+    
+    // Find the enemy by species
+    var enemyLookup = await supabaseClient
       .from('enemy_pets')
       .select('id')
+      .eq('species', enemyStats.species)
       .limit(1)
       .single();
     
-    if (enemyRes.data) {
-      validEnemyId = enemyRes.data.id;
+    if (enemyLookup.data) {
+      actualEnemyId = enemyLookup.data.id;
+      console.log('✅ Found enemy UUID:', actualEnemyId);
     } else {
-      console.error('Could not find a valid enemy UUID, battle save may fail');
+      console.error('❌ Could not find enemy UUID for species:', enemyStats.species);
+      // Fallback: Try any enemy
+      var anyEnemy = await supabaseClient
+        .from('enemy_pets')
+        .select('id')
+        .limit(1)
+        .single();
+      
+      if (anyEnemy.data) {
+        actualEnemyId = anyEnemy.data.id;
+        console.log('⚠️ Using fallback enemy UUID:', actualEnemyId);
+      } else {
+        console.error('❌ No enemies found in database at all!');
+        // Return minimal rewards without saving
+        return {
+          victory: battleResult.victory,
+          expGained: battleResult.victory ? (enemyStats.exp_reward || 10) : 0,
+          ppGained: battleResult.victory ? (enemyStats.pp_reward || 10) : 0,
+          itemDropped: null
+        };
+      }
     }
   }
   
@@ -6764,7 +6781,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   // ═══════════════════════════════════════════════════════════
   var { data: result, error: rpcError } = await supabaseClient.rpc('save_battle_result', {
     p_pet_id: petId,
-    p_enemy_id: validEnemyId,
+    p_enemy_id: actualEnemyId,
     p_victory: battleResult.victory,
     p_turns_taken: battleResult.turns,
     p_player_final_hp: battleResult.playerFinalHP,
@@ -6785,14 +6802,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     console.log('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
   }
   
-  // CRITICAL: Ensure HP is properly updated after battle
+  // CRITICAL: Ensure HP is properly updated after battle (remove updated_at field)
   if (battleResult.victory || battleResult.playerFinalHP > 0) {
     var hpUpdate = await supabaseClient
       .from('user_pets')
-      .update({ 
-        current_hp: battleResult.playerFinalHP,
-        updated_at: new Date().toISOString()
-      })
+      .update({ current_hp: battleResult.playerFinalHP })
       .eq('id', petId);
     
     if (hpUpdate.error) {
@@ -7075,12 +7089,9 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
   // Set enemy sprite based on species
   var enemySprite = el('enemy-battle-sprite');
   
-  // CRITICAL: Completely reset the sprite
+  // Clear any existing content and classes
   enemySprite.innerHTML = '';
   enemySprite.className = 'battle-sprite enemy-sprite';
-  
-  // Clear any inline styles that might be interfering
-  enemySprite.style.cssText = '';
   
   // BOSS SPRITE - Show glitchy question mark
   if (enemyStats.is_boss) {
@@ -7090,48 +7101,19 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     // Get sprite configuration
     var config = getSpriteConfig(enemyStats.species);
     
-    // Calculate full sheet dimensions
-    var sheetWidth = config.frameWidth * config.framesPerRow;
-    var sheetHeight = config.frameHeight * config.rows;
-    
-    // Log what we're doing
-    console.log('Setting up enemy sprite:', {
-      species: enemyStats.species,
-      file: config.file,
-      frameWidth: config.frameWidth,
-      frameHeight: config.frameHeight,
-      sheetWidth: sheetWidth,
-      sheetHeight: sheetHeight
-    });
-    
-    // Apply styles directly - use setAttribute for maximum reliability
+    // SIMPLE APPROACH: Just show the image as a static sprite
     enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
-    enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
+    enemySprite.style.backgroundSize = 'contain';
     enemySprite.style.backgroundRepeat = 'no-repeat';
-    enemySprite.style.backgroundPosition = '0 0';
-    enemySprite.style.width = config.frameWidth + 'px';
-    enemySprite.style.height = config.frameHeight + 'px';
-    enemySprite.style.overflow = 'hidden';
-    enemySprite.style.display = 'block';
+    enemySprite.style.backgroundPosition = 'center';
+    enemySprite.style.width = '80px';
+    enemySprite.style.height = '80px';
     
-    // Start animation
-    startSpriteAnimation(enemySprite, enemyStats.species);
+    console.log('Static sprite loaded:', config.file);
     
-    // Apply special variant visual effect
+    // Apply special variant visual effect (if any)
     if (enemyStats.specialVariant) {
       enemySprite.classList.add('variant-' + enemyStats.specialVariant);
-      
-      // Add variant badge
-      var badge = document.createElement('div');
-      badge.className = 'enemy-variant-badge ' + enemyStats.specialVariant;
-      badge.textContent = enemyStats.specialVariant.toUpperCase();
-      enemySprite.parentElement.style.position = 'relative';
-      
-      // Remove old badge if exists
-      var oldBadge = enemySprite.parentElement.querySelector('.enemy-variant-badge');
-      if (oldBadge) oldBadge.remove();
-      
-      enemySprite.parentElement.appendChild(badge);
     }
   }
   
@@ -7150,94 +7132,17 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
 // ══════════════════════════════════════════════════════════════════════════
 
 var enemySpriteConfig = {
-  'bird': {
-    file: 'MiniBird.png',
-    frameWidth: 64,
-    frameHeight: 48,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'bunny': {
-    file: 'MiniBunny.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'rabbit': {
-    file: 'MiniBunny.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'squirrel': {
-    file: 'MiniBunny.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'fox': {
-    file: 'MiniFox.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'boar': {
-    file: 'MiniBoar.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'wolf': {
-    file: 'MiniWolf.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'bear': {
-    file: 'MiniBear.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'deer': {
-    file: 'MiniDeer1.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'mushroom': {
-    file: 'MonsterMushroom.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  },
-  'slime': {
-    file: 'MonsterSlime.png',
-    frameWidth: 64,
-    frameHeight: 64,
-    framesPerRow: 4,
-    totalFrames: 4,
-    rows: 1
-  }
+  'bird': { file: 'MiniBird.png', isSpriteSheet: false },
+  'bunny': { file: 'MiniBunny.png', isSpriteSheet: false },
+  'rabbit': { file: 'MiniBunny.png', isSpriteSheet: false },
+  'squirrel': { file: 'MiniBunny.png', isSpriteSheet: false },
+  'fox': { file: 'MiniFox.png', isSpriteSheet: false },
+  'boar': { file: 'MiniBoar.png', isSpriteSheet: false },
+  'wolf': { file: 'MiniWolf.png', isSpriteSheet: false },
+  'bear': { file: 'MiniBear.png', isSpriteSheet: false },
+  'deer': { file: 'MiniDeer1.png', isSpriteSheet: false },
+  'mushroom': { file: 'MonsterMushroom.png', isSpriteSheet: false },
+  'slime': { file: 'MonsterSlime.png', isSpriteSheet: false }
 };
 
 function getSpriteConfig(species) {
@@ -7250,56 +7155,9 @@ function getSpriteFile(species) {
 }
 
 function startSpriteAnimation(spriteElement, species) {
-  if (!spriteElement) return;
-  
-  var config = getSpriteConfig(species);
-  var currentFrame = 0;
-  var totalFrames = config.totalFrames;
-  
-  // Clear any existing animation
-  if (spriteElement._spriteInterval) {
-    clearInterval(spriteElement._spriteInterval);
-  }
-  
-  // CRITICAL: Calculate exact sheet dimensions
-  var sheetWidth = config.frameWidth * config.framesPerRow;
-  var sheetHeight = config.frameHeight * config.rows;
-  
-  // FORCE these styles - use setAttribute for maximum priority
-  spriteElement.style.backgroundImage = 'url(images/' + config.file + ')';
-  spriteElement.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
-  spriteElement.style.backgroundRepeat = 'no-repeat';
-  spriteElement.style.backgroundPosition = '0 0';
-  spriteElement.style.width = config.frameWidth + 'px';
-  spriteElement.style.height = config.frameHeight + 'px';
-  spriteElement.style.overflow = 'hidden';
-  spriteElement.style.display = 'block';
-  
-  // Log for debugging
-  console.log('Sprite animation started for:', species, {
-    file: config.file,
-    frameWidth: config.frameWidth,
-    frameHeight: config.frameHeight,
-    framesPerRow: config.framesPerRow,
-    totalFrames: totalFrames,
-    sheetWidth: sheetWidth,
-    sheetHeight: sheetHeight
-  });
-  
-  // Set up the animation interval
-  var animationSpeed = 200; // ms per frame
-  
-  spriteElement._spriteInterval = setInterval(function() {
-    var col = currentFrame % config.framesPerRow;
-    var row = Math.floor(currentFrame / config.framesPerRow);
-    
-    var xPos = -(col * config.frameWidth);
-    var yPos = -(row * config.frameHeight);
-    
-    spriteElement.style.backgroundPosition = xPos + 'px ' + yPos + 'px';
-    
-    currentFrame = (currentFrame + 1) % totalFrames;
-  }, animationSpeed);
+  // No animation needed - static images only
+  console.log('Static sprite for:', species);
+  return;
 }
 
 function stopSpriteAnimation(spriteElement) {
