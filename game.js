@@ -2327,20 +2327,33 @@ async function feed(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Always available, not limited to once per day)
+  // FREE DAILY OPTION (Check if already used today)
+  var today = new Date().toISOString().split('T')[0];
+  var freeFeedKey = 'free_feed_' + petId + '_' + today;
+  var freeUsed = localStorage.getItem(freeFeedKey) === 'done';
+  
   var freeBtn = document.createElement('button');
-  freeBtn.style.cssText = 'padding:15px;border:3px solid #5dde7a;background:linear-gradient(135deg, #5dde7a 0%, #4caf50 100%);border-radius:12px;cursor:pointer;transition:transform 0.2s;';
-  freeBtn.innerHTML = '<div style="font-size:2rem;">✨</div>' +
-                  '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#fff;">Free Daily Treat</div>' +
-                  '<div style="font-size:0.75rem;color:#fff;margin-top:3px;">+30 Hunger +10 XP</div>';
+  freeBtn.style.cssText = freeUsed ?
+    'padding:15px;border:3px solid #ccc;background:#f0f0f0;border-radius:12px;cursor:not-allowed;opacity:0.6;' :
+    'padding:15px;border:3px solid #5dde7a;background:linear-gradient(135deg, #5dde7a 0%, #4caf50 100%);border-radius:12px;cursor:pointer;transition:transform 0.2s;';
   
-  freeBtn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
-  freeBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+  freeBtn.innerHTML = freeUsed ?
+    '<div style="font-size:2rem;">✅</div>' +
+    '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#999;">Free Daily Treat</div>' +
+    '<div style="font-size:0.75rem;color:#999;margin-top:3px;">Used Today!</div>' :
+    '<div style="font-size:2rem;">✨</div>' +
+    '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#fff;">Free Daily Treat</div>' +
+    '<div style="font-size:0.75rem;color:#fff;margin-top:3px;">+30 Hunger +10 XP</div>';
   
-  freeBtn.onclick = function() {
-    closeModal();
-    feedFree(petId);
-  };
+  if (!freeUsed) {
+    freeBtn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
+    freeBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
+    
+    freeBtn.onclick = function() {
+      closeModal();
+      feedFree(petId);
+    };
+  }
   
   grid.appendChild(freeBtn);
   
@@ -2395,6 +2408,15 @@ async function feedFree(petId) {
   var pet = petState[petId];
   if (!pet) return;
   
+  // FREE OPTION - Check daily limit
+  var today = new Date().toISOString().split('T')[0];
+  var freeFeedKey = 'free_feed_' + petId + '_' + today;
+  
+  if (localStorage.getItem(freeFeedKey) === 'done') {
+    showFlash(petId, 'Free daily treat already used today!', '#ff9f43');
+    return;
+  }
+  
   var btn = el('feed-'+petId); 
   if (btn) {
     btn.disabled = true; 
@@ -2431,9 +2453,8 @@ async function feedFree(petId) {
   // JSONB response - direct object (not array)
   var feedResult = result;
   
-  // REMOVED: Daily limit tracking - users can feed unlimited times
-  // var today = new Date().toISOString().split('T')[0];
-  // localStorage.setItem('feed_' + petId + '_' + today, 'done');
+  // MARK FREE OPTION AS USED FOR TODAY (after successful feed)
+  localStorage.setItem(freeFeedKey, 'done');
   
   // Update local state
   petState[petId].hunger = feedResult.hunger;
@@ -2801,14 +2822,43 @@ async function play(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Always available if pet has energy)
-  var freeBtn = document.createElement('button');
-  freeBtn.style.cssText = 'padding:15px;border:3px solid ' + (pet.energy >= 10 ? '#ff9f43' : '#ccc') + ';background:' + (pet.energy >= 10 ? 'linear-gradient(135deg, #ff9f43 0%, #ffa726 100%)' : '#f5f5f5') + ';border-radius:12px;cursor:' + (pet.energy >= 10 ? 'pointer' : 'not-allowed') + ';transition:transform 0.2s;opacity:' + (pet.energy >= 10 ? '1' : '0.6') + ';';
-  freeBtn.innerHTML = '<div style="font-size:2rem;">🎾</div>' +
-                  '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:' + (pet.energy >= 10 ? '#fff' : '#999') + ';">Free Playtime</div>' +
-                  '<div style="font-size:0.75rem;color:' + (pet.energy >= 10 ? '#fff' : '#999') + ';margin-top:3px;">' + (pet.energy >= 10 ? '+15 Happiness +15 XP' : 'Need 10 Energy') + '</div>';
+  // FREE DAILY OPTION (Check if already used today AND has energy)
+  var today = new Date().toISOString().split('T')[0];
+  var freePlayKey = 'free_play_' + petId + '_' + today;
+  var freeUsed = localStorage.getItem(freePlayKey) === 'done';
+  var hasEnergy = pet.energy >= 10;
   
-  if (pet.energy >= 10) {
+  var freeBtn = document.createElement('button');
+  
+  // Determine button style based on status
+  if (freeUsed) {
+    // Already used today
+    freeBtn.style.cssText = 'padding:15px;border:3px solid #ccc;background:#f0f0f0;border-radius:12px;cursor:not-allowed;opacity:0.6;';
+  } else if (!hasEnergy) {
+    // Not enough energy
+    freeBtn.style.cssText = 'padding:15px;border:3px solid #ccc;background:#f5f5f5;border-radius:12px;cursor:not-allowed;opacity:0.6;';
+  } else {
+    // Available!
+    freeBtn.style.cssText = 'padding:15px;border:3px solid #ff9f43;background:linear-gradient(135deg, #ff9f43 0%, #ffa726 100%);border-radius:12px;cursor:pointer;transition:transform 0.2s;';
+  }
+  
+  // Set button content
+  if (freeUsed) {
+    freeBtn.innerHTML = '<div style="font-size:2rem;">✅</div>' +
+                    '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#999;">Free Playtime</div>' +
+                    '<div style="font-size:0.75rem;color:#999;margin-top:3px;">Used Today!</div>';
+  } else if (!hasEnergy) {
+    freeBtn.innerHTML = '<div style="font-size:2rem;">🎾</div>' +
+                    '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#999;">Free Playtime</div>' +
+                    '<div style="font-size:0.75rem;color:#999;margin-top:3px;">Need 10 Energy</div>';
+  } else {
+    freeBtn.innerHTML = '<div style="font-size:2rem;">🎾</div>' +
+                    '<div style="font-size:0.9rem;font-weight:700;margin-top:5px;color:#fff;">Free Playtime</div>' +
+                    '<div style="font-size:0.75rem;color:#fff;margin-top:3px;">+15 Happiness +15 XP</div>';
+  }
+  
+  // Only enable if not used and has energy
+  if (!freeUsed && hasEnergy) {
     freeBtn.onmouseover = function() { this.style.transform = 'scale(1.05)'; };
     freeBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
     
@@ -2871,6 +2921,15 @@ async function playFree(petId) {
   var pet = petState[petId];
   if (!pet || pet.energy < 10) return;
   
+  // FREE OPTION - Check daily limit
+  var today = new Date().toISOString().split('T')[0];
+  var freePlayKey = 'free_play_' + petId + '_' + today;
+  
+  if (localStorage.getItem(freePlayKey) === 'done') {
+    showFlash(petId, 'Free playtime already used today!', '#ff9f43');
+    return;
+  }
+  
   // Call RPC for free play
   var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
     p_pet_id: petId
@@ -2888,9 +2947,8 @@ async function playFree(petId) {
     return;
   }
   
-  // REMOVED: Daily limit tracking - users can play unlimited times
-  // var today = new Date().toISOString().split('T')[0];
-  // localStorage.setItem('play_' + petId + '_' + today, 'done');
+  // MARK FREE OPTION AS USED FOR TODAY (after successful play)
+  localStorage.setItem(freePlayKey, 'done');
   
   // Update local state (JSONB returns direct object)
   petState[petId].energy = result.energy;
