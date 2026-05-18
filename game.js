@@ -32,6 +32,109 @@ var audioCache = {};
 var lastSoundTime = 0;
 var soundCooldown = 300; // Minimum 300ms between sounds to avoid spam
 
+// ═══════════════════════════════════════════════════════════════════════
+// AUDIO PRELOADING - Lazy load strategy for better performance
+// ═══════════════════════════════════════════════════════════════════════
+
+// FIX 3: Priority sounds preloaded immediately, others loaded on-demand
+var prioritySounds = ['playerNormal', 'enemyNormal', 'playerCrit'];
+
+function preloadPrioritySounds() {
+  prioritySounds.forEach(function(key) {
+    if (battleSounds[key] && !audioCache[key]) {
+      var audio = new Audio(battleSounds[key]);
+      audio.volume = 0.35;
+      audio.preload = 'auto';
+      audio.onerror = function() {
+        console.log('Sound file not available:', battleSounds[key]);
+        audioCache[key] = null;
+      };
+      audioCache[key] = audio;
+    }
+  });
+  console.log('✅ Priority audio preloaded:', prioritySounds.join(', '));
+}
+
+function loadSoundOnDemand(soundKey) {
+  if (!battleSounds[soundKey]) return null;
+  if (audioCache[soundKey]) return audioCache[soundKey];
+  
+  // Load on demand and cache
+  var audio = new Audio(battleSounds[soundKey]);
+  audio.volume = 0.35;
+  audio.preload = 'auto';
+  audio.onerror = function() {
+    console.log('Sound file not available:', battleSounds[soundKey]);
+    audioCache[soundKey] = null;
+  };
+  audioCache[soundKey] = audio;
+  console.log('🔊 Loaded sound on demand:', soundKey);
+  return audio;
+}
+
+// Preload priority sounds on first user interaction
+var audioPreloaded = false;
+document.addEventListener('click', function preloadOnClick() {
+  if (!audioPreloaded) {
+    preloadPrioritySounds();
+    audioPreloaded = true;
+  }
+}, { once: true });
+
+// ═══════════════════════════════════════════════════════════════════════
+// TIMER CLEANUP SYSTEM - Prevents memory leaks
+// ═══════════════════════════════════════════════════════════════════════
+var activeTimers = {
+  intervals: [],
+  timeouts: []
+};
+
+function safeSetInterval(fn, delay) {
+  var id = setInterval(fn, delay);
+  activeTimers.intervals.push(id);
+  return id;
+}
+
+function safeSetTimeout(fn, delay) {
+  var id = setTimeout(fn, delay);
+  activeTimers.timeouts.push(id);
+  return id;
+}
+
+function safeClearInterval(id) {
+  clearInterval(id);
+  var index = activeTimers.intervals.indexOf(id);
+  if (index > -1) {
+    activeTimers.intervals.splice(index, 1);
+  }
+}
+
+function safeClearTimeout(id) {
+  clearTimeout(id);
+  var index = activeTimers.timeouts.indexOf(id);
+  if (index > -1) {
+    activeTimers.timeouts.splice(index, 1);
+  }
+}
+
+function cleanupAllTimers() {
+  // Clear all tracked intervals
+  activeTimers.intervals.forEach(function(id) {
+    clearInterval(id);
+  });
+  
+  // Clear all tracked timeouts
+  activeTimers.timeouts.forEach(function(id) {
+    clearTimeout(id);
+  });
+  
+  // Reset arrays
+  activeTimers.intervals = [];
+  activeTimers.timeouts = [];
+  
+  console.log('✅ All timers cleaned up');
+}
+
 function playBattleSound(soundKey, volume, forceBoss) {
   // Rate limiting - prevent sound spam
   var now = Date.now();
@@ -40,23 +143,21 @@ function playBattleSound(soundKey, volume, forceBoss) {
   }
   lastSoundTime = now;
   
-  // Check if file exists by trying to load it
-  if (!audioCache[soundKey]) {
-    var audio = new Audio(battleSounds[soundKey]);
-    audio.volume = volume || 0.35;
-    audio.onerror = function() {
-      console.log('Sound file not found:', battleSounds[soundKey]);
-      audioCache[soundKey] = null; // Mark as missing
-    };
-    audioCache[soundKey] = audio;
+  // FIX 3: Get audio from cache or load on-demand
+  var audio = audioCache[soundKey];
+  
+  // If not cached, try to load on-demand
+  if (!audio) {
+    audio = loadSoundOnDemand(soundKey);
   }
   
-  if (audioCache[soundKey] === null) {
-    return; // File doesn't exist, skip silently
+  // If still null (missing file), skip
+  if (!audio) {
+    return;
   }
   
-  // Clone to allow overlapping sounds
-  var sound = audioCache[soundKey].cloneNode();
+  // Clone audio node to allow overlapping sounds
+  var sound = audio.cloneNode();
   sound.volume = volume || 0.35;
   
   sound.play().catch(function(err) {
@@ -423,6 +524,9 @@ function initLeaderboardTab() {
 
 // ── TAB NAVIGATION ───────────────────────
 function showTab(tab) {
+  // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
+  cleanupAllTimers();
+  
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
@@ -433,12 +537,26 @@ function showTab(tab) {
   var sidebarBtn = el('sidebar-btn-' + tab); 
   if (sidebarBtn) sidebarBtn.classList.add('active');
   
+  // FIX 4: Particle system cleanup - stop when leaving home, start when entering
+  if (tab !== 'home' && window.particleInterval) {
+    // Leaving home tab - clean up particles
+    safeClearInterval(window.particleInterval);
+    window.particleInterval = null;
+    // Remove all existing sparkle particles
+    document.querySelectorAll('.sparkle-particle').forEach(function(el) {
+      el.remove();
+    });
+  } else if (tab === 'home' && !window.particleInterval) {
+    // Entering home tab - start particles if not already running
+    createFloatingSparkles();
+  }
+  
   // Special cases: some tabs need to initialize every time
   if (tab === 'leaderboard') {
     initLeaderboardTab();
   } else if (tab === 'forum') {
     // Ensure forum initializes properly
-    setTimeout(function() {
+    safeSetTimeout(function() {
       initForum();
     }, 100);
   } else if (tab === 'settings') {
@@ -618,8 +736,8 @@ async function showApp(user) {
   // Check sidebar stream status
   await checkSidebarStreamStatus();
   
-  // Refresh stream status every 2 minutes
-  setInterval(checkSidebarStreamStatus, 120000);
+  // FIX 2: Refresh stream status every 2 minutes (throttled, using safe timer)
+  safeSetInterval(checkSidebarStreamStatus, 120000);
   
   // PHASE 8 - Growth Features Initialization
   await checkDailyLogin(); // Daily rewards and buffs
@@ -1320,12 +1438,33 @@ async function loadMyPets() {
   if (!currentUser) return;
   container.innerHTML = '<div class="spinner"></div>';
   await loadInventoryData();
-  var res = await supabaseClient.from('user_pets').select('*, pets(name, image_file, vtuber_name, twitch_url), variant, variant_unlocked_at_level, active_pet_title_id').eq('user_id',currentUser.id).order('adopted_at',{ascending:true});
-  if (res.error) { container.textContent='Could not load pets.'; return; }
+  
+  // OPTIMIZATION 2: Single JOIN query instead of N+1 queries
+  // Fetch pets WITH titles in one query instead of 1 + N queries
+  var res = await supabaseClient
+    .from('user_pets')
+    .select(`
+      *,
+      pets(name, image_file, vtuber_name, twitch_url),
+      user_pet_titles(
+        pet_title_id,
+        pet_titles(*)
+      )
+    `)
+    .eq('user_id', currentUser.id)
+    .order('adopted_at', {ascending: true});
+  
+  if (res.error) { 
+    console.error('Error loading pets:', res.error);
+    container.textContent='Could not load pets.'; 
+    return; 
+  }
+  
   if (!res.data || !res.data.length) {
     container.innerHTML='<div class="empty-state"><div style="font-size:3rem;margin-bottom:14px;">&#128062;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No pets yet!</h2><p style="color:var(--text-light);margin-bottom:18px;">Head to the adoption centre!</p><button class="btn btn-primary btn-lg" onclick="showTab(\'adopt\')">Adopt a Pet</button></div>';
     return;
   }
+  
   // Process pets and calculate decay for DISPLAY ONLY (don't save back to DB!)
   res.data.forEach(function(pet) {
     var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
@@ -1348,18 +1487,56 @@ async function loadMyPets() {
       happiness: decayedHappiness,
       current_hp: regenedHP
     });
+    
+    // OPTIMIZATION 2: Cache titles from joined query (already loaded above)
+    if (pet.user_pet_titles && pet.user_pet_titles.length > 0) {
+      petTitlesCache[pet.id] = pet.user_pet_titles.map(function(upt) {
+        return upt.pet_titles;
+      });
+    } else {
+      petTitlesCache[pet.id] = [];
+    }
   });
   
-  // Load titles for each pet
-  for (var petId in petState) {
-    await loadPetTitles(petId);
-  }
-  
+  // OPTIMIZATION 1: Use DocumentFragment for batch DOM operations
+  // Build all cards in memory, then append once (1 reflow instead of N reflows)
   var grid = document.createElement('div');
   grid.className = 'mypets-grid';
-  Object.values(petState).forEach(function(pet) { grid.appendChild(makeMyPetCard(pet)); });
+  
+  var fragment = document.createDocumentFragment();
+  Object.values(petState).forEach(function(pet) { 
+    fragment.appendChild(makeMyPetCard(pet)); 
+  });
+  grid.appendChild(fragment);
+  
   container.innerHTML = '';
   container.appendChild(grid);
+  
+  // FIX 5: Set up event delegation for feed/play buttons (only once)
+  if (!container.hasAttribute('data-delegation-setup')) {
+    container.setAttribute('data-delegation-setup', 'true');
+    container.addEventListener('click', function(e) {
+      // Check for feed button click
+      var feedBtn = e.target.closest('.btn-feed');
+      if (feedBtn) {
+        var petId = feedBtn.getAttribute('data-pet-id');
+        if (petId && typeof feed === 'function') {
+          feed(parseInt(petId));
+        }
+        return;
+      }
+      
+      // Check for play button click
+      var playBtn = e.target.closest('.btn-play');
+      if (playBtn) {
+        var petId = playBtn.getAttribute('data-pet-id');
+        if (petId && typeof play === 'function') {
+          play(parseInt(petId));
+        }
+        return;
+      }
+    });
+  }
 }
 
 function makeDropdown(petId) {
@@ -1925,12 +2102,15 @@ function makeMyPetCard(pet) {
 
   // Action buttons
   var actions = makeEl('div', {class:'pet-actions'});
+  
+  // FIX 5: Event delegation - add data-pet-id attribute instead of onclick
   var feedBtn = makeEl('button', {class:'btn-action btn-feed', id:'feed-'+pet.id}, pet.hunger<pet.max_hunger?'Feed':'Full!');
+  feedBtn.setAttribute('data-pet-id', pet.id);
   if (pet.hunger >= pet.max_hunger) feedBtn.disabled=true;
-  feedBtn.onclick = function(){ feed(pet.id); };
+  
   var playBtn = makeEl('button', {class:'btn-action btn-play', id:'play-'+pet.id}, pet.energy>=10?'Play':'Tired!');
+  playBtn.setAttribute('data-pet-id', pet.id);
   if (pet.energy < 10) playBtn.disabled=true;
-  playBtn.onclick = function(){ play(pet.id); };
   
   // REMOVED daily limit - buttons always enabled for item-based feeding/playing
   // Users can feed/play unlimited times using items from inventory
@@ -3208,6 +3388,9 @@ async function loadShop() {
     header.appendChild(desc);
     grid.appendChild(header);
     
+    // OPTIMIZATION 1: Use DocumentFragment for batch append
+    var fragment = document.createDocumentFragment();
+    
     // Render items in this category
     items.forEach(function(item) {
       var card=makeEl('div',{class:'shop-card'});
@@ -3254,8 +3437,11 @@ async function loadShop() {
       if(!canAfford)buyBtn.disabled=true;
       buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
-      grid.appendChild(card);
+      fragment.appendChild(card);
     });
+    
+    // Append all items at once
+    grid.appendChild(fragment);
   });
   
   // Add any uncategorized items at the end
@@ -3264,6 +3450,9 @@ async function loadShop() {
     header.style.cssText = 'grid-column: 1 / -1; padding: 20px 10px 10px; border-bottom: 3px solid var(--purple-light); margin-bottom: 10px;';
     header.innerHTML = '<div style="font-size: 1.4rem; font-weight: bold; color: var(--purple);">📦 Other Items</div>';
     grid.appendChild(header);
+    
+    // OPTIMIZATION 1: Use DocumentFragment for batch append
+    var fragment = document.createDocumentFragment();
     
     categories.other.forEach(function(item) {
       var card=makeEl('div',{class:'shop-card'});
@@ -3289,8 +3478,11 @@ async function loadShop() {
       if(!canAfford)buyBtn.disabled=true;
       buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
-      grid.appendChild(card);
+      fragment.appendChild(card);
     });
+    
+    // Append all at once
+    grid.appendChild(fragment);
   }
 }
 
@@ -3704,55 +3896,6 @@ async function awardBadge(badgeKey) {
   } catch (err) {
     console.error('[Badges] Error in awardBadge:', err);
   }
-}
-async function play(petId) {
-  var pet = petState[petId]; 
-  if (!pet || pet.energy < 10) return;
-  
-  var btn = el('play-'+petId); 
-  btn.disabled = true; 
-  btn.textContent = '...';
-  
-  // Call secure database function
-  var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
-    p_pet_id: petId
-  });
-  
-  if (error) {
-    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    btn.disabled = false; 
-    btn.textContent = 'Play'; 
-    return;
-  }
-  
-  // Mark as used today
-  localStorage.setItem('play_' + petId + '_' + today, 'done');
-  
-  // Update local state
-  petState[petId].energy = result.energy;
-  petState[petId].happiness = result.happiness;
-  petState[petId].xp = result.xp;
-  
-  updateBar(petId, 'energy', result.energy, pet.max_energy);
-  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
-  updateXpBar(petId, result.xp, pet.level);
-  
-  if (result.leveled_up) {
-    petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
-    updateLvl(petId, result.new_level, pet.max_hunger);
-    tabsLoaded['mypets'] = false;
-    
-    if (result.new_level === 5) await awardBadge('level_5');
-    if (result.new_level === 10) await awardBadge('level_10');
-    if (result.new_level === 20) await awardBadge('level_20');
-  } else {
-    showFlash(petId, '-10 Energy +15 Happiness +15 XP', '#5dde7a');
-  }
-  
-  btn.textContent = 'Played Today!';
-  btn.disabled = true;
-  btn.style.opacity = '0.6';
 }
 
 function showBadgeNotification(badge) {
@@ -4981,20 +5124,24 @@ function triggerSpookyEffect() {
   
   // Play spooky audio (Piper's flute)
   try {
-    var spookyAudio = new Audio('/sounds/piper-flute-normal.mp3');
-    spookyAudio.volume = 0.3;
-    spookyAudio.play().catch(function(err) {
-      console.log('Spooky audio failed to play:', err);
-    });
+    // Reuse cached Piper audio instead of creating new Audio() each time
+    var piperKey = 'bossNormal'; // Already in battleSounds
+    if (audioCache[piperKey]) {
+      var spookyAudio = audioCache[piperKey].cloneNode();
+      spookyAudio.volume = 0.3;
+      spookyAudio.play().catch(function(err) {
+        console.log('Spooky audio failed to play:', err);
+      });
+    }
   } catch (err) {
     console.log('Could not load spooky audio');
   }
   
   // Remove effects after 3 seconds
-  setTimeout(function() {
+  safeSetTimeout(function() {
     overlay.style.animation = 'spooky-fade-out 1s ease-out';
     crtLines.style.animation = 'spooky-fade-out 1s ease-out';
-    setTimeout(function() {
+    safeSetTimeout(function() {
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (crtLines.parentNode) crtLines.parentNode.removeChild(crtLines);
     }, 1000);
@@ -10382,9 +10529,17 @@ var CompanionBuddy = {
   },
   
   hide: function() {
+    // CRITICAL: Clean up timers to prevent memory leaks
+    this.stopMessageRotation();
+    
+    // Clear bubble timeout
+    if (this.bubbleTimeout) {
+      clearTimeout(this.bubbleTimeout);
+      this.bubbleTimeout = null;
+    }
+    
     var buddy = document.getElementById('companion-buddy');
     if (buddy) buddy.style.display = 'none';
-    this.stopMessageRotation();
   },
   
   showMessage: function(message) {
@@ -10401,7 +10556,7 @@ var CompanionBuddy = {
     bubble.classList.add('show');
     
     // Hide after 5 seconds
-    this.bubbleTimeout = setTimeout(function() {
+    this.bubbleTimeout = safeSetTimeout(function() {
       bubble.classList.remove('show');
     }, 5000);
   },
@@ -10432,14 +10587,14 @@ var CompanionBuddy = {
     var self = this;
     
     // Show first message after 3 seconds
-    setTimeout(function() {
+    safeSetTimeout(function() {
       var context = self.getCurrentContext();
       var message = self.getRandomMessage(context);
       self.showMessage(message);
     }, 3000);
     
     // Then show messages every 60-90 seconds
-    this.messageInterval = setInterval(function() {
+    this.messageInterval = safeSetInterval(function() {
       var context = self.getCurrentContext();
       var message = self.getRandomMessage(context);
       self.showMessage(message);
@@ -10448,7 +10603,7 @@ var CompanionBuddy = {
   
   stopMessageRotation: function() {
     if (this.messageInterval) {
-      clearInterval(this.messageInterval);
+      safeClearInterval(this.messageInterval);
       this.messageInterval = null;
     }
   },
@@ -13819,7 +13974,8 @@ function insertEmoji(textareaId, emoji) {
 function createFloatingSparkles() {
   var sparkles = ['✨', '⭐', '💫', '🌟'];
   
-  setInterval(function() {
+  // FIX 4: Use safe timer and track interval globally
+  window.particleInterval = safeSetInterval(function() {
     var sparkle = makeEl('div', { class: 'sparkle-particle' });
     sparkle.textContent = sparkles[Math.floor(Math.random() * sparkles.length)];
     sparkle.style.left = Math.random() * window.innerWidth + 'px';
@@ -13828,7 +13984,7 @@ function createFloatingSparkles() {
     
     document.body.appendChild(sparkle);
     
-    setTimeout(function() {
+    safeSetTimeout(function() {
       sparkle.remove();
     }, 5000);
   }, 3000); // New sparkle every 3 seconds
