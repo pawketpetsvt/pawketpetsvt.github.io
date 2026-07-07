@@ -1716,18 +1716,15 @@ async function showApp(user) {
   if (!pr.data) {
     dbg('🚨 Player not found! Auto-creating fresh player account...');
     
-    // Try to recover username from Supabase auth metadata (set during registration)
-    // Fall back to a random name only if metadata is also missing
-    var recoveredUsername = (user.user_metadata && user.user_metadata.username)
-      ? user.user_metadata.username
-      : 'Player' + Math.floor(Math.random() * 100000);
+    // Generate a safe temporary username (NOT from email for privacy!)
+    var tempUsername = 'Player' + Math.floor(Math.random() * 100000);
     
     // Create new player
     var createResult = await supabaseClient
       .from('players')
       .insert([{
         id: user.id,
-        username: recoveredUsername,
+        username: tempUsername,
         pawketpoints: 0,
         created_at: new Date().toISOString()
       }])
@@ -1738,12 +1735,10 @@ async function showApp(user) {
       dbg('✅ Fresh player account created:', createResult.data);
       pr = createResult;
       
-      // Only prompt to set username if we couldn't recover one
-      if (!user.user_metadata || !user.user_metadata.username) {
-        setTimeout(function() {
-          showToast('🌟 Welcome! Please set your username in your Profile!', 10000, 'var(--orange)');
-        }, 1000);
-      }
+      // Show welcome notification with prompt to set username
+      setTimeout(function() {
+        showToast('🌟 Welcome! Please set your username in your Profile!', 10000, 'var(--orange)');
+      }, 1000);
     } else {
       console.error('❌ Failed to create player:', createResult.error);
       showToast('⚠️ Error creating account. Please refresh the page.', 5000, 'var(--red)');
@@ -2561,6 +2556,7 @@ async function confirmAdopt() {
   
   // Track adoption in analytics
   trackPetAdoption(selectedPet.name);
+  updateBingoProgress('adopt_pet', 1);
   
   closeAdoptModal();
   el('success-message').textContent = nickname + ' has joined your collection!';
@@ -4990,7 +4986,7 @@ async function feedFree(petId) {
     showFlash(petId, 'Level ' + feedResult.new_level + '! 🎉', '#b06aff');
     updateLvl(petId, feedResult.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
-    
+    onPetLevelUp(petId);
     if (feedResult.new_level === 5) await awardBadge('level_5');
     if (feedResult.new_level === 10) await awardBadge('level_10');
     if (feedResult.new_level === 20) await awardBadge('level_20');
@@ -5300,7 +5296,7 @@ async function playFree(petId) {
       showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
       updateLvl(petId, result.new_level, pet.max_hunger);
       tabsLoaded['mypets'] = false;
-
+      onPetLevelUp(petId);
       if (result.new_level === 5) await awardBadge('level_5');
       if (result.new_level === 10) await awardBadge('level_10');
       if (result.new_level === 20) await awardBadge('level_20');
@@ -5364,6 +5360,7 @@ async function playWithToy(petId, toyId, toyName) {
     showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
     updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
+    onPetLevelUp(petId);
   } else {
     showFlash(petId, '🎮 Played with ' + escapeHtml(toyName) + '! +20 Happiness +10 XP', '#5dde7a');
   }
@@ -6313,7 +6310,7 @@ function showBadgeNotification(badge) {
 // ── MINIGAMES ────────────────────────────
 function gck(game){return 'game_'+game+'_'+(currentUser?currentUser.id:'')+'_'+today;}
 function isCD(game){return localStorage.getItem(gck(game))==='done';}
-function setCD(game){localStorage.setItem(gck(game),'done');}
+function setCD(game){localStorage.setItem(gck(game),'done');updateBingoProgress('complete_minigame',1);}
 
 function initMinigames() {
   if(isCD('dice')){el('roll-btn').style.display='none';el('dice-cooldown').style.display='block';}
@@ -9560,6 +9557,7 @@ async function executeBattle(playerStats, enemyStats, petId) {
     }
     // WISHES: battle win
     checkPetWishes('win_battle', petId).catch(function(){});
+    updateBingoProgress('win_battle', 1);
   }
 
   // CRITICAL: Force reload pet data AFTER HP is saved
@@ -13583,6 +13581,7 @@ var CompanionBuddy = {
     // Set message and show
     messageEl.textContent = message;
     bubble.classList.add('show');
+    updateBingoProgress('pet_companion', 1);
     
     // Hide after 5 seconds
     this.bubbleTimeout = safeSetTimeout(function() {
