@@ -14477,7 +14477,6 @@ async function furniture_loadShop() {
     // Always re-fetch catalog (don't rely on cache that may have been set during failed auth)
     furnitureCache = null;
     var res = await supabaseClient.from('furniture_items').select('*').order('cost', { ascending: true });
-    console.log('[Furniture] Query result:', res); // Temporary diagnostic — shows in F12 console
     if (res.error) { console.error('[Furniture] fetch error:', res.error); throw res.error; }
     furnitureCache = res.data || [];
 
