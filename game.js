@@ -2556,7 +2556,6 @@ async function confirmAdopt() {
   
   // Track adoption in analytics
   trackPetAdoption(selectedPet.name);
-  updateBingoProgress('adopt_pet', 1);
   
   closeAdoptModal();
   el('success-message').textContent = nickname + ' has joined your collection!';
@@ -4986,7 +4985,7 @@ async function feedFree(petId) {
     showFlash(petId, 'Level ' + feedResult.new_level + '! 🎉', '#b06aff');
     updateLvl(petId, feedResult.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
-    onPetLevelUp(petId);
+    
     if (feedResult.new_level === 5) await awardBadge('level_5');
     if (feedResult.new_level === 10) await awardBadge('level_10');
     if (feedResult.new_level === 20) await awardBadge('level_20');
@@ -5296,7 +5295,7 @@ async function playFree(petId) {
       showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
       updateLvl(petId, result.new_level, pet.max_hunger);
       tabsLoaded['mypets'] = false;
-      onPetLevelUp(petId);
+
       if (result.new_level === 5) await awardBadge('level_5');
       if (result.new_level === 10) await awardBadge('level_10');
       if (result.new_level === 20) await awardBadge('level_20');
@@ -5360,7 +5359,6 @@ async function playWithToy(petId, toyId, toyName) {
     showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
     updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
-    onPetLevelUp(petId);
   } else {
     showFlash(petId, '🎮 Played with ' + escapeHtml(toyName) + '! +20 Happiness +10 XP', '#5dde7a');
   }
@@ -6310,7 +6308,7 @@ function showBadgeNotification(badge) {
 // ── MINIGAMES ────────────────────────────
 function gck(game){return 'game_'+game+'_'+(currentUser?currentUser.id:'')+'_'+today;}
 function isCD(game){return localStorage.getItem(gck(game))==='done';}
-function setCD(game){localStorage.setItem(gck(game),'done');updateBingoProgress('complete_minigame',1);}
+function setCD(game){localStorage.setItem(gck(game),'done');}
 
 function initMinigames() {
   if(isCD('dice')){el('roll-btn').style.display='none';el('dice-cooldown').style.display='block';}
@@ -9553,11 +9551,12 @@ async function executeBattle(playerStats, enemyStats, petId) {
     var maxHP = battleResult.playerMaxHP || 100;
     var finalHP = battleResult.playerFinalHP || 0;
     if (finalHP > 0 && (finalHP / maxHP) < 0.05) {
-      await awardBadge('badge_comeback');
+      await awardBadge('comeback_king');
     }
     // WISHES: battle win
     checkPetWishes('win_battle', petId).catch(function(){});
     updateBingoProgress('win_battle', 1);
+    if (typeof phase1_onBattleWin === 'function') phase1_onBattleWin().catch(function(){});
   }
 
   // CRITICAL: Force reload pet data AFTER HP is saved
@@ -9719,13 +9718,24 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
         itemDropped = itemsRes.data[Math.floor(Math.random() * itemsRes.data.length)];
         
-        await supabaseClient
+        // Check for existing row first to increment quantity rather than duplicate
+        var existingNormal = await supabaseClient
           .from('user_inventory')
-          .insert([{
-            user_id: currentUser.id,
-            item_id: itemDropped.id,
-            quantity: 1
-          }]);
+          .select('id, quantity')
+          .eq('user_id', currentUser.id)
+          .eq('item_id', itemDropped.id)
+          .maybeSingle();
+        
+        if (existingNormal.data) {
+          await supabaseClient
+            .from('user_inventory')
+            .update({ quantity: existingNormal.data.quantity + 1 })
+            .eq('id', existingNormal.data.id);
+        } else {
+          await supabaseClient
+            .from('user_inventory')
+            .insert([{ user_id: currentUser.id, item_id: itemDropped.id, quantity: 1 }]);
+        }
       }
     }
   }
@@ -13581,7 +13591,6 @@ var CompanionBuddy = {
     // Set message and show
     messageEl.textContent = message;
     bubble.classList.add('show');
-    updateBingoProgress('pet_companion', 1);
     
     // Hide after 5 seconds
     this.bubbleTimeout = safeSetTimeout(function() {
@@ -17970,6 +17979,7 @@ async function checkDailyLogin() {
     
     // PAWKETPASS: Update bingo and Pass XP for daily login
     updateBingoProgress('login', 1);
+    if (typeof phase1_onLogin === 'function') phase1_onLogin().catch(function(){});
     await addPassXP(10, 'login');
     
     // SCRAPBOOK: Add random flavor memory to a random pet
@@ -24525,6 +24535,7 @@ function onPetLevelUp(petId) {
 // Hook for adoption - call this when adopting a pet
 function onPetAdopted(petId) {
   updateBingoProgress('adopt_pet', 1);
+  if (typeof phase1_onPetAdopt === 'function') phase1_onPetAdopt().catch(function(){});
 }
 
 // Hook for minigame completion
@@ -25115,12 +25126,8 @@ async function community_grantReward(goal) {
   try {
     if (type === 'points') {
       var amount = parseInt(reward);
-      if (typeof window.addPawketPoints === 'function') {
-        window.addPawketPoints(amount);
-      } else if (window.currentUser) {
-        window.currentUser.pawketPoints = (window.currentUser.pawketPoints || 0) + amount;
-        if (typeof window.saveUserData === 'function') await window.saveUserData();
-        if (typeof updateAllPoints === 'function') updateAllPoints((window.currentUser.pawketPoints || 0));
+      if (typeof awardPP === 'function') {
+        await awardPP(amount, 'community_goal');
       }
       return true;
     }
@@ -25970,36 +25977,40 @@ async function phase1_checkAllUnlocks() {
   try {
     dbg('🔍 Phase 1: Checking all milestone unlocks...');
     
-    // Get player stats from existing data
-    var totalBattles = currentUser.total_battles || 0;
-    var loginStreak = currentUser.login_streak || 0;
-    var playerLevel = currentUser.level || 1;
-    
-    // Count pets
-    var totalPets = 0;
-    if (window.petState) {
-      totalPets = Object.keys(window.petState).length;
-    }
-    
+    // Fetch real game stats from the players table
+    // (currentUser is the Supabase auth object — it has no game fields)
+    var { data: playerRow } = await supabaseClient
+      .from('players')
+      .select('login_streak, total_pp_earned')
+      .eq('id', currentUser.id)
+      .single();
+
+    var loginStreak  = (playerRow && playerRow.login_streak)   || 0;
+
+    // Fetch battle count from battle_history
+    var { count: totalBattles } = await supabaseClient
+      .from('battle_history')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .eq('victory', true);
+    totalBattles = totalBattles || 0;
+
+    // Count pets from petState (already loaded in memory)
+    var totalPets = window.petState ? Object.keys(window.petState).length : 0;
+
     // Check battle milestones
-    if (totalBattles >= 10) await phase1_checkMilestone('battle_10', totalBattles);
-    if (totalBattles >= 50) await phase1_checkMilestone('battle_50', totalBattles);
+    if (totalBattles >= 10)  await phase1_checkMilestone('battle_10', totalBattles);
+    if (totalBattles >= 50)  await phase1_checkMilestone('battle_50', totalBattles);
     if (totalBattles >= 100) await phase1_checkMilestone('battle_100', totalBattles);
     if (totalBattles >= 500) await phase1_checkMilestone('battle_500', totalBattles);
     
     // Check streak milestones
-    if (loginStreak >= 7) await phase1_checkMilestone('streak_7', loginStreak);
-    if (loginStreak >= 30) await phase1_checkMilestone('streak_30', loginStreak);
+    if (loginStreak >= 7)   await phase1_checkMilestone('streak_7', loginStreak);
+    if (loginStreak >= 30)  await phase1_checkMilestone('streak_30', loginStreak);
     if (loginStreak >= 100) await phase1_checkMilestone('streak_100', loginStreak);
     
-    // Check level milestones
-    if (playerLevel >= 10) await phase1_checkMilestone('level_10', playerLevel);
-    if (playerLevel >= 20) await phase1_checkMilestone('level_20', playerLevel);
-    if (playerLevel >= 25) await phase1_checkMilestone('level_25', playerLevel);
-    if (playerLevel >= 50) await phase1_checkMilestone('level_50', playerLevel);
-    
     // Check pet collection milestones
-    if (totalPets >= 5) await phase1_checkMilestone('pets_5', totalPets);
+    if (totalPets >= 5)  await phase1_checkMilestone('pets_5', totalPets);
     if (totalPets >= 10) await phase1_checkMilestone('pets_10', totalPets);
     if (totalPets >= 20) await phase1_checkMilestone('pets_20', totalPets);
     
@@ -26018,7 +26029,12 @@ async function phase1_onBattleWin() {
   if (!currentUser) return;
   
   try {
-    var totalBattles = currentUser.total_battles || 0;
+    var { count: totalBattles } = await supabaseClient
+      .from('battle_history')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .eq('victory', true);
+    totalBattles = totalBattles || 0;
     if (totalBattles === 10) await phase1_checkMilestone('battle_10', totalBattles);
     if (totalBattles === 50) await phase1_checkMilestone('battle_50', totalBattles);
     if (totalBattles === 100) await phase1_checkMilestone('battle_100', totalBattles);
@@ -26033,10 +26049,16 @@ async function phase1_onLogin() {
   if (!currentUser) return;
   
   try {
-    var loginStreak = currentUser.login_streak || 0;
-    if (loginStreak === 7) await phase1_checkMilestone('streak_7', loginStreak);
-    if (loginStreak === 30) await phase1_checkMilestone('streak_30', loginStreak);
-    if (loginStreak === 100) await phase1_checkMilestone('streak_100', loginStreak);
+    // Read login_streak from players table (currentUser is Supabase auth object, no game fields)
+    var { data: playerRow } = await supabaseClient
+      .from('players')
+      .select('login_streak')
+      .eq('id', currentUser.id)
+      .single();
+    var loginStreak = (playerRow && playerRow.login_streak) || 0;
+    if (loginStreak >= 7)   await phase1_checkMilestone('streak_7', loginStreak);
+    if (loginStreak >= 30)  await phase1_checkMilestone('streak_30', loginStreak);
+    if (loginStreak >= 100) await phase1_checkMilestone('streak_100', loginStreak);
   } catch (error) {
     console.error('❌ Phase 1: Login hook error:', error);
   }
@@ -27690,8 +27712,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(){});
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(){});
+  if (shareCount === 1)  awardBadge('snapshot_moment').catch(function(){});
+  if (shareCount === 5)  awardBadge('social_butterfly').catch(function(){});
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -28855,10 +28877,10 @@ async function gift_sendGift(toUserId, toUsername) {
     // Check first-gift badge
     var { count: totalSent } = await supabaseClient
       .from('gifts').select('id', { count: 'exact', head: true }).eq('from_user_id', currentUser.id);
-    if (totalSent === 1)  await awardBadge('gift_giver');
-    if (totalSent === 1)  await awardBadge('badge_gift_giver');
-    if (totalSent >= 10)  await awardBadge('badge_generous');
-    if (totalSent >= 50)  await awardBadge('badge_philanthropist');
+    if (totalSent === 1)  await awardBadge('secret_santa');
+    if (totalSent === 1)  await awardBadge('secret_santa');
+    if (totalSent >= 10)  await awardBadge('generous_soul');
+    if (totalSent >= 50)  await awardBadge('philanthropist');
 
     closeModal();
     showToast('🎁 Gift sent to ' + toUsername + '!', 3000);
@@ -29128,9 +29150,9 @@ var pollSystem = {
       // Badge milestones
       var { count: totalVotes } = await supabaseClient
         .from('poll_votes').select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-      if (totalVotes === 5)  await awardBadge('active_citizen');
-      if (totalVotes === 3)  await awardBadge('badge_voter');
-      if (totalVotes === 15) await awardBadge('badge_poll_champ');
+      if (totalVotes === 5)  await awardBadge('community_builder');
+      if (totalVotes === 3)  await awardBadge('voice_of_people');
+      if (totalVotes === 15) await awardBadge('poll_champion');
       if (totalVotes === 25) await awardBadge('community_leader');
 
       showToast('✅ Vote counted! +25 PP', 3000);
