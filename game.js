@@ -1716,15 +1716,18 @@ async function showApp(user) {
   if (!pr.data) {
     dbg('🚨 Player not found! Auto-creating fresh player account...');
     
-    // Generate a safe temporary username (NOT from email for privacy!)
-    var tempUsername = 'Player' + Math.floor(Math.random() * 100000);
+    // Try to recover username from Supabase auth metadata (set during registration)
+    // Fall back to a random name only if metadata is also missing
+    var recoveredUsername = (user.user_metadata && user.user_metadata.username)
+      ? user.user_metadata.username
+      : 'Player' + Math.floor(Math.random() * 100000);
     
     // Create new player
     var createResult = await supabaseClient
       .from('players')
       .insert([{
         id: user.id,
-        username: tempUsername,
+        username: recoveredUsername,
         pawketpoints: 0,
         created_at: new Date().toISOString()
       }])
@@ -1735,10 +1738,12 @@ async function showApp(user) {
       dbg('✅ Fresh player account created:', createResult.data);
       pr = createResult;
       
-      // Show welcome notification with prompt to set username
-      setTimeout(function() {
-        showToast('🌟 Welcome! Please set your username in your Profile!', 10000, 'var(--orange)');
-      }, 1000);
+      // Only prompt to set username if we couldn't recover one
+      if (!user.user_metadata || !user.user_metadata.username) {
+        setTimeout(function() {
+          showToast('🌟 Welcome! Please set your username in your Profile!', 10000, 'var(--orange)');
+        }, 1000);
+      }
     } else {
       console.error('❌ Failed to create player:', createResult.error);
       showToast('⚠️ Error creating account. Please refresh the page.', 5000, 'var(--red)');
@@ -14477,6 +14482,7 @@ async function furniture_loadShop() {
     // Always re-fetch catalog (don't rely on cache that may have been set during failed auth)
     furnitureCache = null;
     var res = await supabaseClient.from('furniture_items').select('*').order('cost', { ascending: true });
+    console.log('[Furniture] Query result:', res); // Temporary diagnostic — shows in F12 console
     if (res.error) { console.error('[Furniture] fetch error:', res.error); throw res.error; }
     furnitureCache = res.data || [];
 
