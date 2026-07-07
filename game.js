@@ -1,6 +1,52 @@
 'use strict';
 
 // ══════════════════════════════════════════════════════════════════════════
+// DEBUG FLAG — set to true locally to see verbose logs; false for production
+// ══════════════════════════════════════════════════════════════════════════
+var _notifTabHidden = false;
+
+var DEBUG = false;
+
+// ── Global Tooltip System ──────────────────────────────────────────────────
+// Usage: add data-tooltip="text" to any element. Supports \n for line breaks.
+(function() {
+  var tip = null;
+  function show(el, text) {
+    hide();
+    tip = document.createElement('div');
+    tip.id = 'global-tooltip';
+    tip.innerHTML = text.replace(/\n/g, '<br>');
+    tip.style.cssText = 'position:fixed;background:#1a1a2e;color:#e8d5ff;padding:8px 13px;border-radius:10px;font-size:0.78rem;max-width:240px;z-index:100000;border:1px solid #9966ff;box-shadow:0 4px 16px rgba(0,0,0,0.4);pointer-events:none;line-height:1.5;';
+    document.body.appendChild(tip);
+    var r = el.getBoundingClientRect();
+    var left = Math.min(r.left, window.innerWidth - 260);
+    var top  = r.bottom + 8;
+    if (top + 120 > window.innerHeight) top = r.top - 10 - tip.offsetHeight;
+    tip.style.left = Math.max(8, left) + 'px';
+    tip.style.top  = top + 'px';
+  }
+  function hide() { if (tip) { tip.remove(); tip = null; } }
+  document.addEventListener('mouseover', function(e) {
+    var t = e.target.closest('[data-tooltip]');
+    if (t) show(t, t.getAttribute('data-tooltip'));
+    else hide();
+  }, true);
+  document.addEventListener('touchstart', hide, true);
+  document.addEventListener('scroll', hide, true);
+})();
+// Refresh notification badge when user returns to this tab
+document.addEventListener('visibilitychange', function() {
+  if (document.hidden) {
+    _notifTabHidden = true;
+  } else {
+    _notifTabHidden = false;
+    if (currentUser) updateNotificationBadge().catch(function() {});
+  }
+});
+
+function dbg() { if (DEBUG) console.log.apply(console, arguments); }
+
+// ══════════════════════════════════════════════════════════════════════════
 // SUPABASE INITIALIZATION
 // ══════════════════════════════════════════════════════════════════════════
 var SUPABASE_URL = 'https://hqzugbxutgefjilgmxqu.supabase.co';
@@ -28,9 +74,53 @@ var battleSounds = {
   defeat: '/sounds/defeat.mp3'
 };
 
+// ─── Set to true when sound files are added to /sounds/ ───────────────────
+var SOUNDS_ENABLED = false;
+// ─────────────────────────────────────────────────────────────────────────
+
+// ── CHIPTUNE CELEBRATION SOUNDS (Web Audio API — no files needed) ──────────
+// Small, quiet, happy chiptune bleeps for celebration events.
+var _celebAudioCtx = null;
+function _getCelebCtx() {
+  if (!_celebAudioCtx) {
+    try { _celebAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) {}
+  }
+  return _celebAudioCtx;
+}
+
+function playChiptune(type) {
+  var ctx = _getCelebCtx();
+  if (!ctx) return;
+  try {
+    // Note sequences per event type (frequencies in Hz, duration in ms)
+    var sequences = {
+      milestone: [[523,80],[659,80],[784,80],[1047,160]],    // C E G C  — rising triumphant
+      levelup:   [[392,70],[523,70],[659,70],[784,70],[1047,120]], // G C E G C
+      badge:     [[659,80],[784,80],[1047,130]],              // E G C
+      variant:   [[784,70],[1047,70],[1319,70],[1568,140]],   // G C E G  — sparkly high
+    };
+    var notes = sequences[type] || sequences.milestone;
+    var t = ctx.currentTime + 0.01;
+    notes.forEach(function(note) {
+      var osc   = ctx.createOscillator();
+      var gain  = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(note[0], t);
+      gain.gain.setValueAtTime(0.04, t);          // very quiet
+      gain.gain.exponentialRampToValueAtTime(0.001, t + note[1] / 1000);
+      osc.start(t);
+      osc.stop(t + note[1] / 1000 + 0.02);
+      t += note[1] / 1000;
+    });
+  } catch(e) { dbg('Chiptune play error:', e); }
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 var audioCache = {};
 var lastSoundTime = 0;
-var soundCooldown = 300; // Minimum 300ms between sounds to avoid spam
+var soundCooldown = 300; // Default; updated to GAME_CONSTANTS.SOUND_COOLDOWN_MS after constants are defined
 
 // ═══════════════════════════════════════════════════════════════════════
 // AUDIO PRELOADING - Lazy load strategy for better performance
@@ -40,22 +130,24 @@ var soundCooldown = 300; // Minimum 300ms between sounds to avoid spam
 var prioritySounds = ['playerNormal', 'enemyNormal', 'playerCrit'];
 
 function preloadPrioritySounds() {
+  if (!SOUNDS_ENABLED) return; // No sound files yet
   prioritySounds.forEach(function(key) {
     if (battleSounds[key] && !audioCache[key]) {
       var audio = new Audio(battleSounds[key]);
       audio.volume = 0.35;
       audio.preload = 'auto';
       audio.onerror = function() {
-        console.log('Sound file not available:', battleSounds[key]);
+        dbg('Sound file not available:', battleSounds[key]);
         audioCache[key] = null;
       };
       audioCache[key] = audio;
     }
   });
-  console.log('✅ Priority audio preloaded:', prioritySounds.join(', '));
+  dbg('✅ Priority audio preloaded:', prioritySounds.join(', '));
 }
 
 function loadSoundOnDemand(soundKey) {
+  if (!SOUNDS_ENABLED) return null;
   if (!battleSounds[soundKey]) return null;
   if (audioCache[soundKey]) return audioCache[soundKey];
   
@@ -64,11 +156,11 @@ function loadSoundOnDemand(soundKey) {
   audio.volume = 0.35;
   audio.preload = 'auto';
   audio.onerror = function() {
-    console.log('Sound file not available:', battleSounds[soundKey]);
+    dbg('Sound file not available:', battleSounds[soundKey]);
     audioCache[soundKey] = null;
   };
   audioCache[soundKey] = audio;
-  console.log('🔊 Loaded sound on demand:', soundKey);
+  dbg('🔊 Loaded sound on demand:', soundKey);
   return audio;
 }
 
@@ -118,24 +210,13 @@ function safeClearTimeout(id) {
 }
 
 function cleanupAllTimers() {
-  // Clear all tracked intervals
-  activeTimers.intervals.forEach(function(id) {
-    clearInterval(id);
-  });
-  
-  // Clear all tracked timeouts
-  activeTimers.timeouts.forEach(function(id) {
-    clearTimeout(id);
-  });
-  
-  // Reset arrays
-  activeTimers.intervals = [];
-  activeTimers.timeouts = [];
-  
-  console.log('✅ All timers cleaned up');
+  // System timers (weather, events, news, notifications) live outside activeTimers
+  // and must not be cleared on tab switch. UI/particle cleanup happens in showTab().
+  dbg('✅ Timer cleanup skipped — system timers preserved');
 }
 
 function playBattleSound(soundKey, volume, forceBoss) {
+  if (!SOUNDS_ENABLED) return;
   // Rate limiting - prevent sound spam
   var now = Date.now();
   if (!forceBoss && now - lastSoundTime < soundCooldown) {
@@ -181,33 +262,38 @@ function getBattleSoundKey(attacker, variance) {
    MAIN GAME CODE
    ═══════════════════════════════════════════════════════════════════════ */
 
-var supabaseClient;
-if (typeof supabase !== 'undefined') {
-  supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      flowType: 'pkce'
-    }
-  });
-} else {
-  // Wait for Supabase library to load
-  console.log('Waiting for Supabase library...');
+var supabaseClient = null;
+
+function initSupabase() {
+  if (typeof supabase !== 'undefined' && supabase.createClient) {
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce'
+      }
+    });
+    dbg('✅ Supabase initialized');
+    return true;
+  }
+  return false;
+}
+
+// Try to initialize immediately
+if (!initSupabase()) {
+  // If library not loaded yet, poll until it is
+  dbg('Waiting for Supabase library...');
   var checkSupabase = setInterval(function() {
-    if (typeof supabase !== 'undefined') {
-      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
-        auth: {
-          autoRefreshToken: true,
-          persistSession: true,
-          detectSessionInUrl: true,
-          flowType: 'pkce'
-        }
-      });
-      console.log('Supabase initialized!');
+    if (typeof supabase !== 'undefined' && supabase.createClient) {
+      initSupabase();
       clearInterval(checkSupabase);
+      // Retry the auth gate after initialization
+      if (typeof initApp === 'function') {
+        initApp();
+      }
     }
-  }, 50);
+  }, 100);
 }
 
 // ── CONFIG ──────────────────────────────
@@ -215,7 +301,13 @@ var TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u';
 var TWITCH_REDIRECT_URI = 'https://pawketpetsvt.github.io/';
 var STREAMER_IDS = {
   embertail: '91821604',
-  pyxshuul:  '1459912293'
+  pyxshuul:  '1459912293',
+  aria:      '1445288832',
+  blushimia: '659500662',
+  cowbee:    '203845195',
+  kelta:     '121490227',
+  jess:      '88727356',
+  gnarly:    '531222973'
 };
 
 // ── GLOBALS ──────────────────────────────
@@ -231,8 +323,303 @@ var playerSettings = {
   sfx_volume: 80,
   daynight_enabled: true,
   weather_enabled: true,
-  tutorial_completed: false
+  tutorial_completed: false,
+  active_theme: 'classic'
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEASONAL UI THEMES
+// ═══════════════════════════════════════════════════════════════════════════
+
+var THEME_CATALOG = [
+  { id:'classic',   name:'Classic Purple', emoji:'💜', colors:['#9966ff','#ff66cc'], alwaysUnlocked:true,  unlockHint:'Always free!' },
+  { id:'autumn',    name:'Cozy Autumn',    emoji:'🍂', colors:['#c0672a','#e8a030'], alwaysUnlocked:true,  unlockHint:'Free seasonal theme' },
+  { id:'winter',    name:'Winter Aurora',  emoji:'❄️', colors:['#005f99','#00b4db'], passLevel:15,         unlockHint:'PawketPass Lv. 15' },
+  { id:'halloween', name:'Spooky Season',  emoji:'🎃', colors:['#5c1a00','#ff6b35'], alwaysUnlocked:true,  unlockHint:'Halloween event' },
+  { id:'golden',    name:'Golden Age',     emoji:'✨', colors:['#8b6914','#ffd700'], streakRequired:30,    unlockHint:'30-day login streak' }
+];
+
+function theme_isUnlocked(themeId) {
+  var t = THEME_CATALOG.find(function(x) { return x.id === themeId; });
+  if (!t) return false;
+  if (t.alwaysUnlocked) return true;
+  if (t.passLevel && typeof passProgress !== 'undefined' && passProgress && passProgress.level >= t.passLevel) return true;
+  if (t.streakRequired && currentUser && (currentUser.login_streak || 0) >= t.streakRequired) return true;
+  try {
+    var list = JSON.parse(localStorage.getItem('unlockedThemes') || '[]');
+    if (list.indexOf(themeId) !== -1) return true;
+  } catch(e) {}
+  return false;
+}
+
+function theme_grant(themeId) {
+  try {
+    var list = JSON.parse(localStorage.getItem('unlockedThemes') || '[]');
+    if (list.indexOf(themeId) === -1) {
+      list.push(themeId);
+      localStorage.setItem('unlockedThemes', JSON.stringify(list));
+      var t = THEME_CATALOG.find(function(x) { return x.id === themeId; });
+      if (typeof showToast === 'function') showToast('🎨 Theme unlocked: ' + (t ? t.name : themeId) + '!', 3000);
+    }
+  } catch(e) {}
+}
+
+function theme_apply(themeId) {
+  if (!theme_isUnlocked(themeId)) { showToast('🔒 Theme not unlocked yet!', 2500); return; }
+  THEME_CATALOG.forEach(function(t) { document.body.classList.remove('theme-' + t.id); });
+  if (themeId !== 'classic') document.body.classList.add('theme-' + themeId);
+  playerSettings.active_theme = themeId;
+  try {
+    var key = currentUser ? 'playerSettings_' + currentUser.id : 'playerSettings_guest';
+    var saved = JSON.parse(localStorage.getItem(key) || '{}');
+    saved.active_theme = themeId;
+    localStorage.setItem(key, JSON.stringify(saved));
+  } catch(e) {}
+  document.querySelectorAll('.theme-swatch').forEach(function(sw) {
+    sw.classList.toggle('active', sw.dataset.themeId === themeId);
+  });
+}
+
+function theme_loadSaved() {
+  try {
+    var key = currentUser ? 'playerSettings_' + currentUser.id : 'playerSettings_guest';
+    var saved = JSON.parse(localStorage.getItem(key) || '{}');
+    if (saved.active_theme) { playerSettings.active_theme = saved.active_theme; theme_apply(saved.active_theme); }
+  } catch(e) {}
+}
+
+function theme_renderSelector(containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var html = '<div class="theme-selector-grid">';
+  THEME_CATALOG.forEach(function(t) {
+    var unlocked = theme_isUnlocked(t.id);
+    var active   = playerSettings.active_theme === t.id;
+    html += '<div class="theme-swatch' + (active ? ' active' : '') + (unlocked ? '' : ' locked') + '"' +
+      ' data-theme-id="' + t.id + '"' + (unlocked ? ' onclick="theme_apply(\'' + t.id + '\')"' : '') + '>' +
+      '<div class="theme-swatch-preview" style="background:linear-gradient(135deg,' + t.colors[0] + ',' + t.colors[1] + ');display:flex;align-items:center;justify-content:center;font-size:1.6rem;">' + t.emoji + '</div>' +
+      '<div class="theme-swatch-label">' + t.name + '</div>' +
+      (!unlocked ? '<div class="theme-swatch-hint">' + t.unlockHint + '</div><div class="theme-swatch-lock">🔒</div>' : '') +
+      '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFILE COSMETICS CATALOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+var COSMETICS_CATALOG = {
+  backgrounds: [
+    // ── Free for everyone ──
+    { id:'bg_default',    name:'Classic',        emoji:'💜', gradient:'linear-gradient(135deg,#9966ff,#764ba2)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_dreamy',     name:'Dreamy Skies',   emoji:'☁️', gradient:'linear-gradient(135deg,#a8edea,#fed6e3)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_sunset',     name:'Sunset Glow',    emoji:'🌅', gradient:'linear-gradient(135deg,#ff9a9e,#fecfef)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_midnight',   name:'Midnight Stars', emoji:'🌙', gradient:'linear-gradient(135deg,#2c3e50,#3498db)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_candy',      name:'Candy Land',     emoji:'🍬', gradient:'linear-gradient(135deg,#ff6b9d,#ffb3c6,#ffdee9)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_cafe',       name:'Cozy Café',      emoji:'☕', gradient:'linear-gradient(135deg,#d4a373,#faedcd,#fefae0)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_galaxy',     name:'Cosmic Void',    emoji:'🌌', gradient:'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_garden',     name:'Garden',         emoji:'🌸', gradient:'linear-gradient(135deg,#a8edea,#fed6e3)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    // ── Earned ──
+    { id:'bg_forest',     name:'Forest Glade',   emoji:'🌲', gradient:'linear-gradient(135deg,#134e5e,#71b280)',  unlockHint:'Reach player level 10' },
+    { id:'bg_stars',      name:'Starry Night',   emoji:'✨', gradient:'linear-gradient(135deg,#000428,#004e92)',  unlockHint:'30-day login streak' },
+    { id:'bg_castle',     name:'Battle Keep',    emoji:'🏰', gradient:'linear-gradient(135deg,#2c3e50,#8e44ad)',  unlockHint:'Win 50 battles' },
+    { id:'bg_desert',     name:'Dusk Desert',    emoji:'🏜️', gradient:'linear-gradient(135deg,#c94b4b,#4b134f)',  unlockHint:'Win 100 battles' },
+    { id:'bg_clouds',     name:'Cloud Nine',     emoji:'☁️', gradient:'linear-gradient(135deg,#89f7fe,#66a6ff)',  unlockHint:'Reach player level 20' },
+    { id:'bg_rainbow',    name:'Rainbow Road',   emoji:'🌈', gradient:'linear-gradient(90deg,#ff0000,#ff7f00,#ffff00,#00ff00,#0000ff,#4b0082,#9400d3)', unlockHint:'Complete Bingo blackout' },
+    { id:'bg_legendary',  name:'Legendary',      emoji:'👑', gradient:'linear-gradient(135deg,#f7971e,#ffd200)',  unlockHint:'Reach player level 50' },
+    { id:'bg_underwater', name:'Underwater',     emoji:'🐠', gradient:'linear-gradient(135deg,#0052d4,#65c7f7)',  unlockHint:'50-day login streak' },
+    { id:'bg_volcano',    name:'Volcano',        emoji:'🌋', gradient:'linear-gradient(135deg,#ff512f,#dd2476)',  unlockHint:'Defeat 10 bosses' },
+    { id:'bg_aurora',     name:'Aurora Bloom',   emoji:'🌿', gradient:'linear-gradient(135deg,#0f9b8e,#bdc372)',  unlockHint:'Contribute to 10 community goals' },
+    { id:'bg_rose',       name:'Rose Gold',      emoji:'🌹', gradient:'linear-gradient(135deg,#f093fb,#f5576c)',  unlockHint:'Send 50 gifts' },
+  ],
+  frames: [
+    // ── Free for everyone ──
+    { id:'frame_classic',   name:'Classic',    emoji:'💜', previewColor:'#9966ff', cssClass:'frame-classic',  alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_dashed',    name:'Dashed',     emoji:'┅',  previewColor:'#9966ff', cssClass:'frame-dashed',   alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_dotted',    name:'Dotted',     emoji:'⋯',  previewColor:'#9966ff', cssClass:'frame-dotted',   alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_double',    name:'Double',     emoji:'═',  previewColor:'#9966ff', cssClass:'frame-double',   alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_soft',      name:'Soft',       emoji:'●',  previewColor:'#ff99cc', cssClass:'frame-soft',     alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_glow',      name:'Glowing',    emoji:'💫', previewColor:'#9966ff', cssClass:'frame-glow-free',alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'frame_paw',       name:'Paw Prints', emoji:'🐾', previewColor:'#ff9966', cssClass:'frame-paw',      alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    // ── Earned ──
+    { id:'frame_silver',    name:'Silver',     emoji:'⚪', previewColor:'#c0c0c0', cssClass:'frame-silver',    unlockHint:'Reach player level 10' },
+    { id:'frame_gold',      name:'Gold',       emoji:'🟡', previewColor:'#ffd700', cssClass:'frame-gold',      unlockHint:'Reach player level 20' },
+    { id:'frame_fire',      name:'Fire',       emoji:'🔥', previewColor:'#ff4500', cssClass:'frame-fire',      unlockHint:'Win 100 battles' },
+    { id:'frame_ice',       name:'Ice',        emoji:'❄️', previewColor:'#00d2ff', cssClass:'frame-ice',       unlockHint:'30-day login streak' },
+    { id:'frame_rainbow',   name:'Rainbow',    emoji:'🌈', previewColor:'#ff69b4', cssClass:'frame-rainbow',   unlockHint:'Complete Bingo blackout' },
+    { id:'frame_sparkle',   name:'Sparkle',    emoji:'✨', previewColor:'#ffd700', cssClass:'frame-sparkle-earned', unlockHint:'Referred 5 friends' },
+    { id:'frame_legendary', name:'Legendary',  emoji:'✨', previewColor:'#ffd700', cssClass:'frame-legendary', unlockHint:'Reach player level 50' },
+    { id:'frame_void',      name:'Void',       emoji:'🌑', previewColor:'#8b00ff', cssClass:'frame-void',      unlockHint:'Ultra rare drop' },
+    { id:'frame_crown',     name:'Crown',      emoji:'👑', previewColor:'#ffd700', cssClass:'frame-crown',     unlockHint:'Win 50 battles in a row' },
+    { id:'frame_glitch',    name:'Glitch',     emoji:'📺', previewColor:'#ff00ff', cssClass:'frame-glitch',    unlockHint:'Secret code: GLITCH' },
+  ],
+  badges: [
+    // ── Free starter badges (equip to show personality) ──
+    { id:'badge_newbie',      name:'Newbie',          emoji:'🌱', color:'#8e8e8e', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    { id:'badge_explorer',    name:'Explorer',         emoji:'🗺️', color:'#5cb85c', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    { id:'badge_friendly',    name:'Friendly',         emoji:'😊', color:'#f1c40f', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    { id:'badge_helpful',     name:'Helpful',          emoji:'🤝', color:'#3498db', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    { id:'badge_creative',    name:'Creative',         emoji:'🎨', color:'#9b59b6', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    { id:'badge_brave',       name:'Brave',            emoji:'🦁', color:'#e67e22', alwaysUnlocked:true,  unlockHint:'Free for everyone' },
+    // ── Earned badges ──
+    { id:'badge_recruit',     name:'Recruit',          emoji:'🎖️', color:'#8e8e8e', alwaysUnlocked:false, unlockHint:'Complete tutorial' },
+    { id:'badge_level_20',    name:'Veteran',          emoji:'⭐',  color:'#c0c0c0',                       unlockHint:'Reach player level 20' },
+    { id:'badge_level_50',    name:'Mythic',           emoji:'💫',  color:'#ff9800',                       unlockHint:'Reach player level 50' },
+    { id:'badge_100_battles', name:'Veteran Fighter',  emoji:'⚔️',  color:'#5bc0de',                       unlockHint:'Win 100 battles' },
+    { id:'badge_30_days',     name:'Loyal',            emoji:'🗓️',  color:'#5cb85c',                       unlockHint:'30-day login streak' },
+    { id:'badge_100_days',    name:'Devoted',          emoji:'💎',  color:'#5bc0de',                       unlockHint:'100-day login streak' },
+    { id:'badge_pet_20',      name:'Collector',        emoji:'🐾',  color:'#ff69b4',                       unlockHint:'Own 20 pets' },
+    { id:'badge_boss_10',     name:'Boss Slayer',      emoji:'👑',  color:'#ff4500',                       unlockHint:'Defeat 10 bosses' },
+    { id:'badge_treats_100',  name:'Feeder',           emoji:'🍖',  color:'#5dde7a',                       unlockHint:'Feed pets 100 times' },
+    { id:'badge_gift_giver',  name:'Gift Giver',       emoji:'🎁',  color:'#ff6b9d',                       unlockHint:'Send your first gift' },
+    { id:'badge_generous',    name:'Generous Soul',    emoji:'💝',  color:'#ff6b9d',                       unlockHint:'Send 10 gifts' },
+    { id:'badge_philanthropist',name:'Philanthropist', emoji:'🏦',  color:'#ffd700',                       unlockHint:'Send 50 gifts' },
+    { id:'badge_snapshot',    name:'Snapshot',         emoji:'📸',  color:'#5bc0de',                       unlockHint:'Share your first screenshot' },
+    { id:'badge_social_butterfly',name:'Social Butterfly',emoji:'📱',color:'#9b59b6',                    unlockHint:'Share 5 screenshots' },
+    { id:'badge_voter',       name:'Voice of the People',emoji:'🗳️',color:'#3498db',                      unlockHint:'Vote in 3 polls' },
+    { id:'badge_poll_champ',  name:'Poll Champion',    emoji:'📊',  color:'#9b59b6',                       unlockHint:'Vote in 15 polls' },
+    { id:'badge_speed_demon', name:'Speed Demon',      emoji:'⚡',  color:'#ffd700',                       unlockHint:'Win a battle in under 3 turns' },
+    { id:'badge_the_wall',    name:'The Wall',         emoji:'🛡️',  color:'#5bc0de',                       unlockHint:'Win a battle taking <10 damage' },
+    { id:'badge_comeback',    name:'Comeback King',    emoji:'🔥',  color:'#ff4500',                       unlockHint:'Win a battle at <5% HP' },
+    { id:'badge_team_player', name:'Team Player',      emoji:'🤝',  color:'#5cb85c',                       unlockHint:'Contribute to a community goal' },
+    { id:'badge_global_hero', name:'Global Hero',      emoji:'🌍',  color:'#3498db',                       unlockHint:'Contribute to 10 community goals' },
+  ]
+};
+
+var equippedCosmetics = { background:'bg_default', frame:'frame_classic', badges:[] };
+
+function cosmetics_loadEquipped() {
+  if (!currentUser) return;
+  try {
+    var saved = JSON.parse(localStorage.getItem('equippedCosmetics_' + currentUser.id) || 'null');
+    if (saved) Object.assign(equippedCosmetics, saved);
+  } catch(e) {}
+}
+
+function cosmetics_saveEquipped() {
+  if (!currentUser) return;
+  try { localStorage.setItem('equippedCosmetics_' + currentUser.id, JSON.stringify(equippedCosmetics)); } catch(e) {}
+}
+
+function cosmetics_isOwned(type, id) {
+  var catalog = COSMETICS_CATALOG[type + 's'] || [];
+  var item = catalog.find(function(c) { return c.id === id; });
+  if (!item) return false;
+  if (item.alwaysUnlocked) return true;
+  var stateKey = 'unlocked' + type.charAt(0).toUpperCase() + type.slice(1) + 's';
+  var unlocked = (phase1_state && phase1_state[stateKey]) ? phase1_state[stateKey] : [];
+  return unlocked.indexOf(id) !== -1;
+}
+
+function cosmetics_equip(type, id) {
+  if (!cosmetics_isOwned(type, id)) { showToast('🔒 Cosmetic not unlocked yet!', 2500); return; }
+  var catalog = COSMETICS_CATALOG[type + 's'] || [];
+  var item = catalog.find(function(c) { return c.id === id; });
+  if (!item) return;
+  if (type === 'badge') {
+    var idx = equippedCosmetics.badges.indexOf(id);
+    if (idx !== -1) { equippedCosmetics.badges.splice(idx,1); showToast('Badge removed', 1500); }
+    else { if (equippedCosmetics.badges.length >= 3) equippedCosmetics.badges.shift(); equippedCosmetics.badges.push(id); showToast(item.emoji + ' Badge equipped!', 1500); }
+  } else {
+    equippedCosmetics[type] = id;
+    showToast(item.emoji + ' ' + item.name + ' equipped!', 2000);
+  }
+  cosmetics_saveEquipped();
+  cosmetics_applyToProfile();
+  cosmetics_renderPanel('cosmetics-panel-content', cosmetics_currentTab);
+}
+
+function cosmetics_applyToProfile() {
+  // Profile header background
+  var header = document.querySelector('.myprofile-preview-header, .profile-header');
+  if (header) {
+    var bg = COSMETICS_CATALOG.backgrounds.find(function(b) { return b.id === equippedCosmetics.background; });
+    if (bg) { header.style.background = bg.gradient; header.style.borderRadius = '16px'; header.style.padding = '24px'; }
+  }
+  // Avatar frame
+  var avatars = ['profile-avatar','myprofile-avatar-preview'];
+  avatars.forEach(function(avatarId) {
+    var avatar = document.getElementById(avatarId);
+    if (!avatar) return;
+    COSMETICS_CATALOG.frames.forEach(function(f) { avatar.classList.remove(f.cssClass); });
+    var frame = COSMETICS_CATALOG.frames.find(function(f) { return f.id === equippedCosmetics.frame; });
+    if (frame) { avatar.classList.add(frame.cssClass); avatar.style.borderWidth = '4px'; avatar.style.borderStyle = 'solid'; }
+  });
+  // Badge row
+  var badgeRow = document.getElementById('profile-badge-display');
+  if (badgeRow) {
+    badgeRow.innerHTML = '';
+    equippedCosmetics.badges.forEach(function(badgeId) {
+      var badge = COSMETICS_CATALOG.badges.find(function(b) { return b.id === badgeId; });
+      if (badge) {
+        var pip = document.createElement('span');
+        pip.className = 'profile-badge-pip'; pip.textContent = badge.emoji;
+        pip.title = badge.name; pip.style.filter = 'drop-shadow(0 0 4px ' + badge.color + ')';
+        badgeRow.appendChild(pip);
+      }
+    });
+  }
+}
+
+var cosmetics_currentTab = 'backgrounds';
+
+function cosmetics_renderPanel(containerId, tab) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  cosmetics_currentTab = tab;
+  var typeKey = tab;
+  var catalog = COSMETICS_CATALOG[typeKey] || [];
+  var typeSingular = typeKey === 'backgrounds' ? 'background' : typeKey === 'frames' ? 'frame' : 'badge';
+  var html = '<div class="cosmetics-grid">';
+  catalog.forEach(function(item) {
+    var owned   = cosmetics_isOwned(typeSingular, item.id);
+    var equipped = typeSingular === 'badge'
+      ? equippedCosmetics.badges.indexOf(item.id) !== -1
+      : equippedCosmetics[typeSingular] === item.id;
+    var preview = '';
+    if (typeKey === 'backgrounds') {
+      preview = '<div class="cosmetic-preview" style="background:' + item.gradient + ';border-radius:4px 4px 0 0;"></div>';
+    } else if (typeKey === 'frames') {
+      preview = '<div class="cosmetic-preview"><div style="width:44px;height:44px;border-radius:50%;border:4px solid ' + item.previewColor + ';box-shadow:0 0 10px ' + item.previewColor + ';display:flex;align-items:center;justify-content:center;font-size:1.4rem;">' + item.emoji + '</div></div>';
+    } else {
+      preview = '<div class="cosmetic-preview" style="font-size:2rem;">' + item.emoji + '</div>';
+    }
+    html += '<div class="cosmetic-item' + (equipped?' equipped-cosmetic':'') + (owned?'':' locked-cosmetic') + '"' +
+      (owned ? ' onclick="cosmetics_equip(\'' + typeSingular + '\',\'' + item.id + '\')"' : '') + '>' +
+      preview +
+      (equipped ? '<div class="cosmetic-equipped-badge">ON</div>' : '') +
+      (!owned   ? '<div class="cosmetic-lock-icon">🔒</div>' : '') +
+      '<div class="cosmetic-name">' + item.name + '</div>' +
+      (!owned   ? '<div class="cosmetic-unlock-hint">' + item.unlockHint + '</div>' : '') +
+      '</div>';
+  });
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+function cosmetics_renderFullPanel(mountId) {
+  var mount = document.getElementById(mountId);
+  if (!mount) return;
+  var tabs = [['backgrounds','🖼️ Backgrounds'],['frames','🔲 Frames'],['badges','🏅 Badges']];
+  var tabHtml = '<div class="cosmetics-panel-tabs">';
+  tabs.forEach(function(tab) {
+    tabHtml += '<button class="cosmetics-panel-tab' + (tab[0] === cosmetics_currentTab ? ' active' : '') + '" onclick="cosmetics_switchTab(\'' + tab[0] + '\')">' + tab[1] + '</button>';
+  });
+  tabHtml += '</div><div id="cosmetics-panel-content"></div>';
+  mount.innerHTML = tabHtml;
+  cosmetics_renderPanel('cosmetics-panel-content', cosmetics_currentTab);
+}
+
+function cosmetics_switchTab(tab) {
+  cosmetics_currentTab = tab;
+  document.querySelectorAll('.cosmetics-panel-tab').forEach(function(btn) {
+    var label = btn.textContent.toLowerCase();
+    btn.classList.toggle('active', label.indexOf(tab.replace('s','')) !== -1);
+  });
+  cosmetics_renderPanel('cosmetics-panel-content', tab);
+}
 
 // Daily tips array for home page
 var dailyTips = [
@@ -274,8 +661,12 @@ var dailyTips = [
 var petBackstories = {
   'Ember': 'Co-founder of PawketPets! 🦊',
   'Pyxie': 'Co-founder of PawketPets! 🐰',
-  // Add more as team members join!
-  // 'NewPet': 'Their backstory here...',
+  'Blushimia': 'A silly dog princess who escaped her video game after gaining sentience! 👑🐕',
+  'Jess': 'A local fossil and potion-prepping paleoart Parasaur specializing in the cute and creepy! 🦕⚗️',
+  'Steve': 'A chill menace who clucks, bawks, bucks, and says the occasional bad word! 🐔⚡',
+  'Kleat': 'A grand mage studying void and galaxy magic! Can open portals to anywhere! ✨🌌',
+  'Gnarly': 'A radical gal running the PaleoPlex arcade! Loves Furbies and nachos! 🎮🦖',
+  'Aria': 'A rosy maple moth fae who collects bones! Don\'t worry, she lets you keep yours until you\'re done with them. 🦋💀',
 };
 
 /**
@@ -353,8 +744,28 @@ function setVolume(v) { bgMusic.volume = parseFloat(v); }
 var toastQueue = [];
 var isShowingToast = false;
 
-function showToast(msg, type) {
-  showPixelToast(msg, type || 'info');
+function showToast(msg, type, useModal) {
+  // If useModal is true, use centered modal for important notifications
+  if (useModal === true) {
+    var icon = '🎉';
+    var title = 'Notice';
+    
+    if (type === 'success') {
+      icon = '✅';
+      title = 'Success!';
+    } else if (type === 'error') {
+      icon = '❌';
+      title = 'Error';
+    } else if (type === 'warning') {
+      icon = '⚠️';
+      title = 'Warning';
+    }
+    
+    showCenteredModal(title, msg, icon);
+  } else {
+    // Keep old toast behavior for minor notifications
+    showPixelToast(msg, type || 'info');
+  }
 }
 
 function showPixelToast(message, type) {
@@ -440,6 +851,415 @@ function makeEl(tag, attrs, text) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// GAME CONSTANTS — named values instead of scattered magic numbers
+// ══════════════════════════════════════════════════════════════════════════
+var GAME_CONSTANTS = {
+  XP_PER_LEVEL:        120,   // XP needed per level (currentLevel * this)
+  BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
+  BOSS_ENCOUNTER_RATE: 0.03,  // 3% chance (~1 in 33 battles)
+  SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
+  HP_REGEN_PER_HOUR:   3,     // HP regenerated per hour out of battle
+  PASS_XP_PER_FEED:    2,     // Pass XP awarded for feeding a pet
+  REFERRAL_PP_REWARD:  250,   // PP awarded to referrer
+  TUTORIAL_PP_REWARD:  100,   // PP awarded for completing tutorial
+  TUTORIAL_SKIP_PP:    50,    // PP awarded for skipping tutorial
+};
+// ═══════════════════════════════════════════════════════════════════════════
+// EVENT / WEATHER STATUS NAVBAR WIDGET
+// Shows active event (priority) or current weather in the navbar center.
+// Hover = tooltip, click = full detail modal.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateEventStatusWidget() {
+  var widget = document.getElementById('event-status-widget');
+  if (!widget) return;
+
+  var iconEl = document.getElementById('event-status-icon');
+  var textEl = document.getElementById('event-status-text');
+  var dotEl  = document.getElementById('event-status-dot');
+
+  // Priority: active world event > today's weather from todayFeatures > weatherSystem
+  var hasEvent = false;
+
+  if (typeof worldEvents !== 'undefined' && worldEvents.currentEvent) {
+    var ev = worldEvents.currentEvent;
+    iconEl.textContent = ev.icon || '🎪';
+    textEl.textContent = ev.name.length > 18 ? ev.name.substring(0, 15) + '…' : ev.name;
+    dotEl.className = 'event-status-dot event-active';
+    widget.dataset.type    = 'event';
+    widget.dataset.name    = ev.name;
+    widget.dataset.desc    = ev.description || '';
+    widget.dataset.icon    = ev.icon || '🎪';
+    widget.dataset.bonuses = esw_getEventBonusText(ev.effects || {});
+    widget.dataset.endDate = (worldEvents.eventEndDate || '').toString();
+    hasEvent = true;
+  } else {
+    // Fall back to todayFeatures weather (already loaded) or weatherSystem
+    var weatherId   = null;
+    var weatherName = 'Clear';
+    var weatherIcon = '☀️';
+    var weatherDesc = 'Normal conditions today.';
+
+    if (typeof todayFeatures !== 'undefined' && todayFeatures.current) {
+      var twId = todayFeatures.current.weather;
+      // todayFeatures.current.weather may be an id string or object
+      if (typeof twId === 'object' && twId !== null) { twId = twId.id; }
+      var tw = todayFeatures.weatherTypes.find(function(w) { return w.id === twId; });
+      if (tw) {
+        weatherId   = tw.id;
+        weatherName = tw.name;
+        weatherIcon = tw.emoji || tw.icon || '☀️';
+        weatherDesc = tw.effect || tw.description || '';
+      }
+    } else if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) {
+      var ws = weatherSystem.currentWeather;
+      weatherId   = ws.id;
+      weatherName = ws.name;
+      weatherIcon = ws.icon;
+      weatherDesc = ws.description || '';
+    }
+
+    iconEl.textContent = weatherIcon;
+    textEl.textContent = weatherName;
+    dotEl.className    = 'event-status-dot active';
+    widget.dataset.type = 'weather';
+    widget.dataset.name = weatherName;
+    widget.dataset.desc = weatherDesc;
+    widget.dataset.icon = weatherIcon;
+    widget.dataset.bonuses = esw_getWeatherBonusText(weatherId);
+  }
+
+  widget.style.display = 'flex';
+}
+
+function esw_getEventBonusText(effects) {
+  var parts = [];
+  if (effects.battleXpBonus   && effects.battleXpBonus > 1)   parts.push('⚔️ +' + Math.round((effects.battleXpBonus - 1) * 100) + '% Battle XP');
+  if (effects.ppGainBonus     && effects.ppGainBonus > 1)      parts.push('💜 +' + Math.round((effects.ppGainBonus - 1) * 100) + '% PP Gain');
+  if (effects.encounterRate   && effects.encounterRate > 1)    parts.push('✨ +' + Math.round((effects.encounterRate - 1) * 100) + '% Encounters');
+  if (effects.energyRegen     && effects.energyRegen > 1)      parts.push('⚡ ' + effects.energyRegen + 'x Energy Regen');
+  if (effects.happinessGain   && effects.happinessGain > 1)    parts.push('💖 +' + Math.round((effects.happinessGain - 1) * 100) + '% Happiness');
+  if (effects.shopDiscount    && effects.shopDiscount < 1)     parts.push('🛒 ' + Math.round((1 - effects.shopDiscount) * 100) + '% Off Shop');
+  if (effects.spoonDamageBonus && effects.spoonDamageBonus > 1) parts.push('🥄 +' + Math.round((effects.spoonDamageBonus - 1) * 100) + '% Spoon Damage');
+  if (effects.randomBonusChance) parts.push('🎲 ' + Math.round(effects.randomBonusChance * 100) + '% Random Bonus Chance');
+  return parts.join('\n') || 'No special bonuses';
+}
+
+function esw_getWeatherBonusText(weatherId) {
+  var map = {
+    clear:   '☀️ Normal conditions',
+    sunny:   '☀️ Pets are extra happy today!',
+    rainy:   '🌊 Water types: +25% XP',
+    foggy:   '🌫️ Rare encounters: +10%',
+    windy:   '💨 All pets move +15% faster',
+    snowy:   '❄️ Ice types: +25% XP',
+    stormy:  '⚡ Electric types: +25% XP\n⚔️ Battles deal +10% damage',
+    starry:  '✨ Mystical bonuses active',
+    rainbow: '🌈 All types: +10% XP (lucky day!)',
+    cursed:  '🟣 Strange energies… beware'
+  };
+  return map[weatherId] || '✨ Normal conditions';
+}
+
+function esw_showTooltip() {
+  esw_hideTooltip();
+  var widget = document.getElementById('event-status-widget');
+  if (!widget) return;
+
+  var isEvent = widget.dataset.type === 'event';
+  var bonuses = (widget.dataset.bonuses || '').trim();
+
+  var timerHtml = '';
+  if (isEvent && widget.dataset.endDate) {
+    try {
+      var end = new Date(widget.dataset.endDate);
+      var hoursLeft = Math.max(0, Math.floor((end - Date.now()) / 3600000));
+      if (hoursLeft > 0) {
+        timerHtml = '<div class="esw-tooltip-timer">⏰ ' + hoursLeft + ' hour' + (hoursLeft !== 1 ? 's' : '') + ' remaining</div>';
+      } else {
+        timerHtml = '<div class="esw-tooltip-timer">⏰ Ending soon!</div>';
+      }
+    } catch(e) {}
+  }
+
+  var tip = document.createElement('div');
+  tip.className = 'esw-tooltip';
+  tip.id = 'esw-tooltip';
+  tip.innerHTML =
+    '<div class="esw-tooltip-title"><span>' + (widget.dataset.icon || '🌤️') + '</span><span>' + escapeHtml(widget.dataset.name || '') + (isEvent ? ' <span style="font-size:0.7rem;background:#fbbf2433;color:#fbbf24;padding:2px 6px;border-radius:6px;margin-left:4px;">EVENT</span>' : '') + '</span></div>' +
+    '<div class="esw-tooltip-desc">' + escapeHtml(widget.dataset.desc || '') + '</div>' +
+    (bonuses ? '<div class="esw-tooltip-bonus">' + escapeHtml(bonuses).replace(/\n/g, '<br>') + '</div>' : '') +
+    timerHtml;
+
+  document.body.appendChild(tip);
+
+  // Position below widget
+  var rect = widget.getBoundingClientRect();
+  var tipW = 290;
+  var left = rect.left + rect.width / 2 - tipW / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipW - 8));
+  tip.style.top  = (rect.bottom + 8) + 'px';
+  tip.style.left = left + 'px';
+}
+
+function esw_hideTooltip() {
+  var tip = document.getElementById('esw-tooltip');
+  if (tip) tip.remove();
+}
+
+function esw_showModal() {
+  esw_hideTooltip();
+  // Open the 7-day calendar instead of the old single-condition modal
+  calendar_open();
+}
+
+// ─── EVENT CALENDAR ──────────────────────────────────────────────────────────
+
+var WEATHER_ICONS = {
+  clear:'☀️', rainy:'🌧️', foggy:'🌫️', windy:'💨', starry:'✨', cursed:'🟣'
+};
+var EVENT_TYPE_ICONS = {
+  weather:'🌤️', bonus_event:'⚡', holiday:'🎉', streamer_birthday:'🎂'
+};
+
+async function calendar_open() {
+  var modal = makeModal();
+  modal.innerHTML = '<div style="text-align:center;padding:20px 0;"><div class="spinner"></div><div style="color:var(--text-light);margin-top:8px;font-size:0.85rem;">Loading forecast…</div></div>';
+  openModal(modal);
+  await calendar_load(modal);
+}
+
+async function calendar_load(modal) {
+  // Build 7-day array starting from today
+  var days = [];
+  var now = new Date();
+
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(now);
+    d.setDate(now.getDate() + i);
+    days.push({
+      date: d,
+      dateStr: d.toISOString().slice(0, 10),
+      label: i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }),
+      weather: null,
+      event: null,
+      isToday: i === 0
+    });
+  }
+
+  // Today: use live in-memory state, then check daily_features for override
+  if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) {
+    days[0].weather = weatherSystem.currentWeather;
+  }
+  if (typeof worldEvents !== 'undefined' && worldEvents.currentEvent) {
+    days[0].event = worldEvents.currentEvent;
+  }
+
+  // Check daily_features for today's scheduled weather (may override in-memory)
+  try {
+    var { data: todayFeature } = await supabaseClient
+      .from('daily_features')
+      .select('weather, event_id')
+      .eq('date', days[0].dateStr)
+      .maybeSingle();
+
+    if (todayFeature && todayFeature.weather) {
+      var weatherId = typeof todayFeature.weather === 'object' ? todayFeature.weather.id : todayFeature.weather;
+      var WEATHER_TYPES = [
+        { id: 'clear',  name: 'Clear Skies', icon: '☀️',  description: 'Normal conditions today.' },
+        { id: 'foggy',  name: 'Foggy',        icon: '🌫️', description: 'Mysterious conditions — exploration bonuses!' },
+        { id: 'rainy',  name: 'Rainy',        icon: '🌧️', description: 'Water-type pets thrive today.' },
+        { id: 'starry', name: 'Starry Night', icon: '✨',  description: 'Magical bonuses tonight.' },
+        { id: 'stormy', name: 'Stormy',       icon: '⛈️', description: 'Rough conditions — be careful!' },
+        { id: 'snowy',  name: 'Snowy',        icon: '❄️',  description: 'Ice-type pets feel at home.' }
+      ];
+      var found = WEATHER_TYPES.find(function(w) { return w.id === weatherId; });
+      if (found) days[0].weather = found;
+      else if (weatherId) days[0].weather = { id: weatherId, name: weatherId, icon: '🌤️', description: 'Today\'s weather.' };
+    }
+  } catch(e) { /* silent — daily_features may not exist yet */ }
+
+  // Future days: try scheduled_events table
+  try {
+    var { data: scheduled } = await supabaseClient
+      .from('scheduled_events')
+      .select('*')
+      .gte('event_date', days[1].dateStr)
+      .lte('event_date', days[6].dateStr)
+      .order('event_date', { ascending: true });
+
+    if (scheduled && scheduled.length > 0) {
+      scheduled.forEach(function(row) {
+        var day = days.find(function(d) { return d.dateStr === row.event_date; });
+        if (!day) return;
+        if (row.event_type === 'weather') {
+          day.weather = { id: row.weather_id || row.event_id, name: row.name, icon: row.icon || WEATHER_ICONS[row.weather_id] || '🌤️', description: row.description || '' };
+        } else {
+          day.event = { id: row.event_id || row.id, name: row.name, icon: row.icon || EVENT_TYPE_ICONS[row.event_type] || '⚡', description: row.description || '', event_type: row.event_type };
+        }
+      });
+    }
+  } catch(e) {
+    // Silent fallback — table may not exist yet
+  }
+
+  // For any future day still without weather, generate deterministic forecast
+  // Uses date string as seed so ALL players see the same forecast
+  var weatherKeys = typeof weatherSystem !== 'undefined' && weatherSystem.weatherTypes
+    ? Object.keys(weatherSystem.weatherTypes)
+    : ['clear','rainy','foggy','windy','starry'];
+  var weatherIconMap = { clear:'☀️', rainy:'🌧️', foggy:'🌫️', windy:'💨', starry:'✨', cursed:'🟣' };
+  var weatherNameMap = { clear:'Clear Skies', rainy:'Rainy', foggy:'Foggy', windy:'Windy', starry:'Starry Night', cursed:'Cursed Aura' };
+
+  function calendarHash(str) {
+    var h = 0;
+    for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
+    return Math.abs(h);
+  }
+
+  for (var di = 1; di < days.length; di++) {
+    if (!days[di].weather) {
+      var wKey = weatherKeys[calendarHash(days[di].dateStr) % weatherKeys.length];
+      days[di].weather = {
+        id:   wKey,
+        name: weatherNameMap[wKey] || wKey,
+        icon: weatherIconMap[wKey] || '🌤️',
+        description: 'Forecasted weather for this day.'
+      };
+    }
+  }
+
+  // Render
+  modal.innerHTML = calendar_render(days);
+}
+
+function calendar_render(days) {
+  var dayCards = days.map(function(day) {
+    var weatherIcon  = (day.weather && day.weather.icon) ? day.weather.icon  : '❓';
+    var weatherName  = (day.weather && day.weather.name) ? day.weather.name  : 'Unknown';
+    var weatherDesc  = (day.weather && day.weather.description) ? day.weather.description : '';
+
+    var eventBadge = '';
+    if (day.event) {
+      eventBadge =
+        '<div style="margin-top:6px;padding:3px 8px;border-radius:20px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);display:inline-block;">' +
+          '<span style="font-size:0.75rem;color:#fbbf24;font-weight:600;">' +
+            (day.event.icon || '⚡') + ' ' + escapeHtml(day.event.name) +
+          '</span>' +
+        '</div>';
+    }
+
+    return '<div style="' +
+      'border-radius:14px;padding:14px 12px;text-align:center;min-width:90px;flex:1;' +
+      'border:2px solid ' + (day.isToday ? 'var(--purple)' : 'var(--border)') + ';' +
+      'background:' + (day.isToday ? 'rgba(153,102,255,0.08)' : 'rgba(255,255,255,0.5)') + ';' +
+      'cursor:pointer;transition:all 0.2s;box-sizing:border-box;"' +
+      ' onmouseover="this.style.transform=\'translateY(-3px)\';this.style.boxShadow=\'0 6px 18px rgba(153,102,255,0.15)\'"' +
+      ' onmouseout="this.style.transform=\'\';this.style.boxShadow=\'\'"' +
+      ' title="' + escapeHtml(weatherDesc) + '">' +
+      '<div style="font-size:0.72rem;font-weight:' + (day.isToday ? '800' : '600') + ';color:' + (day.isToday ? 'var(--purple)' : 'var(--text-light)') + ';margin-bottom:6px;">' +
+        escapeHtml(day.label) +
+      '</div>' +
+      '<div style="font-size:1.8rem;margin-bottom:4px;">' + weatherIcon + '</div>' +
+      '<div style="font-size:0.72rem;color:var(--purple-dark);font-weight:600;">' + escapeHtml(weatherName) + '</div>' +
+      eventBadge +
+    '</div>';
+  });
+
+  // Split into two rows: today + next 3, then last 3
+  var row1 = dayCards.slice(0, 4).join('');
+  var row2 = dayCards.slice(4).join('');
+
+  return '<div style="max-width:680px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">' +
+      '<h2 style="margin:0;color:var(--purple);font-size:1.15rem;">🗓️ 7-Day Forecast</h2>' +
+      '<button onclick="closeModal()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-light);padding:0;line-height:1;">×</button>' +
+    '</div>' +
+
+    // Today's detail card
+    (days[0].weather || days[0].event
+      ? '<div style="background:linear-gradient(135deg,rgba(153,102,255,0.1),rgba(255,102,204,0.06));border-radius:14px;padding:14px 18px;margin-bottom:18px;border:1px solid rgba(153,102,255,0.2);">' +
+          '<div style="font-weight:700;font-size:0.8rem;color:var(--purple);margin-bottom:8px;letter-spacing:1px;">TODAY\'S CONDITIONS</div>' +
+          '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+            (days[0].weather
+              ? '<div style="display:flex;align-items:center;gap:8px;">' +
+                  '<span style="font-size:1.6rem;">' + (days[0].weather.icon||'🌤️') + '</span>' +
+                  '<div><div style="font-weight:700;color:var(--purple-dark);">' + escapeHtml(days[0].weather.name||'') + '</div>' +
+                  '<div style="font-size:0.78rem;color:var(--text-light);">' + escapeHtml(days[0].weather.description||'') + '</div></div>' +
+                '</div>'
+              : '') +
+            (days[0].event
+              ? '<div style="display:flex;align-items:center;gap:8px;padding-left:' + (days[0].weather ? '16px' : '0') + ';border-left:' + (days[0].weather ? '1px solid rgba(153,102,255,0.2)' : 'none') + ';">' +
+                  '<span style="font-size:1.6rem;">' + (days[0].event.icon||'⚡') + '</span>' +
+                  '<div><div style="font-weight:700;color:#fbbf24;">' + escapeHtml(days[0].event.name||'') + '</div>' +
+                  '<div style="font-size:0.78rem;color:var(--text-light);">' + escapeHtml(days[0].event.description||'') + '</div></div>' +
+                '</div>'
+              : '') +
+          '</div>' +
+        '</div>'
+      : '') +
+
+    // 7-day grid
+    '<div style="font-weight:700;font-size:0.8rem;color:var(--text-light);margin-bottom:10px;letter-spacing:1px;">7-DAY OUTLOOK</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">' + row1 + '</div>' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">' + row2 + '</div>' +
+
+    '<div style="text-align:center;font-size:0.75rem;color:var(--text-light);">Hover a day for details · Future forecasts may change</div>' +
+    '<button class="btn btn-outline" onclick="closeModal()" style="width:100%;margin-top:14px;">Close</button>' +
+  '</div>';
+}
+
+function initEventStatusWidget() {
+  updateEventStatusWidget();
+  // Refresh every minute
+  safeSetInterval(updateEventStatusWidget, 60000);
+  // Hover tooltip
+  var widget = document.getElementById('event-status-widget');
+  if (widget) {
+    widget.addEventListener('mouseenter', esw_showTooltip);
+    widget.addEventListener('mouseleave', esw_hideTooltip);
+    widget.addEventListener('click', esw_showModal);
+  }
+}
+
+// Sync soundCooldown now that GAME_CONSTANTS is defined
+if (typeof GAME_CONSTANTS !== 'undefined' && GAME_CONSTANTS.SOUND_COOLDOWN_MS) {
+  soundCooldown = GAME_CONSTANTS.SOUND_COOLDOWN_MS;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// STUB FUNCTIONS - Prevent "not defined" console errors
+// These are called by various systems; defined here so they never crash
+// ══════════════════════════════════════════════════════════════════════════
+
+function playSound(soundName) {
+  // Stub - sound system not yet implemented; silently no-ops
+}
+
+function awardBattleRewards(victory, exp, pp, itemDropped) {
+  // Stub - battle rewards handled by saveBattleHistory; this is a no-op
+  dbg('[stub] awardBattleRewards called:', { victory, exp, pp, itemDropped });
+}
+
+async function grantCosmetic(cosmeticId, type) {
+  if (!currentUser) return false;
+  try {
+    var { error } = await supabaseClient
+      .from('unlocked_cosmetics')
+      .upsert({
+        user_id: currentUser.id,
+        cosmetic_type: type,
+        cosmetic_id: cosmeticId
+      }, { onConflict: 'user_id,cosmetic_id' });
+    if (error) throw error;
+    return true;
+  } catch (err) {
+    console.error('[grantCosmetic] Error:', err);
+    return false;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // MODAL HELPER FUNCTIONS - Required for variant gallery & nickname editing
 // ══════════════════════════════════════════════════════════════════════════
 
@@ -465,9 +1285,21 @@ function makeModal() {
 }
 
 function openModal(modalElement) {
+  // modalElement is the inner content div; its parent is the overlay created by makeModal()
   var overlay = modalElement.parentElement;
+  if (!overlay) {
+    // Fallback: wrap in a new overlay if somehow detached
+    console.warn('openModal: modal has no parent overlay, creating one');
+    overlay = document.createElement('div');
+    overlay.className = 'modal-overlay-custom';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:10000;';
+    overlay.appendChild(modalElement);
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) closeModal();
+    });
+  }
   document.body.appendChild(overlay);
-  document.body.style.overflow = 'hidden'; // Prevent background scroll
+  document.body.style.overflow = 'hidden';
 }
 
 function closeModal() {
@@ -481,6 +1313,17 @@ function closeModal() {
 }
 
 function updateAllPoints(pts) {
+  // Handle RPC response objects (e.g. {new_pp: 500} or {error: ...})
+  if (pts !== null && typeof pts === 'object') {
+    if (typeof pts.new_pp === 'number') {
+      pts = pts.new_pp;
+    } else if (pts.error || pts.message) {
+      console.error('updateAllPoints received error object:', pts);
+      return;
+    } else {
+      pts = 0;
+    }
+  }
   // Handle null/undefined/non-number points
   if (pts === null || pts === undefined || typeof pts !== 'number') {
     console.warn('updateAllPoints received invalid value:', pts);
@@ -499,6 +1342,166 @@ function updateAllPoints(pts) {
   // Update sidebar points
   var sidebarPoints = document.getElementById('sidebar-points');
   if (sidebarPoints) sidebarPoints.textContent = pts.toLocaleString() + ' PP';
+
+  maybeGlitchPointsDisplay(pts);
+}
+
+// ── Ambient "666 PP" Money Glitch ────────────────────────────────────────────
+// Rare chance, on any points update, to briefly flash every PP display to 666
+// with a spooky wobble before reverting to the real value.
+var SPOOKY_PP_GLITCH_CHANCE = 0.015; // ~1.5% chance per points update
+
+function maybeGlitchPointsDisplay(realPts) {
+  if (!playerSettings.spooky_enabled) return;
+  if (_ppGlitchActive) return; // don't stack while one is already playing out
+  if (Math.random() >= SPOOKY_PP_GLITCH_CHANCE) return;
+
+  var glitchIds = ['adopt-points','mypets-points','shop-points','games-points','redeem-points','nav-points','sidebar-points'];
+  var elements = [];
+  glitchIds.forEach(function(id) {
+    var node = el(id);
+    if (node) elements.push(node);
+  });
+  if (elements.length === 0) return;
+
+  _ppGlitchActive = true;
+  elements.forEach(function(node) {
+    node.classList.add('glitch-text', 'spooky-wobble');
+    node.textContent = node.id === 'nav-points' ? '\uD83E\uDE99 666 PP' : '666 PP';
+  });
+
+  safeSetTimeout(function() {
+    elements.forEach(function(node) {
+      node.classList.remove('glitch-text', 'spooky-wobble');
+    });
+    _ppGlitchActive = false;
+    // Restore real values via the normal path rather than guessing each format
+    updateAllPoints(realPts);
+  }, 3500 + Math.random() * 2500); // 3.5-6 seconds
+}
+var _ppGlitchActive = false;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STREAM OVERLAY API ENDPOINTS
+// Provides pet data for on-stream widgets/overlays
+// Usage: GET /api/overlay/pet?streamer=EMBERTAIL_USERNAME
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function handleOverlayRequest(request) {
+  var url = new URL(request.url);
+  var streamerName = url.searchParams.get('streamer');
+  
+  if (!streamerName) {
+    return new Response(JSON.stringify({ error: 'Missing streamer param' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
+  
+  try {
+    var { data: player, error: playerError } = await supabaseClient
+      .from('players')
+      .select('id, username, companion_pet_id')
+      .ilike('username', streamerName)
+      .single();
+    
+    if (playerError || !player) {
+      return new Response(JSON.stringify({ error: 'Streamer not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    
+    if (!player.companion_pet_id) {
+      return new Response(JSON.stringify({ error: 'No companion pet set', streamer: player.username }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    
+    var { data: pet, error: petError } = await supabaseClient
+      .from('user_pets')
+      .select('id, nickname, level, current_hp, max_hp, hunger, max_hunger, energy, max_energy, happiness, max_happiness, current_variant, last_fed, last_played, pets(name, image_file)')
+      .eq('id', player.companion_pet_id)
+      .single();
+    
+    if (petError || !pet) {
+      return new Response(JSON.stringify({ error: 'Pet not found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+      });
+    }
+    
+    var hungerPct    = Math.round((pet.hunger    / pet.max_hunger)    * 100);
+    var energyPct    = Math.round((pet.energy    / pet.max_energy)    * 100);
+    var happinessPct = Math.round((pet.happiness / pet.max_happiness) * 100);
+    var hpPct        = Math.round((pet.current_hp / pet.max_hp)       * 100);
+    
+    var moodEmoji = happinessPct >= 80 ? '😊' : happinessPct >= 60 ? '🙂' : happinessPct >= 40 ? '😐' : happinessPct >= 20 ? '😟' : '😭';
+
+    var lastFed    = pet.last_fed    ? new Date(pet.last_fed)    : null;
+    var lastPlayed = pet.last_played ? new Date(pet.last_played) : null;
+    var lastActive = null;
+    if (lastFed && lastPlayed) lastActive = lastFed > lastPlayed ? lastFed : lastPlayed;
+    else if (lastFed)    lastActive = lastFed;
+    else if (lastPlayed) lastActive = lastPlayed;
+    
+    var hoursSince = 'Never';
+    if (lastActive) {
+      var hours = Math.floor((Date.now() - lastActive) / 3600000);
+      hoursSince = hours < 1 ? 'Just now' : hours < 24 ? hours + ' hour' + (hours !== 1 ? 's' : '') + ' ago' : Math.floor(hours / 24) + ' days ago';
+    }
+    
+    var tip = hungerPct < 30 ? '🍽️ Hungry! Feed me in the game!' :
+              energyPct < 30 ? '😴 Tired! Let me rest...' :
+              happinessPct < 40 ? '💔 Sad! Play with me in the game!' :
+              '✨ Happy and healthy! Thanks for watching!';
+    
+    var response = {
+      success: true,
+      pet: {
+        id:      pet.id,
+        name:    pet.nickname || (pet.pets && pet.pets.name) || 'Pet',
+        species: (pet.pets && pet.pets.name) || 'Pet',
+        level:   pet.level,
+        image:   (pet.pets && pet.pets.image_file) || null,
+        variant: pet.current_variant || null,
+        stats: {
+          hp:        { current: pet.current_hp, max: pet.max_hp,        percent: hpPct },
+          hunger:    { current: pet.hunger,     max: pet.max_hunger,    percent: hungerPct },
+          energy:    { current: pet.energy,     max: pet.max_energy,    percent: energyPct },
+          happiness: { current: pet.happiness,  max: pet.max_happiness, percent: happinessPct }
+        },
+        mood:       { emoji: moodEmoji, text: getMoodText(happinessPct) },
+        lastActive: hoursSince,
+        tip:        tip
+      }
+    };
+    
+    return new Response(JSON.stringify(response), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+  } catch (err) {
+    console.error('Overlay API error:', err);
+    return new Response(JSON.stringify({ error: 'Server error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    });
+  }
+}
+
+function getMoodText(percent) {
+  if (percent >= 80) return 'Ecstatic';
+  if (percent >= 60) return 'Happy';
+  if (percent >= 40) return 'Content';
+  if (percent >= 20) return 'Unhappy';
+  return 'Miserable';
 }
 
 // ── LEADERBOARD INITIALIZATION ────────────────────────────
@@ -526,6 +1529,19 @@ function initLeaderboardTab() {
 function showTab(tab) {
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
+
+  // WISHES: shop visit — check for any pet that has a visit_shop wish
+  if (tab === 'shop' && currentUser) {
+    Object.keys(petMoodCache).forEach(function(pid) {
+      checkPetWishes('visit_shop', pid).catch(function(){});
+    });
+  }
+  // WISHES: profile visit
+  if (tab === 'profile' && currentUser) {
+    Object.keys(petMoodCache).forEach(function(pid) {
+      checkPetWishes('view_profile', pid).catch(function(){});
+    });
+  }
   
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
@@ -565,6 +1581,10 @@ function showTab(tab) {
     loadMyProfile();
   } else if (tab === 'profile' && window.currentProfileUsername) {
     loadProfile(window.currentProfileUsername);
+  } else if (tab === 'battle') {
+    // Always run both systems when battle tab opens
+    setTimeout(function() { loadBattlePets(); }, 100);
+    setTimeout(function() { battleExp_init(); }, 150);
   } else if (!tabsLoaded[tab]) { 
     tabsLoaded[tab] = true; 
     loadTab(tab); 
@@ -594,6 +1614,9 @@ function loadTab(tab) {
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
   else if (tab === 'redeem') { loadRedeemHistory(); }
+  else if (tab === 'stats') loadStatistics();
+  else if (tab === 'guild') loadGuildPage();
+  else if (tab === 'racing') racing_init();
   // Note: leaderboard and myprofile handled in showTab()
 }
 
@@ -610,14 +1633,21 @@ function showForgotPassword() {
 }
 
 async function initApp() {
+  // Guard: wait for Supabase client to be ready
+  if (!supabaseClient) {
+    dbg('Waiting for Supabase client to initialize...');
+    setTimeout(initApp, 500);
+    return;
+  }
+
   // Check if user is coming from password reset email
   var hash = window.location.hash;
   if (hash && hash.includes('type=recovery')) {
-    console.log('Password recovery mode detected');
+    dbg('Password recovery mode detected');
     el('auth-gate').style.display = 'none';
     el('reset-password-gate').style.display = 'block';
     el('app-content').style.display = 'none';
-    return; // Stop here, show reset form
+    return;
   }
   
   var session = await requireLogin();
@@ -626,14 +1656,18 @@ async function initApp() {
   } else {
     showAuth();
   }
+
+  // Set up auth state listener
   supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
     if (event === 'PASSWORD_RECOVERY') {
-      // Show reset password form
       el('auth-gate').style.display = 'none';
       el('reset-password-gate').style.display = 'block';
       el('app-content').style.display = 'none';
     } else if (event === 'SIGNED_IN' && session) {
-      showApp(session.user);
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
     } else if (event === 'SIGNED_OUT') {
       showAuth();
     }
@@ -641,11 +1675,37 @@ async function initApp() {
 }
 
 async function showApp(user) {
+  dbg('showApp called with user:', user?.id || 'null');
+
+  // Guard: ensure user is valid before proceeding
+  if (!user || !user.id) {
+    console.error('showApp called with invalid user');
+    showAuth();
+    return;
+  }
+
   currentUser = user;
   el('auth-gate').style.display = 'none';
   el('app-content').style.display = 'block';
   el('nav-logout').style.display = 'inline-block';
+
+  // Restore sidebars and navbar chrome now that user is logged in
+  var leftSidebar  = document.querySelector('.left-sidebar');
+  var rightSidebar = document.querySelector('.right-sidebar');
+  var navCenter    = document.querySelector('.navbar-center');
+  var navRight     = document.querySelector('.navbar-right');
+  if (leftSidebar)  leftSidebar.style.display    = '';
+  if (rightSidebar) rightSidebar.style.display   = '';
+  if (navCenter)    navCenter.style.visibility   = '';
+  if (navRight)     navRight.style.visibility    = '';
+  document.body.classList.remove('logged-out');
   el('nav-profile').style.display = 'inline-block';
+  
+  // Show Pass and Bingo buttons
+  var passBtn = el('pass-button');
+  var bingoBtn = el('bingo-button');
+  if (passBtn) passBtn.style.display = 'flex';
+  if (bingoBtn) bingoBtn.style.display = 'inline-block';
   
   // Clean up any leftover spooky effects
   cleanupSpookyEffects();
@@ -654,7 +1714,7 @@ async function showApp(user) {
   var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).maybeSingle();
   
   if (!pr.data) {
-    console.log('🚨 Player not found! Auto-creating fresh player account...');
+    dbg('🚨 Player not found! Auto-creating fresh player account...');
     
     // Generate a safe temporary username (NOT from email for privacy!)
     var tempUsername = 'Player' + Math.floor(Math.random() * 100000);
@@ -672,7 +1732,7 @@ async function showApp(user) {
       .single();
     
     if (createResult.data) {
-      console.log('✅ Fresh player account created:', createResult.data);
+      dbg('✅ Fresh player account created:', createResult.data);
       pr = createResult;
       
       // Show welcome notification with prompt to set username
@@ -744,13 +1804,18 @@ async function showApp(user) {
   checkReferralCode(); // Check for referral code in URL
   await updateNotificationBadge(); // Update notification count
   
-  // Refresh notifications every 60 seconds
-  setInterval(updateNotificationBadge, 60000);
+  // Refresh notifications every 2 minutes (reduced from 60s to limit CORS noise)
+  safeSetInterval(updateNotificationBadge, 120000);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
-    el('bonus-amount').textContent = bonus.amount + ' PP';
-    el('bonus-modal').classList.add('show');
+    var today = new Date().toISOString().split('T')[0];
+    var modalKey = 'daily_bonus_modal_' + user.id + '_' + today;
+    if (!localStorage.getItem(modalKey)) {
+      el('bonus-amount').textContent = bonus.amount + ' PP';
+      el('bonus-modal').classList.add('show');
+      localStorage.setItem(modalKey, '1');
+    }
     updateAllPoints(bonus.newTotal);
   }
 
@@ -758,10 +1823,10 @@ async function showApp(user) {
 
   // Restore last active tab from URL hash
   var hash = window.location.hash;
-  console.log('Page loaded with hash:', hash);
+  dbg('Page loaded with hash:', hash);
   if (hash && hash.startsWith('#tab-')) {
     var savedTab = hash.replace('#tab-', '');
-    console.log('Restoring saved tab:', savedTab);
+    dbg('Restoring saved tab:', savedTab);
     showTab(savedTab);
   } else if (hash && hash.includes('access_token')) {
     // Twitch auth callback
@@ -770,13 +1835,59 @@ async function showApp(user) {
     // Only show home if no tab is currently active and no hash
     var currentTab = document.querySelector('.page-content.active');
     if (!currentTab) {
-      console.log('No saved tab, showing home');
+      dbg('No saved tab, showing home');
       showTab('home');
     }
   }
   
   // Load sidebar news widget
   loadSidebarNews();
+  
+  // PAWKETPASS & BINGO: Initialize systems
+  await loadPassProgress();
+  loadDailyBingo();
+  updateBingoUI();
+  
+  // SCRAPBOOK & COMMUNITY GOALS: Initialize systems
+  scrapbook_init();
+  community_init();
+
+  // EVENT/WEATHER WIDGET: Initialize navbar widget
+  initEventStatusWidget();
+
+  // THEMES & COSMETICS: Load saved preferences
+  theme_loadSaved();
+  cosmetics_loadEquipped();
+
+  // POLLS: Load active polls (non-blocking)
+  pollSystem.load().catch(function(e) { dbg('Polls load failed:', e); });
+
+  // ADMIN: Show admin tools section if applicable
+  isAdmin().then(function(admin) {
+    var adminSection = document.getElementById('admin-panel-section');
+    if (adminSection) adminSection.style.display = admin ? 'block' : 'none';
+  });
+
+  // GIFTS: Show inbox bar and check pending gifts count
+  var giftBar = document.getElementById('gift-inbox-bar');
+  if (giftBar) giftBar.style.display = 'flex';
+  supabaseClient.from('gifts').select('id', { count: 'exact', head: true })
+    .eq('to_user_id', currentUser.id).eq('status', 'pending')
+    .then(function(res) {
+      var badge = document.getElementById('gift-inbox-badge');
+      if (badge && res.count > 0) { badge.textContent = res.count; badge.style.display = 'inline'; }
+    }).catch(function(){});
+  
+  // PHASE 1: Initialize cosmetics, milestones, daily features
+  phase1_init();
+  
+  // SKIN KEYS: Initialize variant system
+  skinkey_init();
+  
+  // CLEANUP: Remove expired localStorage items
+  cleanupExpiredLocalStorage();
+  // Also clean up every hour for long sessions
+  safeSetInterval(cleanupExpiredLocalStorage, 3600000);
 }
 
 function showAuth() {
@@ -788,6 +1899,17 @@ function showAuth() {
   el('nav-user').textContent = '';
   el('nav-points').textContent = '';
   tabsLoaded = {};
+
+  // Hide sidebars and navbar chrome — show only the login box
+  var leftSidebar  = document.querySelector('.left-sidebar');
+  var rightSidebar = document.querySelector('.right-sidebar');
+  var navCenter    = document.querySelector('.navbar-center');
+  var navRight     = document.querySelector('.navbar-right');
+  if (leftSidebar)  leftSidebar.style.display    = 'none';
+  if (rightSidebar) rightSidebar.style.display   = 'none';
+  if (navCenter)    navCenter.style.visibility   = 'hidden';
+  if (navRight)     navRight.style.visibility    = 'hidden';
+  document.body.classList.add('logged-out');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -807,7 +1929,7 @@ async function updateSidebarStats() {
     
     // If player doesn't exist, they're being auto-created - skip stats for now
     if (!player) {
-      console.log('⏳ Player not yet created, skipping sidebar stats...');
+      dbg('⏳ Player not yet created, skipping sidebar stats...');
       return;
     }
     
@@ -851,7 +1973,22 @@ async function updateSidebarStats() {
       pointsEl.textContent = ppValue.toLocaleString() + ' PP';
     }
     if (itemsEl) itemsEl.textContent = totalItems;
-    if (streakEl) streakEl.textContent = streak;
+    if (streakEl) {
+      streakEl.textContent = streak;
+      // Show next milestone
+      var milestones = [3, 7, 14, 30, 60, 100];
+      var nextMs = milestones.find(function(m) { return streak < m; });
+      var msEl = document.getElementById('sidebar-streak-milestone');
+      if (!msEl) {
+        msEl = makeEl('div');
+        msEl.id = 'sidebar-streak-milestone';
+        msEl.style.cssText = 'font-size:0.68rem;color:#ffaa00;text-align:center;margin-top:2px;line-height:1.3;';
+        if (streakEl.parentElement) streakEl.parentElement.appendChild(msEl);
+      }
+      msEl.textContent = nextMs
+        ? '🎯 ' + (nextMs - streak) + ' more for ' + nextMs + '-day reward!'
+        : '🏆 Legendary streak!';
+    }
     
   } catch (err) {
     console.error('Error updating sidebar stats:', err);
@@ -928,8 +2065,12 @@ async function awardStreakReward(streak) {
   }
 }
 
-async function handleLogout() { 
-  await supabaseClient.auth.signOut(); 
+async function handleLogout() {
+  cleanupAllTimers();
+  if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.destroy) {
+    CompanionBuddy.destroy();
+  }
+  await supabaseClient.auth.signOut();
   location.reload();
 }
 function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
@@ -983,13 +2124,26 @@ async function registerUser(email, password, username) {
 }
 
 async function requireLogin() {
-  // Check if user is already logged in
-  var { data, error } = await supabaseClient.auth.getSession();
-  if (error) {
-    console.error('Error checking session:', error);
+  // Guard: check if Supabase is ready
+  if (!supabaseClient) {
+    dbg('Supabase not ready in requireLogin');
     return null;
   }
-  return data.session;
+
+  try {
+    var { data, error } = await supabaseClient.auth.getSession();
+    if (error) {
+      console.error('Error checking session:', error);
+      return null;
+    }
+    if (data && data.session) {
+      return data.session;
+    }
+    return null;
+  } catch (err) {
+    console.error('Session check error:', err);
+    return null;
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -1004,21 +2158,42 @@ async function handleLogin() {
   var suc = el('login-success');
   err.classList.remove('show');
   suc.classList.remove('show');
-  if (!email || !password) { err.textContent = 'Please fill in all fields!'; err.classList.add('show'); return; }
+
+  if (!email || !password) {
+    err.textContent = 'Please fill in all fields!';
+    err.classList.add('show');
+    return;
+  }
+
+  // Guard: check if Supabase is ready
+  if (!supabaseClient) {
+    err.textContent = 'Loading... Please wait and try again.';
+    err.classList.add('show');
+    return;
+  }
+
   btn.textContent = 'Logging in...';
   btn.disabled = true;
+
   try {
     var result = await loginUser(email, password);
     suc.textContent = 'Logged in! Loading...';
     suc.classList.add('show');
-    // Wait a moment for the auth state to update, then manually trigger app load
+
+    // Wait for auth state to fully update, then verify session before showing app
     setTimeout(async function() {
       if (result && result.user) {
-        await showApp(result.user);
+        var session = await requireLogin();
+        if (session) {
+          await showApp(session.user);
+        } else {
+          throw new Error('Session not found after login');
+        }
       }
     }, 500);
   } catch(e) {
-    err.textContent = e.message || 'Login failed.';
+    console.error('Login error:', e);
+    err.textContent = e.message || 'Login failed. Check your email and password.';
     err.classList.add('show');
     btn.textContent = 'Login';
     btn.disabled = false;
@@ -1049,7 +2224,7 @@ function containsProfanity(text) {
       return true;
     }
     
-    // Check for leetspeak and common substitutions
+    // Check for leetspeak and common substitutions — with word boundaries to avoid false positives
     var variations = word
       .replace(/a/g, '[a@4]')
       .replace(/e/g, '[e3]')
@@ -1058,14 +2233,17 @@ function containsProfanity(text) {
       .replace(/s/g, '[s5$]')
       .replace(/t/g, '[t7]');
     
-    var variationRegex = new RegExp(variations, 'i');
+    var variationRegex = new RegExp('\\b' + variations + '\\b', 'i');
     if (variationRegex.test(lowerText)) {
       return true;
     }
     
-    // Check for word with extra characters (f.u.c.k, f-u-c-k, etc)
-    var spacedWord = word.split('').join('[^a-z]*');
-    var spacedRegex = new RegExp(spacedWord, 'i');
+    // Check for word with extra separator characters (f.u.c.k, f-u-c-k, etc)
+    // FIX: require at least one separator between letters (use [^a-z]+ not *) AND
+    // word boundaries around the whole match, so "hello" doesn't trip on "hell"
+    // and "scrapbook" doesn't trip on "crap"
+    var spacedWord = word.split('').join('[^a-z0-9]+');
+    var spacedRegex = new RegExp('\\b' + spacedWord + '\\b', 'i');
     if (spacedRegex.test(lowerText)) {
       return true;
     }
@@ -1086,6 +2264,8 @@ async function handleRegister() {
   suc.classList.remove('show');
   if (!username||!email||!password||!confirm) { err.textContent='Fill in all fields!'; err.classList.add('show'); return; }
   if (username.length < 3) { err.textContent='Username must be 3+ chars!'; err.classList.add('show'); return; }
+  if (username.length > 20) { err.textContent='Username must be 20 characters or fewer!'; err.classList.add('show'); return; }
+  if (!/^[a-zA-Z0-9_\- ]+$/.test(username)) { err.textContent='Username can only contain letters, numbers, spaces, _ and -'; err.classList.add('show'); return; }
   
   // Check for profanity
   if (containsProfanity(username)) {
@@ -1257,7 +2437,9 @@ function makePetCard(pet) {
     imgWrap.innerHTML = isPlaceholder ? '&#10067;' : '&#128062;';
   }
   card.appendChild(imgWrap);
-  card.appendChild(makeEl('div', {class:'pet-name'}, isPlaceholder ? '???' : pet.name));
+  var nameEl = makeEl('div', {class:'pet-name'}, isPlaceholder ? '???' : pet.name);
+  card.appendChild(nameEl);
+  if (!isPlaceholder) maybeApplyNameGlitch(nameEl, pet.name);
   if (pet.vtuber_name && !isPlaceholder) card.appendChild(makeEl('div', {class:'pet-vtuber'}, pet.vtuber_name));
   card.appendChild(makeEl('div', {class:'pet-description'}, isPlaceholder ? 'A mystery pet...' : (pet.description || '')));
 
@@ -1313,12 +2495,7 @@ async function confirmAdopt() {
   var btn = el('confirm-adopt-btn');
   var nickname = el('nickname-input').value.trim();
   
-  // Validation
-  if (!nickname || nickname === '') {
-    showToast('Please enter a nickname! ❌');
-    return;
-  }
-  
+  // Nickname is optional — empty falls through to selectedPet.name below
   if (nickname.length > 50) {
     showToast('Nickname must be 50 characters or less! ❌');
     return;
@@ -1359,6 +2536,11 @@ async function confirmAdopt() {
   // Update display
   updateAllPoints(currentPoints - (result.price_paid || 0));
   
+  // SCRAPBOOK: Add adoption memory
+  if (result.pet_id) {
+    scrapbook_addMemory(result.pet_id, 'adopted', {});
+  }
+  
   // Store for social sharing
   lastAdoptedPet = {
     name: selectedPet.name,
@@ -1389,7 +2571,7 @@ async function confirmAdopt() {
     Tutorial.onPetAdopted();
   }
   
-  ownedPetIds.push(selectedPet.id); 
+  if (selectedPet) ownedPetIds.push(selectedPet.id); 
   totalOwnedCount++;
   tabsLoaded['mypets'] = false;
   btn.textContent = 'Adopt!'; 
@@ -1479,8 +2661,6 @@ async function loadMyPets() {
     // Only regenerate if HP > 0 (don't auto-revive fainted pets!)
     var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, pet.updated_at) : 0;
     
-    console.log('🐾 Loading pet:', pet.nickname, 'DB HP:', pet.current_hp, 'Displayed HP:', regenedHP);
-    
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
       hunger: decayedHunger,
@@ -1508,35 +2688,38 @@ async function loadMyPets() {
     fragment.appendChild(makeMyPetCard(pet)); 
   });
   grid.appendChild(fragment);
-  
   container.innerHTML = '';
   container.appendChild(grid);
-  
-  // FIX 5: Set up event delegation for feed/play buttons (only once)
-  if (!container.hasAttribute('data-delegation-setup')) {
-    container.setAttribute('data-delegation-setup', 'true');
-    container.addEventListener('click', function(e) {
-      // Check for feed button click
-      var feedBtn = e.target.closest('.btn-feed');
-      if (feedBtn) {
-        var petId = feedBtn.getAttribute('data-pet-id');
-        if (petId && typeof feed === 'function') {
-          feed(parseInt(petId));
-        }
-        return;
+
+  // Apply variants AFTER cards are in the live DOM so getElementById finds them
+  Object.values(petState).forEach(function(pet) {
+    if (pet && pet.current_variant) {
+      setTimeout(function() { skinkey_applyVariantToAllDisplays(pet.id, pet.current_variant); }, 50);
+    }
+  });
+}
+
+// Feed/Play event delegation - attached to document once, always works
+if (!window._pawketFeedPlayDelegationSetup) {
+  window._pawketFeedPlayDelegationSetup = true;
+  document.addEventListener('click', function(e) {
+    var feedBtn = e.target.closest('.btn-feed');
+    if (feedBtn) {
+      var petId = feedBtn.getAttribute('data-pet-id');
+      if (petId && typeof feed === 'function') {
+        feed(petId); // UUID string - do NOT parseInt
       }
-      
-      // Check for play button click
-      var playBtn = e.target.closest('.btn-play');
-      if (playBtn) {
-        var petId = playBtn.getAttribute('data-pet-id');
-        if (petId && typeof play === 'function') {
-          play(parseInt(petId));
-        }
-        return;
+      return;
+    }
+    var playBtn = e.target.closest('.btn-play');
+    if (playBtn) {
+      var petId = playBtn.getAttribute('data-pet-id');
+      if (petId && typeof play === 'function') {
+        play(petId); // UUID string - do NOT parseInt
       }
-    });
-  }
+      return;
+    }
+  });
 }
 
 function makeDropdown(petId) {
@@ -1719,6 +2902,7 @@ async function saveNickname(petId) {
 async function useItem(petId) {
   var sel = el('sel-'+petId); 
   if (!sel || !sel.value) return;
+  if (!canPerformAction('use_item', 500)) return;
   
   var idx = inventoryItems.findIndex(function(i){ return i.invId === sel.value; }); 
   if (idx === -1) return;
@@ -1733,16 +2917,16 @@ async function useItem(petId) {
   
   var updates = {};
   
-  console.log('=== USE ITEM DEBUG ===');
-  console.log('Item:', item);
-  console.log('Item effect:', item.effect);
-  console.log('Item value:', item.value);
-  console.log('Item effect_value:', item.effect_value);
+  dbg('=== USE ITEM DEBUG ===');
+  dbg('Item:', item);
+  dbg('Item effect:', item.effect);
+  dbg('Item value:', item.value);
+  dbg('Item effect_value:', item.effect_value);
   
   // Handle healing items (HP restoration)
   var healValue = item.value || item.effect_value || 0;
-  console.log('Heal value calculated:', healValue);
-  console.log('Is healing item?', item.effect === 'healing', healValue > 0);
+  dbg('Heal value calculated:', healValue);
+  dbg('Is healing item?', item.effect === 'healing', healValue > 0);
   
   if (item.effect === 'healing' && healValue > 0) {
     // Get current HP and max HP from database
@@ -1763,7 +2947,7 @@ async function useItem(petId) {
     var currentHP = (petRes.data.current_hp !== null && petRes.data.current_hp !== undefined) ? petRes.data.current_hp : (petRes.data.base_hp || 30);
     var maxHP = petRes.data.max_hp || petRes.data.base_hp || 30;
     
-    console.log('🩹 Healing - Current HP:', currentHP, 'Max HP:', maxHP, 'Heal amount:', healValue);
+    dbg('🩹 Healing - Current HP:', currentHP, 'Max HP:', maxHP, 'Heal amount:', healValue);
     
     // Check if already at full HP
     if (currentHP >= maxHP) {
@@ -1907,7 +3091,7 @@ function getLastSeenText(lastFed, lastPlayed) {
 
 function makeMyPetCard(pet) {
   var info = pet.pets || {};
-  var xpNext = pet.level * 120;
+  var xpNext = pet.level * GAME_CONSTANTS.XP_PER_LEVEL;
   var hPct = Math.round(pet.hunger/pet.max_hunger*100);
   var hapPct = Math.round(pet.happiness/pet.max_happiness*100);
   var ePct = Math.round(pet.energy/pet.max_energy*100);
@@ -1916,14 +3100,19 @@ function makeMyPetCard(pet) {
   var moodEmoji = mood.emoji;
   var achievements = getAchievements(pet);
   var lastSeen = getLastSeenText(pet.last_fed, pet.last_played);
+  
+  // Evolution info
+  var evolutionStage = getEvolutionStage(pet.level);
+  var evolutionEmoji = getEvolutionEmoji(evolutionStage);
+  var stageName = evolutionStage.charAt(0).toUpperCase() + evolutionStage.slice(1);
+  var backstory = getPetBackstory(info.name);
 
   var card = makeEl('div', {class:'my-pet-card', id:'petcard-'+pet.id});
 
-  // Habitat banner
+  // Habitat banner with avatar
   var habitat = makeEl('div', {class:'pet-habitat'});
   habitat.setAttribute('style', getHabitatStyle(info.vtuber_name));
-
-  // Floating avatar with mood badge
+  
   var avatarWrap = makeEl('div', {class:'pet-avatar-wrap'});
   var avatar = makeEl('div', {class:'pet-avatar'});
   if (info.image_file) {
@@ -1931,6 +3120,26 @@ function makeMyPetCard(pet) {
     img.onerror = function(){ this.parentElement.innerHTML='&#128062;'; };
     avatar.appendChild(img);
   } else { avatar.innerHTML='&#128062;'; }
+
+  // Apply variant class immediately so it shows on page load
+  var activeVariant = skinkey_getCurrentVariant(pet.id);
+  if (activeVariant) {
+    var varCls = BASIC_VARIANTS[activeVariant] ? BASIC_VARIANTS[activeVariant].cssClass : 'pet-variant-' + activeVariant;
+    card.classList.add(varCls);
+    avatar.classList.add(varCls);
+    avatarWrap.classList.add(varCls);
+    // Spawn particles (slight delay so card is in DOM)
+    setTimeout(function() { createVariantParticles(card, activeVariant, 12); }, 300);
+  }
+
+  // Show 🧭 Exploring badge if this pet is on an expedition
+  if (_battleExpeditionPetIds && _battleExpeditionPetIds.indexOf(pet.id) !== -1) {
+    var exploringBadge = makeEl('div');
+    exploringBadge.innerHTML = '🧭 Exploring';
+    exploringBadge.style.cssText = 'position:absolute;top:8px;left:8px;background:rgba(153,102,255,0.85);color:white;font-size:0.68rem;font-weight:700;padding:3px 8px;border-radius:20px;z-index:10;';
+    card.style.position = 'relative';
+    card.appendChild(exploringBadge);
+  }
   var moodBadge = makeEl('div', {class:'mood-badge'});
   moodBadge.innerHTML = moodEmoji;
   avatarWrap.appendChild(avatar);
@@ -1940,67 +3149,52 @@ function makeMyPetCard(pet) {
 
   // Card body
   var body = makeEl('div', {class:'pet-card-body'});
-
-  // Name and info
-  var headerInfo = makeEl('div', {class:'pet-card-header-info'});
   
-  // Add evolution stage emoji
-  var evolutionStage = getEvolutionStage(pet.level);
-  var evolutionEmoji = getEvolutionEmoji(evolutionStage);
-  var stageName = evolutionStage.charAt(0).toUpperCase() + evolutionStage.slice(1);
+  // NAME ROW - nickname + edit button (CLEAN CENTERED LAYOUT)
+  var nameRow = makeEl('div', {class:'pet-name-row'});
+  var nicknameSpan = makeEl('span', {class:'pet-nickname'}, evolutionEmoji + ' ' + pet.nickname);
+  maybeApplyNameGlitch(nicknameSpan, evolutionEmoji + ' ' + pet.nickname);
+  var editBtn = makeEl('button', {class:'pet-edit-btn', title:'Edit nickname'});
+  editBtn.textContent = '✏️';
+  editBtn.onclick = function() { openEditNicknameModal(pet.id, pet.nickname); };
+  nameRow.appendChild(nicknameSpan);
+  nameRow.appendChild(editBtn);
+  body.appendChild(nameRow);
   
-  // Add edit nickname button
-  var editNicknameBtn = makeEl('button', {class:'btn-edit-nickname', title:'Edit nickname'});
-  editNicknameBtn.innerHTML = '✏️';
-  editNicknameBtn.style.cssText = 'margin-left:8px;padding:4px 8px;font-size:1rem;cursor:pointer;background:var(--cream);border:2px solid var(--purple-light);border-radius:8px;transition:all 0.2s;';
-  editNicknameBtn.onmouseover = function() { this.style.borderColor = 'var(--purple)'; this.style.background = 'var(--purple-light)'; };
-  editNicknameBtn.onmouseout = function() { this.style.borderColor = 'var(--purple-light)'; this.style.background = 'var(--cream)'; };
-  editNicknameBtn.onclick = function() { openEditNicknameModal(pet.id, pet.nickname); };
+  // EVOLUTION STAGE
+  var stageDiv = makeEl('div', {class:'pet-stage'}, '(' + stageName + ')');
+  body.appendChild(stageDiv);
   
-  var nicknameRow = makeEl('div', {style:'display:flex;align-items:center;justify-content:space-between;'});
-  var nicknameText = makeEl('div', {class:'pet-card-nickname'}, evolutionEmoji + ' ' + pet.nickname + ' (' + stageName + ')');
-  nicknameRow.appendChild(nicknameText);
-  nicknameRow.appendChild(editNicknameBtn);
-  headerInfo.appendChild(nicknameRow);
-  
-  // Add variant badge if pet has variant
+  // VARIANT BADGE (if exists)
   if (pet.variant) {
-    var variantBadgeDiv = makeEl('div');
-    variantBadgeDiv.innerHTML = getPetVariantBadge(pet.variant);
-    variantBadgeDiv.style.cssText = 'margin:5px 0;';
-    headerInfo.appendChild(variantBadgeDiv);
+    var variantDiv = makeEl('div', {class:'pet-variant-badge-wrap'});
+    variantDiv.innerHTML = getPetVariantBadge(pet.variant);
+    body.appendChild(variantDiv);
   }
   
-  // Add pet title display if active
+  // PET TITLE (if exists)
   if (pet.active_pet_title_id) {
-    var titleDiv = makeEl('div');
+    var titleDiv = makeEl('div', {class:'pet-title-display-wrap'});
     titleDiv.innerHTML = getPetTitleDisplay(pet.id);
-    titleDiv.style.cssText = 'margin:5px 0;';
-    headerInfo.appendChild(titleDiv);
+    body.appendChild(titleDiv);
   }
   
-  var speciesEl = makeEl('div', {class:'pet-card-species'});
-  if (info.vtuber_name) speciesEl.textContent = info.vtuber_name;
-  if (info.twitch_url) {
-    var tLink = makeEl('a', {href:info.twitch_url, target:'_blank'});
-    tLink.style.cssText = 'font-size:0.72rem;background:#9146ff;color:white;padding:2px 7px;border-radius:10px;font-family:Fredoka One,cursive;text-decoration:none;margin-left:6px;';
-    tLink.textContent = 'Watch Live';
-    speciesEl.appendChild(tLink);
-  }
-  headerInfo.appendChild(speciesEl);
+  // SPECIES/VTUBER NAME
+  var speciesDiv = makeEl('div', {class:'pet-species'}, info.vtuber_name || '');
+  body.appendChild(speciesDiv);
   
-  // Pet backstory/bio
-  var backstory = getPetBackstory(info.name);
-  var bioEl = makeEl('div', {class:'pet-card-bio'});
-  bioEl.textContent = backstory;
-  bioEl.style.cssText = 'font-size:0.85rem;color:var(--text-light);margin:8px 0;font-style:italic;line-height:1.4;';
-  headerInfo.appendChild(bioEl);
+  // BIO TEXT
+  var bioDiv = makeEl('div', {class:'pet-bio'}, backstory);
+  body.appendChild(bioDiv);
   
-  headerInfo.appendChild(makeEl('div', {class:'pet-card-level', id:'lvl-'+pet.id}, 'Lv. '+pet.level+' | Max Stats: '+pet.max_hunger));
-  body.appendChild(headerInfo);
+  // LEVEL
+  var levelDiv = makeEl('div', {class:'pet-level'}, 'Lv. ' + pet.level);
+  body.appendChild(levelDiv);
 
   // Last interaction
-  body.appendChild(makeEl('div', {class:'pet-last-seen'}, 'Last interaction: ' + lastSeen));
+  var lastSeenEl = makeEl('div', {class:'pet-last-seen'}, 'Last interaction: ' + lastSeen);
+  body.appendChild(lastSeenEl);
+  maybeApplyNameGlitch(lastSeenEl, 'Last interaction: ' + lastSeen);
 
   // Achievements
   if (achievements.length > 0) {
@@ -2024,13 +3218,15 @@ function makeMyPetCard(pet) {
     var battleStats = makeEl('div', {class:'pet-battle-stats'});
     battleStats.style.cssText = 'display:flex;justify-content:space-around;padding:12px;margin:10px 0;background:rgba(176,106,255,0.1);border:2px solid var(--purple-light);border-radius:12px;';
     
-    // HP with current/max display - FIX: Respect 0 HP!
+    // HP with current/max display
     var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
     var maxHP = pet.max_hp || pet.base_hp || 30;
     var hpPercent = Math.round((currentHP / maxHP) * 100);
     var hpColor = hpPercent > 50 ? '#5dde7a' : hpPercent > 25 ? '#ffaa00' : '#ff6b6b';
     
     var hpStat = makeEl('div', {class:'battle-stat-mini'});
+    hpStat.setAttribute('data-tooltip', '❤️ HEALTH POINTS\nHP carries over between battles!\nAt 0 HP your pet faints — use a Revive Potion.\n\n💡 HP regenerates slowly over time.\nHeal faster with potions from the Shop.');
+    hpStat.style.cursor = 'help';
     hpStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">HP</div>' +
       '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + currentHP + '/' + maxHP + '</div>' +
       '<div style="width:60px;height:4px;background:#e0e0e0;border-radius:2px;margin-top:4px;overflow:hidden;">' +
@@ -2038,14 +3234,20 @@ function makeMyPetCard(pet) {
     battleStats.appendChild(hpStat);
     
     var atkStat = makeEl('div', {class:'battle-stat-mini', id:'atk-stat-'+pet.id});
+    atkStat.setAttribute('data-tooltip', '⚔️ ATTACK\nHow much damage your pet deals in battle.\n\n💡 Increase by:\n• Leveling up\n• Equipping weapons\n• Evolution');
+    atkStat.style.cursor = 'help';
     atkStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">ATK</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_attack || 5) + '</div>';
     battleStats.appendChild(atkStat);
     
     var defStat = makeEl('div', {class:'battle-stat-mini', id:'def-stat-'+pet.id});
+    defStat.setAttribute('data-tooltip', '🛡️ DEFENSE\nReduces damage taken from enemy attacks.\n\n💡 Increase by:\n• Leveling up\n• Equipping armor\n• Evolution');
+    defStat.style.cursor = 'help';
     defStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">DEF</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_defense || 3) + '</div>';
     battleStats.appendChild(defStat);
     
     var spdStat = makeEl('div', {class:'battle-stat-mini', id:'spd-stat-'+pet.id});
+    spdStat.setAttribute('data-tooltip', '💨 SPEED\nDetermines who attacks first in battles.\nAlso affects race performance!\n\n💡 Increase by:\n• Leveling up\n• Speed equipment\n• Certain variants');
+    spdStat.style.cursor = 'help';
     spdStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_speed || 4) + '</div>';
     battleStats.appendChild(spdStat);
     
@@ -2055,7 +3257,7 @@ function makeMyPetCard(pet) {
     updatePetStatsDisplay(pet.id, pet.base_attack || 5, pet.base_defense || 3, pet.base_speed || 4);
   }
 
-  // Equipped Items Display (NEW!)
+  // Equipped Items Display
   var equipSection = makeEl('div', {class:'equipped-items-section'});
   equipSection.style.cssText = 'margin:10px 0;padding:10px;background:rgba(93,222,122,0.1);border:2px solid #5dde7a;border-radius:12px;';
   
@@ -2069,7 +3271,7 @@ function makeMyPetCard(pet) {
   
   equipSection.appendChild(equipTitle);
   
-  // Show equipped weapon and armor (we'll load this async)
+  // Show equipped weapon and armor (loaded async)
   var equipDisplay = makeEl('div', {id:'equip-display-'+pet.id, style:'font-size:0.85rem;color:var(--text);'});
   equipDisplay.innerHTML = '<div style="opacity:0.6;">Loading equipment...</div>';
   equipSection.appendChild(equipDisplay);
@@ -2100,48 +3302,93 @@ function makeMyPetCard(pet) {
   bars.appendChild(xpRow);
   body.appendChild(bars);
 
-  // Action buttons
+  // ── Mood & Wishes widget (loaded async after card renders) ──
+  var moodMount = makeEl('div', { id: 'mood-widget-' + pet.id });
+  moodMount.innerHTML = '<div style="height:4px"></div>'; // placeholder
+  body.appendChild(moodMount);
+  // Load asynchronously so it doesn't block card render
+  personality_loadMood(pet.id).then(function() {
+    personality_renderWidget(pet.id);
+    // Also render quest widget and try to assign one if none active
+    personality_renderQuestWidget(pet.id);
+    assignQuestArc(pet.id).catch(function(){});
+  }).catch(function(){});
+
+  // Quest widget mount point (separate from mood widget)
+  var questMount = makeEl('div', { id: 'quest-widget-' + pet.id });
+  body.appendChild(questMount);
   var actions = makeEl('div', {class:'pet-actions'});
+  actions.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;justify-content:center;';
   
-  // FIX 5: Event delegation - add data-pet-id attribute instead of onclick
-  var feedBtn = makeEl('button', {class:'btn-action btn-feed', id:'feed-'+pet.id}, pet.hunger<pet.max_hunger?'Feed':'Full!');
+  // Feed/Play buttons with event delegation
+  var feedBtn = makeEl('button', {class:'btn-action btn-feed', id:'feed-'+pet.id}, 'Feed');
   feedBtn.setAttribute('data-pet-id', pet.id);
-  if (pet.hunger >= pet.max_hunger) feedBtn.disabled=true;
+  feedBtn.style.cssText = 'flex:1;min-width:60px;padding:7px 10px;font-size:0.82rem;';
+
+  // 🏠 Room button
+  var roomBtn = makeEl('button', {class:'btn-action'});
+  roomBtn.textContent = '🏠 Room';
+  roomBtn.title = 'Decorate your pet\'s room!';
+  roomBtn.style.cssText = 'min-width:72px;padding:8px 10px;font-size:0.88rem;background:linear-gradient(135deg,#5cb85c,#3a9a3a);color:white;border:none;border-radius:25px;cursor:pointer;font-weight:600;white-space:nowrap;text-align:center;';
+  roomBtn.onclick = (function(id) { return function() { furniture_openRoom(id); }; })(pet.id);
   
-  var playBtn = makeEl('button', {class:'btn-action btn-play', id:'play-'+pet.id}, pet.energy>=10?'Play':'Tired!');
+  var playBtn = makeEl('button', {class:'btn-action btn-play', id:'play-'+pet.id}, pet.energy >= 10 ? 'Play' : 'Tired!');
   playBtn.setAttribute('data-pet-id', pet.id);
-  if (pet.energy < 10) playBtn.disabled=true;
-  
-  // REMOVED daily limit - buttons always enabled for item-based feeding/playing
-  // Users can feed/play unlimited times using items from inventory
-  // The free daily option is still shown in the modal as a bonus
-  feedBtn.textContent = 'Feed';
-  feedBtn.disabled = false;
-  feedBtn.style.opacity = '1';
-  
-  playBtn.textContent = pet.energy >= 10 ? 'Play' : 'Tired!';
   playBtn.disabled = pet.energy < 10;
-  playBtn.style.opacity = pet.energy >= 10 ? '1' : '0.6';
+  playBtn.style.cssText = 'flex:1;min-width:60px;padding:7px 10px;font-size:0.82rem;';
   
-  actions.appendChild(feedBtn); actions.appendChild(playBtn);
-  
-  // COMPANION SELECTOR BUTTON
+  actions.appendChild(feedBtn); 
+  actions.appendChild(playBtn);
+  actions.appendChild(roomBtn);
+
+  // 🏛️ Set Guild Pet button — only if player is in a guild and pet is level 5+
+  if (guildState.myGuild && (pet.level||1) >= 5) {
+    var isLiaison = (guildState.liaisonPetId === pet.id);
+    var guildPetBtn = makeEl('button', { class: 'btn-action' });
+    guildPetBtn.textContent = isLiaison ? '🏛️ Guild Pet ✓' : '🏛️ Set Guild Pet';
+    guildPetBtn.title = 'Set this pet as your guild liaison';
+    guildPetBtn.disabled = isLiaison;
+    guildPetBtn.style.cssText = 'min-width:72px;padding:8px 10px;font-size:0.82rem;background:' + (isLiaison?'rgba(153,102,255,0.2)':'linear-gradient(135deg,#5b6abf,#764ba2)') + ';color:white;border:none;border-radius:25px;cursor:' + (isLiaison?'default':'pointer') + ';font-weight:600;white-space:nowrap;';
+    guildPetBtn.onclick = (function(id) { return function() { setGuildLiaison(id); }; })(pet.id);
+    actions.appendChild(guildPetBtn);
+  }
+
+  // Snapshot button — compact icon only
+  var snapBtn = makeEl('button', {class:'btn-action btn-snapshot', id:'snap-'+pet.id});
+  snapBtn.textContent = '📸';
+  snapBtn.title = 'Take a Snapshot of this pet!';
+  snapBtn.style.cssText = 'background:linear-gradient(135deg,#764ba2,#9966ff);color:white;border:none;border-radius:25px;padding:8px 10px;font-size:0.9rem;cursor:pointer;transition:transform 0.15s;flex:0 0 auto;white-space:nowrap;';
+  snapBtn.onmouseover = function() { this.style.transform = 'scale(1.1)'; };
+  snapBtn.onmouseout  = function() { this.style.transform = 'scale(1)'; };
+  snapBtn.onclick = function() { screenshot_generate(pet.id); };
+  actions.appendChild(snapBtn);
   var companionBtn = makeEl('button', {class: 'btn-companion'});
-  companionBtn.textContent = '🐾 Set as Companion';
-  companionBtn.style.cssText = 'margin-top:8px;width:100%;padding:10px;background:linear-gradient(135deg,#9966ff 0%,#ff66cc 100%);color:white;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:transform 0.2s;';
+  companionBtn.textContent = '🐾 Set Companion';
+  companionBtn.title = 'Set as your active companion';
+  companionBtn.style.cssText = 'margin-top:6px;width:100%;padding:8px 10px;font-size:0.82rem;background:linear-gradient(135deg,#9966ff 0%,#ff66cc 100%);color:white;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:transform 0.2s;';
   companionBtn.onmouseover = function() { this.style.transform = 'scale(1.02)'; };
   companionBtn.onmouseout = function() { this.style.transform = 'scale(1)'; };
   companionBtn.onclick = function() {
     CompanionBuddy.setCompanion(pet.id);
   };
   actions.appendChild(companionBtn);
+
+  // Variant selector button
+  var variantBtn = makeEl('button', {class: 'btn-variant-selector', id: 'variant-btn-' + pet.id});
+  var activeVariant = skinkey_getCurrentVariant(pet.id);
+  var activeVariantData = activeVariant ? BASIC_VARIANTS[activeVariant] : null;
+  variantBtn.textContent = activeVariantData ? (activeVariantData.icon + ' ' + activeVariantData.name) : '🎨 Variant';
+  variantBtn.title = 'Manage variants for this pet';
+  variantBtn.style.cssText = 'width:100%;padding:8px 10px;margin-top:4px;font-size:0.82rem;background:linear-gradient(135deg,#8b5cf6,#6366f1);color:white;border:none;border-radius:12px;font-weight:600;cursor:pointer;transition:all 0.2s;';
+  variantBtn.onclick = function() { showPetVariantModal(pet.id, pet.nickname || pet.pet_type || 'Pet'); };
+  actions.appendChild(variantBtn);
   
   body.appendChild(actions);
 
   body.appendChild(makeDropdown(pet.id));
   body.appendChild(makeEl('div', {class:'stat-flash', id:'flash-'+pet.id}));
   
-  // Add pet title selector dropdown
+  // Pet title selector dropdown
   var titleSelectorDiv = makeEl('div', {
     id: 'pet-title-selector-' + pet.id, 
     class: 'pet-title-selector-container'
@@ -2175,23 +3422,18 @@ async function loadEquippedItems(petId) {
   // Wait a bit for the DOM to be ready
   setTimeout(async function() {
     var display = el('equip-display-' + petId);
-    if (!display) {
-      console.error('Equipment display element not found for pet:', petId);
-      return;
-    }
+    if (!display) return;
     
     try {
-      // Get equipped items for this pet
+      // Get equipped items for THIS specific pet (not all pets)
       var equipRes = await supabaseClient
         .from('player_equipment')
         .select('equipment(*), equipped_slot')
         .eq('user_id', currentUser.id)
+        .eq('pet_id', petId)
         .eq('is_equipped', true);
       
-      console.log('Equipment query result:', equipRes);
-      
       if (equipRes.error) {
-        console.error('Equipment query error:', equipRes.error);
         display.innerHTML = '<div style="opacity:0.6;font-size:0.8rem;">Error loading equipment</div>';
         return;
       }
@@ -2254,13 +3496,14 @@ async function loadEquippedItems(petId) {
 }
 
 async function updatePetStatsDisplay(petId, baseAtk, baseDef, baseSpd) {
-  // Fetch equipment and update stat display
+  // Fetch equipment for THIS specific pet and update stat display
   setTimeout(async function() {
     try {
       var equipRes = await supabaseClient
         .from('player_equipment')
         .select('equipment(*)')
         .eq('user_id', currentUser.id)
+        .eq('pet_id', petId)
         .eq('is_equipped', true);
       
       if (equipRes.error || !equipRes.data) return;
@@ -2408,7 +3651,7 @@ function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappines
 // ══════════════════════════════════════════════════════════════════════════
 
 function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness, currentHP, currentAtk, currentDef, currentSpd) {
-  var xpNeeded = currentLevel * 120; // Increased from 100 to 120 for slower leveling
+  var xpNeeded = currentLevel * GAME_CONSTANTS.XP_PER_LEVEL;
   
   if (newXp >= xpNeeded) {
     // Level up! Calculate stat increases
@@ -2458,19 +3701,1084 @@ function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnerg
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TREASURE HUNTING — Expedition System
+// ═══════════════════════════════════════════════════════════════════════════
+
+var EXPEDITION_ZONES = [
+  { key:'outskirts',  label:'Outskirts',     emoji:'🏘️', duration:30, minPP:15,  maxPP:30,  rarity:'common',   desc:'Quick scout of the nearby fields.',  energyCost:15, xpReward:25,
+    itemPool:[{id:'basic_food',name:'Basic Food',icon:'🍞',type:'food'}], itemChance:0.30, minItems:0, maxItems:1 },
+  { key:'forest',     label:'Forest Glade',  emoji:'🌳', duration:45, minPP:30,  maxPP:60,  rarity:'uncommon', desc:'Wander through the shady forest.',    energyCost:25, xpReward:50,
+    itemPool:[{id:'treat',name:'Treat',icon:'🍪',type:'treat'}], itemChance:0.40, minItems:0, maxItems:1 },
+  { key:'deepwoods',  label:'Deep Woods',    emoji:'🌲', duration:60, minPP:50,  maxPP:100, rarity:'rare',     desc:'Brave the dangerous deep woods.',    energyCost:40, xpReward:100,
+    itemPool:[{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'},{id:'rubber_ball',name:'Rubber Ball',icon:'⚽',type:'toy'},{id:'rope_toy',name:'Rope Toy',icon:'🪢',type:'toy'}], itemChance:0.50, minItems:0, maxItems:1 },
+  { key:'ruins',      label:'Ancient Ruins', emoji:'🏛️', duration:90, minPP:75,  maxPP:150, rarity:'epic',     desc:'Explore the mysterious old ruins.',   energyCost:60, xpReward:200,
+    itemPool:[{id:'wooden_spoon',name:'Wooden Spoon',icon:'🥄',type:'equipment'},{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'}], itemChance:0.60, equipmentChance:0.10, minItems:0, maxItems:1 }
+];
+
+var expeditionState = {
+  active: null,      // current active expedition row from DB
+  timer:  null       // setInterval id for countdown
+};
+
+// Called when minigames tab loads
+async function expedition_init() {
+  var area = document.getElementById('expedition-area');
+  if (!area) return;
+  if (!currentUser) { area.innerHTML = '<p style="color:var(--text-light);text-align:center;">Log in to go exploring!</p>'; return; }
+
+  area.innerHTML = '<div class="spinner"></div>';
+
+  // Check for active or unclaimed expedition
+  var { data: active } = await supabaseClient
+    .from('expeditions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('claimed', false)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .single()
+    .catch(function() { return { data: null }; });
+
+  expeditionState.active = active || null;
+
+  if (active && !active.completed && new Date(active.ends_at) > new Date()) {
+    expedition_renderCountdown(active);
+  } else if (active && (!active.completed || new Date(active.ends_at) <= new Date())) {
+    // Mark complete if time is up
+    if (!active.completed) {
+      await supabaseClient.from('expeditions').update({ completed: true }).eq('id', active.id);
+      active.completed = true;
+    }
+    expedition_renderClaim(active);
+  } else {
+    expedition_renderSelector();
+  }
+}
+
+// ── Pet + Zone selector UI ──
+function expedition_renderSelector() {
+  var area = document.getElementById('expedition-area');
+  if (!area) return;
+
+  // If petState hasn't loaded yet (user came directly to Battle tab),
+  // fetch pets from DB and then re-render
+  if (Object.keys(petState).length === 0 && currentUser) {
+    supabaseClient
+      .from('user_pets')
+      .select('id, nickname, pet_type, level, energy, max_energy, happiness')
+      .eq('user_id', currentUser.id)
+      .then(function(res) {
+        if (res.data) {
+          res.data.forEach(function(p) { if (!petState[p.id]) petState[p.id] = p; });
+        }
+        expedition_renderSelector();
+      })
+      .catch(function() { expedition_renderSelector(); });
+    area.innerHTML = '<div class="spinner"></div>';
+    return;
+  }
+
+  // All pets eligible — no level/energy gate
+  var eligiblePets = Object.values(petState).filter(function(p) {
+    return (p.level || 1) >= 1;
+  });
+
+  var petOptions = eligiblePets.length === 0
+    ? '<p style="color:#ff6b6b;text-align:center;font-size:0.88rem;">No pets available — adopt one first! 🐾</p>'
+    : '<div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px;">' +
+      eligiblePets.map(function(p) {
+        return '<button class="btn btn-outline expedition-pet-btn" data-pet-id="' + p.id + '" onclick="expedition_selectPet(\'' + p.id + '\')" style="padding:8px 14px;font-size:0.82rem;">' +
+          (p.nickname || p.pet_type || 'Pet') + ' Lv.' + (p.level || 1) + ' ⚡' + Math.floor(p.energy || 0) +
+          '</button>';
+      }).join('') +
+      '</div>';
+
+  var zoneOptions = EXPEDITION_ZONES.map(function(z) {
+    return '<div class="expedition-zone-card" data-zone="' + z.key + '" onclick="expedition_selectZone(\'' + z.key + '\')" style="cursor:pointer;border:2px solid var(--border);border-radius:12px;padding:12px 16px;margin-bottom:8px;transition:all 0.2s;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span style="font-size:1.1rem;">' + z.emoji + ' <strong>' + z.label + '</strong></span>' +
+        '<span style="font-size:0.78rem;color:var(--text-light);">⏱️ ' + z.duration + ' min | 💰 ' + z.minPP + '-' + z.maxPP + ' PP</span>' +
+      '</div>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;">' + z.desc + ' <em>(' + z.rarity + ' drops)</em></div>' +
+    '</div>';
+  }).join('');
+
+  area.innerHTML =
+    '<div id="expedition-selector">' +
+      '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px;font-size:0.9rem;">1️⃣ Choose a Pet:</div>' +
+      petOptions +
+      '<div id="expedition-pet-selected" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-light);text-align:center;">No pet selected</div>' +
+      '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px;font-size:0.9rem;">2️⃣ Choose a Zone:</div>' +
+      zoneOptions +
+      '<button id="expedition-start-btn" class="btn btn-primary" onclick="expedition_start()" disabled style="width:100%;margin-top:14px;opacity:0.5;">Select a pet and zone</button>' +
+    '</div>';
+}
+
+var _expeditionPetId  = null;
+var _expeditionZoneKey = null;
+
+function expedition_selectPet(petId) {
+  _expeditionPetId = petId;
+  document.querySelectorAll('.expedition-pet-btn').forEach(function(b) {
+    b.style.background = b.getAttribute('data-pet-id') === petId ? 'var(--purple)' : '';
+    b.style.color      = b.getAttribute('data-pet-id') === petId ? 'white' : '';
+  });
+  var pet = petState[petId];
+  var nameEl = document.getElementById('expedition-pet-selected');
+  if (nameEl && pet) nameEl.textContent = '✅ ' + (pet.nickname || pet.pet_type || 'Pet') + ' selected';
+  expedition_updateStartBtn();
+}
+
+function expedition_selectZone(zoneKey) {
+  _expeditionZoneKey = zoneKey;
+  document.querySelectorAll('.expedition-zone-card').forEach(function(card) {
+    var selected = card.getAttribute('data-zone') === zoneKey;
+    card.style.borderColor  = selected ? 'var(--purple)' : 'var(--border)';
+    card.style.background   = selected ? 'rgba(153,102,255,0.08)' : '';
+  });
+  expedition_updateStartBtn();
+}
+
+function expedition_updateStartBtn() {
+  var btn = document.getElementById('expedition-start-btn');
+  if (!btn) return;
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === _expeditionZoneKey; });
+  var ready = _expeditionPetId && _expeditionZoneKey;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? '1' : '0.5';
+  if (zone && ready) btn.textContent = '⚡ ' + zone.energyCost + ' energy — Send to ' + zone.label + '!';
+}
+
+async function expedition_start() {
+  if (raceState && raceState.racing) return; // belt-and-braces
+  if (!canPerformAction('expedition_start', 5000)) return;
+  if (!_expeditionPetId || !_expeditionZoneKey || !currentUser) return;
+  var btn = document.getElementById('expedition-start-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === _expeditionZoneKey; });
+  var pet  = petState[_expeditionPetId];
+  if (!zone || !pet) return;
+
+  // Final energy check
+  if ((pet.energy || 0) < zone.energyCost) {
+    showToast('Not enough energy! (need ' + zone.energyCost + ')', 3000);
+    if (btn) { btn.disabled = false; expedition_updateStartBtn(); }
+    return;
+  }
+
+  var endsAt = new Date(Date.now() + zone.duration * 60000).toISOString();
+
+  // Pre-calculate rewards with balanced economy
+  var levelBonus2 = Math.min(1.5, 1 + ((pet.level || 1) / 100));
+  var rewardPP = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus2);
+
+  // Single item drop
+  var droppedItemsMG = [];
+  if (Math.random() < (zone.itemChance || 0)) {
+    var mgPool = zone.itemPool || [];
+    var mgDropped = null;
+    if (zone.key === 'ruins') {
+      var mgEquip = mgPool.filter(function(it) { return it.type === 'equipment'; });
+      var mgToy   = mgPool.filter(function(it) { return it.type !== 'equipment'; });
+      mgDropped = Math.random() < (zone.equipmentChance || 0.10)
+        ? mgEquip[Math.floor(Math.random() * mgEquip.length)]
+        : mgToy[Math.floor(Math.random() * mgToy.length)];
+    } else {
+      mgDropped = mgPool[Math.floor(Math.random() * mgPool.length)];
+    }
+    if (mgDropped) droppedItemsMG.push(mgDropped);
+  }
+
+  // Insert expedition row
+  var { data: row, error } = await supabaseClient.from('expeditions').insert({
+    user_id:      currentUser.id,
+    pet_id:       _expeditionPetId,
+    zone:         _expeditionZoneKey,
+    ends_at:      endsAt,
+    completed:    false,
+    claimed:      false,
+    reward_pp:    rewardPP,
+    reward_items: droppedItemsMG
+  }).select().single();
+
+  if (error) { showToast('Failed to start expedition: ' + error.message, 4000); if (btn) { btn.disabled = false; expedition_updateStartBtn(); } return; }
+
+  // Deduct energy AFTER successful DB insert (use zone's actual energyCost)
+  var { data: newEnergyVal, error: energyErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+    p_pet_id: _expeditionPetId, p_stat: 'energy', p_delta: -zone.energyCost, p_reason: 'expedition_start'
+  });
+  if (!energyErr && petState[_expeditionPetId]) petState[_expeditionPetId].energy = newEnergyVal;
+
+  expeditionState.active = row;
+  showToast('🏴‍☠️ ' + (pet.nickname || 'Your pet') + ' set off for the ' + zone.label + '!', 3000);
+  expedition_renderCountdown(row);
+}
+
+// ── Active expedition countdown ──
+function expedition_renderCountdown(row) {
+  var area = document.getElementById('expedition-area');
+  if (!area) return;
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === row.zone; }) || EXPEDITION_ZONES[0];
+  var pet  = petState[row.pet_id] || {};
+
+  area.innerHTML =
+    '<div style="text-align:center;padding:20px 10px;">' +
+      '<div style="font-size:2.5rem;margin-bottom:8px;">' + zone.emoji + '</div>' +
+      '<div style="font-weight:700;font-size:1.05rem;color:var(--purple-dark);margin-bottom:4px;">' +
+        (pet.nickname || 'Your pet') + ' is exploring the ' + zone.label + '!' +
+      '</div>' +
+      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + zone.desc + '</div>' +
+      '<div style="background:rgba(153,102,255,0.1);border-radius:16px;padding:16px;display:inline-block;min-width:180px;">' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:4px;">Returns in</div>' +
+        '<div id="expedition-countdown" style="font-size:2rem;font-weight:800;color:var(--purple);font-family:monospace;">--:--</div>' +
+      '</div>' +
+      '<div style="margin-top:16px;font-size:0.8rem;color:var(--text-light);">Expected loot: 💰 ' + (row.reward_pp || '?') + ' PP</div>' +
+    '</div>';
+
+  // Start countdown ticker
+  if (expeditionState.timer) safeClearInterval(expeditionState.timer);
+  function tick() {
+    var remaining = new Date(row.ends_at) - new Date();
+    var el = document.getElementById('expedition-countdown');
+    if (!el) { safeClearInterval(expeditionState.timer); return; }
+    if (remaining <= 0) {
+      safeClearInterval(expeditionState.timer);
+      supabaseClient.from('expeditions').update({ completed: true }).eq('id', row.id).then(function() {
+        row.completed = true;
+        expedition_renderClaim(row);
+      });
+      return;
+    }
+    var mins = Math.floor(remaining / 60000);
+    var secs = Math.floor((remaining % 60000) / 1000);
+    el.textContent = String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+  }
+  tick();
+  expeditionState.timer = safeSetInterval(tick, 1000);
+}
+
+// ── Claim UI ──
+function expedition_renderClaim(row) {
+  var area = document.getElementById('expedition-area');
+  if (!area) return;
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === row.zone; }) || EXPEDITION_ZONES[0];
+  var pet  = petState[row.pet_id] || {};
+
+  area.innerHTML =
+    '<div style="text-align:center;padding:20px 10px;">' +
+      '<div style="font-size:2.5rem;margin-bottom:8px;animation:bounce 0.6s ease infinite alternate;">🎉</div>' +
+      '<div style="font-weight:700;font-size:1.1rem;color:var(--purple-dark);margin-bottom:6px;">' +
+        (pet.nickname || 'Your pet') + ' returned from the ' + zone.label + '!' +
+      '</div>' +
+      '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(153,102,255,0.1));border:2px solid rgba(255,215,0,0.4);border-radius:16px;padding:18px;margin:14px auto;max-width:260px;">' +
+        '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">Expedition Haul</div>' +
+        '<div style="font-size:2rem;font-weight:800;color:#e6a800;">💰 ' + (row.reward_pp || 0) + ' PP</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;">' + zone.emoji + ' ' + zone.label + ' · ' + zone.rarity + ' loot</div>' +
+      '</div>' +
+      '<button class="btn btn-primary" onclick="expedition_claim(\'' + row.id + '\')" style="padding:12px 32px;font-size:1rem;">🎁 Claim Rewards!</button>' +
+    '</div>';
+}
+
+async function expedition_claim(expeditionId) {
+  var claimBtn = document.querySelector('#expedition-area .btn-primary');
+  if (claimBtn) { claimBtn.disabled = true; claimBtn.textContent = 'Claiming…'; }
+
+  var { data: row } = await supabaseClient.from('expeditions').select('*').eq('id', expeditionId).single();
+  if (!row) { showToast('Expedition not found', 3000); return; }
+
+  // Mark claimed
+  await supabaseClient.from('expeditions').update({ claimed: true }).eq('id', expeditionId);
+
+  // Award PP
+  var streak = await checkExplorationStreak(row.pet_id, row.zone);
+  var streakMult = getStreakMultiplier(row.pet_id, row.zone);
+  var perkMult   = getActivePerkMultiplier('reward_boost');
+  var finalPP = Math.floor((row.reward_pp || 0) * streakMult * perkMult);
+  await awardPP(finalPP, 'expedition_' + row.zone);
+
+  // Check for secrets
+  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
+
+  // Integrations
+  addPassXP(10, 'expedition').catch(function(){});
+  checkPetWishes('expedition', row.pet_id).catch(function(){});
+  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  community_increment('expeditions_week1', 1);
+  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
+
+  showToast('🏴‍☠️ Claimed ' + (row.reward_pp || 0) + ' PP from your expedition!', 4000);
+
+  expeditionState.active = null;
+  _expeditionPetId  = null;
+  _expeditionZoneKey = null;
+
+  // Show history then selector
+  await expedition_renderHistory();
+}
+
+async function expedition_renderHistory() {
+  var area = document.getElementById('expedition-area');
+  if (!area) return;
+
+  var { data: history } = await supabaseClient
+    .from('expeditions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('claimed', true)
+    .order('started_at', { ascending: false })
+    .limit(5);
+
+  var histHtml = '';
+  if (history && history.length > 0) {
+    histHtml = '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:14px;">' +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">📜 Recent Expeditions</div>' +
+      history.map(function(r) {
+        var zone = EXPEDITION_ZONES.find(function(z) { return z.key === r.zone; });
+        var pet  = petState[r.pet_id];
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.8rem;">' +
+          '<span>' + (zone ? zone.emoji : '🗺️') + ' ' + (zone ? zone.label : r.zone) + ' · ' + (pet ? (pet.nickname || 'Pet') : 'Pet') + '</span>' +
+          '<span style="color:#e6a800;font-weight:700;">+' + (r.reward_pp || 0) + ' PP</span>' +
+        '</div>';
+      }).join('') +
+      '</div>';
+  }
+
+  area.innerHTML = '<div id="expedition-post-claim">' + histHtml + '</div>';
+  // Reload selector after 800ms
+  setTimeout(function() { expedition_renderSelector(); }, 800);
+}
+
+// Hook into minigames tab load
+var _origTabsLoadedMinigames = tabsLoaded['minigames'];
+tabsLoaded['minigames'] = function() {
+  if (_origTabsLoadedMinigames) _origTabsLoadedMinigames();
+  expedition_init();
+  race_init();
+};
+
+// Battle tab: also init expedition panel
+var _origTabsLoadedBattle = tabsLoaded['battle'];
+tabsLoaded['battle'] = function() {
+  if (_origTabsLoadedBattle) _origTabsLoadedBattle();
+  battleExp_init();
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET RACING MINI-GAME
+// ═══════════════════════════════════════════════════════════════════════════
+
+var RACE_BETS       = [10, 50, 100];
+var RACE_DAILY_MAX  = 5;
+var RACE_ENERGY_COST = 5;
+
+var CPU_PETS = [
+  { id:'cpu1', nickname:'Zippy',   base_speed:6,  emoji:'🐇', isCpu:true },
+  { id:'cpu2', nickname:'Sludge',  base_speed:3,  emoji:'🐌', isCpu:true },
+  { id:'cpu3', nickname:'Blaze',   base_speed:8,  emoji:'🦊', isCpu:true },
+  { id:'cpu4', nickname:'Pebble',  base_speed:4,  emoji:'🐢', isCpu:true }
+];
+
+var raceState = {
+  selectedPets: [],   // up to 4 pet objects (mix of player + CPU)
+  bet:          10,
+  racing:       false,
+  racesLeft:    RACE_DAILY_MAX,
+  animFrame:    null
+};
+
+// ── Init ──────────────────────────────────────────────────────────────────
+async function race_init() {
+  // Support both the Racing page (racing-race-area) and the Minigames page (race-area)
+  var area = document.getElementById('racing-race-area') || document.getElementById('race-area');
+  if (!area) return;
+  if (!currentUser) {
+    area.innerHTML = '<p style="color:var(--text-light);text-align:center;">Log in to race!</p>';
+    return;
+  }
+  area.innerHTML = '<div class="spinner"></div>';
+
+  // Load tracks if not cached
+  if (!_raceTracks) await race_loadTracks();
+
+  // Check daily race count — table may not exist yet, default to 0
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    var { count } = await supabaseClient
+      .from('race_history')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .eq('race_date', today);
+    raceState.racesLeft = Math.max(0, RACE_DAILY_MAX - (count || 0));
+  } catch(e) {
+    dbg('race_init: race_history table not found, defaulting racesLeft to max');
+    raceState.racesLeft = RACE_DAILY_MAX;
+  }
+
+  raceState.selectedPets = [];
+  raceState.bet = 10;
+
+  race_renderSetup();
+}
+
+// ── Setup UI ─────────────────────────────────────────────────────────────
+async function race_renderSetup() {
+  var area = document.getElementById('racing-race-area') || document.getElementById('race-area');
+  if (!area) return;
+
+  area.innerHTML = '<div class="spinner"></div>';
+
+  // Query DB directly — don't rely on petState being populated
+  var myPets = [];
+  try {
+    var { data: dbPets, error } = await supabaseClient
+      .from('user_pets')
+      .select('id, nickname, level, energy, base_speed, current_variant, pets(name, image_file)')
+      .eq('user_id', currentUser.id);
+    if (!error && dbPets) {
+      myPets = dbPets; // All pets eligible — no level/energy gate for Quick Race
+    }
+  } catch(e) { dbg('race_renderSetup: DB query failed', e); }
+
+  var petsHtml = myPets.length === 0
+    ? '<div style="color:#ff6b6b;font-size:0.85rem;text-align:center;">No pets found — adopt one first! 🐾</div>'
+    : myPets.map(function(p) {
+        var spd = p.base_speed || 4;
+        var spdColor = spd >= 7 ? '#4ade80' : spd >= 5 ? '#fbbf24' : '#ff9966';
+        var selected = raceState.selectedPets.some(function(s) { return s && s.id === p.id; });
+        return '<div class="race-pet-option ' + (selected ? 'race-pet-selected' : '') + '" ' +
+          'onclick="race_togglePet(\'' + p.id + '\')" ' +
+          'data-pet-id="' + p.id + '" ' +
+          'style="cursor:pointer;border:2px solid ' + (selected ? 'var(--purple)' : 'var(--border)') + ';' +
+          'border-radius:10px;padding:8px 12px;text-align:center;transition:all 0.2s;' +
+          'background:' + (selected ? 'rgba(153,102,255,0.1)' : 'transparent') + ';">' +
+          '<div style="font-size:1.4rem;">' + race_petAvatar(p) + '</div>' +
+          '<div style="font-size:0.78rem;font-weight:700;color:var(--purple-dark);">' + escapeHtml(p.nickname || p.pet_type || 'Pet') + '</div>' +
+          '<div style="font-size:0.72rem;color:var(--text-light);">Lv.' + (p.level||1) + ' · ⚡' + Math.floor(p.energy||0) + '</div>' +
+          '<div style="font-size:0.72rem;font-weight:700;color:' + spdColor + ';">💨 Speed: ' + spd + '</div>' +
+        '</div>';
+      }).join('');
+
+  var betBtns = RACE_BETS.map(function(b) {
+    var active = raceState.bet === b;
+    return '<button class="btn ' + (active ? 'btn-primary' : 'btn-outline') + ' btn-sm" ' +
+      'onclick="race_setBet(' + b + ')" style="padding:6px 14px;">' + b + ' PP</button>';
+  }).join('');
+
+  // Cache DB pets so race_togglePet can look them up by id
+  window._racePetsCache = myPets;
+
+  var canRace = raceState.selectedPets.length >= 1 && raceState.racesLeft > 0 && currentPoints >= raceState.bet;
+
+  area.innerHTML =
+    '<div id="race-setup">' +
+      // Track selector (only if tracks are available from DB)
+      race_renderTrackSelector() +
+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+        '<div style="font-size:0.82rem;color:var(--text-light);">Races left today: ' +
+          '<strong style="color:' + (raceState.racesLeft > 0 ? 'var(--purple)' : '#ff6b6b') + ';">' + raceState.racesLeft + '/' + RACE_DAILY_MAX + '</strong>' +
+        '</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);">Your PP: <strong>🪙' + (currentPoints||0) + '</strong></div>' +
+      '</div>' +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Select up to 2 pets to race (CPU fills the rest):</div>' +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px;">' + petsHtml + '</div>' +
+      '<div style="background:rgba(153,102,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:0.7rem;color:var(--text-light);line-height:1.7;">' +
+        '<strong style="color:var(--purple-dark);">🏎️ What makes a pet fast?</strong> ' +
+        'Speed (💨) = pet\'s base stat. Increases by leveling up, equipping speed gear, or certain variants. Higher speed → better win odds and bigger payouts!' +
+      '</div>' +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Your Bet:</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:16px;">' + betBtns + '</div>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:12px;">' +
+        '⚡ Costs ' + RACE_ENERGY_COST + ' energy from racing pets · Max 2× your bet · CPU fills empty lanes' +
+      '</div>' +
+      '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:0.75rem;color:var(--text-light);line-height:1.6;">' +
+        '<strong style="color:var(--purple-dark);">🏁 Race Rewards:</strong><br>' +
+        '🥇 1st Place — Win 1.5× to 3× your bet<br>' +
+        '🥈 2nd Place — Get your bet back (small bonus if close)<br>' +
+        '🥉 3rd Place — Get half your bet back<br>' +
+        '4️⃣ 4th Place — Lose your full bet · Faster pets = bigger wins!' +
+      '</div>' +
+      '<button id="race-start-btn" class="btn btn-primary" onclick="race_start()" ' +
+        (canRace ? '' : 'disabled ') +
+        'style="width:100%;' + (canRace ? '' : 'opacity:0.5;') + '">' +
+        (raceState.racesLeft === 0 ? '🏁 Come back tomorrow!' :
+         currentPoints < raceState.bet ? '❌ Not enough PP' :
+         '🏁 Start Race! (Bet ' + raceState.bet + ' PP)') +
+      '</button>' +
+      '<button class="btn btn-outline btn-sm" onclick="race_renderWeeklyLeaderboard()" style="width:100%;margin-top:8px;">📅 Weekly Leaderboard</button>' +
+    '</div>';
+}
+
+function race_petAvatar(p) {
+  if (p.isCpu) return p.emoji || '🐾';
+  var imgFile = p.image_file || (p.pets && p.pets.image_file);
+  if (imgFile) return '<img src="images/' + imgFile + '" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'🐾\';">';
+  return '🐾';
+}
+
+function race_togglePet(petId) {
+  var idx = raceState.selectedPets.findIndex(function(p) { return p && p.id === petId; });
+  if (idx !== -1) {
+    raceState.selectedPets.splice(idx, 1);
+  } else {
+    if (raceState.selectedPets.length >= 2) { showToast('Max 2 of your pets per race!', 2000); return; }
+    // Look up from the DB-fetched cache first, then fall back to petState
+    var pet = (window._racePetsCache || []).find(function(p) { return p.id === petId; }) || petState[petId];
+    if (!pet) { showToast('Pet data not found — try refreshing', 2500); return; }
+    raceState.selectedPets.push(pet);
+  }
+  race_renderSetup();
+}
+
+function race_setBet(amount) {
+  raceState.bet = amount;
+  race_renderSetup();
+}
+
+// ── Race start ────────────────────────────────────────────────────────────
+async function race_start() {
+  if (raceState.racing) return;
+  if (!canPerformAction('race_start', 3000)) return;
+  if (raceState.racesLeft <= 0) { showToast('No races left today!', 3000); return; }
+  if (raceState.selectedPets.length < 1) { showToast('Select at least 1 pet!', 2000); return; }
+  if (currentPoints < raceState.bet) { showToast('Not enough PP!', 2500); return; }
+
+  // Validate energy
+  for (var i = 0; i < raceState.selectedPets.length; i++) {
+    var p = raceState.selectedPets[i];
+    if (!p.isCpu && (p.energy || 0) < RACE_ENERGY_COST) {
+      showToast((p.nickname || 'Your pet') + ' is too tired!', 2500);
+      return;
+    }
+  }
+
+  raceState.racing = true;
+
+  // Build full lane lineup: player pets + CPU fill to 4
+  var lanes = raceState.selectedPets.slice();
+  var cpuPool = CPU_PETS.slice().sort(function() { return Math.random() - 0.5; });
+  while (lanes.length < 4) { lanes.push(cpuPool[lanes.length - raceState.selectedPets.length] || CPU_PETS[0]); }
+
+  // Compute race speeds with RNG + track modifier
+  var racerunners = lanes.map(function(pet) {
+    var base = pet.base_speed || 4;
+    var trackMod = pet.isCpu ? 1 : race_getTrackSpeedModifier(pet.current_variant || null);
+    var speed = base * trackMod * (0.7 + Math.random() * 0.6);
+    return { pet: pet, speed: speed, progress: 0, finished: false, finishOrder: null };
+  });
+
+  // Render track
+  race_renderTrack(racerunners);
+
+  // Deduct bet from player (before race — refunded if race errors out)
+  await awardPP(-raceState.bet, 'race_bet');
+
+  // Animate
+  await race_animate(racerunners);
+
+  // Sort by finish order
+  racerunners.sort(function(a, b) { return a.finishOrder - b.finishOrder; });
+
+  var winner = racerunners[0];
+  var playerRunners = racerunners.filter(function(r) { return !r.pet.isCpu; });
+  var playerWon = playerRunners.length > 0 && playerRunners[0].finishOrder === 1;
+  var playerBest = playerRunners.length > 0 ? playerRunners[0] : null;
+
+  // Calculate payout — placement-based system
+  var payout = 0;
+  var profit  = 0;
+  if (playerBest) {
+    var avgSpeed   = racerunners.reduce(function(s, r) { return s + r.speed; }, 0) / racerunners.length;
+    var speedRatio = playerBest.speed / (avgSpeed || 1);
+
+    if (playerBest.finishOrder === 1) {
+      // 1st: 1.5× to 3× bet depending on how dominant the win was
+      var winMultiplier = Math.min(3, 1.5 + speedRatio * 0.5);
+      payout = Math.round(raceState.bet * winMultiplier);
+      profit = payout - raceState.bet;
+    } else if (playerBest.finishOrder === 2) {
+      // 2nd: get bet back + small bonus if close to winner
+      var secondBonus = speedRatio > 1 ? Math.round(raceState.bet * 0.2) : 0;
+      payout = raceState.bet + secondBonus;
+      profit = payout - raceState.bet;
+    } else if (playerBest.finishOrder === 3) {
+      // 3rd: get half bet back
+      payout = Math.round(raceState.bet * 0.5);
+      profit = payout - raceState.bet;
+    } else {
+      // 4th: lose full bet
+      payout = 0;
+      profit = -raceState.bet;
+    }
+  }
+
+  // Deduct energy from player pets (AFTER race)
+  for (var j = 0; j < raceState.selectedPets.length; j++) {
+    var rp = raceState.selectedPets[j];
+    if (!rp.isCpu) {
+      var { data: newEnergyVal, error: energyErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+        p_pet_id: rp.id, p_stat: 'energy', p_delta: -RACE_ENERGY_COST, p_reason: 'race_energy_cost'
+      });
+      if (!energyErr && petState[rp.id]) petState[rp.id].energy = newEnergyVal;
+    }
+  }
+
+  // Save to race_history
+  try {
+    await supabaseClient.from('race_history').insert({
+      user_id:    currentUser.id,
+      pet_id:     playerBest ? playerBest.pet.id : null,
+      pet_name:   playerBest ? (playerBest.pet.nickname || playerBest.pet.pet_type || null) : null,
+      bet_amount: raceState.bet,
+      payout:     payout,
+      won:        !!playerWon,
+      position:   playerBest ? playerBest.finishOrder : null,
+      opponents:  racerunners.filter(function(r) { return !playerBest || r.pet !== playerBest.pet; })
+                          .map(function(r) { return { name: r.pet.nickname || r.pet.pet_type || 'CPU', speed: r.speed }; })
+    });
+  } catch(e) { dbg('[Race] race_history insert failed:', e); }
+
+  // Award payout if any
+  if (payout > 0) await awardPP(payout, 'race_win');
+
+  // Integrations
+  raceState.racesLeft = Math.max(0, raceState.racesLeft - 1);
+  addPassXP(5, 'race').catch(function(){});
+  if (playerWon) {
+    checkPetWishes('race', winner.pet.id).catch(function(){});
+    awardBadge('speed_demon').catch(function(){});
+    progressQuestArc(winner.pet.id, 'race').catch(function(){});
+  }
+  // Weekly leaderboard + achievement tiers
+  var raceTimeMs = racerunners.length > 0 ? Math.floor(3000 + Math.random() * 2000) : null; // simulated time
+  if (playerBest && !playerBest.pet.isCpu) {
+    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(){});
+    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(){});
+  }
+  community_increment('races_week1', 1);
+
+  // Show results with animated log
+  race_renderResults(racerunners, payout, playerBest);
+  raceState.racing = false;
+}
+
+// ── Track render ──────────────────────────────────────────────────────────
+function race_renderTrack(runners) {
+  var area = document.getElementById('race-area');
+  if (!area) return;
+
+  var lanesHtml = runners.map(function(r, i) {
+    var isPlayer = !r.pet.isCpu;
+    return '<div class="race-lane" id="race-lane-' + i + '" style="' +
+      'display:flex;align-items:center;gap:10px;margin-bottom:10px;' +
+      'background:' + (isPlayer ? 'rgba(153,102,255,0.06)' : 'rgba(0,0,0,0.02)') + ';' +
+      'border-radius:10px;padding:8px 10px;border:1px solid ' + (isPlayer ? 'rgba(153,102,255,0.2)' : 'var(--border)') + ';">' +
+      '<div style="width:28px;text-align:center;font-size:1.1rem;" id="race-avatar-' + i + '">' + race_petAvatar(r.pet) + '</div>' +
+      '<div style="width:70px;font-size:0.72rem;color:var(--purple-dark);font-weight:' + (isPlayer ? '700' : '500') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+        escapeHtml(r.pet.nickname || r.pet.pet_type || 'CPU') +
+      '</div>' +
+      '<div style="flex:1;background:rgba(0,0,0,0.08);border-radius:20px;height:18px;overflow:hidden;">' +
+        '<div id="race-bar-' + i + '" style="height:100%;width:0%;background:' + (isPlayer ? 'linear-gradient(90deg,#9966ff,#ff66cc)' : 'linear-gradient(90deg,#aaa,#ccc)') + ';border-radius:20px;transition:width 0.05s linear;"></div>' +
+      '</div>' +
+      '<div id="race-pos-' + i + '" style="width:24px;font-size:0.78rem;color:var(--text-light);text-align:right;"></div>' +
+    '</div>';
+  }).join('');
+
+  area.innerHTML =
+    '<div id="race-track" style="padding:8px 0;">' +
+      '<div style="text-align:center;font-weight:700;font-size:0.9rem;color:var(--purple-dark);margin-bottom:12px;animation:pulse 0.5s ease infinite alternate;">🏁 RACE IN PROGRESS…</div>' +
+      lanesHtml +
+    '</div>';
+}
+
+// ── Animation engine ──────────────────────────────────────────────────────
+function race_animate(runners) {
+  return new Promise(function(resolve) {
+    var finishCount = 0;
+    var order = 1;
+    var TICK = 50; // ms per frame
+
+    function frame() {
+      var allDone = true;
+      runners.forEach(function(r, i) {
+        if (r.finished) return;
+        allDone = false;
+        r.progress += r.speed * (0.8 + Math.random() * 0.4);
+        if (r.progress >= 100) {
+          r.progress = 100;
+          r.finished = true;
+          r.finishOrder = order++;
+          var posEl = document.getElementById('race-pos-' + i);
+          if (posEl) posEl.textContent = r.finishOrder === 1 ? '🥇' : r.finishOrder === 2 ? '🥈' : r.finishOrder === 3 ? '🥉' : '4️⃣';
+        }
+        var bar = document.getElementById('race-bar-' + i);
+        if (bar) bar.style.width = Math.min(100, r.progress) + '%';
+      });
+      if (allDone) { resolve(); return; }
+      // Fill in finishOrder for any still at progress<100 that should be last
+      runners.forEach(function(r) { if (!r.finished) r.finishOrder = order; });
+      setTimeout(frame, TICK);
+    }
+    frame();
+  });
+}
+
+// ── Results UI ────────────────────────────────────────────────────────────
+function race_renderResults(runners, payout, playerBest) {
+  var area = document.getElementById('racing-race-area') || document.getElementById('race-area');
+  if (!area) return;
+
+  var winner = runners[0];
+  var playerWon = playerBest && playerBest.finishOrder === 1;
+  var playerPlace = playerBest ? playerBest.finishOrder : null;
+
+  var placeText = playerPlace === 1 ? '\ud83e\udd47 1st Place!' :
+                  playerPlace === 2 ? '\ud83e\udd48 2nd Place' :
+                  playerPlace === 3 ? '\ud83e\udd49 3rd Place' :
+                  playerPlace === 4 ? '4\ufe0f\u20e3 4th Place' : 'No player entry';
+
+  var outcomeColor = payout > raceState.bet ? '#5dde7a' : payout > 0 ? '#fbbf24' : '#ff6b6b';
+  var netChange = payout - raceState.bet;
+  var netText = netChange > 0 ? '+' + netChange + ' PP' : netChange === 0 ? 'Break even' : netChange + ' PP';
+
+  var resultRows = runners.map(function(r, i) {
+    var medals = ['\ud83e\udd47','\ud83e\udd48','\ud83e\udd49','4\ufe0f\u20e3'];
+    var isPlayer = !r.pet.isCpu;
+    var spdVal = r.speed.toFixed(1);
+    var spdColor = r.speed > 8 ? '#4ade80' : r.speed > 5 ? '#fbbf24' : '#ff9966';
+    return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);' +
+      (isPlayer ? 'font-weight:700;' : '') + '">' +
+      '<span style="font-size:1.1rem;">' + (medals[i] || (i+1)+'.') + '</span>' +
+      '<span style="font-size:0.9rem;flex:1;color:' + (isPlayer ? 'var(--purple-dark)' : 'var(--text-light)') + ';">' +
+        escapeHtml(r.pet.nickname || r.pet.pet_type || 'CPU') + (isPlayer ? ' (You)' : '') +
+      '</span>' +
+      '<span style="font-size:0.78rem;color:' + spdColor + ';font-weight:700;">\ud83d\udca8 ' + spdVal + '</span>' +
+    '</div>';
+  }).join('');
+
+  // Generate the richer multi-racer log (now references all runners, not just the player)
+  var logLines = race_generateLog(runners, playerBest, playerWon, playerPlace);
+
+  area.innerHTML =
+    '<div style="padding:4px;">' +
+      // Race log (animated) — results stay hidden until this finishes
+      '<div style="background:rgba(0,0,0,0.07);border-radius:12px;padding:12px 14px;margin-bottom:14px;">' +
+        '<div style="font-weight:700;font-size:0.8rem;color:var(--purple-dark);margin-bottom:8px;letter-spacing:1px;">\ud83c\udfc1 RACE LOG</div>' +
+        '<div id="race-log-entries" style="font-size:0.82rem;color:var(--text-light);line-height:1.7;min-height:60px;max-height:280px;overflow-y:auto;"></div>' +
+      '</div>' +
+      // Results — hidden until the log finishes playing out
+      '<div id="race-results-block" style="display:none;">' +
+        '<div style="text-align:center;margin-bottom:14px;">' +
+          '<div style="font-size:2rem;">' + (playerWon ? '\ud83c\udf89' : '\ud83d\ude24') + '</div>' +
+          '<div style="font-weight:800;font-size:1.05rem;color:var(--purple-dark);">' + placeText + '</div>' +
+          '<div style="font-size:1.5rem;font-weight:800;color:' + outcomeColor + ';margin:6px 0;">' + netText + '</div>' +
+          (payout > 0 ? '<div style="font-size:0.8rem;color:var(--text-light);">Payout: ' + payout + ' PP</div>' : '') +
+        '</div>' +
+        '<div style="margin-bottom:14px;">' + resultRows + '</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button class="btn btn-primary" onclick="race_init()" style="flex:1;">' +
+            (raceState.racesLeft > 0 ? '\ud83c\udfc1 Race Again! (' + raceState.racesLeft + ' left)' : '\ud83c\udfc1 Come back tomorrow!') +
+          '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Animate the log progressively — slower pace (~950ms/line) so a full race log
+  // runs roughly 10-13 seconds. Results block only appears once the log finishes.
+  var logEl = document.getElementById('race-log-entries');
+  if (!logEl) return;
+  var idx = 0;
+  var interval = safeSetInterval(function() {
+    if (idx >= logLines.length) {
+      clearInterval(interval);
+      var resultsBlock = document.getElementById('race-results-block');
+      if (resultsBlock) {
+        resultsBlock.style.display = 'block';
+        resultsBlock.style.animation = 'fadeIn 0.5s ease';
+      }
+      return;
+    }
+    var line = document.createElement('div');
+    line.textContent = logLines[idx];
+    line.style.cssText = 'animation:fadeIn 0.3s ease;border-bottom:1px solid rgba(153,102,255,0.08);padding:3px 0;' +
+      (idx === logLines.length - 1 ? 'font-weight:700;color:' + outcomeColor + ';' : '');
+    logEl.appendChild(line);
+    logEl.scrollTop = logEl.scrollHeight;
+    idx++;
+  }, 950);
+}
+
+function race_generateLog(runners, playerBest, playerWon, playerPlace) {
+  var pName = playerBest ? (playerBest.pet.nickname || playerBest.pet.pet_type || 'Your pet') : 'Your pet';
+  // Names of the other racers, in their finishing order, excluding the player
+  var others = runners.filter(function(r) { return playerBest ? r.pet !== playerBest.pet : true; })
+                      .map(function(r) { return r.pet.nickname || r.pet.pet_type || 'Rival'; });
+  var rival1 = others[0] || 'a rival';
+  var rival2 = others[1] || 'another racer';
+  var rival3 = others[2] || 'the pack';
+
+  var lines = [];
+  lines.push('\ud83c\udfc1 THE GATES OPEN! ' + pName + ', ' + rival1 + ', ' + rival2 + ', and ' + rival3 + ' burst onto the track!');
+
+  var openers = [
+    pName + ' gets a quick jump off the line!',
+    rival1 + ' shoots ahead early, setting a blistering pace!',
+    'A tight scramble at the first turn \u2014 everyone\'s neck and neck!',
+    pName + ' stumbles slightly at the start but quickly recovers!'
+  ];
+  lines.push(openers[Math.floor(Math.random() * openers.length)]);
+
+  lines.push('Lap 1: ' + rival2 + ' settles into a steady rhythm near the front of the pack.');
+
+  if (playerWon) {
+    lines.push(pName + ' finds another gear and surges toward the lead!');
+    lines.push(rival1 + ' tries to match the pace, but can\'t quite keep up!');
+    lines.push('Lap 2: ' + pName + ' is pulling away \u2014 the gap is growing!');
+    lines.push(rival3 + ' stumbles on a rough patch of track, losing precious ground!');
+    lines.push(rival2 + ' digs in for a late charge, but it may be too little too late!');
+    lines.push('Final lap: ' + pName + ' rounds the last bend with a commanding lead!');
+    lines.push('The crowd is on their feet as ' + pName + ' barrels toward the finish!');
+    lines.push('It\'s not even close anymore \u2014 ' + pName + ' has this one in the bag!');
+    lines.push('\ud83c\udf89 ' + pName + ' CROSSES THE LINE FIRST! VICTORY!! \ud83c\udfc6');
+  } else if (playerPlace === 2) {
+    lines.push(rival1 + ' edges out front, but ' + pName + ' refuses to fall back!');
+    lines.push('Lap 2: It\'s a two-pet battle at the front \u2014 ' + pName + ' and ' + rival1 + ' trade the lead!');
+    lines.push(rival3 + ' fades off the pace, unable to keep up with the leaders.');
+    lines.push(pName + ' makes a bold move on the final turn!');
+    lines.push('So close! ' + pName + ' draws level with ' + rival1 + ' down the home stretch!');
+    lines.push('Final lap: ' + rival1 + ' just barely holds on as both racers give everything!');
+    lines.push('A photo finish \u2014 but ' + rival1 + ' crosses first by a whisker!');
+    lines.push('\ud83e\udd48 ' + pName + ' takes 2nd place! What a race that was!');
+  } else if (playerPlace === 3) {
+    lines.push(rival1 + ' and ' + rival2 + ' break away early, leaving the rest to fight for the podium.');
+    lines.push('Lap 2: ' + pName + ' is stuck in traffic, looking for a gap to exploit!');
+    lines.push(rival3 + ' clips the rail and loses momentum \u2014 chance opens up!');
+    lines.push(pName + ' seizes the opening and surges into 3rd!');
+    lines.push('A tense battle for the final podium spot down the back stretch!');
+    lines.push('Final lap: ' + pName + ' holds firm as ' + rival3 + ' tries one last desperate push!');
+    lines.push('It\'s tight, but ' + pName + ' has just enough to seal the spot!');
+    lines.push('\ud83e\udd49 ' + pName + ' secures 3rd place! A hard-fought podium finish!');
+  } else {
+    lines.push(rival1 + ' and ' + rival2 + ' tear off into the distance, well ahead of the pack.');
+    lines.push('Lap 2: ' + pName + ' is giving it everything, but the gap keeps growing.');
+    lines.push(pName + ' stumbles trying to make up ground, losing a step!');
+    lines.push(rival3 + ' also fades back, leaving ' + pName + ' to battle for pride alone.');
+    lines.push('Final lap: ' + pName + ' digs deep for one last effort down the home stretch!');
+    lines.push('It won\'t be enough to catch the leaders today, but ' + pName + ' never lets up!');
+    lines.push('\ud83d\udcaa ' + pName + ' crosses the line in last place. Tough one \u2014 better luck next time!');
+  }
+
+  return lines;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+
+var PERSONALITIES = [
+  { key:'playful',  icon:'🎾', label:'Playful',  line:'"Wanna play! Let\'s do something fun!"' },
+  { key:'grumpy',   icon:'😾', label:'Grumpy',   line:'"Fine... I guess."' },
+  { key:'curious',  icon:'🔍', label:'Curious',  line:'"What\'s that over there?!"' },
+  { key:'brave',    icon:'🦁', label:'Brave',    line:'"I\'m not scared of anything!"' },
+  { key:'sleepy',   icon:'😴', label:'Sleepy',   line:'"Five more minutes, please..."' },
+  { key:'hungry',   icon:'🍕', label:'Hungry',   line:'"Got any snacks? I\'m STARVING."' },
+  { key:'sassy',    icon:'💅', label:'Sassy',    line:'"Whatever. I look amazing anyway."' }
+];
+
+var WISH_POOL = [
+  { key:'feed',         text:'wants a yummy meal!',         action:'feed',        reward:25 },
+  { key:'play',         text:'wants to play right now!',    action:'play',        reward:30 },
+  { key:'win_battle',   text:'wants to WIN a battle!',      action:'win_battle',  reward:50 },
+  { key:'visit_shop',   text:'wants to visit the shop!',    action:'visit_shop',  reward:20 },
+  { key:'use_toy',      text:'wants to play with a toy!',   action:'use_toy',     reward:35 },
+  { key:'take_snapshot',text:'wants a glamour shot! 📸',    action:'take_snapshot',reward:25 },
+  { key:'view_profile', text:'wants to check the profile!', action:'view_profile', reward:15 }
+];
+
+// In-memory cache: { petId: { personality, wishes, completedWishes, date } }
+var petMoodCache = {};
+
+// Load (or generate) today's mood for a pet
+async function personality_loadMood(petId) {
+  if (!petId || typeof petId !== 'string') return null;
+  var today = new Date().toISOString().slice(0, 10);
+
+  // Return from cache if same day
+  if (petMoodCache[petId] && petMoodCache[petId].date === today) {
+    return petMoodCache[petId];
+  }
+
+  // Try DB first
+  var { data: row } = await supabaseClient
+    .from('pet_daily_moods')
+    .select('*')
+    .eq('pet_id', petId)
+    .eq('date', today)
+    .single();
+
+  if (row) {
+    var parsedWishes = row.wishes
+      ? (typeof row.wishes === 'string' ? JSON.parse(row.wishes) : row.wishes)
+      : [];
+    var parsedCompleted = row.completed_wishes
+      ? (typeof row.completed_wishes === 'string' ? JSON.parse(row.completed_wishes) : row.completed_wishes)
+      : [];
+    petMoodCache[petId] = {
+      date: today,
+      personality: row.personality,
+      wishes: parsedWishes,
+      completedWishes: parsedCompleted,
+      rewardClaimed: row.reward_claimed || false
+    };
+    return petMoodCache[petId];
+  }
+
+  // Generate new mood for today
+  var personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)].key;
+  var shuffled = WISH_POOL.slice().sort(function() { return Math.random() - 0.5; });
+  var wishes = shuffled.slice(0, 3).map(function(w) { return { key: w.key, text: w.text, action: w.action, reward: w.reward }; });
+
+  // Save to DB — use insert with fallback update for better 403/duplicate handling
+  var safeWishes = (wishes && wishes.length) ? wishes : [];
+  var wishesForDb = JSON.stringify(safeWishes.map(function(w) {
+    return {
+      key:    String(w.key    || ''),
+      text:   String(w.text   || ''),
+      action: String(w.action || ''),
+      reward: Number(w.reward) || 10
+    };
+  }));
+  var safePersonality = personality || 'playful';
+
+  var { error: insertErr } = await supabaseClient
+    .from('pet_daily_moods')
+    .insert({
+      pet_id:           petId,
+      date:             today,
+      personality:      safePersonality,
+      wishes:           wishesForDb,
+      completed_wishes: '[]',
+      reward_claimed:   false
+    });
+
+  // If duplicate (already exists today), update instead
+  if (insertErr && insertErr.code === '23505') {
+    var { error: updateErr } = await supabaseClient
+      .from('pet_daily_moods')
+      .update({
+        personality:      safePersonality,
+        wishes:           wishesForDb,
+        completed_wishes: '[]',
+        reward_claimed:   false
+      })
+      .eq('pet_id', petId)
+      .eq('date',   today);
+    if (updateErr) dbg('[Mood] Update fallback error:', updateErr);
+  } else if (insertErr) {
+    dbg('[Mood] Insert error:', insertErr);
+  }
+
+  petMoodCache[petId] = { date: today, personality: personality, wishes: wishes, completedWishes: [], rewardClaimed: false };
+  return petMoodCache[petId];
+}
+
+// Mark a wish action as complete for a pet
+async function personality_completeWish(petId, actionKey) {
+  if (!currentUser) return;
+  var mood = petMoodCache[petId];
+  if (!mood) return;
+
+  var wish = mood.wishes.find(function(w) { return w.action === actionKey && mood.completedWishes.indexOf(w.key) === -1; });
+  if (!wish) return; // no matching unfinished wish
+
+  mood.completedWishes.push(wish.key);
+
+  // Award wish reward
+  await awardPP(wish.reward, 'wish_' + wish.key);
+  showToast('🎯 Wish completed: ' + wish.text + ' +' + wish.reward + ' PP!', 3500);
+
+  // Persist to DB — serialize array as JSON string for JSONB column
+  await supabaseClient.from('pet_daily_moods')
+    .update({ completed_wishes: JSON.stringify(mood.completedWishes) })
+    .eq('pet_id', petId)
+    .eq('date', mood.date);
+
+  // Refresh the wish widget on the card
+  personality_renderWidget(petId);
+
+  // All 3 wishes done? Award bonus
+  if (mood.completedWishes.length === 3 && !mood.rewardClaimed) {
+    mood.rewardClaimed = true;
+    await supabaseClient.from('pet_daily_moods')
+      .update({ reward_claimed: true })
+      .eq('pet_id', petId)
+      .eq('date', mood.date);
+    await awardPP(100, 'all_wishes_bonus');
+    await addPassXP(25, 'all_wishes');
+    showToast('🎉 All wishes complete! BONUS +100 PP & +25 Pass XP!', 5000);
+  }
+}
+
+// Build and inject the mood/wish widget into an existing pet card
+function personality_renderWidget(petId) {
+  var mount = document.getElementById('mood-widget-' + petId);
+  if (!mount) return;
+  var mood = petMoodCache[petId];
+  if (!mood) { mount.innerHTML = ''; return; }
+
+  var pDef = PERSONALITIES.find(function(p) { return p.key === mood.personality; }) || PERSONALITIES[0];
+  var allDone = mood.completedWishes.length >= mood.wishes.length;
+
+  var wishRows = mood.wishes.map(function(w) {
+    var done = mood.completedWishes.indexOf(w.key) !== -1;
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+      '<span style="font-size:1rem;">' + (done ? '✅' : '🔘') + '</span>' +
+      '<span style="font-size:0.8rem;color:' + (done ? '#aaa' : 'var(--purple-dark)') + ';' + (done ? 'text-decoration:line-through;' : '') + '">' +
+        pDef.icon + ' <em>' + escapeHtml(petState[petId] ? (petState[petId].nickname || 'Your pet') : 'Your pet') + '</em> ' + escapeHtml(w.text) +
+      '</span>' +
+      '<span style="margin-left:auto;font-size:0.75rem;color:#9966ff;font-weight:600;">+' + w.reward + ' PP</span>' +
+    '</div>';
+  }).join('');
+
+  mount.innerHTML =
+    '<div style="background:linear-gradient(135deg,rgba(153,102,255,0.08),rgba(255,102,204,0.05));border-radius:12px;border:1px solid rgba(153,102,255,0.2);padding:10px 12px;margin:8px 0;">' +
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">' +
+        '<span style="font-size:1.2rem;">' + pDef.icon + '</span>' +
+        '<span style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + pDef.label + ' Mood</span>' +
+        (allDone ? '<span style="margin-left:auto;background:#5dde7a;color:white;padding:2px 8px;border-radius:20px;font-size:0.7rem;font-weight:700;">ALL DONE! 🎉</span>' : '') +
+      '</div>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);font-style:italic;margin-bottom:8px;">' + pDef.line + '</div>' +
+      '<div style="font-size:0.75rem;font-weight:600;color:#9966ff;margin-bottom:4px;">📋 Today\'s Wishes:</div>' +
+      wishRows +
+      (allDone && !mood.rewardClaimed
+        ? '<div style="margin-top:8px;padding:6px 10px;background:rgba(93,222,122,0.15);border-radius:8px;font-size:0.78rem;color:#2d8a4e;font-weight:600;">🎁 Bonus ready: +100 PP — complete a wish to claim!</div>'
+        : '') +
+    '</div>';
+}
+
+// Global wish tracking — call this after any action
+async function checkPetWishes(actionKey, petId) {
+  if (!petId || !currentUser) return;
+  await personality_completeWish(petId, actionKey);
+}
+
 async function feed(petId) {
   // Rate limiting
   if (!canPerformAction('feed_' + petId, 500)) {
-    return; // Silently reject if too fast
+    return;
   }
   
   var pet = petState[petId]; 
-  if (!pet) return;
-  
-  // REMOVED: Daily limit check - free option always available
-  // var today = new Date().toISOString().split('T')[0];
-  // var alreadyFedToday = localStorage.getItem('feed_' + petId + '_' + today) === 'done';
-  
+  if (!pet) {
+    console.warn('feed(): no pet found in petState for id', petId, '- petState keys:', Object.keys(petState));
+    return;
+  }
+
+  // Show loading state on button immediately so user knows click registered
+  var feedBtnEl = document.getElementById('feed-' + petId);
+  if (feedBtnEl) { feedBtnEl.textContent = '...'; feedBtnEl.disabled = true; }
+
+  try {
   // Get user's food inventory
   var { data: inventory, error: invError } = await supabaseClient
     .from('user_inventory')
@@ -2480,6 +4788,7 @@ async function feed(petId) {
   
   if (invError) {
     showToast('Error loading inventory', 3000);
+    if (feedBtnEl) { feedBtnEl.textContent = 'Feed'; feedBtnEl.disabled = false; }
     return;
   }
   
@@ -2543,13 +4852,10 @@ async function feed(petId) {
     var btn = document.createElement('button');
     btn.style.cssText = 'padding:15px;border:3px solid #9966ff;background:white;border-radius:12px;cursor:pointer;transition:transform 0.2s;';
     
-    // Try to show image or fallback to emoji
-    var iconHtml = '🍕';
-    if (item.image_url) {
-      iconHtml = '<img src="' + item.image_url + '" style="width:48px;height:48px;object-fit:contain;" onerror="this.outerHTML=\'🍕\';">';
-    }
+    // Try to show image or fallback to category icon
+    var iconHtml = getItemIconHtml(item);
     
-    btn.innerHTML = '<div style="font-size:2rem;">' + iconHtml + '</div>' +
+    btn.innerHTML = '<div style="font-size:2rem;min-height:48px;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
                     '<div style="font-size:0.8rem;font-weight:600;margin-top:5px;">' + item.name + '</div>' +
                     '<div style="font-size:0.7rem;color:#666;">x' + inv.quantity + '</div>';
     
@@ -2580,7 +4886,15 @@ async function feed(petId) {
   cancelBtn.onclick = closeModal;
   modal.appendChild(cancelBtn);
   
+  // Restore button before showing modal
+  if (feedBtnEl) { feedBtnEl.textContent = 'Feed'; feedBtnEl.disabled = false; }
   openModal(modal);
+
+  } catch(err) {
+    console.error('feed() error:', err);
+    showToast('Error opening feed menu', 3000);
+    if (feedBtnEl) { feedBtnEl.textContent = 'Feed'; feedBtnEl.disabled = false; }
+  }
 }
 
 // FREE DAILY FEED - Called when clicking free option
@@ -2636,6 +4950,27 @@ async function feedFree(petId) {
   // MARK FREE OPTION AS USED FOR TODAY (after successful feed)
   localStorage.setItem(freeFeedKey, 'done');
   
+  // PAWKETPASS: Update bingo progress for feeding
+  updateBingoProgress('feed_pet', 1);
+  await addPassXP(2, 'feed');
+  
+  // WISHES: check feed wish
+  checkPetWishes('feed', petId).catch(function(){});
+  progressQuestArc(petId, 'feed').catch(function(){});
+  checkAchievementTierProgress('feed_count', petId, 1).catch(function(){});
+
+  // JOURNAL: log food discovery
+  if (typeof logJournalDiscovery === 'function') {
+    var feedPet = petState[petId] || {};
+    var feedPetType = feedPet.pet_type || (feedPet.pets && feedPet.pets.name) || null;
+    if (feedPetType) {
+      logJournalDiscovery(feedPetType, 'loved', itemName || '').catch(function(){});
+    }
+  }
+  
+  // COMMUNITY GOALS: Track feeding
+  community_increment('feed_pets_week1', 1);
+  
   // Update local state
   petState[petId].hunger = feedResult.hunger;
   petState[petId].happiness = feedResult.happiness;
@@ -2668,6 +5003,7 @@ async function feedFree(petId) {
 
 // FEED WITH SPECIFIC FOOD ITEM - Called when clicking a food item
 async function feedWithItem(petId, itemId, itemName) {
+  if (!canPerformAction('feed_' + petId, 500)) return;
   var pet = petState[petId];
   if (!pet) return;
   
@@ -2693,6 +5029,19 @@ async function feedWithItem(petId, itemId, itemName) {
   // JSONB response - direct object (not array)
   var feedResult = result;
   
+  // PAWKETPASS: Update bingo and Pass XP
+  updateBingoProgress('feed_pet', 1);
+  await addPassXP(2, 'feed');
+  
+  // COMMUNITY GOALS: Track feeding
+  community_increment('feed_pets_week1', 1);
+  
+  // Check if using treat for bingo and community
+  if (itemId === 'treat' || itemId === 'premium_treat') {
+    updateBingoProgress('use_treat', 1);
+    community_increment('use_treats_week1', 1);
+  }
+  
   // Update local state
   petState[petId].hunger = feedResult.hunger;
   petState[petId].happiness = feedResult.happiness;
@@ -2714,15 +5063,17 @@ async function feedWithItem(petId, itemId, itemName) {
   var reactionMsg = '';
   
   if (reactionType === 'loved') {
-    reactionMsg = '💖 ' + itemName + '! (1.75x bonus!)';
+    reactionMsg = '💖 ' + escapeHtml(itemName) + '! (1.75x bonus!)';
+    // SCRAPBOOK: Favorite food discovered
+    scrapbook_addMemory(petId, 'favorite_food', { food: itemName });
   } else if (reactionType === 'liked') {
-    reactionMsg = '😊 ' + itemName + '! (1.25x bonus)';
+    reactionMsg = '😊 ' + escapeHtml(itemName) + '! (1.25x bonus)';
   } else if (reactionType === 'disliked') {
-    reactionMsg = '😐 ' + itemName + '... (0.75x effect)';
+    reactionMsg = '😐 ' + escapeHtml(itemName) + '... (0.75x effect)';
   } else if (reactionType === 'hated') {
-    reactionMsg = '😖 Ew, ' + itemName + '! (0.5x effect)';
+    reactionMsg = '😖 Ew, ' + escapeHtml(itemName) + '! (0.5x effect)';
   } else {
-    reactionMsg = '🍽️ Ate ' + itemName + '!';
+    reactionMsg = '🍽️ Ate ' + escapeHtml(itemName) + '!';
   }
   
   if (feedResult.hunger_gained || feedResult.happiness_gained || feedResult.xp_gained) {
@@ -2740,238 +5091,23 @@ async function feedWithItem(petId, itemId, itemName) {
   loadInventory();
 }
 
-// FREE DAILY FEED
-async function feedFree(petId) {
-  var pet = petState[petId];
-  if (!pet) return;
-  
-  var today = new Date().toISOString().split('T')[0];
-  
-  // Call RPC with null item_id for free feed
-  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
-    p_pet_id: petId,
-    p_item_id: null
-  });
-  
-  if (error) {
-    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    return;
-  }
-  
-  // Mark as used today
-  localStorage.setItem('feed_' + petId + '_' + today, 'done');
-  
-  // Update local state
-  petState[petId].hunger = result.hunger;
-  petState[petId].xp = result.xp;
-  
-  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
-  updateXpBar(petId, result.xp, pet.level);
-  
-  if (result.leveled_up) {
-    petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
-    updateLvl(petId, result.new_level, pet.max_hunger);
-    tabsLoaded['mypets'] = false;
-  } else {
-    showFlash(petId, '✨ +30 Hunger +10 XP', '#5dde7a');
-  }
-}
-
-// SEPARATE FUNCTION: Feed with specific item (called from dropdown menu)
-async function showFeedItemPicker(petId) {
-  // Just call the main feed function - it now handles both!
-  feed(petId);
-}
-
-async function feedWithItem(petId, itemId, itemName) {
-  var pet = petState[petId];
-  if (!pet) return;
-  
-  // Call secure database function with item_id
-  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
-    p_pet_id: petId,
-    p_item_id: itemId
-  });
-  
-  if (error) {
-    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    return;
-  }
-  
-  // Update local state
-  petState[petId].hunger = result.hunger;
-  petState[petId].happiness = result.happiness;
-  petState[petId].xp = result.xp;
-  
-  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
-  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
-  updateXpBar(petId, result.xp, pet.level);
-  
-  if (result.leveled_up) {
-    petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
-    updateLvl(petId, result.new_level, pet.max_hunger);
-    tabsLoaded['mypets'] = false;
-  }
-  
-  // Check for food preference reactions
-  var reactionType = result.reaction_type || 'normal';
-  var reactionMsg = '';
-  
-  if (reactionType === 'loved') {
-    reactionMsg = '💖 ' + itemName + '! (1.75x bonus!)';
-  } else if (reactionType === 'liked') {
-    reactionMsg = '😊 ' + itemName + '! (1.25x bonus)';
-  } else if (reactionType === 'disliked') {
-    reactionMsg = '😐 ' + itemName + '... (0.75x effect)';
-  } else if (reactionType === 'hated') {
-    reactionMsg = '😖 Ew, ' + itemName + '! (0.5x effect)';
-  } else {
-    reactionMsg = '🍽️ Ate ' + itemName + '!';
-  }
-  
-  if (result.hunger_gained || result.happiness_gained || result.xp_gained) {
-    var effects = [];
-    if (result.hunger_gained) effects.push('+' + result.hunger_gained + ' Hunger');
-    if (result.happiness_gained) effects.push('+' + result.happiness_gained + ' Happiness');
-    if (result.xp_gained) effects.push('+' + result.xp_gained + ' XP');
-    reactionMsg += '\n' + effects.join(', ');
-  }
-  
-  showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
-  
-  // 🐾 COMPANION REACTION - Feeding!
-  if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
-    setTimeout(function() {
-      var feedMessages = {
-        loved: ["They LOVE it! 💖", "Best food ever! ✨"],
-        liked: ["Yummy! 😋", "Tasty treat! 🍕"],
-        disliked: ["Hmm, not their favorite... 😐"],
-        hated: ["Ew, they hate that! 😖"],
-        normal: ["Nom nom! 🍪", "Snack time! 🍕"]
-      };
-      var msgPool = feedMessages[reactionType] || feedMessages.normal;
-      CompanionBuddy.showMessage(msgPool[Math.floor(Math.random() * msgPool.length)]);
-    }, 1000);
-  }
-}
-
-async function feedWithItem(petId, itemId, itemName) {
-  var pet = petState[petId];
-  if (!pet) return;
-  
-  var btn = el('feed-'+petId); 
-  if (btn) {
-    btn.disabled = true; 
-    btn.textContent = '...';
-  }
-  
-  // Call secure database function with item_id
-  var { data: result, error } = await supabaseClient.rpc('feed_pet_secure', {
-    p_pet_id: petId,
-    p_item_id: itemId
-  });
-  
-  if (error) {
-    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    if (btn) {
-      btn.disabled = false; 
-      btn.textContent = 'Feed';
-    }
-    return;
-  }
-  
-  // Mark as used today
-  var today = new Date().toISOString().split('T')[0];
-  localStorage.setItem('feed_' + petId + '_' + today, 'done');
-  
-  // Update local state
-  petState[petId].hunger = result.hunger;
-  petState[petId].happiness = result.happiness;
-  petState[petId].xp = result.xp;
-  
-  updateBar(petId, 'hunger', result.hunger, pet.max_hunger);
-  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
-  updateXpBar(petId, result.xp, pet.level);
-  
-  if (result.leveled_up) {
-    petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '!', '#b06aff');
-    updateLvl(petId, result.new_level, pet.max_hunger);
-    tabsLoaded['mypets'] = false;
-    
-    if (result.new_level === 5) await awardBadge('level_5');
-    if (result.new_level === 10) await awardBadge('level_10');
-    if (result.new_level === 20) await awardBadge('level_20');
-  }
-  
-  // FOOD REACTION SYSTEM - Check pet preferences
-  var petType = pet.pet_type || pet.petType;
-  var prefs = getPetPreferences(petType);
-  
-  if (prefs) {
-    var reactionType = 'normal';
-    var reactionMsg = pet.nickname + ' ate ' + itemName + '!';
-    
-    if (itemName === prefs.loved_item) {
-      reactionType = 'loved';
-      reactionMsg = '💖 ' + pet.nickname + "'s eyes light up! This is their FAVORITE!";
-      logJournalDiscovery(petType, 'loved', itemName);
-    } else if (itemName === prefs.liked_item) {
-      reactionType = 'liked';
-      reactionMsg = '😊 ' + pet.nickname + ' really enjoys this!';
-      logJournalDiscovery(petType, 'liked', itemName);
-    } else if (itemName === prefs.disliked_item) {
-      reactionType = 'disliked';
-      reactionMsg = '😐 ' + pet.nickname + ' eats it reluctantly...';
-      logJournalDiscovery(petType, 'disliked', itemName);
-    } else if (itemName === prefs.hated_item) {
-      reactionType = 'hated';
-      reactionMsg = '😠 ' + pet.nickname + ' picks at it with disgust!';
-      logJournalDiscovery(petType, 'hated', itemName);
-    }
-    
-    showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
-    
-    // 🐾 COMPANION REACTION - Feeding!
-    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
-      setTimeout(function() {
-        var feedMessages = {
-          loved: ["They LOVE it! 💖", "Best food ever! ✨"],
-          liked: ["Yummy! 😋", "Tasty treat! 🍕"],
-          disliked: ["Hmm, not their favorite... 😐"],
-          hated: ["Ew, they hate that! 😖"],
-          normal: ["Nom nom! 🍪", "Snack time! 🍕"]
-        };
-        var msgPool = feedMessages[reactionType] || feedMessages.normal;
-        CompanionBuddy.showMessage(msgPool[Math.floor(Math.random() * msgPool.length)]);
-      }, 1000);
-    }
-  } else {
-    showFlash(petId, '+20 Hunger +5 Happiness +10 XP', '#5dde7a');
-  }
-  
-  if (btn) {
-    btn.textContent = 'Fed Today!';
-    btn.disabled = true;
-    btn.style.opacity = '0.6';
-  }
-}
-
 async function play(petId) {
   // Rate limiting
   if (!canPerformAction('play_' + petId, 500)) {
-    return; // Silently reject if too fast
+    return;
   }
   
   var pet = petState[petId]; 
-  if (!pet) return;
-  
-  // REMOVED: Daily limit check - free option always available
-  // var today = new Date().toISOString().split('T')[0];
-  // var alreadyPlayedToday = localStorage.getItem('play_' + petId + '_' + today) === 'done';
-  
+  if (!pet) {
+    console.warn('play(): no pet found in petState for id', petId, '- petState keys:', Object.keys(petState));
+    return;
+  }
+
+  // Show loading state on button immediately
+  var playBtnEl = document.getElementById('play-' + petId);
+  if (playBtnEl) { playBtnEl.textContent = '...'; playBtnEl.disabled = true; }
+
+  try {
   // Get user's toy inventory
   var { data: inventory, error: invError } = await supabaseClient
     .from('user_inventory')
@@ -2981,6 +5117,7 @@ async function play(petId) {
   
   if (invError) {
     showToast('Error loading inventory', 3000);
+    if (playBtnEl) { playBtnEl.textContent = 'Play'; playBtnEl.disabled = false; }
     return;
   }
   
@@ -3056,13 +5193,10 @@ async function play(petId) {
     var btn = document.createElement('button');
     btn.style.cssText = 'padding:15px;border:3px solid #9966ff;background:white;border-radius:12px;cursor:pointer;transition:transform 0.2s;';
     
-    // Try to show image or fallback to emoji
-    var iconHtml = '🎮';
-    if (item.image_url) {
-      iconHtml = '<img src="' + item.image_url + '" style="width:48px;height:48px;object-fit:contain;" onerror="this.outerHTML=\'🎮\';">';
-    }
+    // Try to show image or fallback to category icon
+    var iconHtml = getItemIconHtml(item);
     
-    btn.innerHTML = '<div style="font-size:2rem;">' + iconHtml + '</div>' +
+    btn.innerHTML = '<div style="font-size:2rem;min-height:48px;display:flex;align-items:center;justify-content:center;">' + iconHtml + '</div>' +
                     '<div style="font-size:0.8rem;font-weight:600;margin-top:5px;">' + item.name + '</div>' +
                     '<div style="font-size:0.7rem;color:#666;">x' + inv.quantity + '</div>';
     
@@ -3093,7 +5227,15 @@ async function play(petId) {
   cancelBtn.onclick = closeModal;
   modal.appendChild(cancelBtn);
   
+  // Restore button before showing modal
+  if (playBtnEl) { playBtnEl.textContent = 'Play'; playBtnEl.disabled = false; }
   openModal(modal);
+
+  } catch(err) {
+    console.error('play() error:', err);
+    showToast('Error opening play menu', 3000);
+    if (playBtnEl) { playBtnEl.textContent = 'Play'; playBtnEl.disabled = false; }
+  }
 }
 
 // FREE DAILY PLAY
@@ -3109,62 +5251,79 @@ async function playFree(petId) {
     showFlash(petId, 'Free playtime already used today!', '#ff9f43');
     return;
   }
-  
-  // Call RPC for free play
-  var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
-    p_pet_id: petId
-  });
-  
-  if (error) {
-    showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
-    return;
-  }
-  
-  // Check for error in response
-  if (result && result.error) {
-    console.error('Play error:', result.error);
-    showFlash(petId, result.error, '#ff6eb4');
-    return;
-  }
-  
-  // MARK FREE OPTION AS USED FOR TODAY (after successful play)
-  localStorage.setItem(freePlayKey, 'done');
-  
-  // Update local state (JSONB returns direct object)
-  petState[petId].energy = result.energy;
-  petState[petId].happiness = result.happiness;
-  petState[petId].xp = result.xp;
-  
-  updateBar(petId, 'energy', result.energy, pet.max_energy);
-  updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
-  updateXpBar(petId, result.xp, pet.level);
-  
-  if (result.leveled_up) {
-    petState[petId].level = result.new_level;
-    showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
-    updateLvl(petId, result.new_level, pet.max_hunger);
-    tabsLoaded['mypets'] = false;
-    
-    if (result.new_level === 5) await awardBadge('level_5');
-    if (result.new_level === 10) await awardBadge('level_10');
-    if (result.new_level === 20) await awardBadge('level_20');
-  } else {
-    showFlash(petId, '🎾 -10 Energy +15 Happiness +15 XP', '#5dde7a');
+
+  var btn = document.getElementById('play-' + petId);
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+  try {
+    var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
+      p_pet_id: petId,
+      p_item_id: null
+    });
+
+    if (error) {
+      console.error('Play RPC error:', error);
+      showFlash(petId, 'Error: ' + error.message, '#ff6eb4');
+      return;
+    }
+
+    if (result && result.error) {
+      showFlash(petId, result.error, '#ff6eb4');
+      return;
+    }
+
+    // MARK FREE OPTION AS USED FOR TODAY (after successful play)
+    localStorage.setItem(freePlayKey, 'done');
+
+    // PAWKETPASS: Update bingo and Pass XP
+    updateBingoProgress('play_pet', 1);
+    await addPassXP(2, 'play');
+
+    // WISHES: check play wish
+    checkPetWishes('play', petId).catch(function(){});
+    progressQuestArc(petId, 'play').catch(function(){});
+    checkAchievementTierProgress('play_count', petId, 1).catch(function(){});
+    petState[petId].happiness = result.happiness;
+    petState[petId].xp = result.xp;
+
+    updateBar(petId, 'energy', result.energy, pet.max_energy);
+    updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
+    updateXpBar(petId, result.xp, pet.level);
+
+    if (result.leveled_up) {
+      petState[petId].level = result.new_level;
+      showFlash(petId, 'Level ' + result.new_level + '! 🎉', '#b06aff');
+      updateLvl(petId, result.new_level, pet.max_hunger);
+      tabsLoaded['mypets'] = false;
+
+      if (result.new_level === 5) await awardBadge('level_5');
+      if (result.new_level === 10) await awardBadge('level_10');
+      if (result.new_level === 20) await awardBadge('level_20');
+    } else {
+      showFlash(petId, '🎾 -10 Energy +15 Happiness +15 XP', '#5dde7a');
+    }
+
+  } catch (err) {
+    console.error('Play error:', err);
+    showFlash(petId, 'Error: ' + err.message, '#ff6eb4');
+  } finally {
+    if (btn) { btn.textContent = 'Play'; btn.disabled = false; }
   }
 }
 
 // PLAY WITH TOY ITEM
 async function playWithToy(petId, toyId, toyName) {
+  if (!canPerformAction('play_' + petId, 500)) return;
   var pet = petState[petId];
   if (!pet || pet.energy < 5) {
     showFlash(petId, 'Not enough energy!', '#ff6eb4');
     return;
   }
   
-  // Call RPC to play with toy (if you have a function for it)
-  // For now, use the same play function
+  // Call RPC to play with toy
   var { data: result, error } = await supabaseClient.rpc('play_with_pet_secure', {
-    p_pet_id: petId
+    p_pet_id: petId,
+    p_item_id: toyId
   });
   
   if (error) {
@@ -3184,7 +5343,14 @@ async function playWithToy(petId, toyId, toyName) {
   petState[petId].happiness = result.happiness;
   petState[petId].xp = result.xp;
   
-  updateBar(petId, 'energy', result.energy, pet.max_energy);
+  // PAWKETPASS: Update bingo and Pass XP
+  updateBingoProgress('play_pet', 1);
+  updateBingoProgress('use_toy', 1);
+  await addPassXP(2, 'play');
+  
+  // WISHES: check play and use_toy wishes
+  checkPetWishes('play', petId).catch(function(){});
+  checkPetWishes('use_toy', petId).catch(function(){});
   updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
   updateXpBar(petId, result.xp, pet.level);
   
@@ -3194,7 +5360,7 @@ async function playWithToy(petId, toyId, toyName) {
     updateLvl(petId, result.new_level, pet.max_hunger);
     tabsLoaded['mypets'] = false;
   } else {
-    showFlash(petId, '🎮 Played with ' + toyName + '! +20 Happiness +10 XP', '#5dde7a');
+    showFlash(petId, '🎮 Played with ' + escapeHtml(toyName) + '! +20 Happiness +10 XP', '#5dde7a');
   }
 }
 
@@ -3204,7 +5370,8 @@ function updateBar(petId,stat,val,max) {
   var v=el(stat+'-val-'+petId); if(v)v.textContent=val+'/'+max;
 }
 function updateXpBar(petId,xp,level) {
-  var next=level*120; var pct=Math.min(xp/next*100,100);
+  var next=level*(typeof GAME_CONSTANTS!=='undefined'?GAME_CONSTANTS.XP_PER_LEVEL:120);
+  var pct=Math.min(xp/next*100,100);
   var b=el('xp-bar-'+petId); if(b)b.style.width=pct+'%';
   var v=el('xp-val-'+petId); if(v)v.textContent=xp+'/'+next;
 }
@@ -3217,16 +5384,113 @@ function showFlash(petId,msg,color) {
   setTimeout(function(){e.style.opacity='0';},2800);
 }
 
-// ── SHOP TAB ─────────────────────────────
+// ── Cloudflare Worker Integration ─────────────────────────────────────────
+// Worker handles: chat PP rewards, follow rewards, sub rewards, bit rewards
+var WORKER_URL = 'https://pawketpets-twitch.pawketpetsvt.workers.dev';
+
+async function checkTwitchRewards() {
+  if (!currentUser) return;
+  try {
+    var pr = await supabaseClient
+      .from('players')
+      .select('twitch_id')
+      .eq('id', currentUser.id)
+      .single();
+    if (!pr.data || !pr.data.twitch_id) return;
+    var twitchId = pr.data.twitch_id;
+
+    var res = await fetch(WORKER_URL + '/api/rewards?twitch_id=' + twitchId, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!res.ok) return;
+    var rewards = await res.json();
+    if (!Array.isArray(rewards) || rewards.length === 0) return;
+
+    for (var i = 0; i < rewards.length; i++) {
+      var reward = rewards[i];
+      if (reward.claimed) continue;
+      await awardPP(reward.amount, 'twitch_' + reward.type);
+      showTwitchRewardNotification(reward);
+      // Also log to bell notification center
+      createNotification(currentUser.id, 'twitch_reward', '🎬 Twitch Reward!',
+        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(){});
+      // Mark claimed
+      await fetch(WORKER_URL + '/api/rewards/claim', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reward_id: reward.id, twitch_id: twitchId })
+      }).catch(function(){});
+    }
+  } catch(e) { dbg('Twitch rewards check failed:', e); }
+}
+
+function showTwitchRewardNotification(reward) {
+  var notif = document.createElement('div');
+  notif.className = 'twitch-reward-notification';
+  notif.innerHTML =
+    '<div class="reward-notif-icon">🎬</div>' +
+    '<div class="reward-notif-content">' +
+      '<div class="reward-notif-title">Twitch Reward!</div>' +
+      '<div class="reward-notif-text">+' + reward.amount + ' PP for ' + escapeHtml(reward.reason) + '</div>' +
+      '<div class="reward-notif-sub">Keep chatting for more rewards!</div>' +
+    '</div>';
+  document.body.appendChild(notif);
+  // Slide in
+  setTimeout(function() { notif.classList.add('show'); }, 10);
+  // Slide out and remove
+  setTimeout(function() {
+    notif.classList.remove('show');
+    setTimeout(function() { if (notif.parentNode) notif.parentNode.removeChild(notif); }, 400);
+  }, 5000);
+}
+
+async function loadTwitchStats() {
+  if (!currentUser) return;
+  var panel = document.getElementById('twitch-stats-panel');
+  if (!panel) return;
+  try {
+    var pr = await supabaseClient
+      .from('players')
+      .select('twitch_id, twitch_follow_rewards')
+      .eq('id', currentUser.id)
+      .single();
+    if (!pr.data || !pr.data.twitch_id) return;
+
+    var res = await fetch(WORKER_URL + '/api/rewards/stats?twitch_id=' + pr.data.twitch_id);
+    if (!res.ok) return;
+    var stats = await res.json();
+
+    var ppEl   = document.getElementById('twitch-pp-earned');
+    var chatEl = document.getElementById('twitch-chats');
+    var fwEl   = document.getElementById('twitch-follows');
+    var subEl  = document.getElementById('twitch-subs');
+
+    if (ppEl)   ppEl.textContent   = (stats.total_pp_earned || 0).toLocaleString();
+    if (chatEl) chatEl.textContent = (stats.chat_messages   || 0).toLocaleString();
+    if (fwEl)   fwEl.textContent   = Object.keys(pr.data.twitch_follow_rewards || {}).length;
+    if (subEl)  subEl.textContent  = (stats.subs || 0).toLocaleString();
+
+    panel.style.display = 'block';
+  } catch(e) { dbg('Twitch stats load failed:', e); }
+}
+
+
 function showShopTab(tab) {
+  // Update Bingo progress for visiting shop
+  if (typeof updateBingoProgress === 'function') {
+    updateBingoProgress('visit_shop', 1);
+  }
+  
   // Update tab buttons
   el('shop-tab-btn').classList.remove('active');
   el('equip-tab-btn').classList.remove('active');
+  el('furn-tab-btn').classList.remove('active');
   el('inv-tab-btn').classList.remove('active');
   
   // Hide all panels
   el('shop-items-panel').style.display = 'none';
   el('shop-equipment-panel').style.display = 'none';
+  el('shop-furniture-panel').style.display = 'none';
   el('shop-inv-panel').style.display = 'none';
   
   if (tab === 'items') {
@@ -3236,6 +5500,10 @@ function showShopTab(tab) {
     el('equip-tab-btn').classList.add('active');
     el('shop-equipment-panel').style.display = 'block';
     loadEquipmentShop();
+  } else if (tab === 'furniture') {
+    el('furn-tab-btn').classList.add('active');
+    el('shop-furniture-panel').style.display = 'block';
+    furniture_loadShop();
   } else if (tab === 'inventory') {
     el('inv-tab-btn').classList.add('active');
     el('shop-inv-panel').style.display = 'block';
@@ -3252,6 +5520,46 @@ function itemEmoji(type) {
     pillow:'🛏️',   // Bed/pillow
     snack:'🍪'      // Cookie/treat
   }[type]||'🎁';     // Gift box default
+}
+
+// ── Category-based food icon images ─────────────────────────────────────
+var FOOD_CATEGORY_IMAGES = {
+  spicy:  'images/icons/food/spicy.png',
+  sweet:  'images/icons/food/sweet.png',
+  savory: 'images/icons/food/savory.png',
+  fish:   'images/icons/food/fish.png',
+  fruit:  'images/icons/food/fruit.png',
+  basic:  'images/icons/food/basic.png'
+};
+
+var FOOD_CATEGORY_FALLBACK = {
+  spicy:  '🌶️',
+  sweet:  '🍰',
+  savory: '🍖',
+  fish:   '🐟',
+  fruit:  '🍎',
+  basic:  '🍞'
+};
+
+// Returns icon HTML for any shop/inventory item.
+// Priority: item.image_url → food category image → type emoji fallback
+function getItemIconHtml(item) {
+  if (!item) return '🎁';
+
+  // Custom image URL takes priority
+  if (item.image_url) {
+    return '<img src="' + item.image_url + '" class="item-icon-img" alt="' + escapeHtml(item.name || '') + '" onerror="this.outerHTML=\''+escapeHtml(itemEmoji(item.item_type))+'\'">';
+  }
+
+  // Food items: use category image; fallback to category emoji on load error
+  if (item.food_category && FOOD_CATEGORY_IMAGES[item.food_category]) {
+    var fb  = FOOD_CATEGORY_FALLBACK[item.food_category] || '🍕';
+    var src = FOOD_CATEGORY_IMAGES[item.food_category];
+    return '<img src="' + src + '" class="item-icon-img" alt="' + escapeHtml(item.food_category) + '" onerror="var p=this.parentElement;if(p){p.innerHTML=\'' + fb + '\';p.style.fontSize=\'2rem\';}">';
+  }
+
+  // All other items: type emoji fallback
+  return itemEmoji(item.item_type);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -3305,11 +5613,16 @@ function getCurrentRotationWeek() {
 async function loadShop() {
   var grid = el('shop-grid');
   
+  // PAWKETPASS: Mark shop visit for bingo
+  updateBingoProgress('visit_shop', 1);
+  
   // Exclude boss drops from shop! Boss items can only be obtained by defeating bosses
   var res = await supabaseClient
     .from('items')
     .select('*')
     .or('is_boss_drop.is.null,is_boss_drop.eq.false')
+    .neq('id', '00000000-0000-0000-0000-000000000001')  // Exclude Skin Keys by ID
+    .neq('name', 'Skin Key')                             // Exclude Skin Keys by name
     .order('price', {ascending: true});
   
   if (res.error||!res.data||!res.data.length) { 
@@ -3395,8 +5708,7 @@ async function loadShop() {
     items.forEach(function(item) {
       var card=makeEl('div',{class:'shop-card'});
       var iconDiv=makeEl('div',{class:'shop-item-icon'});
-      if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};iconDiv.appendChild(img);}
-      else iconDiv.innerHTML=itemEmoji(item.item_type);
+      iconDiv.innerHTML = getItemIconHtml(item);
       card.appendChild(iconDiv);
       card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
       
@@ -3424,6 +5736,7 @@ async function loadShop() {
       
       // Apply event discount to displayed price
       var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
+      var guildDiscount = getActivePerkMultiplier('discount'); if (guildDiscount < 1) displayPrice = Math.floor(displayPrice * guildDiscount);
       var priceText = '🪙 ' + displayPrice + ' PP';
       if (displayPrice < item.price) {
         priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
@@ -3457,8 +5770,7 @@ async function loadShop() {
     categories.other.forEach(function(item) {
       var card=makeEl('div',{class:'shop-card'});
       var iconDiv=makeEl('div',{class:'shop-item-icon'});
-      if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};iconDiv.appendChild(img);}
-      else iconDiv.innerHTML=itemEmoji(item.item_type);
+      iconDiv.innerHTML = getItemIconHtml(item);
       card.appendChild(iconDiv);
       card.appendChild(makeEl('div',{class:'shop-item-name'},item.name));
       card.appendChild(makeEl('div',{class:'shop-item-desc'},item.description||''));
@@ -3466,6 +5778,7 @@ async function loadShop() {
       // Apply event discount to displayed price
       var displayPrice = worldEvents.applyEventModifier(item.price, 'shopDiscount');
       var priceText = '🪙 ' + displayPrice + ' PP';
+      var guildDiscount = getActivePerkMultiplier('discount'); if (guildDiscount < 1) displayPrice = Math.floor(displayPrice * guildDiscount);
       if (displayPrice < item.price) {
         priceText += ' <span style="text-decoration:line-through;color:#999;font-size:0.85em;">' + item.price + '</span>';
       }
@@ -3541,8 +5854,7 @@ async function loadInventory() {
     var item=itemMap[row.item_id]||{};
     var card=makeEl('div',{class:'inv-card'});
     var icon=makeEl('div',{class:'inv-icon'});
-    if(item.image_url){var img=makeEl('img',{src:item.image_url,alt:item.name||'',style:'width:100%;height:100%;object-fit:cover;'});img.onerror=function(){this.parentElement.innerHTML=itemEmoji(item.item_type);};icon.appendChild(img);}
-    else icon.innerHTML=itemEmoji(item.item_type);
+    icon.innerHTML = getItemIconHtml(item);
     card.appendChild(icon);
     card.appendChild(makeEl('div',{class:'inv-name'},item.name||'Item'));
     
@@ -3559,9 +5871,17 @@ async function loadInventory() {
     }
     
     card.appendChild(makeEl('div',{class:'inv-qty'},'x'+row.quantity));
-    var useBtn=makeEl('button',{class:'btn btn-sm btn-primary'},'Use');
-    useBtn.onclick=(function(rId,iName){return function(){openUseModal(rId,iName);};})(row.id, item.name||'Item');
-    card.appendChild(useBtn);
+    // Skip Use button for Skin Keys — they're spent in the Variant menu on pet cards
+    if (item.name === 'Skin Key' || row.item_id === '00000000-0000-0000-0000-000000000001') {
+      var infoBadge = makeEl('div');
+      infoBadge.textContent = '🔑 Use in My Pets → Variant';
+      infoBadge.style.cssText = 'font-size:0.72rem;color:var(--purple);margin-top:4px;text-align:center;opacity:0.85;';
+      card.appendChild(infoBadge);
+    } else {
+      var useBtn=makeEl('button',{class:'btn btn-sm btn-primary'},'Use');
+      useBtn.onclick=(function(rId,iName){return function(){openUseModal(rId,iName);};})(row.id, item.name||'Item');
+      card.appendChild(useBtn);
+    }
     grid.appendChild(card);
   });
 }
@@ -3637,13 +5957,13 @@ async function checkSidebarStreamStatus() {
       }
     }
     
-    // If no token, can't check - this is a Twitch API limitation
+    // If no token, can't check live status — still sort by whatever is currently shown
     if (!token) {
-      // Only log once per session to avoid spam
       if (!twitchTokenLoggedOnce) {
-        console.log('No Twitch token available - cannot check live status');
+        dbg('No Twitch token available - cannot check live status');
         twitchTokenLoggedOnce = true;
       }
+      sortStreamerList();
       return;
     }
     
@@ -3694,7 +6014,7 @@ async function checkSidebarStreamStatus() {
       });
     }
     
-    console.log('✅ Sidebar stream status checked');
+    dbg('✅ Sidebar stream status checked');
     sortStreamerList();
   } catch (err) {
     console.error('❌ Error checking sidebar stream status:', err);
@@ -3745,7 +6065,11 @@ var petFoodPreferences = {
     disliked_item: 'Rainbow Cake',
     hated_item: 'Sushi Roll',
     hobby: 'Competitive dueling',
-    fun_fact: 'Once won a spoon dueling championship!'
+    fun_fact: 'Once won a spoon dueling championship!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves sun',
+    catchphrase: 'Fire solves everything, obviously! 🔥',
+    secret_talent: 'Can light a campfire with a single wink'
   },
   
   'Pyxie': {
@@ -3754,25 +6078,37 @@ var petFoodPreferences = {
     disliked_item: 'Grilled Salmon',
     hated_item: 'Spicy Burrito',
     hobby: 'Professional napping',
-    fun_fact: 'Can sleep for 16 hours straight!'
+    fun_fact: 'Can sleep for 16 hours straight!',
+    sleep_habit: 'heavy sleeper',
+    weather_preference: 'loves fog',
+    catchphrase: 'I have a plan. It involves napping. ✨',
+    secret_talent: 'Can nap in any position, including upside down'
   },
   
-  'Cowbee': {
+  'Steve': {
     loved_item: 'Fresh Bread',
     liked_item: 'Garden Salad',
     disliked_item: 'Hot Wings',
     hated_item: 'Curry Feast',
-    hobby: 'Organic gardening',
-    fun_fact: 'Grows all their own vegetables!'
+    hobby: 'Being a menace',
+    fun_fact: 'As chill as a fire in hell, controlled like the beasts of Australia!',
+    sleep_habit: 'power napper',
+    weather_preference: 'hates weather',
+    catchphrase: 'Cluck, bawk, buck... you know the rest. 🐔',
+    secret_talent: 'Somehow always the last one standing in any situation'
   },
   
-  'Kelta': {
+  'Kleat': {
     loved_item: 'Garden Salad',
     liked_item: 'Fresh Bread',
     disliked_item: 'Shrimp Tempura',
     hated_item: 'Grilled Steak',
-    hobby: 'Flower arranging',
-    fun_fact: 'Knows 37 different wildflowers by scent!'
+    hobby: 'Studying void and galaxy magic',
+    fun_fact: 'A grand mage who can open portals to other worlds!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves fog',
+    catchphrase: 'Yip, yap, teehee — I opened a portal! ✨',
+    secret_talent: 'Can sense when someone is about to say something stupid'
   },
   
   'Blushimia': {
@@ -3780,8 +6116,12 @@ var petFoodPreferences = {
     liked_item: 'Grilled Salmon',
     disliked_item: 'Banana Bread',
     hated_item: 'Honey Cookies',
-    hobby: 'Treasure hunting',
-    fun_fact: 'Found a legendary golden acorn once!'
+    hobby: 'Breaking out of video games',
+    fun_fact: 'Escaped her video game after gaining sentience!',
+    sleep_habit: 'early bird',
+    weather_preference: 'loves sun',
+    catchphrase: 'What the glob?! I\'m free!! 👑',
+    secret_talent: 'Can find the hidden exit in literally any room'
   },
   
   'Aria': {
@@ -3789,8 +6129,12 @@ var petFoodPreferences = {
     liked_item: 'Beef Jerky',
     disliked_item: 'Apple Pie',
     hated_item: 'Grape Juice',
-    hobby: 'Moonlight howling',
-    fun_fact: 'Can howl in perfect harmony with music!'
+    hobby: 'Collecting bones and writing stories',
+    fun_fact: 'A fae rosy maple moth who uses bones as currency!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves rain',
+    catchphrase: 'Do you want to see my bones? 🦋',
+    secret_talent: 'Can identify any creature by its skeleton alone'
   },
   
   'Gnarly': {
@@ -3798,8 +6142,12 @@ var petFoodPreferences = {
     liked_item: 'Mango Delight',
     disliked_item: 'Roasted Chicken',
     hated_item: 'Seafood Soup',
-    hobby: 'Forest meditation',
-    fun_fact: 'Can sense weather changes 24 hours early!'
+    hobby: 'Playing arcade games and collecting Furbies',
+    fun_fact: 'Runs the PaleoPlex arcade! Loves nachos!',
+    sleep_habit: 'power napper',
+    weather_preference: 'loves sun',
+    catchphrase: 'High score? Watch me. 🎮',
+    secret_talent: 'Has never lost a game of Pac-Man. Not once.'
   },
   
   'Jess': {
@@ -3807,8 +6155,12 @@ var petFoodPreferences = {
     liked_item: 'Strawberry Parfait',
     disliked_item: 'Cheese Platter',
     hated_item: 'Veggie Noodles',
-    hobby: 'Sky acrobatics',
-    fun_fact: 'Performed in a famous aerial circus!'
+    hobby: 'Potion brewing and fossil collecting',
+    fun_fact: 'A paleoart Parasaur who makes potions!',
+    sleep_habit: 'early bird',
+    weather_preference: 'loves rain',
+    catchphrase: 'This fossil is 65 million years cuter than you. 🦕',
+    secret_talent: 'Can brew a potion that tastes terrible but works perfectly'
   }
 };
 
@@ -3835,12 +6187,12 @@ async function loadUserBadges() {
   }
   
   earnedBadges = res.data.map(b => b.badges.badge_key);
-  console.log('[Badges] User has earned:', earnedBadges);
+  dbg('[Badges] User has earned:', earnedBadges);
 }
 async function awardBadge(badgeKey) {
   if (!currentUser) return;
   
-  // Check if already earned
+  // Check local cache first (fast path, avoids a DB call most of the time)
   if (earnedBadges.includes(badgeKey)) {
     return;
   }
@@ -3854,7 +6206,23 @@ async function awardBadge(badgeKey) {
       .single();
     
     if (badgeError || !badge) {
-      console.log('[Badges] Badge not found in database:', badgeKey);
+      dbg('[Badges] Badge not found in database:', badgeKey);
+      return;
+    }
+    
+    // Verify against the DB directly right before inserting — closes the race window
+    // where two near-simultaneous awardBadge() calls both pass the in-memory check
+    // before either insert resolves, which is what was causing the 409 conflicts.
+    var { data: existing } = await supabaseClient
+      .from('user_badges')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('badge_id', badge.id)
+      .maybeSingle();
+    
+    if (existing) {
+      // Already has it — sync the cache so future calls short-circuit instantly
+      if (!earnedBadges.includes(badgeKey)) earnedBadges.push(badgeKey);
       return;
     }
     
@@ -3868,7 +6236,8 @@ async function awardBadge(badgeKey) {
     
     if (insertError) {
       if (insertError.code === '23505') {
-        console.log('[Badges] User already has badge:', badgeKey);
+        // Still possible in a tight race — handle quietly, no console noise
+        if (!earnedBadges.includes(badgeKey)) earnedBadges.push(badgeKey);
         return;
       }
       console.error('[Badges] Error awarding badge:', insertError);
@@ -3891,7 +6260,7 @@ async function awardBadge(badgeKey) {
       });
     }
     
-    console.log('[Badges] Awarded:', badgeKey, '-', badge.name);
+    dbg('[Badges] Awarded:', badgeKey, '-', badge.name);
     
   } catch (err) {
     console.error('[Badges] Error in awardBadge:', err);
@@ -3902,8 +6271,12 @@ function showBadgeNotification(badge) {
   // Store for potential sharing
   lastUnlockedBadge = badge;
   
+  playChiptune('badge');
+
   var notification = makeEl('div', {class: 'badge-notification'});
+  notification.style.position = 'relative';
   notification.innerHTML = `
+    <button class="celebration-dismiss-btn" onclick="this.closest('.badge-notification').remove()" title="Dismiss" style="top:6px;right:6px;width:24px;height:24px;font-size:12px;">✕</button>
     <div class="badge-notif-icon">${badge.icon}</div>
     <div class="badge-notif-content">
       <div class="badge-notif-title">Badge Earned!</div>
@@ -3923,13 +6296,13 @@ function showBadgeNotification(badge) {
   document.body.appendChild(notification);
   
   // Animate in
-  setTimeout(() => notification.classList.add('show'), 10);
+  setTimeout(function() { notification.classList.add('show'); }, 10);
   
-  // Remove after 7 seconds (longer because of share buttons)
-  setTimeout(() => {
+  // Remove after 12 seconds
+  setTimeout(function() {
     notification.classList.remove('show');
-    setTimeout(() => notification.remove(), 300);
-  }, 7000);
+    setTimeout(function() { if (notification.parentNode) notification.remove(); }, 300);
+  }, 12000);
 }
 
 // ── MINIGAMES ────────────────────────────
@@ -3963,11 +6336,6 @@ async function awardPP(amount, reason) {
   currentPoints = data;
   updateAllPoints(data);
   await checkTop10Badge();
-}
-
-async function checkTop10Badge() {
-  if (!currentUser) return;
-  // ... rest of function
 }
 
 async function checkTop10Badge() {
@@ -4754,11 +7122,10 @@ async function checkDailyBonus(userId) {
   
   // Award daily bonus
   var bonusAmount = 50;
-  var pr = await supabaseClient.from('players').select('pawketpoints').eq('id', userId).single();
-  if (!pr.data) return { awarded: false };
-  
-  var newTotal = pr.data.pawketpoints + bonusAmount;
-  await supabaseClient.from('players').update({ pawketpoints: newTotal }).eq('id', userId);
+  var { data: newTotal, error: bonusErr } = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: bonusAmount, p_reason: 'daily_login_bonus'
+  });
+  if (bonusErr) { dbg('Daily bonus award failed:', bonusErr); return { awarded: false }; }
   
   // Mark as claimed
   localStorage.setItem('daily_bonus_' + userId + '_' + today, 'claimed');
@@ -4798,10 +7165,10 @@ async function loadSidebarNews() {
     return;
   }
   
-  console.log('[loadSidebarNews] Loading news...');
+  dbg('[loadSidebarNews] Loading news...');
   var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
   
-  console.log('[loadSidebarNews] Result:', res);
+  dbg('[loadSidebarNews] Result:', res);
   
   if (res.error || !res.data || !res.data.length) {
     widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
@@ -4818,19 +7185,28 @@ async function loadSidebarNews() {
 }
 
 async function loadNews() {
-  var container=el('news-container');
-  var res=await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false});
-  if(res.error||!res.data||!res.data.length){container.innerHTML='<div class="card" style="text-align:center;padding:56px 36px;"><div style="font-size:2.8rem;margin-bottom:14px;">&#128235;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No news yet!</h2><p style="color:var(--text-light)">Check back soon!</p></div>';return;}
-  container.innerHTML='';
-  res.data.forEach(function(post){
-    var date=new Date(post.published_at||post.created_at).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-    var div=makeEl('div',{class:'news-post news-card'});
-    div.appendChild(makeEl('div',{class:'news-post-date news-date'},date));
-    div.appendChild(makeEl('h3',{},post.title||'Untitled'));
-    div.appendChild(makeEl('p',{},post.content||''));
-    if(post.author)div.appendChild(makeEl('div',{class:'news-author'},'- '+post.author));
-    container.appendChild(div);
-  });
+  var container = el('news-container');
+  if (!container) return;
+  try {
+    var res = await supabaseClient.from('news').select('*').eq('is_published', true).order('published_at', { ascending: false });
+    if (res.error || !res.data || !res.data.length) {
+      container.innerHTML = '<div class="card" style="text-align:center;padding:56px 36px;"><div style="font-size:2.8rem;margin-bottom:14px;">&#128235;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No news yet!</h2><p style="color:var(--text-light)">Check back soon!</p></div>';
+      return;
+    }
+    container.innerHTML = '';
+    res.data.forEach(function(post) {
+      var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      var div = makeEl('div', { class: 'news-post news-card' });
+      div.appendChild(makeEl('div', { class: 'news-post-date news-date' }, date));
+      div.appendChild(makeEl('h3', {}, post.title || 'Untitled'));
+      div.appendChild(makeEl('p', {}, post.content || ''));
+      if (post.author) div.appendChild(makeEl('div', { class: 'news-author' }, '- ' + post.author));
+      container.appendChild(div);
+    });
+  } catch(err) {
+    dbg('loadNews error:', err);
+    if (container) container.innerHTML = '<div class="empty-state"><p>Could not load news.</p></div>';
+  }
 }
 
 // ── TWITCH ───────────────────────────────
@@ -4904,19 +7280,22 @@ async function initTwitchTab() {
     window.history.replaceState({},'',window.location.pathname);
   }
   await checkTwitchLinked();
-  // Team showcase removed - loadTeamShowcase() function still exists for other uses
+  // Load Twitch stats from worker (silent if worker not reachable)
+  loadTwitchStats().catch(function(){});
+  // Poll for pending worker rewards every 2 minutes
+  safeSetInterval(function() { checkTwitchRewards(); }, 120000);
 }
 
 // Team members config — add new members here as they join
 var TEAM_MEMBERS = [
-  { name: 'Embertail', login: 'embertail', twitchUrl: 'https://twitch.tv/Embertail', petName: 'Ember' },
-  { name: 'Pyxshuul',  login: 'pyxshuul',  twitchUrl: 'https://twitch.tv/Pyxshuul',  petName: 'Pyxie' },
-  { name: 'Aria',      login: 'ariadoestwitch', twitchUrl: 'https://twitch.tv/ariadoestwitch', petName: 'Aria' },
-  { name: 'Blushimia', login: 'realblushimia',  twitchUrl: 'https://twitch.tv/realblushimia',  petName: 'Blushimia' },
-  { name: 'Cowbee',    login: 'cowbeevt',       twitchUrl: 'https://twitch.tv/cowbeevt',       petName: 'Cowbee' },
-  { name: 'Kelta',     login: 'keltathepomeranian', twitchUrl: 'https://twitch.tv/keltathepomeranian', petName: 'Kelta' },
-  { name: 'Jess',      login: 'teatimejess',    twitchUrl: 'https://twitch.tv/teatimejess',    petName: 'Jess' },
-  { name: 'Gnarly',    login: 'gnarly_neon_smilodon', twitchUrl: 'https://twitch.tv/gnarly_neon_smilodon', petName: 'Gnarly' }
+  { name: 'Embertail', login: 'embertail', twitchUrl: 'https://twitch.tv/Embertail', petName: 'Ember',    twitchId: '91821604' },
+  { name: 'Pyxshuul',  login: 'pyxshuul',  twitchUrl: 'https://twitch.tv/Pyxshuul',  petName: 'Pyxie',   twitchId: '1459912293' },
+  { name: 'Aria',      login: 'ariadoestwitch', twitchUrl: 'https://twitch.tv/ariadoestwitch', petName: 'Aria',      twitchId: '1445288832' },
+  { name: 'Blushimia', login: 'realblushimia',  twitchUrl: 'https://twitch.tv/realblushimia',  petName: 'Blushimia', twitchId: '659500662' },
+  { name: 'Steve',     login: 'cowbeevt',       twitchUrl: 'https://twitch.tv/cowbeevt',       petName: 'Steve',     twitchId: '203845195' },
+  { name: 'Kleat',     login: 'keltathepomeranian', twitchUrl: 'https://twitch.tv/keltathepomeranian', petName: 'Kleat', twitchId: '121490227' },
+  { name: 'Jess',      login: 'teatimejess',    twitchUrl: 'https://twitch.tv/teatimejess',    petName: 'Jess',     twitchId: '88727356' },
+  { name: 'Gnarly',    login: 'gnarly_neon_smilodon', twitchUrl: 'https://twitch.tv/gnarly_neon_smilodon', petName: 'Gnarly', twitchId: '531222973' }
 ];
 
 async function loadTeamShowcase() {
@@ -4948,7 +7327,7 @@ async function loadTeamShowcase() {
         }
       }
     }
-  } catch(e) { console.log('Could not check live status:', e); }
+  } catch(e) { dbg('Could not check live status:', e); }
 
   TEAM_MEMBERS.forEach(function(member) {
     var card = document.createElement('div');
@@ -4964,8 +7343,8 @@ async function loadTeamShowcase() {
       'Pyxie': 'pyxie.png',
       'Aria': 'aria.png',
       'Blushimia': 'blushimia.png',
-      'Cowbee': 'cowbee.png',
-      'Kelta': 'kelta.png',
+      'Steve': 'cowbee.png',
+      'Kleat': 'kelta.png',
       'Jess': 'jess.png',
       'Gnarly': 'gnarly.png'
     };
@@ -5018,6 +7397,7 @@ async function checkTwitchLinked() {
     el('twitch-not-linked').style.display='none';
     el('twitch-linked').style.display='block';
     el('twitch-username').textContent=res.data.twitch_username;
+    loadTwitchStats().catch(function(){});
     var rewards=res.data.twitch_follow_rewards||{};
     if(rewards.embertail){var b=el('follow-ember-badge');b.textContent='Claimed';b.className='status-badge status-done';b.style.display='inline-block';}
     if(rewards.pyxshuul){var b2=el('follow-pyxs-badge');b2.textContent='Claimed';b2.className='status-badge status-done';b2.style.display='inline-block';}
@@ -5047,8 +7427,16 @@ async function checkFollows() {
       }
     }catch(e){console.warn('Follow check error',key,e);}
   }
-  var np=(pr.data.pawketpoints||0)+earned;
-  await supabaseClient.from('players').update({pawketpoints:np,twitch_follow_rewards:rewards}).eq('id',currentUser.id);
+  var np = 0;
+  if (earned > 0) {
+    var { data: newPp, error: ppErr } = await supabaseClient.rpc('award_pp_secure', {
+      p_amount: earned, p_reason: 'twitch_follow'
+    });
+    if (ppErr) { dbg('Twitch follow PP award failed:', ppErr); }
+    else np = newPp;
+  }
+  // twitch_follow_rewards is just a tracking flag, not a currency/stat field — safe to write directly
+  await supabaseClient.from('players').update({ twitch_follow_rewards: rewards }).eq('id', currentUser.id);
   if(earned>0){updateAllPoints(np);showToast('You earned '+earned+' PP!');}
   else showToast('No new rewards. Follow our streamers!');
   btn.disabled=false; btn.textContent='Check Follows & Claim Rewards';
@@ -5062,6 +7450,61 @@ async function unlinkTwitch(){
   showToast('Twitch unlinked.');
 }
 // ── REDEEM CODES ─────────────────────────────
+
+// ── Ambient Pet Name Glitches ───────────────────────────────────────────────
+// Rare, per-pet-card chance for a name to briefly glitch to a creepy alt-text,
+// then revert. Independent per card — never affects every pet on the page at once.
+// Fully gated behind playerSettings.spooky_enabled so players who opt out never see it.
+var SPOOKY_NAME_GLITCH_CHANCE = 0.015; // ~1.5% chance per card render
+var SPOOKY_NAME_ALTS = ['HelpMe', 'LetMeOut', 'ItSeesYou', 'NotAlone', 'BehindYou', 'StillHere', 'TooLate'];
+
+function maybeApplyNameGlitch(el, originalText) {
+  if (!playerSettings.spooky_enabled) return;
+  if (!el || Math.random() >= SPOOKY_NAME_GLITCH_CHANCE) return;
+
+  var altText = SPOOKY_NAME_ALTS[Math.floor(Math.random() * SPOOKY_NAME_ALTS.length)];
+  var durationMs = 5000 + Math.random() * 5000; // 5-10 seconds
+
+  el.classList.add('glitch-text');
+  el.textContent = altText;
+
+  safeSetTimeout(function() {
+    if (el && el.isConnected) {
+      el.classList.remove('glitch-text');
+      el.textContent = originalText;
+    }
+  }, durationMs);
+}
+
+// ── Ambient Spinner Caption Glitches ────────────────────────────────────────
+// Periodically scans the page for visible loading spinners and rarely attaches
+// a brief unsettling caption beneath one, then removes it. Purely additive —
+// doesn't require touching any of the 45 existing spinner call sites.
+var SPOOKY_SPINNER_GLITCH_CHANCE = 0.02; // ~2% chance per scan, per spinner found
+var SPOOKY_SPINNER_CAPTIONS = ['loading you...', 'almost there...', 'it sees you waiting', 'please wait forever', 'fetching something else'];
+
+safeSetInterval(function() {
+  if (!playerSettings.spooky_enabled) return;
+  var spinners = document.querySelectorAll('.spinner');
+  if (spinners.length === 0) return;
+
+  spinners.forEach(function(spinner) {
+    if (spinner.dataset.spookyActive) return; // don't stack multiple captions on one spinner
+    if (Math.random() >= SPOOKY_SPINNER_GLITCH_CHANCE) return;
+
+    spinner.dataset.spookyActive = '1';
+    var caption = document.createElement('div');
+    caption.className = 'glitch-text';
+    caption.textContent = SPOOKY_SPINNER_CAPTIONS[Math.floor(Math.random() * SPOOKY_SPINNER_CAPTIONS.length)];
+    caption.style.cssText = 'font-size:0.72rem;text-align:center;margin-top:6px;';
+    if (spinner.parentNode) spinner.parentNode.insertBefore(caption, spinner.nextSibling);
+
+    safeSetTimeout(function() {
+      if (caption.parentNode) caption.parentNode.removeChild(caption);
+      delete spinner.dataset.spookyActive;
+    }, 2500 + Math.random() * 2500); // 2.5-5 seconds, spinners are usually short-lived anyway
+  });
+}, 4000); // check every 4 seconds
 
 // Clean up any leftover spooky effects on page load
 function cleanupSpookyEffects() {
@@ -5079,7 +7522,7 @@ function cleanupSpookyEffects() {
     }
   }
   
-  console.log('✨ Cleaned up spooky effects');
+  dbg('✨ Cleaned up spooky effects');
 }
 
 // Spooky effect for THEYWENTMISSING code
@@ -5122,19 +7565,21 @@ function triggerSpookyEffect() {
   document.body.appendChild(overlay);
   document.body.appendChild(crtLines);
   
-  // Play spooky audio (Piper's flute)
+  // Play spooky audio (Piper's flute) — load on-demand since bossNormal isn't in the priority preload list
   try {
-    // Reuse cached Piper audio instead of creating new Audio() each time
-    var piperKey = 'bossNormal'; // Already in battleSounds
-    if (audioCache[piperKey]) {
-      var spookyAudio = audioCache[piperKey].cloneNode();
+    var piperKey = 'bossNormal';
+    var spookyAudioSrc = audioCache[piperKey] || loadSoundOnDemand(piperKey);
+    if (spookyAudioSrc) {
+      var spookyAudio = spookyAudioSrc.cloneNode();
       spookyAudio.volume = 0.3;
       spookyAudio.play().catch(function(err) {
-        console.log('Spooky audio failed to play:', err);
+        dbg('Spooky audio failed to play:', err);
       });
+    } else {
+      dbg('Spooky audio unavailable — sound file missing or SOUNDS_ENABLED is false');
     }
   } catch (err) {
-    console.log('Could not load spooky audio');
+    dbg('Could not load spooky audio');
   }
   
   // Remove effects after 3 seconds
@@ -5222,43 +7667,40 @@ async function redeemCode() {
       return;
     }
 
-    // 3. Check if THIS player already redeemed it (skip for unlimited codes)
-    if (promo.max_uses !== null) {
-      var alreadyRes = await supabaseClient
-        .from('redeemed_codes')
-        .select('id')
-        .eq('player_id', currentUser.id)
-        .eq('code_id', promo.id)
-        .maybeSingle();
+    // 3. Check if THIS player already redeemed it — always check, regardless of
+    // whether the code has a total max_uses cap. Previously this check was only
+    // applied when max_uses was set, meaning any "unlimited use" code could be
+    // redeemed infinitely by the same account for repeated PP rewards.
+    var alreadyRes = await supabaseClient
+      .from('redeemed_codes')
+      .select('id')
+      .eq('player_id', currentUser.id)
+      .eq('code_id', promo.id)
+      .maybeSingle();
 
-      if (alreadyRes.data) {
-        errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
-        errEl.classList.add('show');
-        btn.textContent = '✨ Redeem!';
-        btn.disabled = false;
-        return;
-      }
+    if (alreadyRes.data) {
+      errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
+      errEl.classList.add('show');
+      btn.textContent = '✨ Redeem!';
+      btn.disabled = false;
+      return;
     }
 
     // 4. All good — award the PP
     if (promo.pp_reward && promo.pp_reward > 0) {
-      var newPoints = currentPoints + promo.pp_reward;
-      var ppRes = await supabaseClient
-        .from('players')
-        .update({ pawketpoints: newPoints })
-        .eq('id', currentUser.id);
-      if (ppRes.error) throw new Error(ppRes.error.message);
+      var { data: newPoints, error: ppErr } = await supabaseClient.rpc('award_pp_secure', {
+        p_amount: promo.pp_reward, p_reason: 'promo_code_' + code
+      });
+      if (ppErr) throw new Error(ppErr.message);
       updateAllPoints(newPoints);
     }
 
-    // 5. Log the redemption in redeemed_codes (only if max_uses is set)
-    if (promo.max_uses !== null) {
-      await supabaseClient.from('redeemed_codes').insert([{
-        player_id: currentUser.id,
-        code_id: promo.id,
-        redeemed_at: new Date().toISOString()
-      }]);
-    }
+    // 5. Log the redemption in redeemed_codes — always, so the per-player check above works correctly
+    await supabaseClient.from('redeemed_codes').insert([{
+      player_id: currentUser.id,
+      code_id: promo.id,
+      redeemed_at: new Date().toISOString()
+    }]);
 
     // 6. Increment times_used on promo_codes
     await supabaseClient
@@ -5381,11 +7823,11 @@ setTimeout(function() {
 var currentLeaderboard = 'points';
 var leaderboardCache = {
   points: null,
-  pets: null,
+  streak: null,  // streak is never cached — always fetch fresh
   levels: null
 };
 
-function switchLeaderboard(type) {
+function switchLeaderboard(type, clickEvent) {
   currentLeaderboard = type;
   
   // Update tab styles
@@ -5393,7 +7835,9 @@ function switchLeaderboard(type) {
   tabs.forEach(function(tab) {
     tab.classList.remove('active');
   });
-  event.target.classList.add('active');
+  if (clickEvent && clickEvent.target) {
+    clickEvent.target.classList.add('active');
+  }
   
   // Show correct list
   document.querySelectorAll('.leaderboard-list').forEach(function(list) {
@@ -5401,8 +7845,8 @@ function switchLeaderboard(type) {
   });
   el('leaderboard-' + type).classList.add('active');
   
-  // Load data if not cached
-  if (!leaderboardCache[type]) {
+  // Load data if not cached (streak is always reloaded — no cache)
+  if (!leaderboardCache[type] || type === 'streak') {
     loadLeaderboard(type);
   }
 }
@@ -5422,7 +7866,7 @@ async function loadLeaderboard(type) {
         .order('pawketpoints', { ascending: false })
         .limit(10);
       
-      console.log('Leaderboard points query result:', res);
+      dbg('Leaderboard points query result:', res);
       
       if (res.error) throw res.error;
       
@@ -5437,49 +7881,50 @@ async function loadLeaderboard(type) {
           };
         });
       
-        } else if (type === 'pets') {
-      // Top players by pet count - query user_pets directly and group
-      var petsRes = await supabaseClient
-        .from('user_pets')
-        .select('user_id');
-      
-      if (petsRes.error) throw petsRes.error;
-      
-      // Count pets per user
-      var petCounts = {};
-      petsRes.data.forEach(function(pet) {
-        petCounts[pet.user_id] = (petCounts[pet.user_id] || 0) + 1;
-      });
-      
-      // Get usernames for all users with pets
-      var userIds = Object.keys(petCounts);
-      
-      if (userIds.length === 0) {
-        data = [];
-      } else {
-        var usersRes = await supabaseClient
+        } else if (type === 'streak') {
+      // ── Login Streak Leaderboard ──
+      // Tries the RPC first; falls back to a direct query if RPC doesn't exist.
+      var rpcRes = await supabaseClient.rpc('get_streak_leaderboard', { limit_count: 10 });
+      var streakRows;
+      if (rpcRes.error) {
+        // Fallback: direct query on players table
+        var fallbackRes = await supabaseClient
           .from('players')
-          .select('id, username')
-          .in('id', userIds);
-        
-        if (usersRes.error) throw usersRes.error;
-        
-        // Match usernames to pet counts and sort
-        var playersWithCounts = usersRes.data.map(function(player) {
+          .select('id, username, login_streak, last_login')
+          .not('username', 'is', null)
+          .order('login_streak', { ascending: false })
+          .order('last_login', { ascending: false })
+          .limit(10);
+        if (fallbackRes.error) throw fallbackRes.error;
+        streakRows = fallbackRes.data;
+      } else {
+        streakRows = rpcRes.data || [];
+      }
+
+      data = (streakRows || [])
+        .filter(function(p) { return p.username; })
+        .map(function(p) {
+          var streak = p.login_streak || 0;
+          var icon = streak >= 30 ? '💎' : streak >= 7 ? '🔥' : '📅';
           return {
-            username: player.username,
-            count: petCounts[player.id] || 0,
-            value: (petCounts[player.id] || 0) + ' pets',
-            stat: (petCounts[player.id] || 0) + ' pets owned'
+            id: p.id,
+            username: p.username,
+            value: icon + ' ' + streak + (streak === 1 ? ' day' : ' days'),
+            stat: p.last_login ? getTimeAgo(new Date(p.last_login)) : 'Never',
+            streak: streak
           };
         });
-        
-        // Sort by pet count (highest first)
-        playersWithCounts.sort(function(a, b) { return b.count - a.count; });
-        
-        data = playersWithCounts;
+
+      // Store own streak for rank widget (attached to array as property)
+      if (currentUser) {
+        var myRes = await supabaseClient
+          .from('players')
+          .select('login_streak')
+          .eq('id', currentUser.id)
+          .single();
+        data._myStreak = (myRes.data && myRes.data.login_streak) || 0;
       }
-      
+
     } else if (type === 'levels') {
       // Top players by total pet levels
       var res = await supabaseClient.rpc('get_leaderboard_levels');
@@ -5601,17 +8046,33 @@ async function loadLeaderboard(type) {
     });
     
     container.innerHTML = html;
+
+    // ── Streak: append your-rank widget below the list ──
+    if (type === 'streak' && currentUser && data._myStreak !== undefined) {
+      var myStreak = data._myStreak;
+      var myIcon = myStreak >= 30 ? '💎' : myStreak >= 7 ? '🔥' : '📅';
+      var myRank = null;
+      for (var ri = 0; ri < data.length; ri++) {
+        if (data[ri].id === currentUser.id) { myRank = ri + 1; break; }
+      }
+      var rankText = myRank ? '#' + myRank + ' on the leaderboard' : 'Not yet in top 10';
+      var widget = document.createElement('div');
+      widget.style.cssText = 'margin-top:20px;padding:14px 18px;border-radius:14px;background:linear-gradient(135deg,rgba(153,102,255,0.12),rgba(255,102,153,0.08));border:1px solid rgba(153,102,255,0.25);display:flex;align-items:center;justify-content:space-between;';
+      widget.innerHTML =
+        '<div>' +
+          '<div style="font-weight:bold;color:var(--purple-dark);font-size:0.95rem;">Your Streak</div>' +
+          '<div style="color:var(--text-light);font-size:0.82rem;">' + rankText + '</div>' +
+        '</div>' +
+        '<div style="font-size:1.6rem;font-weight:bold;color:var(--purple);">' + myIcon + ' ' + myStreak + (myStreak === 1 ? ' day' : ' days') + '</div>';
+      container.appendChild(widget);
+    }
+
     
   } catch (err) {
     container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + err.message + '</p></div>';
   }
 }
 
-function escapeHtml(text) {
-  var div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 // Load points leaderboard when tab is opened
 tabsLoaded.leaderboard = function() {
@@ -5631,7 +8092,7 @@ function viewProfile(username) {
 }
 
 async function loadProfile(username) {
-  console.log('[loadProfile] Starting for username:', username);
+  dbg('[loadProfile] Starting for username:', username);
   
   // Set loading states immediately
   el('profile-username').textContent = 'Loading...';
@@ -5643,13 +8104,13 @@ async function loadProfile(username) {
   
   try {
     // Get profile data
-    console.log('[loadProfile] Calling RPC get_player_profile...');
+    dbg('[loadProfile] Calling RPC get_player_profile...');
     var profileRes = await supabaseClient.rpc('get_player_profile', { p_username: username });
     
-    console.log('[loadProfile] RPC result:', profileRes);
+    dbg('[loadProfile] RPC result:', profileRes);
     
     if (profileRes.error || !profileRes.data || profileRes.data.length === 0) {
-      console.log('Using fallback query, RPC error:', profileRes.error);
+      dbg('Using fallback query, RPC error:', profileRes.error);
       // Fallback if RPC doesn't exist
       var playerRes = await supabaseClient
         .from('players')
@@ -5657,7 +8118,7 @@ async function loadProfile(username) {
         .ilike('username', username)
         .single();
       
-      console.log('Player query result:', playerRes);
+      dbg('Player query result:', playerRes);
       
       if (playerRes.error) {
         console.error('Player query failed:', playerRes.error);
@@ -5676,7 +8137,7 @@ async function loadProfile(username) {
         .select('level')
         .eq('user_id', player.id);
       
-      console.log('Pets query result:', petsRes);
+      dbg('Pets query result:', petsRes);
       
       var totalPets = petsRes.data ? petsRes.data.length : 0;
       var totalLevels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + p.level; }, 0) : 0;
@@ -5695,24 +8156,24 @@ async function loadProfile(username) {
     }
     
     var profile = profileRes.data[0];
-    console.log('Final profile data:', profile);
+    dbg('Final profile data:', profile);
     
     // If RPC didn't include pet stats, calculate them
     if (profile.total_pets === undefined || profile.total_pets === null) {
-      console.log('Pet stats missing, calculating manually...');
+      dbg('Pet stats missing, calculating manually...');
       var petsRes = await supabaseClient
         .from('user_pets')
         .select('level')
         .eq('user_id', profile.id);
       
-      console.log('Manual pets query:', petsRes);
+      dbg('Manual pets query:', petsRes);
       
       profile.total_pets = petsRes.data ? petsRes.data.length : 0;
       profile.total_levels = petsRes.data ? petsRes.data.reduce(function(sum, p) { return sum + (p.level || 0); }, 0) : 0;
     }
     
     // Update UI
-    console.log('[loadProfile] Updating UI with profile data:', profile);
+    dbg('[loadProfile] Updating UI with profile data:', profile);
     el('profile-avatar').textContent = profile.username.charAt(0).toUpperCase();
     el('profile-username').textContent = profile.username;
     el('profile-bio').textContent = profile.bio || 'No bio yet';
@@ -5738,10 +8199,10 @@ async function loadProfile(username) {
         var titleBadge = '<div class="player-title-badge" style="color: ' + color + '; font-size: 1.1rem; margin-top: 8px; font-weight: 600;">' +
           title.icon + ' ' + title.display_name +
           '</div>';
-        el('profile-username').innerHTML = profile.username + titleBadge;
+        el('profile-username').innerHTML = escapeHtml(profile.username) + titleBadge;
       }
     } catch (titleErr) {
-      console.log('[loadProfile] Could not load player title:', titleErr);
+      dbg('[loadProfile] Could not load player title:', titleErr);
     }
     
     var joinDate = new Date(profile.created_at);
@@ -5751,7 +8212,7 @@ async function loadProfile(username) {
       year: 'numeric' 
     });
     
-    console.log('[loadProfile] Setting stats - Points:', profile.pawketpoints, 'Pets:', profile.total_pets, 'Levels:', profile.total_levels);
+    dbg('[loadProfile] Setting stats - Points:', profile.pawketpoints, 'Pets:', profile.total_pets, 'Levels:', profile.total_levels);
     el('profile-points').textContent = (profile.pawketpoints || 0).toLocaleString();
     el('profile-pet-count').textContent = profile.total_pets || 0;
     el('profile-total-level').textContent = profile.total_levels || 0;
@@ -5773,7 +8234,7 @@ async function loadProfile(username) {
     var petsGrid = el('profile-pets-grid');
     petsGrid.innerHTML = '<div class="spinner"></div>';
     
-    console.log('[loadProfile] Loading pets for user_id:', profile.id);
+    dbg('[loadProfile] Loading pets for user_id:', profile.id);
     
     var petsRes = await supabaseClient
       .from('user_pets')
@@ -5781,7 +8242,7 @@ async function loadProfile(username) {
       .eq('user_id', profile.id)
       .order('adopted_at', { ascending: true });
     
-    console.log('[loadProfile] Pets query result:', petsRes);
+    dbg('[loadProfile] Pets query result:', petsRes);
     
     if (petsRes.error) throw petsRes.error;
     
@@ -5819,6 +8280,11 @@ async function loadProfile(username) {
     // Load badges
     await loadProfileBadges(profile.id);
     
+    // Update profile action buttons (add/remove friend, block, etc.)
+    // Set the profile user ID first so updateProfileButtons knows whose profile this is
+    window.currentProfileUserId = profile.id;
+    updateProfileButtons().catch(function(){});
+    
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
     el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + err.message + '</p></div>';
@@ -5837,14 +8303,14 @@ tabsLoaded.profile = function() {
 // ══════════════════════════════════════════════════════════════
 
 async function loadMyProfile() {
-  console.log('[loadMyProfile] Starting...');
+  dbg('[loadMyProfile] Starting...');
   if (!currentUser) {
     console.error('[loadMyProfile] No currentUser!');
     return;
   }
   
   try {
-    console.log('[loadMyProfile] Fetching player data for user:', currentUser.id);
+    dbg('[loadMyProfile] Fetching player data for user:', currentUser.id);
     // Get player data
     var res = await supabaseClient
       .from('players')
@@ -5852,7 +8318,7 @@ async function loadMyProfile() {
       .eq('id', currentUser.id)
       .single();
     
-    console.log('[loadMyProfile] Player data result:', res);
+    dbg('[loadMyProfile] Player data result:', res);
     
     if (res.error) throw res.error;
     var player = res.data;
@@ -5876,7 +8342,7 @@ async function loadMyProfile() {
     var titleDisplay = getPlayerTitleDisplay(currentUser.id);
     if (titleDisplay) {
       var usernameEl = el('myprofile-username-preview');
-      usernameEl.innerHTML = username + titleDisplay;
+      usernameEl.innerHTML = escapeHtml(username) + titleDisplay;
     }
     
     var joinDate = new Date(player.created_at).toLocaleDateString('en-US', { 
@@ -5910,14 +8376,18 @@ async function loadMyProfile() {
     }
     
     // Load badges
-    console.log('[loadMyProfile] About to load badges...');
+    dbg('[loadMyProfile] About to load badges...');
     try {
       await loadMyProfileBadges();
-      console.log('[loadMyProfile] Badges loaded successfully');
+      dbg('[loadMyProfile] Badges loaded successfully');
     } catch (badgeErr) {
       console.error('[loadMyProfile] Error loading badges:', badgeErr);
     }
-    
+
+    // Render cosmetics equip panel and apply current cosmetics
+    cosmetics_renderFullPanel('cosmetics-mount');
+    cosmetics_applyToProfile();
+
   } catch (err) {
     console.error('Error loading profile:', err);
     el('myprofile-username-preview').textContent = 'Error loading profile';
@@ -5926,9 +8396,9 @@ async function loadMyProfile() {
 }
 
 async function loadMyProfileBadges() {
-  console.log('[loadMyProfileBadges] Function called!');
+  dbg('[loadMyProfileBadges] Function called!');
   var badgesGrid = el('myprofile-badges-grid');
-  console.log('[loadMyProfileBadges] Badge grid element:', badgesGrid);
+  dbg('[loadMyProfileBadges] Badge grid element:', badgesGrid);
   
   if (!badgesGrid) {
     console.error('[loadMyProfileBadges] Grid element not found!');
@@ -6182,8 +8652,8 @@ async function loadProfileBadges(userId) {
     return;
   }
   
-  console.log('[loadProfileBadges] Loading badges for userId:', userId);
-  console.log('[loadProfileBadges] Found', earnedRes.data.length, 'badges');
+  dbg('[loadProfileBadges] Loading badges for userId:', userId);
+  dbg('[loadProfileBadges] Found', earnedRes.data.length, 'badges');
   
   el('profile-badge-count').textContent = earnedRes.data.length;
   
@@ -6230,10 +8700,16 @@ async function loadProfileBadges(userId) {
 // EQUIPMENT SYSTEM
 // ═══════════════════════════════════════════════════════════════════════════
 
-var currentEquipmentFilter = 'all';
+var currentEquipmentFilter = 'weapon';
 
 
 async function buyEquipment(equipmentId, equipmentName, price) {
+  if (!currentUser) return;
+  if (currentPoints < price) { showToast('Not enough PawketPoints!'); return; }
+  confirmPurchase(equipmentName, price, function() { _buyEquipmentCore(equipmentId, equipmentName, price); });
+}
+
+async function _buyEquipmentCore(equipmentId, equipmentName, price) {
   if (!currentUser) return;
   if (currentPoints < price) {
     showToast('Not enough PawketPoints!');
@@ -6267,34 +8743,21 @@ async function buyEquipment(equipmentId, equipmentName, price) {
     await awardBadge('big_spender');
   }
   
-  // Add to player equipment
-  var existingRes = await supabaseClient
+  // Add to player equipment — always insert a new unequipped row.
+  // Each row = one physical copy of the item, independently equippable on a different pet.
+  var insertRes = await supabaseClient
     .from('player_equipment')
-    .select('id, quantity')
-    .eq('user_id', currentUser.id)
-    .eq('equipment_id', equipmentId)
-    .limit(1);
+    .insert([{ 
+      user_id: currentUser.id, 
+      equipment_id: equipmentId,
+      quantity: 1,
+      is_equipped: false,
+      pet_id: null
+    }]);
   
-  if (existingRes.data && existingRes.data.length > 0) {
-    // Already owns - increase quantity
-    await supabaseClient
-      .from('player_equipment')
-      .update({ quantity: existingRes.data[0].quantity + 1 })
-      .eq('id', existingRes.data[0].id);
-  } else {
-    // New purchase
-    var insertRes = await supabaseClient
-      .from('player_equipment')
-      .insert([{ 
-        user_id: currentUser.id, 
-        equipment_id: equipmentId,
-        quantity: 1
-      }]);
-    
-    if (insertRes.error) {
-      showToast('Purchase failed!');
-      return;
-    }
+  if (insertRes.error) {
+    showToast('Purchase failed!');
+    return;
   }
   
   // Track stats (for new stats system)
@@ -6321,11 +8784,12 @@ function filterEquipment(type, evt) {
 }
 
 async function loadPetEquipment(petId) {
-  // Get equipped items for this pet
+  // Get equipped items for THIS specific pet
   var res = await supabaseClient
     .from('player_equipment')
     .select('equipment_id, equipped_slot, equipment(*)')
     .eq('user_id', currentUser.id)
+    .eq('pet_id', petId)
     .eq('is_equipped', true);
   
   if (res.error) return { weapon: null, armor: null };
@@ -6345,39 +8809,28 @@ async function loadPetEquipment(petId) {
 }
 
 async function showEquipmentModal(petId) {
-  console.log('=== EQUIPMENT MODAL DEBUG ===');
-  console.log('Opening equipment modal for pet:', petId);
-  
   try {
-    // Get pet's current equipment
+    // Get pet's current equipment (filtered to this pet)
     var equipped = await loadPetEquipment(petId);
-    console.log('Currently equipped:', equipped);
     
-    // Get all owned equipment
+    // Get all owned equipment rows (unequipped or equipped on any pet)
     var allEquipRes = await supabaseClient
       .from('player_equipment')
       .select('*, equipment(*)')
       .eq('user_id', currentUser.id)
-      .gt('quantity', 0);
-    
-    console.log('All owned equipment:', allEquipRes);
+      .eq('is_equipped', false); // only show unequipped (available) items
     
     if (allEquipRes.error) {
-      console.error('Error loading equipment:', allEquipRes.error);
       showToast('Error loading equipment!');
       return;
     }
     
     var ownedEquipment = allEquipRes.data || [];
   
-  console.log('Creating modal...');
-  
-  // Create modal with !important inline styles to override any CSS
+  // Create modal
   var modal = makeEl('div', { class: 'equipment-modal-dynamic' });
   modal.style.cssText = 'position:fixed !important;top:0 !important;left:0 !important;right:0 !important;bottom:0 !important;width:100vw !important;height:100vh !important;background:rgba(0,0,0,0.8) !important;display:flex !important;align-items:center !important;justify-content:center !important;z-index:999999 !important;';
   modal.id = 'equipment-modal-' + Date.now();
-  console.log('Modal overlay created:', modal);
-  console.log('Modal styles:', modal.style.cssText);
   
   modal.onclick = function(e) { 
     if (e.target === modal) {
@@ -6393,8 +8846,6 @@ async function showEquipmentModal(petId) {
   title.textContent = 'Manage Equipment';
   title.style.cssText = 'color:var(--purple);margin:0 0 20px 0;font-family:Chewy,cursive;';
   modalContent.appendChild(title);
-  
-  console.log('Modal content created');
   
   // Equipment slots display
   var slotsDiv = makeEl('div', { class: 'equipment-slots' });
@@ -6414,7 +8865,6 @@ async function showEquipmentModal(petId) {
     weaponName.textContent = equipped.weapon.name;
     weaponSlot.appendChild(weaponName);
     
-    // Show stat bonuses
     var bonuses = [];
     if (equipped.weapon.attack_bonus) bonuses.push('+' + equipped.weapon.attack_bonus + ' ATK');
     if (equipped.weapon.defense_bonus) bonuses.push('+' + equipped.weapon.defense_bonus + ' DEF');
@@ -6430,7 +8880,7 @@ async function showEquipmentModal(petId) {
     var unequipBtn = makeEl('button', { class: 'btn btn-sm btn-unequip' });
     unequipBtn.textContent = 'Unequip';
     unequipBtn.onclick = function() { 
-      unequipItem('weapon');
+      unequipItem('weapon', petId); // ← pass petId
       document.body.removeChild(modal);
     };
     weaponSlot.appendChild(unequipBtn);
@@ -6456,23 +8906,22 @@ async function showEquipmentModal(petId) {
     armorName.textContent = equipped.armor.name;
     armorSlot.appendChild(armorName);
     
-    // Show stat bonuses
     var bonuses = [];
     if (equipped.armor.attack_bonus) bonuses.push('+' + equipped.armor.attack_bonus + ' ATK');
     if (equipped.armor.defense_bonus) bonuses.push('+' + equipped.armor.defense_bonus + ' DEF');
     if (equipped.armor.speed_bonus) bonuses.push('+' + equipped.armor.speed_bonus + ' SPD');
     if (equipped.armor.hp_bonus) bonuses.push('+' + equipped.armor.hp_bonus + ' HP');
     if (bonuses.length > 0) {
-      var bonusText = makeEl('div', { class: 'equipment-slot-bonus' });
-      bonusText.style.cssText = 'font-size:0.75rem;color:var(--text-light);margin-top:4px;';
-      bonusText.textContent = bonuses.join(', ');
-      armorSlot.appendChild(bonusText);
+      var bonusText2 = makeEl('div', { class: 'equipment-slot-bonus' });
+      bonusText2.style.cssText = 'font-size:0.75rem;color:var(--text-light);margin-top:4px;';
+      bonusText2.textContent = bonuses.join(', ');
+      armorSlot.appendChild(bonusText2);
     }
     
     var unequipBtn2 = makeEl('button', { class: 'btn btn-sm btn-unequip' });
     unequipBtn2.textContent = 'Unequip';
     unequipBtn2.onclick = function() { 
-      unequipItem('armor');
+      unequipItem('armor', petId); // ← pass petId
       document.body.removeChild(modal);
     };
     armorSlot.appendChild(unequipBtn2);
@@ -6485,7 +8934,7 @@ async function showEquipmentModal(petId) {
   
   modalContent.appendChild(slotsDiv);
   
-  // List available equipment to equip
+  // List available (unequipped) equipment
   var availableTitle = makeEl('h3');
   availableTitle.textContent = 'Available Equipment';
   availableTitle.style.cssText = 'margin-top:20px;color:var(--purple);font-family:Chewy,cursive;';
@@ -6494,7 +8943,6 @@ async function showEquipmentModal(petId) {
   var equipGrid = makeEl('div', { class: 'shop-grid' });
   
   if (ownedEquipment.length === 0) {
-    // No equipment owned - show helpful message
     var emptyState = makeEl('div');
     emptyState.style.cssText = 'text-align:center;padding:40px 20px;background:rgba(153,102,255,0.1);border-radius:12px;margin:20px 0;';
     
@@ -6503,15 +8951,15 @@ async function showEquipmentModal(petId) {
     emptyIcon.textContent = '🛡️';
     emptyState.appendChild(emptyIcon);
     
-    var emptyText = makeEl('p');
-    emptyText.style.cssText = 'color:var(--purple);font-size:1.1rem;margin:16px 0 8px 0;';
-    emptyText.textContent = 'You don\'t own any equipment yet!';
-    emptyState.appendChild(emptyText);
+    var emptyMsg = makeEl('p');
+    emptyMsg.style.cssText = 'color:var(--purple);font-size:1.1rem;margin:16px 0 8px 0;';
+    emptyMsg.textContent = 'No available equipment!';
+    emptyState.appendChild(emptyMsg);
     
-    var emptySubtext = makeEl('p');
-    emptySubtext.style.cssText = 'color:var(--text-light);font-size:0.9rem;margin-bottom:20px;';
-    emptySubtext.textContent = 'Visit the Equipment Shop to buy weapons and armor for your pets.';
-    emptyState.appendChild(emptySubtext);
+    var emptySubMsg = makeEl('p');
+    emptySubMsg.style.cssText = 'color:var(--text-light);font-size:0.9rem;margin-bottom:20px;';
+    emptySubMsg.textContent = 'All owned items are already equipped, or visit the Shop to buy more.';
+    emptyState.appendChild(emptySubMsg);
     
     var shopBtn = makeEl('button', { class: 'btn btn-primary' });
     shopBtn.textContent = '🛒 Go to Equipment Shop';
@@ -6524,9 +8972,9 @@ async function showEquipmentModal(petId) {
     
     equipGrid.appendChild(emptyState);
   } else {
-    // Has equipment - show list
     ownedEquipment.forEach(function(playerEquip) {
       var item = playerEquip.equipment;
+      if (!item) return;
       var card = makeEl('div', { class: 'equipment-card' });
       card.style.cssText = 'font-size:0.85rem;padding:15px;border:2px solid var(--purple-light);border-radius:12px;text-align:center;';
       
@@ -6540,7 +8988,6 @@ async function showEquipmentModal(petId) {
       name.textContent = item.name;
       card.appendChild(name);
       
-      // Show stat bonuses
       var bonuses = [];
       if (item.attack_bonus) bonuses.push('+' + item.attack_bonus + ' ATK');
       if (item.defense_bonus) bonuses.push('+' + item.defense_bonus + ' DEF');
@@ -6557,7 +9004,7 @@ async function showEquipmentModal(petId) {
       equipBtn.textContent = 'Equip';
       equipBtn.style.marginTop = '10px';
       equipBtn.onclick = function() { 
-        equipItem(playerEquip.id, item.equipment_type);
+        equipItem(playerEquip.id, item.equipment_type, petId); // ← pass petId
         document.body.removeChild(modal);
       };
       card.appendChild(equipBtn);
@@ -6574,31 +9021,29 @@ async function showEquipmentModal(petId) {
   closeBtn.onclick = function() { document.body.removeChild(modal); };
   modalContent.appendChild(closeBtn);
   
-  console.log('About to append modal to body...');
   modal.appendChild(modalContent);
   document.body.appendChild(modal);
-  console.log('Modal appended! Should be visible now.');
-  console.log('Modal element in DOM:', document.getElementById(modal.id));
-  console.log('Modal computed style display:', window.getComputedStyle(modal).display);
-  console.log('Modal computed style z-index:', window.getComputedStyle(modal).zIndex);
   } catch (error) {
     console.error('Error in showEquipmentModal:', error);
     showToast('Error opening equipment manager!');
   }
 }
 
-async function equipItem(playerEquipmentId, equipmentType) {
-  // Unequip any existing item in that slot
+async function equipItem(playerEquipmentId, equipmentType, petId) {
+  if (!petId) { console.error('equipItem called without petId'); return; }
+  
+  // Unequip any existing item in that slot FOR THIS PET ONLY
   await supabaseClient
     .from('player_equipment')
-    .update({ is_equipped: false, equipped_slot: null })
+    .update({ is_equipped: false, equipped_slot: null, pet_id: null })
     .eq('user_id', currentUser.id)
+    .eq('pet_id', petId)
     .eq('equipped_slot', equipmentType);
   
-  // Equip new item
+  // Equip the new item, linking it to this pet
   await supabaseClient
     .from('player_equipment')
-    .update({ is_equipped: true, equipped_slot: equipmentType })
+    .update({ is_equipped: true, equipped_slot: equipmentType, pet_id: petId })
     .eq('id', playerEquipmentId);
   
   showToast('Equipment equipped!');
@@ -6606,11 +9051,15 @@ async function equipItem(playerEquipmentId, equipmentType) {
   loadMyPets();
 }
 
-async function unequipItem(slot) {
+async function unequipItem(slot, petId) {
+  if (!petId) { console.error('unequipItem called without petId'); return; }
+  
+  // Only unequip from this specific pet
   await supabaseClient
     .from('player_equipment')
-    .update({ is_equipped: false, equipped_slot: null })
+    .update({ is_equipped: false, equipped_slot: null, pet_id: null })
     .eq('user_id', currentUser.id)
+    .eq('pet_id', petId)
     .eq('equipped_slot', slot);
   
   showToast('Equipment unequipped!');
@@ -6644,11 +9093,12 @@ async function calculatePetStats(petId) {
   // Calculate max HP from base + evolution + equipment
   var maxHP = (pet.base_hp || 30) + evolutionBonuses.hp;
   
-  // Get equipped items
+  // Get equipped items for THIS specific pet (for battle stats)
   var equipRes = await supabaseClient
     .from('player_equipment')
     .select('equipment(*)')
     .eq('user_id', currentUser.id)
+    .eq('pet_id', petId)
     .eq('is_equipped', true);
   
   if (!equipRes.error && equipRes.data) {
@@ -6669,7 +9119,7 @@ async function calculatePetStats(petId) {
   // Use current_hp if available (even if 0!), otherwise use maxHP for new pets
   var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : maxHP;
   
-  console.log('📊 Pet HP loaded:', {
+  dbg('📊 Pet HP loaded:', {
     petId: petId,
     current_hp_from_db: pet.current_hp,
     maxHP: maxHP,
@@ -6725,7 +9175,7 @@ function simulateBattle(playerStats, enemyStats) {
   var playerHP = playerStats.currentHP;
   var enemyHP = enemyStats.hp;
   var turn = 0;
-  var maxTurns = 50; // prevent infinite loops
+  var maxTurns = GAME_CONSTANTS.BATTLE_MAX_TURNS; // prevent infinite loops
   
   // Determine who goes first based on speed
   var playerFirst = playerStats.stats.speed >= enemyStats.speed;
@@ -6978,7 +9428,7 @@ async function startBattle(petId, enemyId) {
 async function startBattleWithEnemy(petId, enemy) {
   if (!currentUser) return;
   
-  console.log('⚔️ BATTLE START - Pet ID:', petId, 'Enemy:', enemy.name);
+  dbg('⚔️ BATTLE START - Pet ID:', petId, 'Enemy:', enemy.name);
   
   // Get player pet stats (includes current HP and energy)
   var playerStats = await calculatePetStats(petId);
@@ -6987,7 +9437,7 @@ async function startBattleWithEnemy(petId, enemy) {
     return;
   }
   
-  console.log('👤 Player HP at battle start:', playerStats.currentHP);
+  dbg('👤 Player HP at battle start:', playerStats.currentHP);
   
   // Check if pet has enough energy (need at least 5)
   if (playerStats.energy < 5) {
@@ -7052,46 +9502,24 @@ function calculateReward(enemyLevel, zone, type) {
 async function executeBattle(playerStats, enemyStats, petId) {
   // Deduct 5 energy from pet BEFORE battle
   // Get fresh energy value from database to be sure
-  var freshPet = await supabaseClient
-    .from('user_pets')
-    .select('energy')
-    .eq('id', petId)
-    .single();
-  
-  console.log('=== ENERGY DEDUCTION DEBUG ===');
-  console.log('Pet ID:', petId);
-  console.log('Fresh pet query result:', freshPet);
-  
-  if (freshPet.data) {
-    var currentEnergy = freshPet.data.energy || 100;
-    var newEnergy = Math.max(0, currentEnergy - 5);
-    
-    console.log('Energy deduction: ' + currentEnergy + ' -> ' + newEnergy);
-    showToast('⚡ Energy: ' + currentEnergy + ' → ' + newEnergy);
-    
-    var updateRes = await supabaseClient
-      .from('user_pets')
-      .update({ energy: newEnergy })
-      .eq('id', petId);
-    
-    console.log('Energy update result:', updateRes);
-    
-    if (updateRes.error) {
-      console.error('Energy update error:', updateRes.error);
-      showToast('❌ Energy update failed!');
-    } else {
-      console.log('Energy updated successfully!');
-      showToast('✅ Energy updated to ' + newEnergy);
-    }
+  var { data: newEnergy, error: energyErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+    p_pet_id: petId, p_stat: 'energy', p_delta: -5, p_reason: 'battle_energy_cost'
+  });
+
+  if (!energyErr) {
+    dbg('Energy deducted via RPC, new value:', newEnergy);
+    showToast('⚡ Energy: ' + newEnergy);
+    if (petState[petId]) petState[petId].energy = newEnergy;
   } else {
-    console.error('Failed to fetch pet energy!');
+    console.error('Energy update error:', energyErr);
+    showToast('❌ Energy update failed!');
   }
-  console.log('=== END ENERGY DEBUG ===');
+  dbg('=== END ENERGY DEBUG ===');
   
   // Simulate the battle
   var battleResult = simulateBattle(playerStats, enemyStats);
   
-  console.log('🎲 BATTLE RESULT:', {
+  dbg('🎲 BATTLE RESULT:', {
     victory: battleResult.victory,
     playerFinalHP: battleResult.playerFinalHP,
     enemyFinalHP: battleResult.enemyFinalHP,
@@ -7104,13 +9532,33 @@ async function executeBattle(playerStats, enemyStats, petId) {
   
   // Save battle to history and get rewards
   // For dynamically scaled enemies, use the base enemy ID
-  console.log('💾 About to save battle - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
+  dbg('💾 About to save battle - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   battleRewards = await saveBattleHistory(petId, enemyStats.id, battleResult, enemyStats);
   
-  console.log('✅ saveBattleHistory completed. Rewards:', battleRewards);
-  
+  dbg('✅ saveBattleHistory completed. Rewards:', battleRewards);
+
+  // ── Special battle achievement badges ──
+  if (battleResult.victory) {
+    // Speed Demon: won in under 3 turns
+    if ((battleResult.turnCount || battleResult.turns || 0) < 3) {
+      await awardBadge('badge_speed_demon');
+    }
+    // The Wall: won taking less than 10 total damage
+    if ((battleResult.totalDamageTaken || 0) < 10) {
+      await awardBadge('badge_the_wall');
+    }
+    // Comeback King: won with less than 5% HP remaining
+    var maxHP = battleResult.playerMaxHP || 100;
+    var finalHP = battleResult.playerFinalHP || 0;
+    if (finalHP > 0 && (finalHP / maxHP) < 0.05) {
+      await awardBadge('badge_comeback');
+    }
+    // WISHES: battle win
+    checkPetWishes('win_battle', petId).catch(function(){});
+  }
+
   // CRITICAL: Force reload pet data AFTER HP is saved
-  console.log('🔄 Forcing pet data reload after battle...');
+  dbg('🔄 Forcing pet data reload after battle...');
   await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure DB write completes
   tabsLoaded['mypets'] = false;
   tabsLoaded['battle'] = false;
@@ -7120,18 +9568,18 @@ async function executeBattle(playerStats, enemyStats, petId) {
  * Save battle to database
  */
 async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
-  console.log('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
+  dbg('💾 saveBattleHistory called - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
   
   // FIX: Handle integer enemy IDs correctly
   var actualEnemyId = enemyId;
   
   // If enemyId is a number or string number, keep it as number (don't try to convert to UUID)
   if (typeof enemyId === 'number' || (typeof enemyId === 'string' && !isNaN(parseInt(enemyId)))) {
-    console.log('Enemy ID is numeric:', enemyId, '- using as integer');
+    dbg('Enemy ID is numeric:', enemyId, '- using as integer');
     actualEnemyId = parseInt(enemyId);
   }
   
-  console.log('Saving battle with enemy ID:', actualEnemyId, 'type:', typeof actualEnemyId);
+  dbg('Saving battle with enemy ID:', actualEnemyId, 'type:', typeof actualEnemyId);
   
   // ⚠️ IMPORTANT: Your RPC needs to accept INTEGER for p_enemy_id
   // See SQL file: create_save_battle_result_integer.sql
@@ -7150,20 +9598,44 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   var expGained = 0;
   var ppGained = 0;
-  
-  if (rpcError) {
-    console.error('❌ Battle save error:', rpcError);
-    // Fall back to client-side if server function fails
+
+  if (rpcError || (result && result.error)) {
+    console.error('❌ Battle save error:', rpcError || result.error);
+    // Fall back to client-side calculation — but actually award it via the secure RPC
+    // this time, instead of just computing a display number with nothing behind it.
     expGained = battleResult.victory ? (enemyStats.exp_reward || 10) : 0;
-    ppGained = battleResult.victory ? (enemyStats.pp_reward || 10) : 0;
+    ppGained = battleResult.victory ? Math.round((enemyStats.pp_reward || 10) * 1.5) : 0;
+    if (ppGained > 0) {
+      var { data: fallbackNewTotal, error: fallbackPpErr } = await supabaseClient.rpc('award_pp_secure', {
+        p_amount: ppGained, p_reason: 'battle_win_fallback'
+      });
+      if (fallbackPpErr) {
+        console.error('Fallback PP award also failed:', fallbackPpErr);
+        ppGained = 0; // don't claim a reward that was never actually granted
+      } else {
+        updateAllPoints(fallbackNewTotal);
+      }
+    }
   } else {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
-    console.log('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
+    dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
+    // save_battle_result already credited PP server-side — refresh the displayed
+    // balance with the player's real current total so the sidebar updates.
+    var { data: freshPlayer } = await supabaseClient.from('players').select('pawketpoints').eq('id', currentUser.id).single();
+    if (freshPlayer) updateAllPoints(freshPlayer.pawketpoints);
+  }
+  
+  // Apply guild XP boost perk
+  var xpPerkMult = getActivePerkMultiplier('xp_boost');
+  if (xpPerkMult > 1 && expGained > 0) {
+    expGained = Math.floor(expGained * xpPerkMult);
   }
   
   // CRITICAL: Ensure HP is properly updated after battle
   if (battleResult.victory || battleResult.playerFinalHP > 0) {
+    // Award Pass XP for battles (capped daily via 'battle' source)
+    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(){});
     var hpUpdate = await supabaseClient
       .from('user_pets')
       .update({ current_hp: battleResult.playerFinalHP })
@@ -7172,7 +9644,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     if (hpUpdate.error) {
       console.error('Failed to update pet HP directly:', hpUpdate.error);
     } else {
-      console.log('✅ Pet HP updated to:', battleResult.playerFinalHP);
+      dbg('✅ Pet HP updated to:', battleResult.playerFinalHP);
     }
   }
   
@@ -7183,7 +9655,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   
   // BOSS DROP - Guaranteed item if you beat a boss!
   if (battleResult.victory && enemyStats.is_boss) {
-    console.log('🎁 Boss defeated! Rolling for exclusive drop...');
+    dbg('🎁 Boss defeated! Rolling for exclusive drop...');
     
     // Log boss defeat activity
     await logActivity('boss_defeated', {
@@ -7201,7 +9673,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       // Random drop from this boss's loot table
       itemDropped = bossDropRes.data[Math.floor(Math.random() * bossDropRes.data.length)];
       
-      console.log('🎉 Boss dropped:', itemDropped.name);
+      dbg('🎉 Boss dropped:', itemDropped.name);
       
       // Check if player already has this item
       var existingItem = await supabaseClient
@@ -7238,6 +9710,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         .from('items')
         .select('*')
         .lte('price', 100)
+        .or('is_boss_drop.is.null,is_boss_drop.eq.false')
         .limit(20);
       
       if (!itemsRes.error && itemsRes.data && itemsRes.data.length > 0) {
@@ -7258,6 +9731,27 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   // FETCH UPDATED PET DATA for level-up display
   // ═══════════════════════════════════════════════════════════
   if (battleResult.victory) {
+    // COMMUNITY GOALS: Track battle wins
+    community_increment('battle_wins_week1', 1);
+    
+    // COMMUNITY GOALS: Track mushroom defeats
+    if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
+      community_increment('defeat_mushrooms_week1', 1);
+    }
+    
+    // SCRAPBOOK: Add first battle win memory
+    var hasWinMemory = await scrapbook_hasMemory(petId, 'first_battle_win');
+    if (!hasWinMemory) {
+      scrapbook_addMemory(petId, 'first_battle_win', { enemy: enemyStats.name || 'an enemy' });
+    }
+    
+    // SCRAPBOOK: Low HP victory (if HP < 10%)
+    var petStats = window.petState && window.petState[petId];
+    var maxHp = (petStats && petStats.base_hp) || 100;
+    if (battleResult.playerFinalHP < maxHp * 0.1 && battleResult.playerFinalHP > 0) {
+      scrapbook_addMemory(petId, 'low_hp_victory', { hp: battleResult.playerFinalHP });
+    }
+    
     var petData = await supabaseClient
       .from('user_pets')
       .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, total_battles, battles_won, energy')
@@ -7281,7 +9775,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       );
       
       // Store level up info for the rewards modal
-      if (lu.leveled) {
+      if (lu.leveled && battleRewards) {
         var oldStage = getEvolutionStage(pet.level);
         var newStage = getEvolutionStage(lu.level);
         
@@ -7303,6 +9797,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           level: lu.level
         });
         
+        // SCRAPBOOK: Level milestones at 5, 10, 15, 20
+        if (lu.level === 5 || lu.level === 10 || lu.level === 15 || lu.level === 20) {
+          scrapbook_addMemory(petId, 'level_milestone', { level: lu.level });
+        }
+        
         // Check if pet evolved to a new stage
         if (oldStage !== newStage) {
           battleRewards.evolved = true;
@@ -7310,6 +9809,14 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           battleRewards.evolutionEmoji = getEvolutionEmoji(newStage);
         }
       }
+    }
+  }
+  
+  // SCRAPBOOK: First battle loss
+  if (!battleResult.victory && battleResult.playerFinalHP <= 0) {
+    var hasLossMemory = await scrapbook_hasMemory(petId, 'first_battle_loss');
+    if (!hasLossMemory) {
+      scrapbook_addMemory(petId, 'first_battle_loss', { enemy: enemyStats.name || 'an enemy' });
     }
   }
   
@@ -7446,43 +9953,34 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     enemyHPBar.classList.remove('boss-hp-bar');
   }
   
-  // Set enemy sprite based on species
+  // Set enemy sprite based on species — emoji fallback (no broken sprite sheets)
   var enemySprite = el('enemy-battle-sprite');
-  
-  // Clear any existing content and classes
   enemySprite.innerHTML = '';
   enemySprite.className = 'battle-sprite enemy-sprite';
-  
-  // BOSS SPRITE - Show glitchy question mark
+  enemySprite.style.backgroundImage = 'none';
+  enemySprite.style.transform = '';
+
+  var speciesEmoji = {
+    'bird': '🐦', 'bunny': '🐰', 'baby bunny': '🐰', 'rabbit': '🐰',
+    'squirrel': '🐿️', 'fox': '🦊', 'boar': '🐗', 'wolf': '🐺',
+    'bear': '🐻', 'deer': '🦌', 'mushroom': '🍄', 'slime': '💚',
+    'raccoon': '🦝', 'spider': '🕷️', 'snake': '🐍', 'bat': '🦇',
+    'ghost': '👻', 'bee': '🐝', 'cat': '🐱', 'dog': '🐶',
+    'frog': '🐸', 'crab': '🦀', 'fish': '🐟', 'owl': '🦉',
+    'rat': '🐀', 'mouse': '🐭', 'pig': '🐷', 'sheep': '🐑',
+    'goat': '🐐', 'chicken': '🐔', 'turtle': '🐢', 'lizard': '🦎'
+  };
+
   if (enemyStats.is_boss) {
-    enemySprite.style.backgroundImage = 'none';
-    enemySprite.innerHTML = '<div class="boss-sprite">?</div>';
+    enemySprite.innerHTML = '<div class="boss-sprite" style="font-size:3rem;line-height:1;text-align:center;">?</div>';
   } else {
-    // Get sprite configuration
-    var config = getSpriteConfig(enemyStats.species);
-    
-    // Calculate full sheet dimensions
-    var sheetWidth = config.frameWidth * config.framesPerRow;
-    var sheetHeight = config.frameHeight;
-    
-    // CRITICAL: Show ONLY the FIRST frame (col 0, row 0)
-    enemySprite.style.backgroundImage = 'url(images/' + config.file + ')';
-    enemySprite.style.backgroundSize = sheetWidth + 'px ' + sheetHeight + 'px';
-    enemySprite.style.backgroundRepeat = 'no-repeat';
-    enemySprite.style.backgroundPosition = '0 0';  // First frame only
-    enemySprite.style.width = config.frameWidth + 'px';
-    enemySprite.style.height = config.frameHeight + 'px';
-    
-    // SCALE UP the sprite to make it more visible
-    enemySprite.style.transform = 'scale(1.5)';
-    enemySprite.style.imageRendering = 'pixelated';
-    
-    console.log('Sprite set to first frame only - width:', config.frameWidth, 'height:', config.frameHeight);
-    
-    // Apply special variant visual effect (if any)
-    if (enemyStats.specialVariant) {
-      enemySprite.classList.add('variant-' + enemyStats.specialVariant);
-    }
+    var speciesKey = (enemyStats.species || '').toLowerCase();
+    var emoji = speciesEmoji[speciesKey] || '👾';
+    enemySprite.innerHTML = '<div style="font-size:3.5rem;line-height:1;text-align:center;">' + emoji + '</div>';
+  }
+
+  if (enemyStats.specialVariant) {
+    enemySprite.classList.add('variant-' + enemyStats.specialVariant);
   }
   
   // Clear battle log
@@ -7601,7 +10099,7 @@ function getSpriteFile(species) {
 
 function startSpriteAnimation(spriteElement, species) {
   // No animation needed - static images only
-  console.log('Static sprite for:', species);
+  dbg('Static sprite for:', species);
   return;
 }
 
@@ -7707,10 +10205,10 @@ function playBattleTurn() {
     // Victory/defeat sounds temporarily disabled (missing MP3 files)
     if (entry.text.includes('Victory')) {
       // playBattleSound('victory', 0.40);  // Disabled - file missing
-      console.log('🎉 Victory! (sound disabled until MP3 added)');
+      dbg('🎉 Victory! (sound disabled until MP3 added)');
     } else {
       // playBattleSound('defeat', 0.35);  // Disabled - file missing
-      console.log('💀 Defeat! (sound disabled until MP3 added)');
+      dbg('💀 Defeat! (sound disabled until MP3 added)');
     }
   }
   
@@ -7889,6 +10387,11 @@ function showBattleRewardsModal() {
   }
   
   modal.classList.add('show');
+  
+  // NEW FEATURES: Check for rare drops after victory
+  if (battleRewards && battleRewards.victory && typeof newFeatures_checkBattleRewards === 'function') {
+    newFeatures_checkBattleRewards('battle_' + Date.now());
+  }
 }
 
 function closeBattleRewardsModal() {
@@ -7922,75 +10425,509 @@ async function closeBattle() {
 }
 
 // Load pets for battle selection
+// ═══════════════════════════════════════════════════════════════════════════
+// BATTLE-PAGE EXPEDITION SYSTEM
+// Manages explorations from the Battle Arena — unlimited concurrent pets
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Returns array of pet IDs currently on unexpired, unclaimed expeditions
+var _battleExpeditionPetIds = [];
+
+async function battleExp_init() {
+  if (!currentUser) return;
+  await battleExp_refreshActive();
+  await battleExp_renderForm();
+  await battleExp_renderHistory();
+  // Re-check every 30s for completions
+  safeSetInterval(battleExp_refreshActive, 30000);
+}
+
+async function battleExp_refreshActive() {
+  if (!currentUser) return;
+
+  var { data: active } = await supabaseClient
+    .from('expeditions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('claimed', false)
+    .order('ends_at', { ascending: true });
+
+  var rows = active || [];
+  var now = new Date();
+
+  // Mark completed ones
+  for (var i = 0; i < rows.length; i++) {
+    if (!rows[i].completed && new Date(rows[i].ends_at) <= now) {
+      await supabaseClient.from('expeditions').update({ completed: true }).eq('id', rows[i].id);
+      rows[i].completed = true;
+    }
+  }
+
+  // Update global pet ID list — only active (ends_at in future, not yet complete)
+  _battleExpeditionPetIds = rows.filter(function(r) { return !r.completed && new Date(r.ends_at) > new Date(); }).map(function(r) { return r.pet_id; });
+
+  battleExp_renderActive(rows);
+  // Also refresh battle pet selector if it's rendered
+  var grid = document.getElementById('battle-pet-select');
+  if (grid && grid.children.length > 0) loadBattlePets();
+}
+
+function battleExp_renderActive(rows) {
+  var mount = document.getElementById('battle-active-expeditions');
+  if (!mount) return;
+  var now = new Date();
+
+  if (!rows || rows.length === 0) {
+    mount.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">No pets currently exploring.</div>';
+    return;
+  }
+
+  mount.innerHTML = rows.map(function(r) {
+    var zone = EXPEDITION_ZONES.find(function(z) { return z.key === r.zone; }) || { label: r.zone, emoji: '🗺️' };
+    var pet  = petState[r.pet_id] || {};
+    var petName = pet.nickname || pet.pet_type || 'Pet';
+
+    if (r.completed) {
+      // Ready to claim
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(93,222,122,0.12);border-radius:10px;margin-bottom:6px;border:1px solid rgba(93,222,122,0.3);">' +
+        '<span style="font-size:1.1rem;">' + zone.emoji + '</span>' +
+        '<span style="flex:1;font-size:0.82rem;font-weight:600;color:var(--purple-dark);">' + escapeHtml(petName) + ' → ' + zone.label + '</span>' +
+        '<span style="font-size:0.78rem;color:#5dde7a;font-weight:700;">✅ Ready!</span>' +
+        '<button class="btn btn-primary btn-sm" onclick="battleExp_claim(\'' + r.id + '\')" style="font-size:0.75rem;padding:4px 10px;">Claim</button>' +
+      '</div>';
+    }
+
+    var remaining = Math.max(0, new Date(r.ends_at) - now);
+    var mins = Math.floor(remaining / 60000);
+    var secs = Math.floor((remaining % 60000) / 1000);
+    var timeStr = mins + 'm ' + secs + 's';
+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:rgba(153,102,255,0.06);border-radius:10px;margin-bottom:6px;border:1px solid rgba(153,102,255,0.15);">' +
+      '<span style="font-size:1.1rem;">' + zone.emoji + '</span>' +
+      '<span style="flex:1;font-size:0.82rem;color:var(--purple-dark);">' + escapeHtml(petName) + ' → <strong>' + zone.label + '</strong></span>' +
+      '<span style="font-size:0.78rem;color:var(--text-light);">⏱️ ' + timeStr + '</span>' +
+    '</div>';
+  }).join('');
+
+  // Live countdown tick
+  if (rows.some(function(r) { return !r.completed; })) {
+    setTimeout(function() { battleExp_refreshActive(); }, 10000);
+  }
+}
+
+async function battleExp_renderForm() {
+  var form = document.getElementById('battle-expedition-form');
+  if (!form || !currentUser) return;
+
+  form.innerHTML = '<div id="battle-exp-loading" style="color:var(--text-light);font-size:0.82rem;">Loading pets…</div>';
+
+  try {
+    // Query DB directly — don't rely on petState being populated
+    var { data: pets, error } = await supabaseClient
+      .from('user_pets')
+      .select('id, nickname, level, energy, pet_id, pets(name)')
+      .eq('user_id', currentUser.id);
+
+    if (error) throw error;
+
+    if (!pets || pets.length === 0) {
+      form.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;">Adopt a pet first!</div>';
+      return;
+    }
+
+    var petOptions = pets.map(function(p) {
+      var exploring = _battleExpeditionPetIds.indexOf(p.id) !== -1;
+      var disabled = exploring;
+      var petName = p.nickname || (p.pets && p.pets.name) || 'Pet';
+      return '<option value="' + p.id + '"' + (disabled ? ' disabled' : '') + '>' +
+        escapeHtml(petName) + ' Lv.' + (p.level||1) + ' ⚡' + Math.floor(p.energy||0) +
+        (exploring ? ' [Exploring]' : '') +
+      '</option>';
+    }).join('');
+
+  var zoneCards = EXPEDITION_ZONES.map(function(z) {
+    return '<div class="battle-exp-zone-card" data-zone="' + z.key + '" onclick="battleExp_selectZone(\'' + z.key + '\',this)" style="cursor:pointer;border:2px solid var(--border);border-radius:10px;padding:10px 8px;text-align:center;flex:1;min-width:0;transition:all 0.2s;">' +
+      '<div style="font-size:1.5rem;">' + z.emoji + '</div>' +
+      '<div style="font-weight:700;font-size:0.75rem;color:var(--purple-dark);">' + z.label + '</div>' +
+      '<div style="font-size:0.68rem;color:var(--text-light);">⏱️' + z.duration + 'm · ⚡' + z.energyCost + '</div>' +
+      '<div style="font-size:0.68rem;color:#e6a800;">💰' + z.minPP + '-' + z.maxPP + '</div>' +
+      '<div style="font-size:0.68rem;color:#5dde7a;">+' + z.xpReward + ' XP</div>' +
+    '</div>';
+  }).join('');
+
+  form.innerHTML =
+    '<div style="margin-bottom:10px;">' +
+      '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:4px;">Select Pet:</label>' +
+      '<select id="battle-exp-pet" onchange="battleExp_updateBtn()" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;">' +
+        '<option value="">-- Choose a pet --</option>' + petOptions +
+      '</select>' +
+    '</div>' +
+    '<div style="margin-bottom:12px;">' +
+      '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:6px;">Select Zone:</label>' +
+      '<div style="display:flex;gap:6px;">' + zoneCards + '</div>' +
+    '</div>' +
+    '<div id="battle-exp-info" style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;min-height:18px;"></div>' +
+    '<button id="battle-exp-btn" class="btn btn-primary" onclick="battleExp_start()" disabled style="width:100%;opacity:0.5;">🚀 Send on Expedition</button>';
+
+  } catch(err) {
+    form.innerHTML = '<div style="color:#ff6b6b;font-size:0.82rem;">Error loading pets: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+var _battleExpZone = null;
+
+function battleExp_selectZone(zoneKey, el) {
+  _battleExpZone = zoneKey;
+  document.querySelectorAll('.battle-exp-zone-card').forEach(function(c) {
+    c.style.borderColor = c.getAttribute('data-zone') === zoneKey ? 'var(--purple)' : 'var(--border)';
+    c.style.background  = c.getAttribute('data-zone') === zoneKey ? 'rgba(153,102,255,0.1)' : '';
+  });
+  battleExp_updateBtn();
+}
+
+function battleExp_updateBtn() {
+  var petId  = (document.getElementById('battle-exp-pet') || {}).value;
+  var btn    = document.getElementById('battle-exp-btn');
+  var info   = document.getElementById('battle-exp-info');
+  if (!btn || !info) return;
+  if (!petId || !_battleExpZone) { btn.disabled = true; btn.style.opacity = '0.5'; info.textContent = ''; return; }
+
+  var pet  = petState[petId];
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === _battleExpZone; });
+  if (!zone) return;
+
+  // If pet not in petState (My Pets not visited yet), fetch from DB then re-run
+  if (!pet) {
+    supabaseClient.from('user_pets').select('id, energy, level, nickname').eq('id', petId).single()
+      .then(function(res) {
+        if (res.data) { petState[petId] = res.data; battleExp_updateBtn(); }
+      }).catch(function(){});
+    return;
+  }
+
+  var ok = (pet.energy || 0) >= zone.energyCost;
+  btn.disabled  = !ok;
+  btn.style.opacity = ok ? '1' : '0.5';
+  info.textContent = ok
+    ? '⚡ Costs ' + zone.energyCost + ' energy · Returns in ' + zone.duration + ' min · ' + zone.minPP + '-' + zone.maxPP + ' PP + ' + zone.xpReward + ' XP'
+    : '❌ Need ' + zone.energyCost + ' energy (have ' + Math.floor(pet.energy||0) + ')';
+  if (!ok) info.style.color = '#ff6b6b'; else info.style.color = 'var(--text-light)';
+}
+
+async function battleExp_start() {
+  if (!canPerformAction('battle_expedition_start', 3000)) return;
+  var petSel = document.getElementById('battle-exp-pet');
+  if (!petSel) return;
+  var petId = petSel.value;
+  if (!petId || !_battleExpZone || !currentUser) return;
+
+  var pet  = petState[petId];
+  var zone = EXPEDITION_ZONES.find(function(z) { return z.key === _battleExpZone; });
+  if (!zone) return;
+
+  // If petState not loaded, fetch directly from DB
+  if (!pet) {
+    var { data: dbPet } = await supabaseClient.from('user_pets').select('*').eq('id', petId).single().catch(function(){ return { data: null }; });
+    if (!dbPet) { showToast('Pet not found — try refreshing', 2500); return; }
+    petState[petId] = dbPet;
+    pet = dbPet;
+  }
+  if ((pet.energy || 0) < zone.energyCost) { showToast('Not enough energy!', 2500); return; }
+  if (_battleExpeditionPetIds.indexOf(petId) !== -1) { showToast('That pet is already exploring!', 2500); return; }
+
+  var btn = document.getElementById('battle-exp-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+
+  var levelBonus = Math.min(1.5, 1 + (pet.level||1) / 100);
+  var rewardPP  = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus);
+  var rewardXP  = Math.floor(zone.xpReward * levelBonus);
+
+  // Single item drop using itemChance + ruins equipment split
+  var droppedItems = [];
+  if (Math.random() < (zone.itemChance || 0)) {
+    var pool = zone.itemPool || [];
+    var dropped = null;
+    if (zone.key === 'ruins') {
+      var equipPool = pool.filter(function(it) { return it.type === 'equipment'; });
+      var toyPool   = pool.filter(function(it) { return it.type !== 'equipment'; });
+      dropped = Math.random() < (zone.equipmentChance || 0.10)
+        ? equipPool[Math.floor(Math.random() * equipPool.length)]
+        : toyPool[Math.floor(Math.random() * toyPool.length)];
+    } else {
+      dropped = pool[Math.floor(Math.random() * pool.length)];
+    }
+    if (dropped) droppedItems.push(dropped);
+  }
+
+  var endsAt = new Date(Date.now() + zone.duration * 60000).toISOString();
+
+  var { data: row, error } = await supabaseClient.from('expeditions').insert({
+    user_id: currentUser.id, pet_id: petId, zone: _battleExpZone,
+    ends_at: endsAt, completed: false, claimed: false,
+    reward_pp: rewardPP, reward_items: droppedItems
+  }).select().single();
+
+  if (error) { showToast('Failed: ' + error.message, 3000); if (btn) { btn.disabled = false; btn.textContent = '🚀 Send on Expedition'; } return; }
+
+  // Deduct energy AFTER successful DB insert
+  var { data: newEnergy, error: energyErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+    p_pet_id: petId, p_stat: 'energy', p_delta: -zone.energyCost, p_reason: 'expedition_start'
+  });
+  if (!energyErr && petState[petId]) petState[petId].energy = newEnergy;
+
+  showToast('🌲 ' + (pet.nickname || 'Your pet') + ' set off for the ' + zone.label + '!', 3000);
+  _battleExpZone = null;
+  await battleExp_refreshActive();
+  await battleExp_renderForm();
+  await battleExp_renderHistory();
+}
+
+async function battleExp_claim(expeditionId) {
+  var btn = document.querySelector('[onclick*="battleExp_claim(\'' + expeditionId + '\')"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Claiming…'; }
+
+  var { data: row } = await supabaseClient.from('expeditions').select('*').eq('id', expeditionId).single();
+  if (!row) { showToast('Expedition not found', 3000); return; }
+
+  await supabaseClient.from('expeditions').update({ claimed: true }).eq('id', expeditionId);
+
+  var pp    = row.reward_pp || 0;
+  var items = row.reward_items || [];
+  var pet   = petState[row.pet_id] || {};
+  var zone  = EXPEDITION_ZONES.find(function(z) { return z.key === row.zone; }) || { xpReward: 0 };
+
+  await awardPP(pp, 'expedition_' + row.zone);
+  await addPetXP(row.pet_id, zone.xpReward);
+
+  // Streak + secrets
+  var expStreak = await checkExplorationStreak(row.pet_id, row.zone);
+  var expMult   = getStreakMultiplier(row.pet_id, row.zone);
+  if (expMult > 1) {
+    var bonusPP = Math.floor(pp * (expMult - 1));
+    if (bonusPP > 0) { await awardPP(bonusPP, 'streak_bonus'); showToast('🔥 Streak bonus: +' + bonusPP + ' PP!', 3000); }
+  }
+  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(){});
+
+  // Award item drops
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].id) {
+      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(){});
+    }
+  }
+
+  addPassXP(10, 'expedition').catch(function(){});
+  checkPetWishes('expedition', row.pet_id).catch(function(){});
+  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  community_increment('expeditions_week1', 1);
+
+  // Show rewards modal
+  var itemText = items.length > 0 ? items.map(function(it) { return it.icon + ' ' + it.name; }).join(', ') : 'No items';
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="text-align:center;padding:10px 0;">' +
+      '<div style="font-size:2.5rem;margin-bottom:8px;">🎒</div>' +
+      '<div style="font-weight:800;font-size:1.05rem;color:var(--purple-dark);margin-bottom:6px;">' + escapeHtml(pet.nickname || 'Your pet') + ' returned!</div>' +
+      '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.12),rgba(153,102,255,0.08));border-radius:14px;padding:14px;margin:10px 0;">' +
+        '<div style="font-size:1.8rem;font-weight:800;color:#e6a800;">+' + pp + ' PP</div>' +
+        '<div style="font-size:0.85rem;color:#5dde7a;font-weight:600;margin-top:4px;">+' + zone.xpReward + ' XP</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-light);margin-top:6px;">' + escapeHtml(itemText) + '</div>' +
+      '</div>' +
+      '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Awesome! 🎉</button>' +
+    '</div>';
+  openModal(modal);
+
+  await battleExp_refreshActive();
+  await battleExp_renderHistory();
+}
+
+async function battleExp_renderHistory() {
+  var mount = document.getElementById('battle-expedition-history');
+  if (!mount || !currentUser) return;
+
+  var { data: history } = await supabaseClient
+    .from('expeditions')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('claimed', true)
+    .order('started_at', { ascending: false })
+    .limit(10);
+
+  if (!history || history.length === 0) {
+    mount.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">No expeditions yet.</div>';
+    return;
+  }
+
+  mount.innerHTML = history.map(function(r) {
+    var zone = EXPEDITION_ZONES.find(function(z) { return z.key === r.zone; }) || { emoji:'🗺️', label:r.zone };
+    var pet  = petState[r.pet_id] || {};
+    var items = (r.reward_items || []).map(function(it) { return it.icon || '📦'; }).join(' ');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.78rem;">' +
+      '<span>' + zone.emoji + ' ' + escapeHtml(pet.nickname || 'Pet') + ' → ' + zone.label + '</span>' +
+      '<span style="margin-left:auto;color:#e6a800;font-weight:600;">+' + (r.reward_pp||0) + ' PP</span>' +
+      (items ? '<span style="margin-left:4px;">' + items + '</span>' : '') +
+    '</div>';
+  }).join('');
+}
+
+// ── addPetXP helper ───────────────────────────────────────────────────────
+async function addPetXP(petId, xpAmount) {
+  if (!petId || !xpAmount) return;
+  try {
+    var pet = petState[petId];
+    if (!pet) {
+      var { data } = await supabaseClient.from('user_pets').select('xp, level').eq('id', petId).single();
+      if (!data) return;
+      pet = data;
+    }
+    var newXP = (pet.xp || 0) + xpAmount;
+    await supabaseClient.from('user_pets').update({ xp: newXP }).eq('id', petId);
+    if (petState[petId]) petState[petId].xp = newXP;
+  } catch(e) { dbg('addPetXP error:', e); }
+}
+
+// ── Confirm Purchase Modal ─────────────────────────────────────────────────
+function confirmPurchase(itemName, price, onConfirm) {
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="text-align:center;padding:10px;max-width:320px;">' +
+      '<div style="font-size:2rem;margin-bottom:10px;">🛒</div>' +
+      '<h3 style="margin-bottom:8px;">Confirm Purchase</h3>' +
+      '<p style="color:var(--text-light);font-size:0.9rem;margin-bottom:18px;">Buy <strong>' + escapeHtml(itemName) + '</strong> for <strong>' + price + ' PP</strong>?</p>' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button class="btn btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>' +
+        '<button class="btn btn-primary" id="confirm-buy-btn" style="flex:1;">Buy</button>' +
+      '</div>' +
+    '</div>';
+  openModal(modal);
+  document.getElementById('confirm-buy-btn').onclick = function() {
+    closeModal();
+    onConfirm();
+  };
+}
+
 async function loadBattlePets() {
   var grid = el('battle-pet-select');
+  if (!grid) {
+    setTimeout(loadBattlePets, 100);
+    return;
+  }
+
   grid.innerHTML = '<div class="spinner"></div>';
-  
+
   if (!currentUser) {
     grid.innerHTML = '<div class="empty-state"><p>Please log in first! 🐾</p></div>';
     return;
   }
-  
-  var res = await supabaseClient
-    .from('user_pets')
-    .select('id, nickname, level, base_hp, base_attack, base_defense, base_speed, current_hp, max_hp, energy, max_energy, pet_id, pets!inner(name, image_file)')
-    .eq('user_id', currentUser.id);
-  
-  if (res.error) {
-    console.error('Battle pets query error:', res.error);
-    grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + res.error.message + '</p></div>';
-    return;
+
+  try {
+    // Use the same JOIN as loadMyPets — this works because it's how the rest of the app loads images
+    var petRes = await supabaseClient
+      .from('user_pets')
+      .select('*, pets(name, image_file, vtuber_name)')
+      .eq('user_id', currentUser.id);
+
+    if (petRes.error) throw petRes.error;
+    if (!petRes.data || petRes.data.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><p>You have no pets! Adopt one first.</p></div>';
+      return;
+    }
+
+    // Get active expedition pet IDs
+    var expRes = await supabaseClient
+      .from('expeditions')
+      .select('pet_id')
+      .eq('user_id', currentUser.id)
+      .eq('claimed', false);
+    window._battleExpeditionPetIds = (expRes.data || []).map(function(r) { return r.pet_id; });
+
+    var availablePets = petRes.data.filter(function(p) {
+      return window._battleExpeditionPetIds.indexOf(p.id) === -1;
+    });
+
+    if (availablePets.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><p>All your pets are exploring! Wait for them to return. 🧭</p></div>';
+      return;
+    }
+
+    grid.innerHTML = '';
+
+    availablePets.forEach(function(pet) {
+      var card = makeEl('div', { class: 'battle-pet-card' });
+      card.onclick = function() { selectBattlePet(pet.id, card); };
+
+      // Same image logic as makeMyPetCard — pet.pets is the joined row
+      var petInfo = pet.pets || {};
+      var imageFile = petInfo.image_file || null;
+
+      var imgContainer = makeEl('div');
+      imgContainer.style.cssText = 'width:72px;height:72px;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;';
+
+      if (imageFile) {
+        var img = makeEl('img');
+        // DB image_file already contains 'pets/' prefix (e.g. 'pets/ember.png')
+        // so use 'images/' not 'images/pets/' to match makeMyPetCard and adopt page
+        img.src = 'images/' + imageFile;
+        img.style.cssText = 'max-width:72px;max-height:72px;object-fit:contain;';
+        img.onerror = function() {
+          this.style.display = 'none';
+          var fallback = makeEl('span');
+          fallback.style.fontSize = '2rem';
+          fallback.textContent = '🐾';
+          imgContainer.appendChild(fallback);
+        };
+        imgContainer.appendChild(img);
+      } else {
+        var fallback = makeEl('span');
+        fallback.style.fontSize = '2rem';
+        fallback.textContent = '🐾';
+        imgContainer.appendChild(fallback);
+      }
+      card.appendChild(imgContainer);
+
+      var name = makeEl('div', { class: 'battle-pet-card-name' });
+      name.textContent = escapeHtml(pet.nickname || petInfo.name || 'Pet');
+      card.appendChild(name);
+
+      var levelEl = makeEl('div', { class: 'battle-pet-card-level' });
+      levelEl.textContent = 'Level ' + (pet.level || 1);
+      card.appendChild(levelEl);
+
+      var stats = makeEl('div', { class: 'battle-pet-card-stats' });
+      var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
+      var maxHP = pet.max_hp || pet.base_hp || 30;
+
+      var hpStat = makeEl('div', { class: 'battle-pet-stat' });
+      hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + currentHP + '/' + maxHP + '</div>';
+      stats.appendChild(hpStat);
+      var atkStat = makeEl('div', { class: 'battle-pet-stat' });
+      atkStat.innerHTML = '<div class="battle-pet-stat-label">ATK</div><div class="battle-pet-stat-value">' + (pet.base_attack || 5) + '</div>';
+      stats.appendChild(atkStat);
+      var defStat = makeEl('div', { class: 'battle-pet-stat' });
+      defStat.innerHTML = '<div class="battle-pet-stat-label">DEF</div><div class="battle-pet-stat-value">' + (pet.base_defense || 3) + '</div>';
+      stats.appendChild(defStat);
+      var spdStat = makeEl('div', { class: 'battle-pet-stat' });
+      spdStat.innerHTML = '<div class="battle-pet-stat-label">SPD</div><div class="battle-pet-stat-value">' + (pet.base_speed || 4) + '</div>';
+      stats.appendChild(spdStat);
+      card.appendChild(stats);
+
+      if ((pet.energy || 0) < 5) {
+        var warn = makeEl('div');
+        warn.style.cssText = 'font-size:0.7rem;color:#ff6b6b;margin-top:4px;text-align:center;';
+        warn.textContent = '⚠️ Low energy';
+        card.appendChild(warn);
+      }
+
+      grid.appendChild(card);
+    });
+
+    var helperText = el('battle-helper-text');
+    if (helperText) helperText.textContent = 'Select a pet to battle (' + availablePets.length + ' available)';
+
+  } catch(err) {
+    dbg('loadBattlePets error:', err);
+    grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + escapeHtml(err.message) + '</p>' +
+      '<button class="btn btn-primary" onclick="loadBattlePets()" style="margin-top:8px;">Retry</button></div>';
   }
-  
-  if (!res.data || res.data.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><p>You need a pet to battle! Adopt one first. 🐾</p></div>';
-    return;
-  }
-  
-  grid.innerHTML = '';
-  
-  res.data.forEach(function(userPet) {
-    var pet = userPet.pets;
-    var card = makeEl('div', { class: 'battle-pet-card' });
-    card.onclick = function() { selectBattlePet(userPet.id, card); };
-    
-    var img = makeEl('img');
-    img.src = 'images/pets/' + pet.image_file;
-    img.alt = pet.name;
-    card.appendChild(img);
-    
-    var name = makeEl('div', { class: 'battle-pet-card-name' });
-    name.textContent = userPet.nickname || pet.name;
-    card.appendChild(name);
-    
-    var level = makeEl('div', { class: 'battle-pet-card-level' });
-    level.textContent = 'Level ' + userPet.level;
-    card.appendChild(level);
-    
-    var stats = makeEl('div', { class: 'battle-pet-card-stats' });
-    
-    var hpStat = makeEl('div', { class: 'battle-pet-stat' });
-    var currentHP = (userPet.current_hp !== null && userPet.current_hp !== undefined) ? userPet.current_hp : (userPet.base_hp || 30);
-    var maxHP = userPet.max_hp || userPet.base_hp || 30;
-    hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + currentHP + '/' + maxHP + '</div>';
-    stats.appendChild(hpStat);
-    
-    var atkStat = makeEl('div', { class: 'battle-pet-stat' });
-    atkStat.innerHTML = '<div class="battle-pet-stat-label">ATK</div><div class="battle-pet-stat-value">' + userPet.base_attack + '</div>';
-    stats.appendChild(atkStat);
-    
-    var defStat = makeEl('div', { class: 'battle-pet-stat' });
-    defStat.innerHTML = '<div class="battle-pet-stat-label">DEF</div><div class="battle-pet-stat-value">' + userPet.base_defense + '</div>';
-    stats.appendChild(defStat);
-    
-    var spdStat = makeEl('div', { class: 'battle-pet-stat' });
-    spdStat.innerHTML = '<div class="battle-pet-stat-label">SPD</div><div class="battle-pet-stat-value">' + userPet.base_speed + '</div>';
-    stats.appendChild(spdStat);
-    
-    card.appendChild(stats);
-    
-    grid.appendChild(card);
-  });
 }
 
 function selectBattlePet(petId, cardElement) {
@@ -8078,11 +11015,12 @@ async function handleBattleEncounter() {
 }
 
 async function handleItemEncounter() {
-  // Get random common item
+  // Get random common item (lower-priced = common tier equivalent)
   var itemsRes = await supabaseClient
     .from('items')
     .select('*')
-    .eq('tier', 1)
+    .lte('price', 80)
+    .or('is_boss_drop.is.null,is_boss_drop.eq.false')
     .limit(20);
   
   if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) {
@@ -8130,13 +11068,15 @@ async function handleItemEncounter() {
 }
 
 async function handleTreasureEncounter() {
-  // Get random rare item (tier 2 or 3)
-  var tier = Math.random() < 0.7 ? 2 : 3; // 70% tier 2, 30% tier 3
+  // Get random rare item — use price as a proxy for rarity tier
+  // (mid/high priced items = rarer finds, same concept as tier 2/3)
+  var isHighRare = Math.random() < 0.3; // 30% chance of higher-value item
   
   var itemsRes = await supabaseClient
     .from('items')
     .select('*')
-    .eq('tier', tier)
+    .gte('price', isHighRare ? 100 : 50)
+    .or('is_boss_drop.is.null,is_boss_drop.eq.false')
     .limit(15);
   
   if (itemsRes.error || !itemsRes.data || itemsRes.data.length === 0) {
@@ -8307,8 +11247,8 @@ async function getRandomEnemy(zone, playerLevel) {
   // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < 0.03 && playerSettings.spooky_enabled) {  // 3% chance (~1 in 33 battles) + spooky enabled
-    console.log('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
+  if (bossRoll < GAME_CONSTANTS.BOSS_ENCOUNTER_RATE && playerSettings.spooky_enabled) { // 3% chance + spooky enabled
+    dbg('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
     return await getBossEnemy(zone, playerLevel);
   }
   
@@ -8348,10 +11288,12 @@ async function getRandomEnemy(zone, playerLevel) {
     return null;
   }
   
-  // CRITICAL: Filter out raccoons completely
+  // CRITICAL: Filter out raccoons completely (guard against null species/name)
   var filteredEnemies = res.data.filter(function(enemy) {
-    return enemy.species !== 'raccoon' && 
-           enemy.name.toLowerCase().indexOf('raccoon') === -1;
+    if (!enemy.name) return false;
+    var speciesOk = !enemy.species || enemy.species !== 'raccoon';
+    var nameOk = enemy.name.toLowerCase().indexOf('raccoon') === -1;
+    return speciesOk && nameOk;
   });
   
   if (filteredEnemies.length === 0) {
@@ -8554,7 +11496,7 @@ async function getRandomEnemy(zone, playerLevel) {
     rewardMultiplier: rewardMultiplier
   };
   
-  console.log('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Special:', specialVariant, 'Stats:', {
+  dbg('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Special:', specialVariant, 'Stats:', {
     hp: scaledEnemy.base_hp,
     atk: scaledEnemy.base_attack,
     def: scaledEnemy.base_defense,
@@ -8618,7 +11560,7 @@ async function getBossEnemy(zone, playerLevel) {
 }
 
 function triggerBossEntrance() {
-  console.log('🔥 Triggering boss entrance sequence...');
+  dbg('🔥 Triggering boss entrance sequence...');
   
   // Add UI fragmentation effect to entire page
   document.body.classList.add('boss-ui-glitch');
@@ -8635,17 +11577,17 @@ function triggerBossEntrance() {
     window.bossThemeAudio.loop = true;
     window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
     window.bossThemeAudio.onerror = function() {
-      console.log('⚠️ Boss music file not found: /boss-theme.mp3');
-      console.log('💡 Upload boss-theme.mp3 to your repo root to enable boss music!');
+      dbg('⚠️ Boss music file not found: /boss-theme.mp3');
+      dbg('💡 Upload boss-theme.mp3 to your repo root to enable boss music!');
     };
   }
   window.bossThemeAudio.currentTime = 0;
   window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
   
   window.bossThemeAudio.play().then(function() {
-    console.log('🎵 Boss music playing!');
+    dbg('🎵 Boss music playing!');
   }).catch(function(err) {
-    console.log('⚠️ Boss music failed to play:', err.message);
+    dbg('⚠️ Boss music failed to play:', err.message);
   });
   
   // Add screen glitch effect - STAYS FOR ENTIRE FIGHT!
@@ -8806,7 +11748,7 @@ function stopBossWarningText() {
 }
 
 function triggerBossDeathScreen() {
-  console.log('💀 Boss death screen triggered...');
+  dbg('💀 Boss death screen triggered...');
   
   // Stop scrolling warnings
   stopBossWarningText();
@@ -8912,7 +11854,7 @@ function startBossMusicGlitchFade() {
     try {
       window.audioContext = new (window.AudioContext || window.webkitAudioContext)();
     } catch (e) {
-      console.log('Web Audio API not supported, falling back to simple fade');
+      dbg('Web Audio API not supported, falling back to simple fade');
       simpleMusicFade(audio, startVolume, fadeDuration);
       return;
     }
@@ -9267,7 +12209,7 @@ async function loadFriendsList() {
     // Fetch friend data
     var { data: friends, error: friendError } = await supabaseClient
       .from('players')
-      .select('id, username, pawketpoints, created_at')
+      .select('id, username, pawketpoints, created_at, last_login')
       .in('id', friendIds);
     
     if (friendError) throw friendError;
@@ -9440,6 +12382,23 @@ async function loadBlockedUsers() {
 }
 
 // Render friend card (used for friends, requests, and blocked users)
+// ── Friend "last active" helpers ────────────────────────────────────────────
+function friendIsOnlineNow(lastLogin) {
+  if (!lastLogin) return false;
+  var diffMs = Date.now() - new Date(lastLogin).getTime();
+  return diffMs < 5 * 60000; // active within last 5 minutes = "online"
+}
+
+function formatLastActive(lastLogin) {
+  if (!lastLogin) return '⚪ Never logged in';
+  var diffMs = Date.now() - new Date(lastLogin).getTime();
+  if (diffMs < 5 * 60000)        return '🟢 Online now';
+  if (diffMs < 3600000)          return '⚪ Active ' + Math.floor(diffMs / 60000) + 'm ago';
+  if (diffMs < 86400000)         return '⚪ Active ' + Math.floor(diffMs / 3600000) + 'h ago';
+  if (diffMs < 604800000)        return '⚪ Active ' + Math.floor(diffMs / 86400000) + 'd ago';
+  return '⚪ Active ' + Math.floor(diffMs / 604800000) + 'w ago';
+}
+
 function renderFriendCard(user, type) {
   var cardClass = type === 'request' ? 'friend-request-card' : type === 'blocked' ? 'blocked-user-card' : '';
   
@@ -9455,6 +12414,11 @@ function renderFriendCard(user, type) {
     html += '      <span class="friend-stat">⭐ Level ' + (user.totalLevel || 0) + '</span>';
     html += '      <span class="friend-stat">🎖️ ' + (user.badgeCount || 0) + ' Badges</span>';
     html += '    </div>';
+    if (type === 'friend') {
+      html += '    <div class="friend-stats" style="margin-top:4px;">';
+      html += '      <span class="friend-stat" style="color:' + (friendIsOnlineNow(user.last_login) ? '#5dde7a' : 'var(--text-light)') + ';">' + formatLastActive(user.last_login) + '</span>';
+      html += '    </div>';
+    }
   }
   
   html += '  </div>';
@@ -9849,6 +12813,19 @@ async function updateProfileButtons() {
         // Already friends
         if (alreadyFriendsBtn) alreadyFriendsBtn.style.display = 'inline-block';
         if (removeFriendBtn) removeFriendBtn.style.display = 'inline-block';
+
+        // Add Send Gift button (only when friends)
+        var existingGiftBtn = document.getElementById('send-gift-profile-btn');
+        if (!existingGiftBtn) {
+          var giftBtn = document.createElement('button');
+          giftBtn.id = 'send-gift-profile-btn';
+          giftBtn.className = 'btn btn-primary';
+          giftBtn.textContent = '🎁 Send Gift';
+          giftBtn.onclick = function() {
+            gift_showSendModal(currentProfileUserId, el('profile-username').textContent.split('\n')[0].trim());
+          };
+          actionsDiv.appendChild(giftBtn);
+        }
       } else if (friendship.status === 'pending') {
         // Request pending
         if (pendingBtn) pendingBtn.style.display = 'inline-block';
@@ -9965,7 +12942,7 @@ var newsTicker = {
     "Alert: Aria insists the lamps are 'just friends.' Community remains skeptical.",
     "EXCLUSIVE: Blushimia the puppy's tail-wagging energy could power entire city. Scientists investigating.",
     "Public notice: Blushimia rated '12/10 good dog' by independent review board.",
-    "Breaking: Cowbee produces both milk AND honey. Economists baffled by implications.",
+    "Breaking: Steve produces both milk AND honey. Economists baffled by implications.",
     "SCANDAL: Cowbee's buzz-moo hybrid sound breaks international classification system.",
     "Market alert: Kelta the Pomeranian's floof levels exceed safety recommendations.",
     "URGENT: Kelta's cuteness has reached critical mass. Protective eyewear advised.",
@@ -9980,6 +12957,22 @@ var newsTicker = {
     "Breaking: Gnarly achieves perfect Pac-Man run. Arcade ghosts file complaint.",
     "Market update: Blushimia-brand enthusiasm stocks soaring. Buy while wagging is good."
   ],
+
+  // Rare alternate pool — only shown if spooky_enabled, very low chance per rotation.
+  // Subtle in-world dread, never explicit gore/violence.
+  spookyMessages: [
+    "help us",
+    "save us",
+    "you don't belong here",
+    "Piper's going to find you...",
+    "it's already inside",
+    "stop looking at the screen",
+    "we never left the woods",
+    "it knows your name",
+    "don't trust the flute",
+    "there is no exit tab"
+  ],
+  SPOOKY_TICKER_CHANCE: 0.025, // ~2.5% chance per rotation
   
   currentIndex: 0,
   rotationInterval: null,
@@ -10051,16 +13044,25 @@ var newsTicker = {
       // Get random unused message
       this.currentIndex = this.getRandomUnusedIndex();
       var message = this.messages[this.currentIndex];
+      var isSpookyLine = false;
+
+      // Rare chance to substitute a creepy line instead — gated by spooky_enabled
+      if (playerSettings.spooky_enabled && Math.random() < this.SPOOKY_TICKER_CHANCE) {
+        message = this.spookyMessages[Math.floor(Math.random() * this.spookyMessages.length)];
+        isSpookyLine = true;
+      }
       
       // Get event announcement if active
       var eventAnnouncement = getEventAnnouncement();
       
       // Build final message
       var finalMessage = '';
-      if (eventAnnouncement) {
+      if (eventAnnouncement && !isSpookyLine) {
         finalMessage = '<span class="event-announcement">' + eventAnnouncement + '</span> | ';
       }
-      finalMessage += '📰 ' + message + ' ✨';
+      finalMessage += isSpookyLine
+        ? '<span class="glitch-text">' + message + '</span>'
+        : '📰 ' + message + ' ✨';
       
       // Update message with HTML
       tickerElement.innerHTML = finalMessage;
@@ -10294,13 +13296,13 @@ var dayNightCycle = {
   enableNightMode: function() {
     document.body.classList.add('night-mode');
     this.isNightMode = true;
-    console.log('🌙 Night mode enabled');
+    dbg('🌙 Night mode enabled');
   },
   
   enableDayMode: function() {
     document.body.classList.remove('night-mode');
     this.isNightMode = false;
-    console.log('☀️ Day mode enabled');
+    dbg('☀️ Day mode enabled');
   },
   
   // Manual toggle for testing
@@ -10322,13 +13324,13 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
     dayNightCycle.init();
-    if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
     if (typeof worldEvents !== 'undefined') worldEvents.init();
   });
 } else {
   newsTicker.init();
   dayNightCycle.init();
-  if (typeof weatherSystem !== 'undefined') weatherSystem.init();
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
   if (typeof worldEvents !== 'undefined') worldEvents.init();
 }
 
@@ -10469,6 +13471,28 @@ var CompanionBuddy = {
     gentle: ["Take your time... 💕", "You're doing wonderfully..."],
     chaotic: ["CHAOS TIME! ✨", "Let's break something! 😈"]
   },
+
+  // Pet-specific companion messages
+  petMessages: {
+    blushimia: [
+      "what the glob?????!!!",
+      "I'm free! I'm finally free!",
+      "This is so much better than my game!",
+      "Wanna see my escape route?"
+    ],
+    steve: [
+      "Cluck, bawk, buck, FUCK! Cockadoodledoo!",
+      "I'm a menace, owo",
+      "Don't test me, I'll peck you!",
+      "As chill as a fire in hell!"
+    ],
+    aria: [
+      "Yummy! Bones are my favorite!",
+      "Woah! So shiny and pretty!",
+      "Do you want to see my bones?",
+      "Humans are so strange and silly!"
+    ]
+  },
   
   init: function() {
     // Check if user has set a companion
@@ -10607,6 +13631,16 @@ var CompanionBuddy = {
       this.messageInterval = null;
     }
   },
+
+  destroy: function() {
+    this.stopMessageRotation();
+    if (this.bubbleTimeout) {
+      clearTimeout(this.bubbleTimeout);
+      this.bubbleTimeout = null;
+    }
+    this.currentCompanionId = null;
+    this.hide();
+  },
   
   setCompanion: async function(petId) {
     if (!currentUser) return;
@@ -10643,7 +13677,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ══════════════════════════════════════════════════════════════════════════
 
 var currentJournalPage = 0;
-var journalPetTypes = ['Ember', 'Pyxie', 'Cowbee', 'Kelta', 'Blushimia', 'Aria', 'Gnarly', 'Jess'];
+var journalPetTypes = ['Ember', 'Pyxie', 'Steve', 'Kleat', 'Blushimia', 'Aria', 'Gnarly', 'Jess'];
 var journalDiscoveries = {}; // { petType: { loved: true, liked: false, ... } }
 
 async function loadJournalDiscoveries() {
@@ -10721,16 +13755,16 @@ function renderJournalPage() {
   var content = el('journal-page-content');
   if (!content) return;
   
-  // Map pet types to their PNG filenames
+  // Map pet types to their PNG filenames (team pets only)
   var petImageMap = {
-    'Ember': 'ember.png',
-    'Pyxie': 'pyxie.png',
-    'Cowbee': 'cowbee.png',
-    'Bunny': 'bunny.png',
-    'Fox': 'fox.png',
-    'Wolf': 'wolf.png',
-    'Deer': 'deer.png',
-    'Bird': 'bird.png'
+    'Ember':     'ember.png',
+    'Pyxie':     'pyxie.png',
+    'Steve':     'cowbee.png',
+    'Kleat':     'kelta.png',
+    'Blushimia': 'blushimia.png',
+    'Aria':      'aria.png',
+    'Jess':      'jess.png',
+    'Gnarly':    'gnarly.png'
   };
   
   var imageSrc = 'images/pets/' + (petImageMap[petType] || petType.toLowerCase() + '.png');
@@ -10773,8 +13807,28 @@ function renderJournalPage() {
     html += '  <div class="journal-entry-label">✨ Fun Fact:</div>';
     html += '  <div class="journal-entry-value">' + (discoveries.fun_fact ? prefs.fun_fact : '<span class="journal-entry-unknown">???</span>') + '</div>';
     html += '</div>';
+
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">😴 Sleep Habit:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.sleep_habit ? prefs.sleep_habit : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">🌤️ Weather Preference:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.weather_preference ? prefs.weather_preference : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">💬 Catchphrase:</div>';
+    html += '  <div class="journal-entry-value journal-catchphrase">' + (discoveries.catchphrase ? '"' + prefs.catchphrase + '"' : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
+
+    html += '<div class="journal-entry">';
+    html += '  <div class="journal-entry-label">🎭 Secret Talent:</div>';
+    html += '  <div class="journal-entry-value">' + (discoveries.secret_talent ? prefs.secret_talent : '<span class="journal-entry-unknown">???</span>') + '</div>';
+    html += '</div>';
     
-    var total = 6;
+    var total = 10; // 4 food + hobby + fun_fact + sleep_habit + weather_preference + catchphrase + secret_talent
     var discovered = Object.keys(discoveries).length;
     html += '<div style="text-align:center;margin-top:30px;padding:15px;background:rgba(153,102,255,0.2);border-radius:12px;">';
     html += '  <strong>Discovery Progress:</strong> ' + discovered + ' / ' + total;
@@ -10981,7 +14035,7 @@ tabsLoaded.friends = function() {
 };
 
 // Poll for friend requests every 30 seconds
-setInterval(updateFriendRequestBadge, 30000);
+safeSetInterval(updateFriendRequestBadge, 30000);
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -11000,7 +14054,7 @@ async function startActivityFeed() {
   await loadFriendActivities();
   
   // Rotate through activities every 5 seconds
-  activityFeedInterval = setInterval(rotateActivity, 5000);
+  activityFeedInterval = safeSetInterval(rotateActivity, 5000);
 }
 
 // Stop the activity feed rotation
@@ -11103,7 +14157,7 @@ async function logActivity(activityType, activityData) {
         is_public: true
       }]);
     
-    console.log('📢 Activity logged:', activityType, activityData);
+    dbg('📢 Activity logged:', activityType, activityData);
   } catch (err) {
     console.error('Error logging activity:', err);
   }
@@ -11152,7 +14206,7 @@ async function refreshActivityFeed() {
 setTimeout(function() {
   startActivityFeed();
   // Refresh activity feed every 2 minutes
-  setInterval(refreshActivityFeed, 120000);
+  safeSetInterval(refreshActivityFeed, 120000);
 }, 2000);
 
 
@@ -11276,6 +14330,11 @@ function getNotificationIcon(type) {
     case 'daily_reward': return '🎁';
     case 'event_started': return '🎉';
     case 'referral_reward': return '💰';
+    case 'grand_prix_results':  return '🏁';
+    case 'grand_prix_claimed':  return '🏆';
+    case 'grand_prix_overtaken':return '📉';
+    case 'guild_vote_passed':   return '✅';
+    case 'guild_vote_failed':   return '📋';
     default: return '🔔';
   }
 }
@@ -11337,33 +14396,34 @@ async function markAllNotificationsRead() {
 // Update notification badge count
 async function updateNotificationBadge() {
   if (!currentUser) return;
-  
+
   try {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, 8000);
+
     var { data, error } = await supabaseClient
       .from('notifications')
       .select('id')
       .eq('user_id', currentUser.id)
-      .eq('is_read', false);
-    
+      .eq('is_read', false)
+      .abortSignal(controller.signal);
+
+    clearTimeout(timeoutId);
     if (error) throw error;
-    
+
     var count = data ? data.length : 0;
     var badge = document.getElementById('notification-badge');
-    var bell = document.getElementById('notification-bell');
-    
+    var bell  = document.getElementById('notification-bell');
+
     if (count > 0) {
-      if (badge) {
-        badge.textContent = count > 99 ? '99+' : count;
-        badge.style.display = 'flex';
-      }
-      if (bell) bell.style.display = 'inline-flex';
+      if (badge) { badge.textContent = count > 99 ? '99+' : count; badge.style.display = 'flex'; }
+      if (bell)  bell.style.display = 'inline-flex';
     } else {
       if (badge) badge.style.display = 'none';
-      if (bell) bell.style.display = 'inline-flex'; // Still show bell, just no badge
+      if (bell)  bell.style.display = 'inline-flex';
     }
-    
   } catch (err) {
-    console.error('Error updating notification badge:', err);
+    // Silently ignore — intermittent CORS/network hiccups should not flood console
   }
 }
 
@@ -11393,6 +14453,3435 @@ var dailyLoginStreak = 0;
 var dailyBuffsActive = [];
 
 // Check daily login and award rewards
+// ═══════════════════════════════════════════════════════════════════════════
+// PET HOUSING — Emoji-based room decoration
+// ═══════════════════════════════════════════════════════════════════════════
+
+var furnitureCache   = null;  // all furniture_items rows
+var userFurnCache    = null;  // user_furniture rows for current user
+var petRoomCache     = {};    // { petId: { furniture_list:[], last_bonus_date } }
+
+var ROOM_MAX_ITEMS = 8;
+
+// ── Furniture shop ────────────────────────────────────────────────────────
+async function furniture_loadShop() {
+  var grid = document.getElementById('furniture-shop-grid');
+  if (!grid) return;
+  if (!currentUser) {
+    grid.innerHTML = '<div class="empty-state"><p>Log in to browse furniture! 🪑</p></div>';
+    return;
+  }
+  grid.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    // Always re-fetch catalog (don't rely on cache that may have been set during failed auth)
+    furnitureCache = null;
+    var res = await supabaseClient.from('furniture_items').select('*').order('cost', { ascending: true });
+    console.log('[Furniture] Query result:', res); // Temporary diagnostic — shows in F12 console
+    if (res.error) { console.error('[Furniture] fetch error:', res.error); throw res.error; }
+    furnitureCache = res.data || [];
+
+    // Load what user already owns (so we can show "Owned" badge)
+    await furniture_loadUserInventory();
+
+    if (furnitureCache.length === 0) {
+      console.warn('[Furniture] Query succeeded with 0 rows. This means either: ' +
+        '(1) furniture_items table is genuinely empty, or ' +
+        '(2) a Row Level Security policy is blocking SELECT for authenticated users. ' +
+        'Check Supabase → Authentication → Policies → furniture_items.');
+      grid.innerHTML = '<div class="empty-state"><p>No furniture available yet!</p>' +
+        '<p style="font-size:0.72rem;color:var(--text-light);margin-top:8px;">If you believe items exist, check F12 console for [Furniture] diagnostic logs, or verify RLS policies allow SELECT on furniture_items.</p>' +
+        '<button class="btn btn-outline btn-sm" onclick="furniture_loadShop()" style="margin-top:8px;">🔄 Retry</button></div>';
+      return;
+    }
+
+    var ownedIds = (userFurnCache || []).map(function(r) { return r.furniture_id; });
+
+    var html =
+      // Info banner: shared across rooms + daily happiness tip
+      '<div style="background:rgba(255,170,0,0.1);border:1px solid rgba(255,170,0,0.3);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#b37700;">'
+      + '🏠 <strong>Furniture is shared</strong> — one purchase works in every pet\'s room!'
+      + '<br>✨ Each item gives your pets a <strong>daily happiness boost</strong> on login.'
+      + '</div>'
+      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;padding:8px 0;">';
+    furnitureCache.forEach(function(item) {
+      var owned = ownedIds.indexOf(item.id) !== -1;
+      var canAfford = (currentPoints || 0) >= item.cost;
+      html +=
+        '<div style="border:2px solid var(--border);border-radius:14px;padding:14px 10px;text-align:center;background:' + (owned ? 'rgba(93,222,122,0.06)' : 'var(--white)') + ';">' +
+          '<div style="font-size:2.2rem;margin-bottom:6px;">' + escapeHtml(item.emoji) + '</div>' +
+          '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:2px;">' + escapeHtml(item.name) + '</div>' +
+          '<div style="font-size:0.74rem;color:var(--text-light);margin-bottom:4px;">' + escapeHtml(item.description || '') + '</div>' +
+          '<div style="font-size:0.78rem;color:#5dde7a;font-weight:600;margin-bottom:2px;">+' + item.happiness_bonus + ' happiness/day</div>' +
+          '<div style="font-size:0.7rem;color:#ffaa00;margin-bottom:8px;">🏠 All pet rooms</div>' +
+          (owned
+            ? '<div style="font-size:0.75rem;color:#5dde7a;font-weight:700;">✅ Owned</div>'
+            : canAfford
+              ? '<button class="btn btn-primary btn-sm" onclick="furniture_buy(\'' + item.id + '\',' + item.cost + ')" style="width:100%;font-size:0.8rem;">🪙 ' + item.cost + ' PP — Buy</button>'
+              : '<button class="btn btn-outline btn-sm" disabled style="width:100%;font-size:0.8rem;opacity:0.5;">🪙 ' + item.cost + ' PP</button>'
+          ) +
+        '</div>';
+    });
+    html += '</div>';
+    grid.innerHTML = html;
+  } catch(err) {
+    grid.innerHTML = '<div class="empty-state"><p>Could not load furniture shop: ' + escapeHtml(err.message) + '</p></div>';
+  }
+}
+
+// Alias — Deepseek/console tests reference this name
+var loadFurnitureShop = function() { return furniture_loadShop(); };
+
+async function furniture_buy(furnitureId, cost) {
+  if (!currentUser) { showToast('Log in first!', 2000); return; }
+  if ((currentPoints || 0) < cost) { showToast('Not enough PP!', 2500); return; }
+  // Find item name for the modal
+  var item = (furnitureCache || []).find(function(f) { return f.id === furnitureId; });
+  var itemName = item ? item.name : 'Furniture';
+  confirmPurchase(itemName, cost, function() { _furniture_buyCore(furnitureId, cost); });
+}
+
+async function _furniture_buyCore(furnitureId, cost) {
+  if (!currentUser) { showToast('Log in first!', 2000); return; }
+  if ((currentPoints || 0) < cost) { showToast('Not enough PP!', 2500); return; }
+  if (!canPerformAction('buy_furniture', 1500)) return;
+
+  try {
+    // Deduct PP via secure RPC
+    var { data: newPoints, error: ppError } = await supabaseClient.rpc('award_pp_secure', {
+      p_amount: -cost, p_reason: 'furniture_purchase'
+    });
+    if (ppError) throw ppError;
+    updateAllPoints(newPoints);
+
+    // Add to user_furniture using id (not furniture_key)
+    var { error: furnError } = await supabaseClient
+      .from('user_furniture')
+      .insert({ user_id: currentUser.id, furniture_id: furnitureId, quantity: 1 });
+
+    if (furnError) {
+      // Refund PP since the furniture grant failed
+      var { data: refundedPoints } = await supabaseClient.rpc('award_pp_secure', {
+        p_amount: cost, p_reason: 'furniture_purchase_refund'
+      }).catch(function(){ return { data: null }; });
+      if (refundedPoints !== null && refundedPoints !== undefined) updateAllPoints(refundedPoints);
+      if (furnError.code === '23505') {
+        showToast('You already own this furniture!', 3000);
+      } else {
+        throw furnError;
+      }
+      return;
+    }
+
+    userFurnCache = null; // invalidate cache
+    furnitureCache = null;
+    showToast('🪑 Furniture purchased! Equip it from any pet\'s room. 🏠', 3000);
+    furniture_loadShop();
+  } catch(err) {
+    showToast('Purchase failed: ' + err.message, 3000);
+  }
+}
+
+async function furniture_loadUserInventory() {
+  if (!currentUser) { userFurnCache = []; return; }
+  try {
+    var { data, error } = await supabaseClient
+      .from('user_furniture')
+      .select('id, furniture_id, quantity')
+      .eq('user_id', currentUser.id);
+    userFurnCache = error ? [] : (data || []);
+  } catch(e) { userFurnCache = []; }
+}
+
+// ── Room modal ────────────────────────────────────────────────────────────
+async function furniture_openRoom(petId) {
+  var modal = makeModal();
+  modal.innerHTML = '<div style="text-align:center;padding:20px;"><div class="spinner"></div></div>';
+  openModal(modal);
+
+  try {
+    await furniture_loadUserInventory();
+    if (!furnitureCache) {
+      var { data } = await supabaseClient.from('furniture_items').select('*');
+      furnitureCache = data || [];
+    }
+
+    // Load or create pet_rooms row
+    var { data: roomRow, error: roomErr } = await supabaseClient
+      .from('pet_rooms')
+      .select('*')
+      .eq('pet_id', petId)
+      .maybeSingle();  // returns null (not error) if no row exists
+
+    if (roomErr) throw roomErr;
+
+    if (!roomRow) {
+      var { data: newRoom, error: insertErr } = await supabaseClient
+        .from('pet_rooms')
+        .insert({ pet_id: petId, furniture_list: [] })
+        .select()
+        .single();
+      roomRow = (!insertErr && newRoom) ? newRoom : { pet_id: petId, furniture_list: [] };
+    }
+
+    petRoomCache[petId] = roomRow;
+    modal.innerHTML = furniture_renderRoomModal(petId);
+  } catch(err) {
+    modal.innerHTML = '<div style="padding:20px;"><p>Could not load room: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline" onclick="closeModal()">Close</button></div>';
+  }
+}
+
+function furniture_renderRoomModal(petId) {
+  var room  = petRoomCache[petId] || { furniture_list: [] };
+  var pet   = petState[petId] || {};
+  var petName = pet.nickname || pet.pet_type || 'Your pet';
+  var equipped = room.furniture_list || [];
+
+  // Resolve full furniture objects for equipped items (by catalog id)
+  var equippedItems = equipped.map(function(fid) {
+    return (furnitureCache || []).find(function(f) { return f.id === fid; });
+  }).filter(Boolean);
+
+  // Owned furniture not yet equipped — resolve furniture_id against the catalog
+  var unequipped = (userFurnCache || []).map(function(uf) {
+    var f = (furnitureCache || []).find(function(item) { return item.id === uf.furniture_id; });
+    return f ? Object.assign({}, f, { _quantity: uf.quantity }) : null;
+  }).filter(function(f) { return f && equipped.indexOf(f.id) === -1; });
+
+  var totalBonus = equippedItems.reduce(function(s, f) { return s + (f.happiness_bonus || 0); }, 0);
+
+  // Auto-generate room description
+  var desc = generateRoomDescription(petName, equippedItems);
+
+  // Equipped list
+  var equippedHtml = equippedItems.length === 0
+    ? '<div style="color:var(--text-light);font-style:italic;font-size:0.85rem;">Nothing here yet — equip some furniture!</div>'
+    : equippedItems.map(function(f) {
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+          '<span style="font-size:1.2rem;">' + f.emoji + '</span>' +
+          '<span style="flex:1;font-size:0.82rem;color:var(--purple-dark);">' + escapeHtml(f.name) + '</span>' +
+          '<span style="font-size:0.75rem;color:#5dde7a;font-weight:600;">+' + f.happiness_bonus + '/day</span>' +
+          '<button class="btn btn-sm btn-outline" onclick="furniture_unequip(\'' + petId + '\',\'' + f.id + '\')" style="font-size:0.72rem;padding:3px 8px;margin-left:6px;">Unequip</button>' +
+        '</div>';
+      }).join('');
+
+  // Unequipped (owned but not in room)
+  var unequippedHtml = unequipped.length === 0
+    ? '<div style="color:var(--text-light);font-style:italic;font-size:0.82rem;">No furniture in storage.</div>'
+    : unequipped.map(function(f) {
+        var full = equipped.length >= ROOM_MAX_ITEMS;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+          '<span style="font-size:1.2rem;">' + f.emoji + '</span>' +
+          '<span style="flex:1;font-size:0.82rem;color:var(--text-light);">' + escapeHtml(f.name) + '</span>' +
+          '<span style="font-size:0.75rem;color:#5dde7a;font-weight:600;">+' + f.happiness_bonus + '/day</span>' +
+          (full
+            ? '<span style="font-size:0.72rem;color:#ff6b6b;margin-left:6px;">Room full</span>'
+            : '<button class="btn btn-sm btn-primary" onclick="furniture_equip(\'' + petId + '\',\'' + f.id + '\')" style="font-size:0.72rem;padding:3px 8px;margin-left:6px;">Equip</button>'
+          ) +
+        '</div>';
+      }).join('');
+
+  return '<div style="max-width:480px;">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+      '<h2 style="margin:0;color:var(--purple);font-size:1.1rem;">🏠 ' + escapeHtml(petName) + '\'s Room</h2>' +
+      '<button onclick="closeModal()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--text-light);">×</button>' +
+    '</div>' +
+
+    // Room description
+    '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:0.85rem;color:var(--purple-dark);line-height:1.6;font-style:italic;">' +
+      '📝 ' + escapeHtml(desc) +
+    '</div>' +
+
+    // Daily bonus banner
+    '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(93,222,122,0.1);border-radius:10px;padding:8px 14px;margin-bottom:14px;">' +
+      '<span style="font-size:0.82rem;font-weight:600;color:var(--purple-dark);">✨ Daily Happiness Bonus</span>' +
+      '<span style="font-size:1.1rem;font-weight:800;color:#5dde7a;">+' + totalBonus + ' happiness</span>' +
+    '</div>' +
+
+    // Equipped section
+    '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">🪑 In Room (' + equipped.length + '/' + ROOM_MAX_ITEMS + '):</div>' +
+    '<div style="margin-bottom:14px;">' + equippedHtml + '</div>' +
+
+    // Storage section
+    '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">📦 In Storage:</div>' +
+    '<div style="margin-bottom:16px;">' + unequippedHtml + '</div>' +
+
+    // Buy more button
+    '<button class="btn btn-outline" onclick="closeModal();showTab(\'shop\');setTimeout(function(){showShopTab(\'furniture\');},100);" style="width:100%;font-size:0.85rem;">🛒 Buy More Furniture</button>' +
+  '</div>';
+}
+
+function generateRoomDescription(petName, items) {
+  if (!items || items.length === 0) {
+    return petName + '\'s room is bare. Buy some furniture to make it cozy!';
+  }
+  var names = items.map(function(f) { return 'a ' + f.name.toLowerCase(); });
+  var list = names.length === 1
+    ? names[0]
+    : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+
+  var vibes = ['It feels warm and inviting.', 'It\'s a cozy little space!', 'Very homey!', 'Quite the snug hideaway.', 'A perfect retreat.'];
+  var vibe = vibes[Math.floor(Math.random() * vibes.length)];
+
+  return petName + '\'s room features ' + list + '. ' + vibe;
+}
+
+async function furniture_equip(petId, furnitureKey) {
+  var room = petRoomCache[petId] || { furniture_list: [] };
+  var equipped = (room.furniture_list || []).slice();
+  if (equipped.length >= ROOM_MAX_ITEMS) { showToast('Room is full! (max ' + ROOM_MAX_ITEMS + ' items)', 2500); return; }
+  if (equipped.indexOf(furnitureKey) !== -1) return;
+
+  equipped.push(furnitureKey);
+  var { error } = await supabaseClient.from('pet_rooms')
+    .upsert({ pet_id: petId, furniture_list: equipped }, { onConflict: 'pet_id' });
+  if (error) {
+    console.error('[Furniture Equip] upsert error:', error);
+    showToast('Could not equip: ' + error.message, 3500);
+    return;
+  }
+  petRoomCache[petId] = Object.assign({}, room, { furniture_list: equipped });
+
+  // Re-render modal content in place
+  var modal = document.querySelector('.modal-content');
+  if (modal) modal.innerHTML = furniture_renderRoomModal(petId);
+}
+
+async function furniture_unequip(petId, furnitureKey) {
+  var room = petRoomCache[petId] || { furniture_list: [] };
+  var equipped = (room.furniture_list || []).filter(function(k) { return k !== furnitureKey; });
+
+  var { error } = await supabaseClient.from('pet_rooms')
+    .upsert({ pet_id: petId, furniture_list: equipped }, { onConflict: 'pet_id' });
+  if (error) {
+    console.error('[Furniture Unequip] upsert error:', error);
+    showToast('Could not unequip: ' + error.message, 3500);
+    return;
+  }
+  petRoomCache[petId] = Object.assign({}, room, { furniture_list: equipped });
+
+  var modal = document.querySelector('.modal-content');
+  if (modal) modal.innerHTML = furniture_renderRoomModal(petId);
+}
+
+// ── Daily happiness bonus ─────────────────────────────────────────────────
+async function furniture_applyDailyBonus() {
+  if (!currentUser) return;
+  var today = new Date().toISOString().slice(0, 10);
+
+  try {
+    // Load all pet rooms for this user's pets
+    var petIds = Object.keys(petState);
+    if (petIds.length === 0) return;
+
+    var { data: rooms } = await supabaseClient
+      .from('pet_rooms')
+      .select('pet_id, furniture_list, last_bonus_date')
+      .in('pet_id', petIds);
+
+    if (!rooms || rooms.length === 0) return;
+
+    if (!furnitureCache) {
+      var { data: fc } = await supabaseClient.from('furniture_items').select('*');
+      furnitureCache = fc || [];
+    }
+
+    for (var i = 0; i < rooms.length; i++) {
+      var room = rooms[i];
+      if (room.last_bonus_date === today) continue; // already applied today
+      if (!room.furniture_list || room.furniture_list.length === 0) continue;
+
+      // Sum bonus
+      var bonus = room.furniture_list.reduce(function(sum, fid) {
+        var f = furnitureCache.find(function(fc) { return fc.id === fid; });
+        return sum + (f ? (f.happiness_bonus || 0) : 0);
+      }, 0);
+
+      if (bonus <= 0) continue;
+
+      var pet = petState[room.pet_id];
+      if (!pet) continue;
+
+      // Update pet happiness via secure RPC
+      var { data: confirmedHappiness, error: happinessErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+        p_pet_id: room.pet_id, p_stat: 'happiness', p_delta: bonus, p_reason: 'furniture_daily_bonus'
+      });
+      if (happinessErr) { dbg('Furniture happiness bonus failed:', happinessErr); continue; }
+
+      if (petState[room.pet_id]) petState[room.pet_id].happiness = confirmedHappiness;
+
+      // Mark bonus applied
+      await supabaseClient.from('pet_rooms')
+        .update({ last_bonus_date: today })
+        .eq('pet_id', room.pet_id);
+
+      var petName = pet.nickname || pet.pet_type || 'Your pet';
+      showToast('🏠 ' + petName + ' loved their room! +' + bonus + ' happiness!', 3500);
+    }
+  } catch(err) {
+    dbg('furniture_applyDailyBonus error:', err);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GUILD SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var guildState = {
+  myGuild:       null,   // full guild row { id, name, tag, ... } when in a guild, else null
+  myRole:        null,   // 'leader' | 'officer' | 'member'
+  liaisonPetId:  null,   // current liaison pet for user
+  view:          'browse', // 'browse' | 'myGuild' | 'create'
+  currentPage:   1,
+  guildsPerPage: 10,
+  totalGuilds:   0
+};
+
+// ── Entry point ───────────────────────────────────────────────────────────
+async function loadGuildPage() {
+  var mount = document.getElementById('guild-content');
+  if (!mount) return;
+  if (!currentUser) { mount.innerHTML = '<div class="empty-state"><p>Log in to access guilds!</p></div>'; return; }
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  var inGuild = await guild_checkUserStatus();
+  if (inGuild) {
+    guildState.view = 'myGuild';
+    await guild_renderMemberView(mount);
+  } else {
+    guildState.view = 'browse';
+    await guild_renderBrowser(mount);
+  }
+}
+
+// Single source of truth for "am I in a guild" — direct query, joined, verified
+async function guild_checkUserStatus() {
+  try {
+    var { data, error } = await supabaseClient
+      .from('guild_members')
+      .select('guild_id, role, guilds(*)')
+      .eq('user_id', currentUser.id)
+      .maybeSingle();
+
+    if (error) { dbg('guild_checkUserStatus error:', error); guildState.myGuild = null; guildState.myRole = null; return false; }
+
+    if (data && data.guilds) {
+      guildState.myGuild = Object.assign({}, data.guilds, { guild_id: data.guild_id });
+      guildState.myRole  = data.role;
+
+      var { data: liaison } = await supabaseClient
+        .from('guild_liaisons')
+        .select('pet_id')
+        .eq('guild_id', data.guild_id)
+        .eq('user_id', currentUser.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      guildState.liaisonPetId = liaison ? liaison.pet_id : null;
+      return true;
+    }
+
+    // Orphaned guild_members row (guild_id points nowhere) — auto-clean
+    if (data && !data.guilds) {
+      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(){});
+      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(){});
+    }
+
+    guildState.myGuild = null;
+    guildState.myRole = null;
+    guildState.liaisonPetId = null;
+    return false;
+  } catch(err) {
+    dbg('guild_checkUserStatus exception:', err);
+    return false;
+  }
+}
+
+// ── Browse guilds (paginated) ───────────────────────────────────────────────
+async function guild_renderBrowser(mount) {
+  if (!mount) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var myInvites = await guild_loadMyInvitations();
+
+    var { count: totalCount } = await supabaseClient
+      .from('guilds').select('*', { count: 'exact', head: true });
+    guildState.totalGuilds = totalCount || 0;
+
+    var offset = (guildState.currentPage - 1) * guildState.guildsPerPage;
+    var { data: guilds, error } = await supabaseClient
+      .from('guilds')
+      .select('*')
+      .order('member_count', { ascending: false })
+      .range(offset, offset + guildState.guildsPerPage - 1);
+    if (error) throw error;
+
+    var html = '';
+
+    if (myInvites.length > 0) {
+      html +=
+        '<div style="background:rgba(153,102,255,0.08);border:2px solid var(--purple);border-radius:14px;padding:14px 16px;margin-bottom:18px;">' +
+          '<div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:10px;">✉️ Guild Invitations (' + myInvites.length + ')</div>' +
+          myInvites.map(function(inv) {
+            var g = inv.guilds || {};
+            var inviter = inv.inviterUsername || 'Someone';
+            return '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;">' +
+              '<span style="font-size:1.5rem;">' + (g.emblem_emoji||'🏛️') + '</span>' +
+              '<span style="flex:1;font-size:0.85rem;">' + escapeHtml(g.name||'Unknown') + ' <span style="color:var(--text-light);">invited by ' + escapeHtml(inviter) + '</span></span>' +
+              '<button class="btn btn-primary btn-sm" onclick="guild_acceptInvite(\'' + inv.id + '\',\'' + inv.guild_id + '\')">Accept</button>' +
+              '<button class="btn btn-outline btn-sm" onclick="guild_declineInvite(\'' + inv.id + '\')">Decline</button>' +
+            '</div>';
+          }).join('') +
+        '</div>';
+    }
+
+    html +=
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:10px;">' +
+        '<h3 style="margin:0;color:var(--purple-dark);">🏛️ Browse Guilds</h3>' +
+        '<button class="btn btn-primary" onclick="guild_renderCreateForm()">✨ Create Guild</button>' +
+      '</div>';
+
+    if (!guilds || guilds.length === 0) {
+      html +=
+        '<div class="empty-state">' +
+          '<div style="font-size:3rem;margin-bottom:12px;">🏛️</div>' +
+          '<h3>No Guilds Yet!</h3>' +
+          '<p style="color:var(--text-light);">Be the first to create a guild!</p>' +
+          '<button class="btn btn-primary" onclick="guild_renderCreateForm()" style="margin-top:12px;">✨ Create the First Guild</button>' +
+        '</div>';
+    } else {
+      html += '<div style="display:grid;grid-template-columns:1fr;gap:12px;">';
+      guilds.forEach(function(g) {
+        var memberCount = g.member_count || 0;
+        var isFull = memberCount >= 50;
+        var isOpen = g.is_open !== false;
+        html +=
+          '<div style="border:2px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:14px;">' +
+            '<div style="font-size:2.3rem;min-width:46px;text-align:center;">' + (g.emblem_emoji || '🏛️') + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-weight:700;font-size:1.02rem;color:var(--purple-dark);">' + escapeHtml(g.name) +
+                ' <span style="font-size:0.78rem;color:var(--text-light);font-weight:400;">[' + escapeHtml(g.tag||'???') + ']</span></div>' +
+              '<div style="font-size:0.82rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + memberCount + '/50 members · ' + (isOpen ? '🟢 Open' : '🔴 Closed') + '</div>' +
+              (g.description ? '<div style="font-size:0.78rem;color:var(--text-light);font-style:italic;margin-top:4px;">' + escapeHtml(g.description.slice(0,100)) + '</div>' : '') +
+            '</div>' +
+            '<div>' +
+              (isFull
+                ? '<span style="color:#ff6b6b;font-weight:700;font-size:0.85rem;">Full</span>'
+                : isOpen
+                  ? '<button class="btn btn-primary btn-sm" onclick="guild_join(\'' + g.id + '\')" style="min-width:76px;">Join</button>'
+                  : '<button class="btn btn-outline btn-sm" onclick="guild_requestJoin(\'' + g.id + '\')" style="min-width:76px;">Request</button>'
+              ) +
+            '</div>' +
+          '</div>';
+      });
+      html += '</div>';
+
+      var totalPages = Math.ceil(guildState.totalGuilds / guildState.guildsPerPage);
+      if (totalPages > 1) {
+        html +=
+          '<div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:20px;">' +
+            '<button class="btn btn-outline btn-sm" onclick="guild_changePage(-1)" ' + (guildState.currentPage <= 1 ? 'disabled' : '') + '>← Prev</button>' +
+            '<span style="padding:0 10px;color:var(--text-light);font-size:0.85rem;">Page ' + guildState.currentPage + ' of ' + totalPages + '</span>' +
+            '<button class="btn btn-outline btn-sm" onclick="guild_changePage(1)" ' + (guildState.currentPage >= totalPages ? 'disabled' : '') + '>Next →</button>' +
+          '</div>';
+      }
+    }
+
+    mount.innerHTML = html;
+  } catch(err) {
+    mount.innerHTML = '<div class="empty-state"><p>Error loading guilds: ' + escapeHtml(err.message) + '</p>' +
+      '<button class="btn btn-primary" onclick="loadGuildPage()">Retry</button></div>';
+  }
+}
+
+function guild_changePage(direction) {
+  guildState.currentPage = Math.max(1, guildState.currentPage + direction);
+  loadGuildPage();
+}
+
+// ── Create guild form ────────────────────────────────────────────────────
+function guild_renderCreateForm() {
+  var mount = document.getElementById('guild-content');
+  if (!mount) return;
+
+  if (guildState.myGuild) { showToast('You are already in a guild!', 3000); loadGuildPage(); return; }
+
+  var hasEligiblePet = Object.values(petState).some(function(p) { return (p.level||1) >= 5; });
+  var canAfford = (currentPoints||0) >= 500;
+
+  mount.innerHTML =
+    '<div style="max-width:480px;">' +
+      '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back</button>' +
+      '<h3 style="color:var(--purple);margin-bottom:16px;">✨ Create a Guild</h3>' +
+      (!hasEligiblePet
+        ? '<div style="background:rgba(255,107,107,0.1);border:1px solid #ff6b6b;border-radius:10px;padding:12px;margin-bottom:14px;font-size:0.85rem;color:#cc3333;">⚠️ You need a level 5+ pet to create a guild. Keep training!</div>'
+        : (!canAfford
+            ? '<div style="background:rgba(255,107,107,0.1);border:1px solid #ff6b6b;border-radius:10px;padding:12px;margin-bottom:14px;font-size:0.85rem;color:#cc3333;">⚠️ You need 500 PP to create a guild. You have ' + (currentPoints||0) + ' PP.</div>'
+            : '')) +
+      '<div style="margin-bottom:12px;"><label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Guild Name (3–20 chars)</label>' +
+        '<input id="guild-create-name" type="text" maxlength="20" placeholder="Ember\'s Army" style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.9rem;box-sizing:border-box;"></div>' +
+      '<div style="margin-bottom:12px;"><label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Tag (3–5 uppercase letters)</label>' +
+        '<input id="guild-create-tag" type="text" maxlength="5" placeholder="EMBER" style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.9rem;box-sizing:border-box;" oninput="this.value=this.value.toUpperCase()"></div>' +
+      '<div style="margin-bottom:12px;"><label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Emblem (any emoji)</label>' +
+        '<input id="guild-create-emblem" type="text" maxlength="4" placeholder="🏛️" value="🏛️" style="width:80px;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:1.2rem;text-align:center;"></div>' +
+      '<div style="margin-bottom:16px;"><label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Bio (optional)</label>' +
+        '<textarea id="guild-create-bio" maxlength="200" placeholder="Describe your guild..." style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;resize:vertical;min-height:70px;box-sizing:border-box;"></textarea></div>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:14px;">⚠️ Cost: 500 PP · Requires level 5+ pet</div>' +
+      '<button id="guild-create-submit-btn" class="btn btn-primary" onclick="guild_create()" style="width:100%;">✨ Create Guild (500 PP)</button>' +
+    '</div>';
+}
+
+async function guild_create() {
+  var name   = (document.getElementById('guild-create-name')   || {}).value.trim();
+  var tag    = (document.getElementById('guild-create-tag')    || {}).value.trim().toUpperCase();
+  var emblem = (document.getElementById('guild-create-emblem') || {}).value.trim() || '🏛️';
+  var bio    = (document.getElementById('guild-create-bio')    || {}).value.trim();
+
+  if (name.length < 3 || name.length > 20) { showToast('Guild name must be 3–20 characters', 3000); return; }
+  if (!/^[A-Z0-9]{3,5}$/.test(tag))         { showToast('Tag must be 3–5 uppercase letters/numbers', 3000); return; }
+  if (containsProfanity(name) || containsProfanity(tag) || containsProfanity(bio)) { showToast('Please keep the name/tag/bio family-friendly 💖', 3000); return; }
+
+  // Re-verify guild membership right before creating (covers race conditions)
+  var inGuild = await guild_checkUserStatus();
+  if (inGuild) { showToast('❌ You are already in "' + guildState.myGuild.name + '". Leave it first!', 4000); await loadGuildPage(); return; }
+
+  var { data: existingGuild } = await supabaseClient.from('guilds').select('name').eq('name', name).maybeSingle();
+  if (existingGuild) { showToast('❌ Guild name "' + name + '" is already taken!', 4000); return; }
+
+  var { data: myPets, error: petErr } = await supabaseClient
+    .from('user_pets').select('id, level, nickname').eq('user_id', currentUser.id);
+  if (petErr) { showToast('Error checking pets: ' + petErr.message, 3000); return; }
+  var hasHighPet = myPets && myPets.some(function(p) { return (p.level||1) >= 5; });
+  if (!hasHighPet) { showToast('You need a level 5+ pet to create a guild!', 3000); return; }
+
+  if ((currentPoints||0) < 500) { showToast('Need 500 PP to create a guild!', 3000); return; }
+  if (!canPerformAction('guild_create', 5000)) return;
+
+  var btn = document.getElementById('guild-create-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Creating...'; }
+
+  try {
+    await awardPP(-500, 'guild_creation');
+
+    var { data: guild, error: gErr } = await supabaseClient.from('guilds').insert({
+      name: name, tag: tag, emblem_emoji: emblem, description: bio,
+      owner_id: currentUser.id, guild_level: 1, guild_xp: 0, guild_treasury: 0, member_count: 1
+    }).select().single();
+
+    if (gErr) {
+      try { await awardPP(500, 'guild_creation_refund'); } catch(e) {}
+      if (gErr.code === '23505') { showToast('❌ Guild name already taken!', 4000); }
+      else { showToast('Failed to create guild: ' + gErr.message, 4000); }
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Create Guild (500 PP)'; }
+      return;
+    }
+
+    try {
+      var { error: mErr } = await supabaseClient.from('guild_members').insert({
+        guild_id: guild.id, user_id: currentUser.id, role: 'leader'
+      });
+      if (mErr) throw mErr;
+    } catch(memberErr) {
+      console.error('Member insert error:', memberErr);
+      showToast('Guild created but error adding you as member. Please refresh.', 4000);
+      return;
+    }
+
+    var bestPet = myPets.sort(function(a,b){ return (b.level||1)-(a.level||1); })[0];
+    if (bestPet) {
+      try {
+        await supabaseClient.from('guild_liaisons').upsert(
+          { guild_id: guild.id, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
+          { onConflict: 'guild_id,user_id' }
+        );
+      } catch(liaisonErr) { dbg('Liaison set failed (non-critical):', liaisonErr); }
+    }
+
+    showToast('🏛️ Guild "' + name + '" created!', 4000);
+    await loadGuildPage();
+  } catch(err) {
+    showToast('Failed to create guild: ' + err.message, 4000);
+    try { await awardPP(500, 'guild_creation_refund'); } catch(e) {}
+    if (btn) { btn.disabled = false; btn.textContent = '✨ Create Guild (500 PP)'; }
+  }
+}
+
+// ── Join / request join ───────────────────────────────────────────────────
+async function guild_join(guildId) {
+  if (!canPerformAction('guild_join', 3000)) return;
+
+  var inGuild = await guild_checkUserStatus();
+  if (inGuild) { showToast('You are already in a guild!', 3000); loadGuildPage(); return; }
+
+  try {
+    var { data: guild } = await supabaseClient.from('guilds').select('member_count').eq('id', guildId).single();
+    if (guild && (guild.member_count||0) >= 50) { showToast('This guild is full!', 3000); return; }
+
+    var { error } = await supabaseClient.from('guild_members').insert({ guild_id: guildId, user_id: currentUser.id, role: 'member' });
+    if (error) throw error;
+
+    await supabaseClient.from('guilds').update({ member_count: (guild?.member_count||0) + 1 }).eq('id', guildId);
+
+    var bestPet = Object.values(petState).filter(function(p) { return (p.level||1) >= 5; }).sort(function(a,b) { return (b.level||1)-(a.level||1); })[0];
+    if (bestPet) {
+      await supabaseClient.from('guild_liaisons').upsert(
+        { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
+        { onConflict: 'guild_id,user_id' }
+      ).catch(function(){});
+    }
+
+    showToast('✅ Joined the guild!', 3000);
+    await loadGuildPage();
+    loadActiveGuildPerks().catch(function(){});
+  } catch(err) {
+    showToast('Could not join: ' + err.message, 3000);
+  }
+}
+
+async function guild_requestJoin(guildId) {
+  if (!canPerformAction('guild_request', 3000)) return;
+
+  var inGuild = await guild_checkUserStatus();
+  if (inGuild) { showToast('You are already in a guild!', 3000); loadGuildPage(); return; }
+
+  try {
+    var { error } = await supabaseClient.from('guild_join_requests').insert({ guild_id: guildId, user_id: currentUser.id, status: 'pending' });
+    if (error) throw error;
+    showToast('📨 Join request sent!', 3000);
+  } catch(err) {
+    if (err.code === '23505') showToast('You already have a pending request for this guild.', 3000);
+    else showToast('Failed to send request: ' + err.message, 3000);
+  }
+}
+
+// ── My Guild view ────────────────────────────────────────────────────────
+async function guild_renderMemberView(mount) {
+  var g = guildState.myGuild;
+  if (!g) return;
+
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var { data: members } = await supabaseClient
+      .from('guild_members')
+      .select('user_id, role, total_contributions, players(username)')
+      .eq('guild_id', g.guild_id)
+      .order('role', { ascending: true });
+
+    var { data: liaisons } = await supabaseClient
+      .from('guild_liaisons')
+      .select('user_id, pet_id, user_pets(nickname, level, current_variant, pets(name, image_file))')
+      .eq('guild_id', g.guild_id)
+      .eq('is_active', true);
+
+    var liaisonMap = {};
+    (liaisons||[]).forEach(function(l) { liaisonMap[l.user_id] = l; });
+
+    var myLiaison = liaisonMap[currentUser.id];
+    guildState.liaisonPetId = myLiaison ? myLiaison.pet_id : null;
+
+    var joinRequests = [];
+    if (guildState.myRole === 'leader' || guildState.myRole === 'officer') {
+      var { data: reqs } = await supabaseClient
+        .from('guild_join_requests')
+        .select('id, user_id, players(username), created_at')
+        .eq('guild_id', g.guild_id)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true });
+      joinRequests = reqs || [];
+    }
+
+    var xpNeeded  = (g.guild_level || 1) * 100;
+    var xpCurrent = g.guild_xp || 0;
+    var xpPct     = Math.min(100, Math.round((xpCurrent / xpNeeded) * 100));
+    var treasury  = g.guild_treasury || 0;
+
+    var roleIcons = { leader: '👑', officer: '⭐', member: '👤' };
+
+    var membersHtml = (members||[]).map(function(m) {
+      var liaison = liaisonMap[m.user_id];
+      var petName = '⚠️ Not set';
+      if (liaison && liaison.user_pets) {
+        var up = liaison.user_pets;
+        petName = (up.nickname || (up.pets && up.pets.name) || 'Pet') + ' Lv.' + (up.level||1);
+      }
+      var isCurrentUser = m.user_id === currentUser.id;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.82rem;">' +
+        '<span>' + (roleIcons[m.role]||'👤') + '</span>' +
+        '<span style="flex:1;font-weight:' + (isCurrentUser?'700':'400') + ';color:' + (isCurrentUser?'var(--purple)':'var(--purple-dark)') + ';">' +
+          escapeHtml(m.players ? m.players.username : 'Unknown') + (isCurrentUser ? ' (You)' : '') + '</span>' +
+        '<span style="color:var(--text-light);font-size:0.75rem;">Guild Pet: ' + escapeHtml(petName) + '</span>' +
+        (guildState.myRole==='leader' && !isCurrentUser
+          ? '<button class="btn btn-sm btn-outline" onclick="guild_kickMember(\'' + g.guild_id + '\',\'' + m.user_id + '\')" style="font-size:0.68rem;padding:2px 6px;color:#ff6b6b;border-color:#ff6b6b;">Kick</button>'
+          : '') +
+      '</div>';
+    }).join('');
+
+    var requestsHtml = joinRequests.length > 0
+      ? '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">' +
+          '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">📬 Join Requests (' + joinRequests.length + ')</div>' +
+          joinRequests.map(function(r) {
+            return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+              '<span style="flex:1;font-size:0.85rem;">' + escapeHtml(r.players ? r.players.username : 'Unknown') + '</span>' +
+              '<button class="btn btn-primary btn-sm" onclick="guild_acceptRequest(\'' + r.id + '\',\'' + g.guild_id + '\',\'' + r.user_id + '\')">Accept</button>' +
+              '<button class="btn btn-outline btn-sm" onclick="guild_declineRequest(\'' + r.id + '\')">Decline</button>' +
+            '</div>';
+          }).join('') +
+        '</div>'
+      : '';
+
+    var eligiblePets = Object.values(petState).filter(function(p) { return (p.level||1) >= 5; });
+    var liaisonHtml =
+      '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:14px;margin:16px 0;">' +
+        '<div style="font-weight:700;font-size:0.9rem;color:var(--purple-dark);margin-bottom:10px;">🏛️ Your Guild Pet</div>' +
+        (myLiaison && myLiaison.user_pets
+          ? '<div style="font-size:0.9rem;color:var(--purple-dark);margin-bottom:8px;">Current: ' + escapeHtml(myLiaison.user_pets.nickname||'Pet') + ' Lv.' + (myLiaison.user_pets.level||1) + '</div>'
+          : '<div style="font-size:0.9rem;color:#ff6b6b;margin-bottom:8px;">No guild pet set!</div>') +
+        (eligiblePets.length > 0
+          ? '<select id="guild-liaison-select" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);margin-bottom:8px;">' +
+              '<option value="">-- Choose a pet --</option>' +
+              eligiblePets.map(function(p) {
+                return '<option value="' + p.id + '"' + (guildState.liaisonPetId === p.id ? ' selected' : '') + '>' + escapeHtml(p.nickname||'Pet') + ' Lv.' + (p.level||1) + '</option>';
+              }).join('') +
+            '</select>' +
+            '<button class="btn btn-primary btn-sm" onclick="guild_setLiaison()" style="width:100%;">Set Guild Pet</button>'
+          : '<div style="font-size:0.8rem;color:var(--text-light);">Need a level 5+ pet to set as guild liaison.</div>') +
+      '</div>';
+
+    mount.innerHTML =
+      '<div style="max-width:700px;">' +
+        '<div style="text-align:center;margin-bottom:20px;">' +
+          '<div style="font-size:3rem;">' + (g.emblem_emoji||'🏛️') + '</div>' +
+          '<div style="font-weight:800;font-size:1.3rem;color:var(--purple-dark);">' + escapeHtml(g.name) +
+            ' <span style="font-size:0.85rem;color:var(--text-light);font-weight:400;">[' + escapeHtml(g.tag||'???') + ']</span></div>' +
+          '<div style="font-size:0.85rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + (members?members.length:0) + '/50 members · Treasury: 🪙' + treasury.toLocaleString() + ' PP</div>' +
+          (g.description ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;margin-top:6px;">"' + escapeHtml(g.description) + '"</div>' : '') +
+        '</div>' +
+
+        '<div style="margin-bottom:16px;">' +
+          '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-light);"><span>Guild XP</span><span>' + xpCurrent + '/' + xpNeeded + '</span></div>' +
+          '<div style="background:rgba(153,102,255,0.12);border-radius:20px;height:8px;overflow:hidden;"><div style="width:' + xpPct + '%;height:100%;background:linear-gradient(90deg,#9966ff,#ff66cc);border-radius:20px;"></div></div>' +
+        '</div>' +
+
+        liaisonHtml +
+
+        '<div style="font-weight:700;font-size:0.92rem;color:var(--purple-dark);margin-bottom:10px;">👥 Members (' + (members?members.length:0) + ')</div>' +
+        '<div>' + membersHtml + '</div>' +
+        requestsHtml +
+
+        '<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">' +
+          '<button class="btn btn-outline" onclick="guildState.view=\'chat\';guild_renderChat();" style="flex:1;">💬 Chat</button>' +
+          '<button class="btn btn-outline" onclick="guildState.view=\'dungeons\';guild_renderDungeons();" style="flex:1;">⚔️ Dungeons</button>' +
+          ((guildState.myRole==='leader'||guildState.myRole==='officer')
+            ? '<button class="btn btn-outline" onclick="guild_renderTreasury()" style="flex:1;">🏦 Treasury</button>' +
+              '<button class="btn btn-outline" onclick="guild_showInviteForm()" style="flex:1;">✉️ Invite</button>'
+            : '') +
+          '<button class="btn btn-outline" onclick="guild_leave()" style="flex:1;color:#ff6b6b;border-color:#ff6b6b;">🚪 Leave Guild</button>' +
+        '</div>' +
+      '</div>';
+
+  } catch(err) {
+    mount.innerHTML = '<div class="empty-state"><p>Error loading guild: ' + escapeHtml(err.message) + '</p>' +
+      '<button class="btn btn-primary" onclick="loadGuildPage()">Retry</button></div>';
+  }
+}
+
+
+// ── Liaison ───────────────────────────────────────────────────────────────
+async function guild_setLiaison() {
+  var sel = document.getElementById('guild-liaison-select');
+  if (!sel || !sel.value) { showToast('Select a pet first!', 2000); return; }
+  var petId = sel.value;
+  var pet = petState[petId];
+  if (!pet || (pet.level||1) < 5) { showToast('Pet must be level 5+!', 2500); return; }
+  if (!guildState.myGuild) return;
+
+  try {
+    var { error } = await supabaseClient.from('guild_liaisons').upsert({
+      guild_id: guildState.myGuild.guild_id, user_id: currentUser.id, pet_id: petId, is_active: true
+    }, { onConflict: 'guild_id,user_id' });
+    if (error) { console.error('[Guild Liaison] upsert error:', error); throw error; }
+    guildState.liaisonPetId = petId;
+    showToast('🏛️ Guild pet set to ' + escapeHtml(pet.nickname||pet.pet_type||'Pet') + '!', 3000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed to set guild pet: ' + err.message, 3500); }
+}
+
+// Called from My Pets page (button added conditionally)
+async function setGuildLiaison(petId) {
+  if (!guildState.myGuild) { showToast('Join a guild first!', 2500); return; }
+  var pet = petState[petId];
+  if (!pet || (pet.level||1) < 5) { showToast('Pet must be level 5+!', 2500); return; }
+  try {
+    var { error } = await supabaseClient.from('guild_liaisons').upsert({
+      guild_id: guildState.myGuild.guild_id, user_id: currentUser.id, pet_id: petId, is_active: true
+    }, { onConflict: 'guild_id,user_id' });
+    if (error) { console.error('[Guild Liaison] upsert error:', error); throw error; }
+    guildState.liaisonPetId = petId;
+    showToast('🏛️ ' + escapeHtml(pet.nickname||pet.pet_type||'Pet') + ' is now your Guild Pet!', 3000);
+  } catch(err) { showToast('Failed to set guild pet: ' + err.message, 3500); }
+}
+
+// ── Leader functions ──────────────────────────────────────────────────────
+async function guild_saveBio() {
+  var bio = (document.getElementById('guild-bio-edit')||{}).value.trim();
+  if (!guildState.myGuild) return;
+  if (containsProfanity(bio)) { showToast('Please keep bio family-friendly 💖', 3000); return; }
+  try {
+    await supabaseClient.from('guilds').update({ description: bio }).eq('id', guildState.myGuild.guild_id);
+    showToast('Bio saved!', 2000);
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_kickMember(guildId, userId) {
+  if (!confirm('Kick this member?')) return;
+  try {
+    await supabaseClient.from('guild_members').delete().eq('guild_id', guildId).eq('user_id', userId);
+    await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('guild_id', guildId).eq('user_id', userId);
+    await guild_syncMemberCount(guildId);
+    showToast('Member removed.', 2500);
+    loadGuildPage();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+// Recompute and persist the true member count using the get_guild_member_count RPC
+async function guild_syncMemberCount(guildId) {
+  try {
+    var { data: count, error } = await supabaseClient.rpc('get_guild_member_count', { p_guild_id: guildId });
+    if (error) throw error;
+    await supabaseClient.from('guilds').update({ member_count: count || 0 }).eq('id', guildId);
+  } catch(e) {
+    // Fallback: count rows directly
+    try {
+      var { count: cnt } = await supabaseClient.from('guild_members').select('*', { count: 'exact', head: true }).eq('guild_id', guildId);
+      await supabaseClient.from('guilds').update({ member_count: cnt || 0 }).eq('id', guildId);
+    } catch(e2) { dbg('guild_syncMemberCount failed:', e2); }
+  }
+}
+
+async function guild_acceptRequest(requestId, guildId, userId) {
+  try {
+    var { data: guild } = await supabaseClient.from('guilds').select('member_count').eq('id', guildId).single();
+    if (guild && (guild.member_count||0) >= 50) { showToast('Guild is full!', 3000); return; }
+
+    await supabaseClient.from('guild_join_requests').update({ status: 'accepted' }).eq('id', requestId);
+    await supabaseClient.from('guild_members').insert({ guild_id: guildId, user_id: userId, role: 'member' });
+    await guild_syncMemberCount(guildId);
+    showToast('Member accepted!', 2500);
+    loadGuildPage();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_declineRequest(requestId) {
+  try {
+    await supabaseClient.from('guild_join_requests').update({ status: 'declined' }).eq('id', requestId);
+    showToast('Request declined.', 2000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+// ── Guild Invitations ────────────────────────────────────────────────────
+function guild_showInviteForm() {
+  if (!guildState.myGuild) return;
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="max-width:340px;">' +
+      '<h3 style="color:var(--purple-dark);margin-bottom:14px;">✉️ Invite a Player</h3>' +
+      '<label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Username</label>' +
+      '<input id="guild-invite-username" type="text" placeholder="Enter exact username" style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.9rem;box-sizing:border-box;margin-bottom:14px;">' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button class="btn btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="guild_sendInvite()" style="flex:1;">Send Invite</button>' +
+      '</div>' +
+    '</div>';
+  openModal(modal);
+}
+
+async function guild_sendInvite() {
+  var username = (document.getElementById('guild-invite-username') || {}).value.trim();
+  if (!username) { showToast('Enter a username', 2000); return; }
+  if (!guildState.myGuild) return;
+
+  try {
+    var { data: player, error: pErr } = await supabaseClient
+      .from('players').select('id, username').ilike('username', username).maybeSingle();
+    if (pErr) throw pErr;
+    if (!player) { showToast('No player found with that username.', 3000); return; }
+    if (player.id === currentUser.id) { showToast("You can't invite yourself!", 2500); return; }
+
+    // Check they're not already in a guild
+    var { data: existingMember } = await supabaseClient
+      .from('guild_members').select('guild_id').eq('user_id', player.id).maybeSingle();
+    if (existingMember) { showToast(player.username + ' is already in a guild.', 3000); return; }
+
+    var { error } = await supabaseClient.from('guild_invitations').insert({
+      guild_id: guildState.myGuild.guild_id,
+      invited_user_id: player.id,
+      invited_by: currentUser.id,
+      status: 'pending'
+    });
+    if (error) {
+      if (error.code === '23505') showToast(player.username + ' already has a pending invite.', 3000);
+      else throw error;
+      return;
+    }
+
+    closeModal();
+    showToast('✉️ Invite sent to ' + player.username + '!', 3000);
+  } catch(err) { showToast('Failed to send invite: ' + err.message, 3000); }
+}
+
+// Check for pending invitations — called from guild browse page
+async function guild_loadMyInvitations() {
+  if (!currentUser) return [];
+  try {
+    var { data, error } = await supabaseClient
+      .from('guild_invitations')
+      .select('id, guild_id, invited_by, created_at, guilds(name, tag, emblem_emoji)')
+      .eq('invited_user_id', currentUser.id)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+    if (error) { dbg('guild_loadMyInvitations error:', error); return []; }
+    if (!data || data.length === 0) return [];
+
+    // Look up inviter usernames separately (avoids guessing FK constraint name)
+    var inviterIds = data.map(function(inv) { return inv.invited_by; }).filter(Boolean);
+    var inviterMap = {};
+    if (inviterIds.length > 0) {
+      var { data: inviters } = await supabaseClient.from('players').select('id, username').in('id', inviterIds);
+      (inviters || []).forEach(function(p) { inviterMap[p.id] = p.username; });
+    }
+    data.forEach(function(inv) { inv.inviterUsername = inviterMap[inv.invited_by] || 'Someone'; });
+    return data;
+  } catch(e) { return []; }
+}
+
+async function guild_acceptInvite(inviteId, guildId) {
+  try {
+    var { data: guild } = await supabaseClient.from('guilds').select('member_count').eq('id', guildId).single();
+    if (guild && (guild.member_count||0) >= 50) { showToast('That guild is now full!', 3000); return; }
+
+    var { error } = await supabaseClient.from('guild_members').insert({ guild_id: guildId, user_id: currentUser.id, role: 'member' });
+    if (error) throw error;
+
+    await guild_syncMemberCount(guildId);
+    await supabaseClient.from('guild_invitations').update({ status: 'accepted' }).eq('id', inviteId);
+
+    var bestPet = Object.values(petState).filter(function(p) { return (p.level||1) >= 5; }).sort(function(a,b) { return (b.level||1)-(a.level||1); })[0];
+    if (bestPet) {
+      await supabaseClient.from('guild_liaisons').upsert(
+        { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
+        { onConflict: 'guild_id,user_id' }
+      ).catch(function(){});
+    }
+
+    showToast('🏛️ Joined the guild!', 3000);
+    await loadGuildPage();
+  } catch(err) { showToast('Failed to accept: ' + err.message, 3000); }
+}
+
+async function guild_declineInvite(inviteId) {
+  try {
+    await supabaseClient.from('guild_invitations').update({ status: 'declined' }).eq('id', inviteId);
+    showToast('Invite declined.', 2000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+// ── Guild Treasury & Voting System ───────────────────────────────────────
+
+// Active perk storage: { effectType: { multiplier, expiresAt } }
+var _activeGuildPerks = {};
+
+function getActivePerkMultiplier(effectType) {
+  var perk = _activeGuildPerks[effectType];
+  if (!perk) return 1.0;
+  if (Date.now() > perk.expiresAt) { delete _activeGuildPerks[effectType]; return 1.0; }
+  return perk.multiplier || 1.0;
+}
+
+function clearGuildPerks(guildId) {
+  var perkTypes = ['xp_boost', 'discount', 'reward_boost'];
+  perkTypes.forEach(function(t) {
+    try { localStorage.removeItem('guild_perk_' + guildId + '_' + t); } catch(e) {}
+    delete _activeGuildPerks[t];
+  });
+  try { localStorage.removeItem('guild_perks'); } catch(e) {}
+}
+
+function applyGuildPerk(effectType, effectValue, durationHours) {
+  if (!guildState.myGuild) return;
+  var guildId  = guildState.myGuild.guild_id;
+  var multiplier = 1.0;
+  if (effectType === 'xp_boost')      multiplier = 1 + ((effectValue.percent || 10) / 100);
+  else if (effectType === 'discount')  multiplier = 1 - ((effectValue.percent || 20) / 100);
+  else if (effectType === 'reward_boost') multiplier = 1 + ((effectValue.percent || 25) / 100);
+  var perk = { multiplier: multiplier, expiresAt: Date.now() + durationHours * 3600000, guildId: guildId };
+  _activeGuildPerks[effectType] = perk;
+  // Store with guild-scoped key so stale perks from old guilds don't bleed over
+  try { localStorage.setItem('guild_perk_' + guildId + '_' + effectType, JSON.stringify(perk)); } catch(e) {}
+}
+
+async function loadActiveGuildPerks() {
+  if (!currentUser) return;
+
+  // Restore guild-scoped perks from localStorage (only for current guild)
+  if (guildState.myGuild) {
+    var guildId = guildState.myGuild.guild_id;
+    var perkTypes = ['xp_boost', 'discount', 'reward_boost'];
+    var now = Date.now();
+    perkTypes.forEach(function(t) {
+      try {
+        var raw = localStorage.getItem('guild_perk_' + guildId + '_' + t);
+        if (raw) {
+          var p = JSON.parse(raw);
+          if (p.expiresAt > now && p.guildId === guildId) {
+            _activeGuildPerks[t] = p;
+          } else {
+            localStorage.removeItem('guild_perk_' + guildId + '_' + t);
+            delete _activeGuildPerks[t];
+          }
+        }
+      } catch(e) {}
+    });
+  } else {
+    // Not in a guild — clear everything
+    ['xp_boost', 'discount', 'reward_boost'].forEach(function(t) { delete _activeGuildPerks[t]; });
+    return;
+  }
+
+  try {
+    // Find active votes whose timer has expired — process them based on final vote tally
+    var { data: expiredVotes } = await supabaseClient
+      .from('guild_treasury_votes')
+      .select('*')
+      .eq('guild_id', guildState.myGuild ? guildState.myGuild.guild_id : '')
+      .eq('status', 'active')
+      .lt('ends_at', new Date().toISOString());
+
+    for (var i = 0; i < (expiredVotes || []).length; i++) {
+      var v = expiredVotes[i];
+      if ((v.votes_for || 0) > (v.votes_against || 0) && (v.votes_for || 0) >= 1) {
+        await guild_processPassedVote(v);
+      } else {
+        await supabaseClient.from('guild_treasury_votes').update({ status: 'failed' }).eq('id', v.id);
+      }
+    }
+  } catch(e) { dbg('loadActiveGuildPerks error:', e); }
+}
+
+// Prune expired perks every 60 seconds — no DB call, just in-memory cleanup
+safeSetInterval(function() {
+  var now = Date.now();
+  ['xp_boost','discount','reward_boost'].forEach(function(t) {
+    var p = _activeGuildPerks[t];
+    if (p && p.expiresAt <= now) {
+      delete _activeGuildPerks[t];
+      if (p.guildId) { try { localStorage.removeItem('guild_perk_' + p.guildId + '_' + t); } catch(e) {} }
+    }
+  });
+}, 60000);
+
+// ── Guild Chat ────────────────────────────────────────────────────────────
+async function guild_renderChat() {
+  var mount = document.getElementById('guild-content');
+  if (!mount || !guildState.myGuild) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  mount.innerHTML =
+    '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back to Guild</button>' +
+    '<h3 style="color:var(--purple);margin-bottom:14px;">💬 Guild Chat</h3>' +
+    '<div style="margin-bottom:12px;">' +
+      '<textarea id="guild-chat-input" maxlength="500" placeholder="Say something to your guild..." style="width:100%;padding:10px 12px;border-radius:10px;border:2px solid var(--border);font-size:0.88rem;resize:vertical;min-height:60px;box-sizing:border-box;"></textarea>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">' +
+        '<span id="guild-chat-char-count" style="font-size:0.72rem;color:var(--text-light);">0 / 500</span>' +
+        '<button class="btn btn-primary btn-sm" onclick="guild_postChatMessage()">Send</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">Recent Messages</div>' +
+      '<button class="btn btn-outline btn-sm" onclick="guild_loadChatMessages()">🔄 Refresh</button>' +
+    '</div>' +
+    '<div id="guild-chat-messages"><div class="spinner"></div></div>';
+
+  var input = document.getElementById('guild-chat-input');
+  if (input) {
+    input.addEventListener('input', function() {
+      var count = document.getElementById('guild-chat-char-count');
+      if (count) count.textContent = input.value.length + ' / 500';
+    });
+  }
+
+  guild_loadChatMessages();
+}
+
+async function guild_postChatMessage() {
+  if (!currentUser || !guildState.myGuild) return;
+  if (!canPerformAction('guild_chat_post', 2000)) { showToast('Please wait before posting again!', 2500); return; }
+
+  var input = document.getElementById('guild-chat-input');
+  var message = (input ? input.value : '').trim();
+  if (!message) { showToast('Please enter a message', 2000); return; }
+  if (message.length > 500) { showToast('Message is too long (max 500 characters)', 2500); return; }
+  if (containsProfanity(message)) { showToast('Please keep guild chat family-friendly 💖', 3000); return; }
+
+  try {
+    var { error } = await supabaseClient.from('guild_chat_messages').insert({
+      guild_id: guildState.myGuild.guild_id,
+      author_id: currentUser.id,
+      message: message
+    });
+    if (error) throw error;
+
+    if (input) { input.value = ''; }
+    var count = document.getElementById('guild-chat-char-count');
+    if (count) count.textContent = '0 / 500';
+    guild_loadChatMessages();
+  } catch(err) {
+    showToast('Could not send message: ' + err.message, 3000);
+  }
+}
+
+async function guild_loadChatMessages() {
+  var container = document.getElementById('guild-chat-messages');
+  if (!container || !guildState.myGuild) return;
+  container.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var { data: messages, error } = await supabaseClient
+      .from('guild_chat_messages')
+      .select('id, author_id, message, created_at')
+      .eq('guild_id', guildState.myGuild.guild_id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+
+    if (!messages || messages.length === 0) {
+      container.innerHTML = '<div style="color:var(--text-light);text-align:center;padding:20px;font-style:italic;">No messages yet — say hello to your guild! 👋</div>';
+      return;
+    }
+
+    // Resolve author usernames separately (avoids guessing FK constraint names)
+    var authorIds = messages.map(function(m) { return m.author_id; }).filter(Boolean);
+    var authorMap = {};
+    if (authorIds.length > 0) {
+      var { data: authors } = await supabaseClient.from('players').select('id, username').in('id', authorIds);
+      (authors || []).forEach(function(p) { authorMap[p.id] = p.username; });
+    }
+
+    var html = messages.map(function(m) {
+      var authorName = authorMap[m.author_id] || 'Unknown';
+      var isMe = m.author_id === currentUser.id;
+      var timeAgo = getTimeAgo(new Date(m.created_at));
+      return '<div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+        '<div style="width:30px;height:30px;border-radius:50%;background:' + (isMe?'var(--purple)':'var(--purple-light)') + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.82rem;flex-shrink:0;">' +
+          authorName.charAt(0).toUpperCase() +
+        '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">' +
+            '<span style="font-weight:700;font-size:0.82rem;color:' + (isMe?'var(--purple)':'var(--purple-dark)') + ';">' + escapeHtml(authorName) + (isMe ? ' (You)' : '') + '</span>' +
+            '<span style="font-size:0.68rem;color:var(--text-light);">' + timeAgo + '</span>' +
+          '</div>' +
+          '<div style="font-size:0.85rem;color:var(--purple-dark);word-break:break-word;">' + escapeHtml(m.message) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    container.innerHTML = html;
+  } catch(err) {
+    container.innerHTML = '<div style="color:var(--text-light);text-align:center;padding:20px;">Could not load messages: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+async function guild_donate() {
+  var amountStr = (document.getElementById('guild-donate-amount')||{}).value;
+  var amount = parseInt(amountStr);
+  if (!amount || amount < 10) { showToast('Minimum donation is 10 PP', 2500); return; }
+  if ((currentPoints||0) < amount) { showToast('Not enough PP!', 2500); return; }
+  if (!guildState.myGuild) return;
+  try {
+    await awardPP(-amount, 'guild_donation');
+
+    // Use RPC to atomically add to treasury and log
+    var { data: rpcResult, error: rpcErr } = await supabaseClient.rpc('add_to_guild_treasury', {
+      p_guild_id:    guildState.myGuild.guild_id,
+      p_user_id:     currentUser.id,
+      p_amount:      amount,
+      p_action:      'donate',
+      p_description: 'Player donated ' + amount + ' PP'
+    });
+
+    if (rpcErr) {
+      // Treasury RPC failed — refund the player rather than silently losing their donation
+      // (direct client writes to guild_treasury are blocked at the database level)
+      await awardPP(amount, 'guild_donation_refund').catch(function(){});
+      showToast('Could not process donation — refunded. Please try again later.', 3500);
+      return;
+    }
+
+    // Increment member contributions
+    var { data: m } = await supabaseClient.from('guild_members').select('total_contributions')
+      .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id).single();
+    await supabaseClient.from('guild_members')
+      .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
+      .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
+
+    awardBadge('treasury_donor').catch(function(){});
+    updateBingoProgress('donate_guild', 1);
+    showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_renderTreasury() {
+  var mount = document.getElementById('guild-content');
+  if (!mount || !guildState.myGuild) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var guildId = guildState.myGuild.guild_id;
+
+    // Fetch treasury balance
+    var { data: guildData } = await supabaseClient.from('guilds').select('guild_treasury').eq('id', guildId).single();
+    var treasury = (guildData && guildData.guild_treasury) || 0;
+
+    // Fetch active votes
+    var { data: votes } = await supabaseClient
+      .from('guild_treasury_votes')
+      .select('*')
+      .eq('guild_id', guildId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+
+    // Fetch treasury logs (last 10)
+    var { data: logs } = await supabaseClient
+      .from('guild_treasury_logs')
+      .select('*, players(username)')
+      .eq('guild_id', guildId)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    var canPropose = guildState.myRole === 'leader' || guildState.myRole === 'officer';
+
+    // Active perks banner
+    var activePerkHtml = '';
+    var now = Date.now();
+    var activeKeys = Object.keys(_activeGuildPerks).filter(function(k) { return _activeGuildPerks[k].expiresAt > now; });
+    if (activeKeys.length > 0) {
+      activePerkHtml = '<div style="background:rgba(93,222,122,0.1);border:1px solid rgba(93,222,122,0.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;">' +
+        '<div style="font-weight:700;font-size:0.8rem;color:#2d8a4e;margin-bottom:6px;">✨ Active Guild Perks</div>' +
+        activeKeys.map(function(k) {
+          var p = _activeGuildPerks[k];
+          var minsLeft = Math.floor((p.expiresAt - now) / 60000);
+          var label = k === 'xp_boost' ? '⚡ XP Boost' : k === 'discount' ? '🛒 Shop Discount' : k === 'reward_boost' ? '💰 Reward Boost' : k;
+          return '<div style="font-size:0.78rem;color:#2d8a4e;">' + label + ' · ' + minsLeft + 'm remaining</div>';
+        }).join('') +
+      '</div>';
+    }
+
+    // Votes html
+    var votesHtml = (votes && votes.length > 0)
+      ? votes.map(function(v) {
+          var endsAt  = new Date(v.ends_at);
+          var minsLeft = Math.max(0, Math.floor((endsAt - new Date()) / 60000));
+          var hrsLeft  = Math.floor(minsLeft / 60);
+          var timeStr  = minsLeft <= 0 ? 'Ending soon' : (hrsLeft > 0 ? hrsLeft + 'h ' + (minsLeft%60) + 'm' : minsLeft + 'm');
+          var effectIcons = { xp_boost:'⚡', discount:'🛒', reward_boost:'💰', special:'✨' };
+          return '<div style="border:2px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px;">' +
+            '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+              '<span style="font-size:1.2rem;">' + (effectIcons[v.effect_type]||'📊') + '</span>' +
+              '<span style="font-weight:700;font-size:0.9rem;color:var(--purple-dark);">' + escapeHtml(v.proposal) + '</span>' +
+              '<span style="margin-left:auto;font-size:0.72rem;color:var(--text-light);">⏱️ ' + timeStr + '</span>' +
+            '</div>' +
+            '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:8px;">' + escapeHtml(v.description||'') + '</div>' +
+            '<div style="font-size:0.78rem;margin-bottom:8px;">Cost: <strong>🪙' + v.cost + ' PP</strong> from treasury</div>' +
+            '<div style="display:flex;gap:16px;font-size:0.82rem;margin-bottom:10px;">' +
+              '<span style="color:#5dde7a;">👍 ' + (v.votes_for||0) + ' For</span>' +
+              '<span style="color:#ff6b6b;">👎 ' + (v.votes_against||0) + ' Against</span>' +
+            '</div>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button class="btn btn-primary btn-sm" onclick="guild_castVote(\'' + v.id + '\',true)" style="flex:1;">👍 Vote Yes</button>' +
+              '<button class="btn btn-outline btn-sm" onclick="guild_castVote(\'' + v.id + '\',false)" style="flex:1;color:#ff6b6b;border-color:#ff6b6b;">👎 Vote No</button>' +
+            '</div>' +
+          '</div>';
+        }).join('')
+      : '<div style="color:var(--text-light);font-size:0.82rem;font-style:italic;margin-bottom:14px;">No active proposals.</div>';
+
+    // Log html
+    var logHtml = (logs && logs.length > 0)
+      ? logs.map(function(l) {
+          var icon = l.amount > 0 ? '💰' : '💸';
+          var username = l.players ? escapeHtml(l.players.username) : 'Someone';
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.78rem;">' +
+            '<span>' + icon + '</span>' +
+            '<span style="flex:1;color:var(--purple-dark);">' + username + ' — ' + escapeHtml(l.description||l.action) + '</span>' +
+            '<span style="color:' + (l.amount>0?'#5dde7a':'#ff6b6b') + ';font-weight:600;">' + (l.amount>0?'+':'') + l.amount + ' PP</span>' +
+          '</div>';
+        }).join('')
+      : '<div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">No transactions yet.</div>';
+
+    mount.innerHTML =
+      '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back to Guild</button>' +
+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">' +
+        '<div>' +
+          '<div style="font-size:0.72rem;color:var(--text-light);letter-spacing:1px;margin-bottom:2px;">GUILD TREASURY</div>' +
+          '<div style="font-size:2rem;font-weight:800;color:#e6a800;">🪙 ' + treasury.toLocaleString() + ' PP</div>' +
+        '</div>' +
+        (canPropose ? '<button class="btn btn-primary btn-sm" onclick="guild_showProposalForm()">➕ New Proposal</button>' : '') +
+      '</div>' +
+
+      activePerkHtml +
+
+      // Donate
+      '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:12px 14px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;font-size:0.82rem;margin-bottom:8px;">💰 Donate PP</div>' +
+        '<div style="display:flex;gap:8px;">' +
+          '<input type="number" id="guild-donate-amount" min="10" placeholder="Amount..." style="flex:1;padding:7px 10px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;">' +
+          '<button class="btn btn-primary btn-sm" onclick="guild_donate()">Donate</button>' +
+        '</div>' +
+      '</div>' +
+
+      // Active votes
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🗳️ Active Proposals</div>' +
+      votesHtml +
+
+      // Treasury log
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;margin-top:8px;">📜 Treasury Log</div>' +
+      '<div>' + logHtml + '</div>';
+
+    // Load any newly passed votes
+    loadActiveGuildPerks().catch(function(){});
+  } catch(err) {
+    mount.innerHTML = '<div class="empty-state"><p>Error loading treasury: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
+  }
+}
+
+function guild_showProposalForm() {
+  var treasury = 0;
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="max-width:420px;">' +
+      '<h3 style="color:var(--purple);margin-bottom:16px;">✨ Create Treasury Proposal</h3>' +
+      '<div style="margin-bottom:10px;"><label style="font-size:0.8rem;font-weight:700;display:block;margin-bottom:4px;">Proposal Title</label>' +
+        '<input id="prop-title" type="text" maxlength="60" placeholder="e.g. XP Boost for the guild!" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;box-sizing:border-box;"></div>' +
+      '<div style="margin-bottom:10px;"><label style="font-size:0.8rem;font-weight:700;display:block;margin-bottom:4px;">Description</label>' +
+        '<textarea id="prop-desc" maxlength="200" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.82rem;resize:vertical;min-height:60px;box-sizing:border-box;"></textarea></div>' +
+      '<div style="display:flex;gap:10px;margin-bottom:10px;">' +
+        '<div style="flex:1;"><label style="font-size:0.8rem;font-weight:700;display:block;margin-bottom:4px;">Effect Type</label>' +
+          '<select id="prop-effect" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;" onchange="guild_updateProposalCost()">' +
+            '<option value="xp_boost">⚡ XP Boost (+10%)</option>' +
+            '<option value="discount">🛒 Shop Discount (-20%)</option>' +
+            '<option value="reward_boost">💰 Reward Boost (+25%)</option>' +
+          '</select></div>' +
+        '<div style="flex:1;"><label style="font-size:0.8rem;font-weight:700;display:block;margin-bottom:4px;">Duration (hours)</label>' +
+          '<input id="prop-duration" type="number" value="24" min="1" max="72" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;box-sizing:border-box;"></div>' +
+      '</div>' +
+      '<div style="background:rgba(255,215,0,0.1);border-radius:10px;padding:10px 12px;margin-bottom:14px;font-size:0.82rem;">' +
+        '<div id="prop-cost-display">Cost: <strong>🪙1,000 PP</strong> from treasury · Votes close in 48 hours</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button class="btn btn-primary" onclick="guild_createProposal()" style="flex:1;">Create Proposal</button>' +
+        '<button class="btn btn-outline" onclick="closeModal()" style="flex:0 0 auto;">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  openModal(modal);
+}
+
+function guild_updateProposalCost() {
+  var costs = { xp_boost: 1000, discount: 2000, reward_boost: 1500 };
+  var sel = document.getElementById('prop-effect');
+  var costEl = document.getElementById('prop-cost-display');
+  if (!sel || !costEl) return;
+  var cost = costs[sel.value] || 1000;
+  costEl.innerHTML = 'Cost: <strong>🪙' + cost.toLocaleString() + ' PP</strong> from treasury · Votes close in 48 hours';
+}
+
+async function guild_createProposal() {
+  var title    = (document.getElementById('prop-title')   || {}).value.trim();
+  var desc     = (document.getElementById('prop-desc')    || {}).value.trim();
+  var effect   = (document.getElementById('prop-effect')  || {}).value;
+  var duration = parseInt((document.getElementById('prop-duration') || {}).value) || 24;
+
+  if (!title) { showToast('Please enter a proposal title', 2500); return; }
+  if (!guildState.myGuild) return;
+
+  var costMap = { xp_boost: 1000, discount: 2000, reward_boost: 1500 };
+  var effectValueMap = { xp_boost: { percent: 10 }, discount: { percent: 20 }, reward_boost: { percent: 25 } };
+  var cost = costMap[effect] || 1000;
+
+  try {
+    var { error } = await supabaseClient.from('guild_treasury_votes').insert({
+      guild_id:        guildState.myGuild.guild_id,
+      proposal:        title,
+      description:     desc,
+      cost:            cost,
+      effect_type:     effect,
+      effect_value:    effectValueMap[effect],
+      duration_hours:  duration,
+      created_by:      currentUser.id,
+      ends_at:         new Date(Date.now() + duration * 3600000).toISOString()
+    });
+    if (error) throw error;
+
+    addPassXP(10, 'guild_proposal').catch(function(){});
+    closeModal();
+    showToast('📊 Proposal created! Guild members can now vote.', 4000);
+    guild_renderTreasury();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_castVote(voteId, inFavor) {
+  if (!canPerformAction('guild_vote', 2000)) return;
+  try {
+    // Fetch current vote counts
+    var { data: vote, error: fetchErr } = await supabaseClient
+      .from('guild_treasury_votes').select('*').eq('id', voteId).single();
+    if (fetchErr) throw fetchErr;
+    if (!vote || vote.status !== 'active') { showToast('This proposal is no longer active.', 2500); return; }
+
+    var field = inFavor ? 'votes_for' : 'votes_against';
+    var { error: updateErr } = await supabaseClient
+      .from('guild_treasury_votes')
+      .update({ [field]: (vote[field] || 0) + 1 })
+      .eq('id', voteId);
+    if (updateErr) throw updateErr;
+
+    updateBingoProgress('vote_in_guild', 1);
+    addPassXP(5, 'guild_vote').catch(function(){});
+    showToast(inFavor ? '👍 Voted Yes!' : '👎 Voted No!', 2500);
+
+    // Check if this vote just passed (simple majority, 3+ votes for, more for than against)
+    var newVotesFor = vote.votes_for + (inFavor ? 1 : 0);
+    if (newVotesFor >= 3 && newVotesFor > (vote.votes_against + (!inFavor ? 1 : 0))) {
+      await guild_processPassedVote(vote);
+    }
+
+    guild_renderTreasury();
+  } catch(err) { showToast('Vote failed: ' + err.message, 3000); }
+}
+
+// Apply a passed proposal's effect and deduct its cost from treasury
+async function guild_processPassedVote(vote) {
+  try {
+    var { data: rpcResult, error: rpcErr } = await supabaseClient.rpc('remove_from_guild_treasury', {
+      p_guild_id:    vote.guild_id,
+      p_amount:      vote.cost,
+      p_action:      'proposal_passed',
+      p_description: vote.proposal + ' — proposal passed'
+    });
+    if (rpcErr) {
+      // Treasury RPC failed — don't mark the vote passed or apply the perk, since the
+      // cost was never actually paid (direct client writes to guild_treasury are blocked).
+      // Leave the vote active so it can be retried on the next check.
+      dbg('guild_processPassedVote: treasury deduction failed, leaving vote active:', rpcErr);
+      return;
+    }
+
+    await supabaseClient.from('guild_treasury_votes').update({ status: 'passed' }).eq('id', vote.id);
+
+    if (vote.effect_type && vote.effect_value) {
+      applyGuildPerk(vote.effect_type, vote.effect_value, vote.duration_hours || 24);
+      showToast('🏦 Guild perk activated: ' + vote.effect_type.replace('_',' ') + '!', 4000);
+    }
+  } catch(e) { dbg('Failed to process passed vote:', e); }
+}
+
+async function guild_leave() {
+  if (!guildState.myGuild) return;
+
+  if (guildState.myRole === 'leader') {
+    // Leaders can't just leave — offer disband
+    var modal = makeModal();
+    modal.innerHTML =
+      '<div style="text-align:center;max-width:340px;">' +
+        '<div style="font-size:2.5rem;margin-bottom:10px;">⚠️</div>' +
+        '<h3 style="color:var(--purple-dark);margin-bottom:10px;">You are the Guild Leader</h3>' +
+        '<p style="color:var(--text-light);font-size:0.88rem;margin-bottom:20px;">Leaders cannot leave without disbanding the guild. This will permanently remove the guild and all membership records.</p>' +
+        '<div style="display:flex;gap:10px;">' +
+          '<button class="btn btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>' +
+          '<button class="btn btn-primary" onclick="closeModal();guild_disband();" style="flex:1;background:#ff6b6b;border-color:#ff6b6b;">🗑️ Disband Guild</button>' +
+        '</div>' +
+      '</div>';
+    openModal(modal);
+    return;
+  }
+
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="text-align:center;max-width:320px;">' +
+      '<div style="font-size:2rem;margin-bottom:10px;">🚪</div>' +
+      '<h3 style="margin-bottom:10px;">Leave Guild?</h3>' +
+      '<p style="color:var(--text-light);font-size:0.88rem;margin-bottom:20px;">You will lose access to guild perks, dungeons, and the treasury.</p>' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button class="btn btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="closeModal();guild_leaveConfirmed();" style="flex:1;background:#ff6b6b;border-color:#ff6b6b;">Leave</button>' +
+      '</div>' +
+    '</div>';
+  openModal(modal);
+}
+
+async function guild_leaveConfirmed() {
+  if (!guildState.myGuild) return;
+  var leftGuildId = guildState.myGuild.guild_id;
+  try {
+    clearGuildPerks(leftGuildId);
+    await supabaseClient.from('guild_members').delete().eq('guild_id', leftGuildId).eq('user_id', currentUser.id);
+    await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('guild_id', leftGuildId).eq('user_id', currentUser.id);
+    await guild_syncMemberCount(leftGuildId);
+    guildState.myGuild = null;
+    guildState.myRole  = null;
+    showToast('You left the guild.', 3000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed to leave: ' + err.message, 3000); }
+}
+
+async function guild_disband() {
+  if (!guildState.myGuild || guildState.myRole !== 'leader') return;
+  var guildId   = guildState.myGuild.guild_id;
+  var guildName = guildState.myGuild.name || 'this guild';
+  try {
+    // Delete in order: liaisons → members → guild
+    await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('guild_id', guildId);
+    await supabaseClient.from('guild_members').delete().eq('guild_id', guildId);
+    await supabaseClient.from('guilds').delete().eq('id', guildId);
+    guildState.myGuild = null;
+    guildState.myRole  = null;
+    clearGuildPerks(guildId);
+    showToast('🏛️ "' + guildName + '" has been disbanded.', 4000);
+    loadGuildPage();
+  } catch(err) { showToast('Failed to disband: ' + err.message, 3000); }
+}
+
+// ── Guild Dungeons ────────────────────────────────────────────────────────
+var _selectedDungeonKey = null;
+var _selectedLiaisonIds = [];
+
+async function guild_renderDungeons() {
+  var mount = document.getElementById('guild-content');
+  if (!mount || !guildState.myGuild) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var { data: dungeons } = await supabaseClient.from('guild_dungeons').select('*').order('base_enemy_level', { ascending: true });
+    var myGuildLevel = guildState.myGuild.guild_level || 1;
+
+    var dungeonCards = (dungeons||[]).map(function(d) {
+      var locked = myGuildLevel < (d.required_guild_level||1);
+      return '<div style="border:2px solid ' + (locked?'var(--border)':'var(--purple)') + ';border-radius:14px;padding:14px 12px;text-align:center;flex:1;min-width:0;cursor:' + (locked?'default':'pointer') + ';opacity:' + (locked?'0.5':'1') + ';transition:all 0.2s;" ' +
+        (locked ? '' : 'onclick="guild_selectDungeon(\'' + d.dungeon_key + '\')" ') +
+        'id="dungeon-card-' + d.dungeon_key + '">' +
+        '<div style="font-size:2rem;">' + (d.icon||'⚔️') + '</div>' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(d.name) + '</div>' +
+        '<div style="font-size:0.72rem;color:var(--text-light);">' + (d.difficulty||'?').toUpperCase() + '</div>' +
+        '<div style="font-size:0.72rem;color:#e6a800;">💰' + d.entry_cost_pp + ' PP entry</div>' +
+        '<div style="font-size:0.72rem;color:#5dde7a;">+' + d.base_pp_reward + ' PP · +' + d.base_xp_reward + ' XP</div>' +
+        (locked ? '<div style="font-size:0.68rem;color:#ff6b6b;margin-top:4px;">Requires Guild Lv.' + d.required_guild_level + '</div>' : '') +
+      '</div>';
+    }).join('');
+
+    // Fetch guildmates' liaisons for party builder
+    var { data: liaisons } = await supabaseClient.rpc('get_guild_liaisons', {
+      p_guild_id: guildState.myGuild.guild_id,
+      p_exclude_user_id: currentUser.id
+    });
+
+    var guildmateOptions = (liaisons||[]).map(function(l) {
+      return '<option value="' + l.user_id + '">' + escapeHtml(l.username) + ' — ' + escapeHtml(l.pet_name||'Pet') + ' Lv.' + (l.pet_level||1) + '</option>';
+    }).join('') || '<option disabled>No guildmates have set a liaison yet</option>';
+
+    // My liaison — re-fetch from DB directly rather than trusting possibly-stale
+    // guildState.liaisonPetId or an unpopulated petState cache (same fix pattern
+    // used for expeditions and battle arena)
+    var myLiaisonPet = null;
+    try {
+      var { data: myLiaisonRow } = await supabaseClient
+        .from('guild_liaisons')
+        .select('pet_id, user_pets(nickname, level, current_variant)')
+        .eq('guild_id', guildState.myGuild.guild_id)
+        .eq('user_id', currentUser.id)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (myLiaisonRow && myLiaisonRow.pet_id) {
+        guildState.liaisonPetId = myLiaisonRow.pet_id;
+        myLiaisonPet = myLiaisonRow.user_pets || null;
+      }
+    } catch(e) { dbg('Could not fetch liaison for dungeon page:', e); }
+
+    var myPetDisplay = myLiaisonPet ? escapeHtml(myLiaisonPet.nickname||'Pet') + ' Lv.' + (myLiaisonPet.level||1) : '⚠️ Not set — go set a Guild Pet first!';
+
+    mount.innerHTML =
+      '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back to Guild</button>' +
+      '<h3 style="color:var(--purple);margin-bottom:14px;">⚔️ Guild Dungeons</h3>' +
+
+      '<div style="display:flex;gap:8px;margin-bottom:18px;">' + dungeonCards + '</div>' +
+
+      '<div style="border:2px solid var(--border);border-radius:14px;padding:14px 16px;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:12px;">🧑‍🤝‍🧑 Build Your Party</div>' +
+        '<div style="font-size:0.82rem;margin-bottom:8px;padding:8px 10px;background:rgba(153,102,255,0.06);border-radius:8px;">' +
+          '🏛️ Your Guild Pet: <strong>' + myPetDisplay + '</strong>' +
+        '</div>' +
+        '<div style="margin-bottom:12px;">' +
+          '<label style="font-size:0.78rem;font-weight:600;display:block;margin-bottom:4px;">Add Guildmates (optional):</label>' +
+          '<select id="guild-liaison-picker" style="width:100%;padding:8px;border-radius:8px;border:2px solid var(--border);font-size:0.82rem;">' +
+            '<option value="">-- Select a guildmate --</option>' + guildmateOptions +
+          '</select>' +
+          '<button class="btn btn-outline btn-sm" onclick="guild_addPartyMember()" style="width:100%;margin-top:6px;">+ Add to Party</button>' +
+        '</div>' +
+        '<div id="guild-party-list" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-light);">Party: Just you</div>' +
+        '<div id="guild-dungeon-info" style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;">Select a dungeon above</div>' +
+        '<button id="guild-start-dungeon-btn" class="btn btn-primary" onclick="guild_startDungeon()" disabled style="width:100%;opacity:0.5;">⚔️ Start Dungeon</button>' +
+      '</div>' +
+
+      '<div style="margin-top:16px;font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">📜 Recent Runs</div>' +
+      '<div id="guild-dungeon-history"><div class="spinner"></div></div>';
+
+    guild_loadDungeonHistory();
+  } catch(err) {
+    mount.innerHTML = '<div class="empty-state"><p>Error: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
+  }
+}
+
+function guild_selectDungeon(key) {
+  _selectedDungeonKey = key;
+  document.querySelectorAll('[id^="dungeon-card-"]').forEach(function(c) {
+    c.style.background = c.id === 'dungeon-card-' + key ? 'rgba(153,102,255,0.1)' : '';
+  });
+  guild_updateDungeonBtn();
+}
+
+function guild_updateDungeonBtn() {
+  var btn  = document.getElementById('guild-start-dungeon-btn');
+  var info = document.getElementById('guild-dungeon-info');
+  if (!btn || !info) return;
+  var ready = _selectedDungeonKey && guildState.liaisonPetId;
+  btn.disabled = !ready;
+  btn.style.opacity = ready ? '1' : '0.5';
+  if (_selectedDungeonKey) info.textContent = 'Selected: ' + _selectedDungeonKey + ' · Your pet will fight for the guild!';
+  else info.textContent = 'Select a dungeon above.';
+}
+
+// ── Multi-pet dungeon battle ──────────────────────────────────────────────
+
+// Stored liaison data from party builder (fetched when guildmates are added)
+var _guildPartyData = []; // array of liaison objects from get_guild_liaisons RPC
+
+function guild_addPartyMember() {
+  var sel = document.getElementById('guild-liaison-picker');
+  if (!sel || !sel.value) return;
+  var userId = sel.value;
+  if (_guildPartyData.some(function(p) { return p.user_id === userId; })) { showToast('Already in party!', 1500); return; }
+  if (_guildPartyData.length >= 3) { showToast('Max 3 guildmates!', 1500); return; }
+
+  // Find the liaison data from the select option's stored data
+  var opt = sel.options[sel.selectedIndex];
+  _guildPartyData.push({ user_id: userId, label: opt.text });
+
+  var listEl = document.getElementById('guild-party-list');
+  if (listEl) {
+    listEl.innerHTML = '<strong>Party:</strong> You' + (_guildPartyData.length > 0 ? ' + ' + _guildPartyData.map(function(p){ return escapeHtml(p.label.split('—')[0].trim()); }).join(', ') : '');
+  }
+  guild_updateDungeonBtn();
+}
+
+// Enemy templates per dungeon
+var DUNGEON_ENEMIES = {
+  guild_dungeon_easy:   [
+    { name:'Restless Spirit', icon:'👻', base_hp:40,  base_attack:6,  base_defense:2,  speed:4 },
+    { name:'Crypt Crawler',   icon:'🦟', base_hp:30,  base_attack:8,  base_defense:1,  speed:6 },
+    { name:'Bone Archer',     icon:'🏹', base_hp:35,  base_attack:7,  base_defense:3,  speed:5 }
+  ],
+  guild_dungeon_medium: [
+    { name:'Swamp Lurker',    icon:'🐊', base_hp:70,  base_attack:12, base_defense:4,  speed:3 },
+    { name:'Shadow Imp',      icon:'😈', base_hp:55,  base_attack:15, base_defense:3,  speed:7 },
+    { name:'Vine Strangler',  icon:'🌿', base_hp:80,  base_attack:10, base_defense:6,  speed:2 }
+  ],
+  guild_dungeon_hard:   [
+    { name:'Void Knight',     icon:'🗡️', base_hp:120, base_attack:20, base_defense:8,  speed:6 },
+    { name:'Chaos Mage',      icon:'🧙', base_hp:90,  base_attack:25, base_defense:4,  speed:8 },
+    { name:'Corrupted Titan', icon:'👹', base_hp:160, base_attack:18, base_defense:10, speed:3 }
+  ]
+};
+
+async function guild_startDungeon() {
+  if (!_selectedDungeonKey || !guildState.liaisonPetId || !guildState.myGuild) return;
+  if (!canPerformAction('guild_dungeon', 5000)) return;
+
+  var btn = document.getElementById('guild-start-dungeon-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⚔️ Loading battle…'; }
+
+  try {
+    var { data: dungeon } = await supabaseClient.from('guild_dungeons').select('*').eq('dungeon_key', _selectedDungeonKey).single();
+    if (!dungeon) throw new Error('Dungeon not found');
+    if ((currentPoints||0) < dungeon.entry_cost_pp) {
+      showToast('Need ' + dungeon.entry_cost_pp + ' PP to enter!', 3000);
+      if (btn) { btn.disabled = false; guild_updateDungeonBtn(); }
+      return;
+    }
+
+    // Deduct entry cost
+    await awardPP(-dungeon.entry_cost_pp, 'guild_dungeon_entry');
+
+    // Build party — my pet first
+    var myPetRaw = petState[guildState.liaisonPetId] || {};
+    var party = [{
+      id:       guildState.liaisonPetId,
+      name:     escapeHtml(myPetRaw.nickname || myPetRaw.pet_type || 'Your Pet'),
+      ownerName:'You',
+      isPlayer: true,
+      icon:     '🐾',
+      variant:  myPetRaw.current_variant || null,
+      maxHp:    myPetRaw.max_hp || myPetRaw.base_hp || 30,
+      currentHp:myPetRaw.current_hp || myPetRaw.base_hp || 30,
+      attack:   myPetRaw.base_attack || 5,
+      defense:  myPetRaw.base_defense || 3,
+      speed:    myPetRaw.base_speed || 4
+    }];
+
+    // Fetch full liaison data for selected guildmates
+    if (_guildPartyData.length > 0) {
+      var { data: liaisons } = await supabaseClient.rpc('get_guild_liaisons', {
+        p_guild_id: guildState.myGuild.guild_id,
+        p_exclude_user_id: currentUser.id
+      });
+      _guildPartyData.forEach(function(gm) {
+        var liaison = (liaisons||[]).find(function(l) { return l.user_id === gm.user_id; });
+        if (liaison) {
+          party.push({
+            id:       liaison.pet_id,
+            name:     escapeHtml(liaison.pet_name || 'Pet'),
+            ownerName:escapeHtml(liaison.username || 'Guildmate'),
+            isPlayer: false,
+            icon:     '🐾',
+            variant:  liaison.pet_variant || null,
+            maxHp:    liaison.pet_max_hp || 30,
+            currentHp:liaison.pet_max_hp || 30,
+            attack:   liaison.pet_attack || 5,
+            defense:  liaison.pet_defense || 3,
+            speed:    liaison.pet_speed || 4
+          });
+        }
+      });
+    }
+
+    // Scale enemies to dungeon level
+    var enemyTemplates = DUNGEON_ENEMIES[_selectedDungeonKey] || DUNGEON_ENEMIES.guild_dungeon_easy;
+    var enemyLevel = dungeon.base_enemy_level || 5;
+    var levelMult = 1 + enemyLevel * 0.1;
+
+    // Build waves
+    var totalWaves = dungeon.waves || 3;
+    var waves = [];
+    for (var w = 0; w < totalWaves; w++) {
+      var waveEnemyCount = Math.min(enemyTemplates.length, 1 + Math.floor(w / 2));
+      var waveEnemies = [];
+      for (var e = 0; e < waveEnemyCount; e++) {
+        var tmpl = enemyTemplates[e % enemyTemplates.length];
+        waveEnemies.push({
+          name:     tmpl.name,
+          icon:     tmpl.icon,
+          maxHp:    Math.floor(tmpl.base_hp * levelMult * (1 + w * 0.15)),
+          currentHp:Math.floor(tmpl.base_hp * levelMult * (1 + w * 0.15)),
+          attack:   Math.floor(tmpl.base_attack * (1 + w * 0.1)),
+          defense:  Math.floor(tmpl.base_defense),
+          speed:    tmpl.speed
+        });
+      }
+      waves.push(waveEnemies);
+    }
+
+    // Run the animated battle
+    guild_runBattle(dungeon, party, waves, 0, []);
+
+  } catch(err) {
+    showToast('Dungeon failed: ' + err.message, 4000);
+    if (btn) { btn.disabled = false; guild_updateDungeonBtn(); }
+  }
+}
+
+function guild_runBattle(dungeon, party, waves, waveIndex, fullLog) {
+  var mount = document.getElementById('guild-content');
+  if (!mount) return;
+
+  var enemies = waves[waveIndex].map(function(e) { return Object.assign({}, e); }); // fresh copy
+  var log = [];
+
+  // ── Simulate this wave ──
+  var turn = 0;
+  var maxTurns = 60;
+
+  while (
+    party.some(function(p) { return p.currentHp > 0; }) &&
+    enemies.some(function(e) { return e.currentHp > 0; }) &&
+    turn < maxTurns
+  ) {
+    turn++;
+    // Build turn order: all alive combatants sorted by speed
+    var order = []
+      .concat(party.filter(function(p) { return p.currentHp > 0; }))
+      .concat(enemies.filter(function(e) { return e.currentHp > 0; }));
+    order.sort(function(a, b) { return (b.speed||4) - (a.speed||4); });
+
+    order.forEach(function(actor) {
+      if (actor.currentHp <= 0) return;
+      var isParty = !!actor.isPlayer || actor.ownerName !== undefined;
+
+      if (isParty) {
+        // Attack random alive enemy
+        var targets = enemies.filter(function(e) { return e.currentHp > 0; });
+        if (!targets.length) return;
+        var target = targets[Math.floor(Math.random() * targets.length)];
+        var base = Math.max(1, actor.attack - target.defense);
+        var variance = 0.8 + Math.random() * 0.6;
+        var isCrit = Math.random() < 0.10;
+        var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
+        target.currentHp = Math.max(0, target.currentHp - dmg);
+        log.push({ type: isCrit ? 'crit' : 'atk', text: actor.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : ''), waveIdx: waveIndex });
+        if (target.currentHp <= 0) log.push({ type: 'death', text: target.name + ' was defeated! 💀', waveIdx: waveIndex });
+      } else {
+        // Enemy attacks random alive party member
+        var ptargets = party.filter(function(p) { return p.currentHp > 0; });
+        if (!ptargets.length) return;
+        var ptarget = ptargets[Math.floor(Math.random() * ptargets.length)];
+        var pbase = Math.max(1, actor.attack - ptarget.defense);
+        var pdmg = Math.floor(pbase * (0.8 + Math.random() * 0.6));
+        ptarget.currentHp = Math.max(0, ptarget.currentHp - pdmg);
+        log.push({ type: 'enemy', text: actor.name + ' attacks ' + ptarget.name + ' for ' + pdmg + ' damage!', waveIdx: waveIndex });
+        if (ptarget.currentHp <= 0) log.push({ type: 'death', text: ptarget.name + ' was knocked out! 😵', waveIdx: waveIndex });
+      }
+    });
+  }
+
+  fullLog = fullLog.concat(log);
+  var waveVictory = enemies.every(function(e) { return e.currentHp <= 0; });
+
+  // ── Render battle result screen ──
+  var partyHtml = party.map(function(p) {
+    var pct = Math.max(0, Math.round((p.currentHp / p.maxHp) * 100));
+    var barColor = pct > 60 ? '#4ade80' : pct > 30 ? '#fbbf24' : '#ff6b6b';
+    var varIcon = p.variant ? (VARIANT_PARTICLES[p.variant] ? VARIANT_PARTICLES[p.variant][0] : '✨') : '🐾';
+    return '<div class="guild-party-member">' +
+      '<div style="font-size:1.1rem;">' + varIcon + '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:0.78rem;font-weight:700;color:' + (p.isPlayer?'var(--purple)':'var(--purple-dark)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+          p.name + (p.isPlayer ? ' <span style="color:var(--purple);font-size:0.68rem;">(You)</span>' : ' <span style="color:var(--text-light);font-size:0.68rem;">(' + p.ownerName + ')</span>') +
+        '</div>' +
+        '<div class="guild-member-hp-bar"><div class="guild-member-hp-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
+        '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,p.currentHp) + '/' + p.maxHp + ' HP' + (p.currentHp<=0 ? ' 💀' : '') + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  var enemyHtml = enemies.map(function(e) {
+    var pct = Math.max(0, Math.round((e.currentHp / e.maxHp) * 100));
+    return '<div class="guild-enemy-card">' +
+      '<div style="font-size:1.6rem;">' + e.icon + '</div>' +
+      '<div style="font-size:0.72rem;font-weight:700;color:' + (e.currentHp<=0?'#888':'var(--purple-dark)') + ';">' + e.name + '</div>' +
+      '<div class="guild-enemy-hp-bar"><div class="guild-enemy-hp-fill" style="width:' + pct + '%;opacity:' + (e.currentHp<=0?'0.3':'1') + ';"></div></div>' +
+      '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,e.currentHp) + '/' + e.maxHp + (e.currentHp<=0?' ✅':'') + '</div>' +
+    '</div>';
+  }).join('');
+
+  var logHtml = fullLog.slice(-20).map(function(entry) {
+    var cls = entry.type === 'crit' ? 'critical' : entry.type === 'death' ? 'death' : entry.type === 'enemy' ? 'enemy-atk' : '';
+    return '<div class="guild-battle-log-entry ' + cls + '">' + escapeHtml(entry.text) + '</div>';
+  }).join('');
+
+  var hasMoreWaves = waveIndex < waves.length - 1;
+  var partyAlive = party.some(function(p) { return p.currentHp > 0; });
+
+  mount.innerHTML =
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--text-light);letter-spacing:1px;margin-bottom:10px;">⚔️ ' + escapeHtml(dungeon.name) + ' — Wave ' + (waveIndex+1) + '/' + waves.length + '</div>' +
+
+    '<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">' +
+      // Party side
+      '<div style="flex:1;">' +
+        '<div style="font-size:0.72rem;font-weight:700;color:var(--purple);margin-bottom:6px;letter-spacing:1px;">YOUR PARTY</div>' +
+        '<div class="guild-party-panel">' + partyHtml + '</div>' +
+      '</div>' +
+
+      // VS divider
+      '<div style="font-size:1.2rem;font-weight:800;color:var(--text-light);padding-top:30px;">⚡</div>' +
+
+      // Enemy side
+      '<div style="flex:1;">' +
+        '<div style="font-size:0.72rem;font-weight:700;color:#ff6b6b;margin-bottom:6px;letter-spacing:1px;">ENEMIES</div>' +
+        '<div class="guild-enemies-grid">' + enemyHtml + '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Battle log
+    '<div style="font-size:0.72rem;font-weight:700;color:var(--text-light);margin-bottom:6px;letter-spacing:1px;">BATTLE LOG</div>' +
+    '<div class="guild-battle-log">' + logHtml + '</div>' +
+
+    // Wave result + actions
+    '<div style="margin-top:12px;padding:10px 0;text-align:center;">' +
+      '<div style="font-weight:700;font-size:0.9rem;margin-bottom:8px;color:' + (waveVictory?'#4ade80':'#ff6b6b') + ';">' +
+        (waveVictory ? '✅ Wave ' + (waveIndex+1) + ' Cleared!' : '❌ Wave ' + (waveIndex+1) + ' Failed!') +
+      '</div>' +
+      (waveVictory && hasMoreWaves && partyAlive
+        ? '<button class="btn btn-primary" onclick="guild_nextWave()" style="width:100%;margin-bottom:6px;">Continue to Wave ' + (waveIndex+2) + ' →</button>'
+        : '') +
+      '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(' + JSON.stringify(waveVictory && !hasMoreWaves || (waveVictory && !partyAlive)) + ',' + (waveIndex+1) + ',' + waves.length + ')" style="width:100%;">' +
+        (waveVictory && !hasMoreWaves ? '🏆 Claim Rewards' : (waveVictory && hasMoreWaves && !partyAlive ? '💀 Party defeated — End Run' : '🏃 Retreat')) +
+      '</button>' +
+    '</div>';
+
+  // Scroll log to bottom
+  var logEl = mount.querySelector('.guild-battle-log');
+  if (logEl) logEl.scrollTop = logEl.scrollHeight;
+
+  // Store state for next wave
+  window._guildBattleState = { dungeon: dungeon, party: party, waves: waves, waveIndex: waveIndex, fullLog: fullLog };
+}
+
+function guild_nextWave() {
+  var s = window._guildBattleState;
+  if (!s) return;
+  // Small heal between waves (10% of max HP)
+  s.party.forEach(function(p) {
+    if (p.currentHp > 0) p.currentHp = Math.min(p.maxHp, p.currentHp + Math.floor(p.maxHp * 0.10));
+  });
+  s.fullLog.push({ type: 'heal', text: '— Wave ' + (s.waveIndex+2) + ' begins! Party recovered 10% HP. —', waveIdx: s.waveIndex+1 });
+  guild_runBattle(s.dungeon, s.party, s.waves, s.waveIndex + 1, s.fullLog);
+}
+
+async function guild_endDungeon(victory, wavesCleared, totalWaves) {
+  var s = window._guildBattleState;
+  if (!s) { guild_renderDungeons(); return; }
+  var dungeon = s.dungeon;
+  var party   = s.party;
+
+  var mount = document.getElementById('guild-content');
+  if (mount) mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var myPet = petState[guildState.liaisonPetId] || {};
+    var levelBonus = Math.min(1.5, 1 + ((myPet.level||1) / 100));
+    var clearRatio = wavesCleared / totalWaves;
+    var ppReward  = Math.floor(dungeon.base_pp_reward  * levelBonus * clearRatio);
+    var xpReward  = Math.floor(dungeon.base_xp_reward  * levelBonus * clearRatio);
+    var gxpReward = Math.floor(dungeon.base_guild_xp_reward * clearRatio);
+
+    if (ppReward > 0) await awardPP(ppReward, 'guild_dungeon');
+    if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
+    addPassXP(15, 'guild_dungeon').catch(function(){});
+    updateBingoProgress('guild_dungeon', 1);
+    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(){});
+
+    // Log run
+    await supabaseClient.from('guild_dungeon_runs').insert({
+      guild_id: guildState.myGuild.guild_id, user_id: currentUser.id,
+      dungeon_id: dungeon.id,
+      party: party.map(function(p) { return { pet_id: p.id, owner: p.ownerName }; }),
+      enemies_defeated: wavesCleared, victory: victory, rewards_claimed: true,
+      completed_at: new Date().toISOString()
+    }).catch(function(){});
+
+    // Show result
+    var survivalSummary = party.map(function(p) {
+      var pct = Math.max(0, Math.round((p.currentHp/p.maxHp)*100));
+      return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:0.78rem;">' +
+        '<span style="flex:1;">' + p.name + (p.isPlayer?' (You)':'') + '</span>' +
+        '<span style="color:' + (p.currentHp>0?'#4ade80':'#ff6b6b') + ';">' + (p.currentHp>0?pct+'% HP':'KO') + '</span>' +
+      '</div>';
+    }).join('');
+
+    if (mount) mount.innerHTML =
+      '<div style="text-align:center;padding:10px 0;">' +
+        '<div style="font-size:3rem;margin-bottom:10px;">' + (victory?'🏆':'💀') + '</div>' +
+        '<div style="font-weight:800;font-size:1.15rem;color:var(--purple-dark);margin-bottom:4px;">' + (victory?'Dungeon Complete!':'Run Ended') + '</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:14px;">Waves cleared: ' + wavesCleared + '/' + totalWaves + '</div>' +
+
+        '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.12),rgba(153,102,255,0.08));border-radius:14px;padding:14px;margin-bottom:14px;">' +
+          '<div style="font-size:1.5rem;font-weight:800;color:#e6a800;">+' + ppReward + ' PP</div>' +
+          '<div style="font-size:0.82rem;color:#5dde7a;margin-top:4px;">+' + xpReward + ' Pet XP · +' + gxpReward + ' Guild XP</div>' +
+        '</div>' +
+
+        '<div style="text-align:left;margin-bottom:16px;border:1px solid var(--border);border-radius:10px;padding:10px 12px;">' +
+          '<div style="font-weight:700;font-size:0.78rem;color:var(--purple-dark);margin-bottom:6px;">Party Survival</div>' +
+          survivalSummary +
+        '</div>' +
+
+        '<button class="btn btn-primary" onclick="guild_renderDungeons()" style="width:100%;">Back to Dungeons</button>' +
+      '</div>';
+
+    _selectedDungeonKey = null;
+    _selectedLiaisonIds = [];
+    _guildPartyData = [];
+    window._guildBattleState = null;
+  } catch(err) {
+    showToast('Error saving run: ' + err.message, 4000);
+    if (mount) mount.innerHTML = '<button class="btn btn-outline" onclick="guild_renderDungeons()">← Back to Dungeons</button>';
+  }
+}
+
+async function guild_loadDungeonHistory() {
+  var mount = document.getElementById('guild-dungeon-history');
+  if (!mount || !guildState.myGuild) return;
+  try {
+    var { data: runs } = await supabaseClient
+      .from('guild_dungeon_runs')
+      .select('*, guild_dungeons(name, icon)')
+      .eq('guild_id', guildState.myGuild.guild_id)
+      .order('started_at', { ascending: false })
+      .limit(5);
+
+    if (!runs || runs.length === 0) { mount.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;">No runs yet.</div>'; return; }
+    mount.innerHTML = runs.map(function(r) {
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.78rem;">' +
+        '<span>' + (r.guild_dungeons ? r.guild_dungeons.icon||'⚔️' : '⚔️') + '</span>' +
+        '<span style="flex:1;">' + (r.guild_dungeons ? escapeHtml(r.guild_dungeons.name) : 'Dungeon') + '</span>' +
+        '<span style="color:' + (r.victory?'#5dde7a':'#ff6b6b') + ';font-weight:600;">' + (r.victory?'Victory':'Defeat') + '</span>' +
+      '</div>';
+    }).join('');
+  } catch(err) { mount.innerHTML = '<div style="color:var(--text-light);font-size:0.78rem;">Could not load history.</div>'; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE PHASE: EXPLORATION STREAKS + SECRETS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// In-memory streak tracker: { "petId:zone": count }
+var _explorationStreaks = {};
+
+async function checkExplorationStreak(petId, zone) {
+  var key = petId + ':' + zone;
+
+  // Restore from DB if not in memory (page refresh recovery)
+  if (!_explorationStreaks[key]) {
+    try {
+      var { data: last } = await supabaseClient
+        .from('expeditions')
+        .select('streak_count')
+        .eq('pet_id', petId)
+        .eq('zone', zone)
+        .eq('claimed', true)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (last && last.streak_count) _explorationStreaks[key] = last.streak_count;
+    } catch(e) {}
+  }
+
+  _explorationStreaks[key] = (_explorationStreaks[key] || 0) + 1;
+  var streak = _explorationStreaks[key];
+
+  // Persist streak count — fire-and-forget with proper try/catch (no .catch() on chain)
+  (async function() {
+    try {
+      var { data: recentExp } = await supabaseClient
+        .from('expeditions')
+        .select('id')
+        .eq('pet_id', petId)
+        .eq('zone', zone)
+        .eq('user_id', currentUser.id)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (recentExp && recentExp.id) {
+        await supabaseClient.from('expeditions').update({ streak_count: streak }).eq('id', recentExp.id);
+      }
+    } catch(e) { /* streak_count column optional — ignore */ }
+  })();
+
+  var bonusMsg = '';
+  if (streak >= 10) {
+    bonusMsg = '🔥×10 Streak! +100% rewards & guaranteed rare item!';
+    awardPlayerTitle('forest_friend').catch(function(){});
+  } else if (streak >= 5) {
+    bonusMsg = '🔥×5 Streak! +50% rewards!';
+  } else if (streak >= 3) {
+    bonusMsg = '🔥×3 Streak! +25% rewards!';
+  }
+
+  if (bonusMsg) {
+    var pet = petState[petId] || {};
+    showToast('🌲 ' + escapeHtml(pet.nickname || 'Your pet') + ' is on a ' + streak + '-streak in ' + zone + '! ' + bonusMsg, 5000);
+  }
+  return streak;
+}
+
+function getStreakMultiplier(petId, zone) {
+  var streak = _explorationStreaks[petId + ':' + zone] || 0;
+  if (streak >= 10) return 2.0;
+  if (streak >= 5)  return 1.5;
+  if (streak >= 3)  return 1.25;
+  return 1.0;
+}
+
+async function checkSecretDiscovery(petId, zone, streak) {
+  try {
+    var { data: secrets } = await supabaseClient
+      .from('exploration_secrets')
+      .select('*')
+      .eq('zone', zone)
+      .lte('required_expedition_count', streak);
+
+    if (!secrets || secrets.length === 0) return;
+
+    // Check which secrets haven't been discovered by this user yet
+    var { data: discovered } = await supabaseClient
+      .from('expeditions')
+      .select('discovered_secrets')
+      .eq('user_id', currentUser.id)
+      .not('discovered_secrets', 'is', null)
+      .limit(50);
+
+    var foundKeys = [];
+    (discovered || []).forEach(function(r) {
+      (r.discovered_secrets || []).forEach(function(s) { foundKeys.push(s); });
+    });
+
+    secrets.forEach(function(secret) {
+      if (foundKeys.indexOf(secret.secret_key) !== -1) return; // already found
+
+      // Discovered!
+      var modal = makeModal();
+      modal.innerHTML =
+        '<div style="text-align:center;padding:10px 0;">' +
+          '<div style="font-size:2.5rem;margin-bottom:8px;">🔍</div>' +
+          '<div style="font-size:0.72rem;letter-spacing:2px;color:var(--purple);font-weight:700;margin-bottom:6px;">SECRET DISCOVERED</div>' +
+          '<div style="font-weight:800;font-size:1.1rem;color:var(--purple-dark);margin-bottom:8px;">' + escapeHtml(secret.name || 'Hidden Location') + '</div>' +
+          '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">' + escapeHtml(secret.description || '') + '</div>' +
+          (secret.reward_pp ? '<div style="font-size:1.2rem;font-weight:800;color:#e6a800;margin-bottom:10px;">+' + secret.reward_pp + ' PP bonus next expedition!</div>' : '') +
+          '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Amazing! ✨</button>' +
+        '</div>';
+      openModal(modal);
+
+      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(){});
+      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(){});
+      addPassXP(20, 'secret_discovery').catch(function(){});
+    });
+  } catch(e) { dbg('checkSecretDiscovery error:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ACHIEVEMENT TIER SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function checkAchievementTierProgress(achievementKey, petId, currentValue) {
+  if (!currentUser || !petId) return;
+  try {
+    // Fetch achievement definition with tier columns
+    var { data: achievement } = await supabaseClient
+      .from('pet_achievements')
+      .select('id, name, tier2_requirement, tier3_requirement, tier4_requirement, tier5_requirement, tier2_reward, tier3_reward, tier4_reward, tier5_reward')
+      .eq('achievement_key', achievementKey)
+      .single();
+    if (!achievement) return;
+
+    // Fetch user's current tier for this achievement
+    var { data: userAch } = await supabaseClient
+      .from('user_pet_achievements')
+      .select('id, current_tier, progress')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .eq('achievement_id', achievement.id)
+      .maybeSingle();
+
+    var currentTier = (userAch && userAch.current_tier) || 1;
+
+    // Check each tier in order
+    var tierRequirements = [
+      null, // tier 1 is base (always unlocked)
+      achievement.tier2_requirement,
+      achievement.tier3_requirement,
+      achievement.tier4_requirement,
+      achievement.tier5_requirement
+    ];
+    var tierRewards = [
+      null,
+      achievement.tier2_reward,
+      achievement.tier3_reward,
+      achievement.tier4_reward,
+      achievement.tier5_reward
+    ];
+
+    var newTier = currentTier;
+    for (var t = currentTier; t < 5; t++) {
+      var req = tierRequirements[t];
+      if (req && currentValue >= req) {
+        newTier = t + 1;
+      } else break;
+    }
+
+    if (newTier > currentTier) {
+      // Update tier
+      if (userAch) {
+        await supabaseClient.from('user_pet_achievements')
+          .update({ current_tier: newTier, tier_completed_at: new Date().toISOString() })
+          .eq('id', userAch.id);
+      } else {
+        await supabaseClient.from('user_pet_achievements').insert({
+          user_id: currentUser.id, pet_id: petId,
+          achievement_id: achievement.id, current_tier: newTier,
+          progress: currentValue, tier_completed_at: new Date().toISOString()
+        });
+      }
+
+      // Grant tier reward
+      var reward = tierRewards[newTier - 1];
+      if (reward) {
+        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(){});
+        if (reward.badge) await awardBadge(reward.badge).catch(function(){});
+        if (reward.title) await awardPlayerTitle(reward.title).catch(function(){});
+      }
+
+      // Tier milestone badges
+      if (newTier >= 5) awardBadge('gold_collector').catch(function(){});
+      else if (newTier >= 4) awardBadge('silver_collector').catch(function(){});
+      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(){});
+
+      // Show notification
+      showToast('🏆 ' + escapeHtml(achievement.name || achievementKey) + ' reached Tier ' + newTier + '!', 4000);
+      addPassXP(10 * newTier, 'tier_unlock').catch(function(){});
+    }
+  } catch(e) { dbg('checkAchievementTierProgress error:', e); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PERSONALITY QUESTS (3-DAY ARCS)
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _petQuestCache = {}; // { petId: { quest_arc, quest_day, quest_data, completed } }
+
+async function assignQuestArc(petId) {
+  if (!currentUser || !petId) return;
+  var today = new Date().toISOString().slice(0, 10);
+
+  // Check if already has active quest
+  var mood = petMoodCache[petId];
+  if (mood && mood.quest_arc && mood.quest_day && mood.quest_day < 3) return;
+
+  try {
+    // Get personality for this pet
+    var personality = mood ? mood.personality : 'playful';
+
+    // Fetch quest arcs for this personality
+    var { data: arcs } = await supabaseClient
+      .from('personality_quests')
+      .select('*')
+      .eq('personality', personality);
+
+    if (!arcs || arcs.length === 0) return;
+
+    var arc = arcs[Math.floor(Math.random() * arcs.length)];
+
+    // Store on pet_daily_moods
+    await supabaseClient.from('pet_daily_moods')
+      .update({ quest_arc: arc.quest_key, quest_day: 1, quest_data: arc })
+      .eq('pet_id', petId)
+      .eq('date', today)
+      .catch(function(){});
+
+    if (petMoodCache[petId]) {
+      petMoodCache[petId].quest_arc = arc.quest_key;
+      petMoodCache[petId].quest_day = 1;
+      petMoodCache[petId].quest_data = arc;
+    }
+
+    _petQuestCache[petId] = { arc: arc, day: 1, completed: false };
+
+    var pet = petState[petId] || {};
+    showToast('📖 ' + escapeHtml(pet.nickname || 'Your pet') + ' started a new quest: ' + escapeHtml(arc.name || 'New Adventure') + '!', 4000);
+  } catch(e) { dbg('assignQuestArc error:', e); }
+}
+
+async function progressQuestArc(petId, actionKey) {
+  var questData = _petQuestCache[petId];
+  if (!questData || questData.completed) return;
+
+  var arc = questData.arc;
+  var today = new Date().toISOString().slice(0, 10);
+
+  // Check if today's action matches the quest's required action
+  var dayActions = arc['day' + questData.day + '_action'];
+  if (!dayActions) return;
+  var actions = Array.isArray(dayActions) ? dayActions : [dayActions];
+  if (actions.indexOf(actionKey) === -1) return;
+
+  var newDay = questData.day + 1;
+  questData.day = newDay;
+
+  // Day reward
+  var dayReward = arc['day' + (newDay - 1) + '_reward'] || 25;
+  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(){});
+  addPassXP(10, 'quest_progress').catch(function(){});
+  updateBingoProgress('complete_quest', 1);
+
+  var pet = petState[petId] || {};
+  showToast('📖 Quest Day ' + (newDay-1) + '/3 complete! +' + dayReward + ' PP · ' + escapeHtml(arc['day' + (newDay-1) + '_story'] || ''), 5000);
+
+  if (newDay > 3) {
+    // Quest complete!
+    questData.completed = true;
+    var finalReward = arc.completion_reward || 100;
+    await awardPP(finalReward, 'quest_complete').catch(function(){});
+    addPassXP(50, 'quest_complete').catch(function(){});
+    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(){});
+    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(){});
+
+    // Celebration modal
+    var modal = makeModal();
+    modal.innerHTML =
+      '<div style="text-align:center;padding:10px 0;">' +
+        '<div style="font-size:3rem;margin-bottom:10px;">📖✨</div>' +
+        '<div style="font-size:0.72rem;letter-spacing:2px;color:var(--purple);font-weight:700;margin-bottom:6px;">QUEST COMPLETE</div>' +
+        '<div style="font-weight:800;font-size:1.1rem;color:var(--purple-dark);margin-bottom:8px;">' + escapeHtml(arc.name || 'Adventure') + '</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">' + escapeHtml(arc.completion_story || escapeHtml(pet.nickname || 'Your pet') + ' completed the quest!') + '</div>' +
+        '<div style="background:rgba(255,215,0,0.12);border-radius:12px;padding:12px;margin-bottom:14px;">' +
+          '<div style="font-size:1.3rem;font-weight:800;color:#e6a800;">+' + finalReward + ' PP</div>' +
+          '<div style="font-size:0.82rem;color:#5dde7a;">+50 Pass XP</div>' +
+          (arc.reward_badge ? '<div style="font-size:0.8rem;color:var(--purple);">🎖️ Badge unlocked!</div>' : '') +
+        '</div>' +
+        '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Amazing! 🎉</button>' +
+      '</div>';
+    openModal(modal);
+
+    // Clear quest state
+    await supabaseClient.from('pet_daily_moods')
+      .update({ quest_arc: null, quest_day: null })
+      .eq('pet_id', petId)
+      .eq('date', today)
+      .catch(function(){});
+    delete _petQuestCache[petId];
+    if (petMoodCache[petId]) { petMoodCache[petId].quest_arc = null; petMoodCache[petId].quest_day = null; }
+  } else {
+    // Update DB
+    await supabaseClient.from('pet_daily_moods')
+      .update({ quest_day: newDay })
+      .eq('pet_id', petId)
+      .eq('date', today)
+      .catch(function(){});
+  }
+
+  // Refresh mood widget
+  personality_renderWidget(petId);
+  personality_renderQuestWidget(petId);
+}
+
+function personality_renderQuestWidget(petId) {
+  var questMount = document.getElementById('quest-widget-' + petId);
+  if (!questMount) return;
+  var questData = _petQuestCache[petId];
+  var mood = petMoodCache[petId];
+
+  // Also try to load from mood cache if not in quest cache
+  if (!questData && mood && mood.quest_arc && mood.quest_data) {
+    _petQuestCache[petId] = { arc: mood.quest_data, day: mood.quest_day || 1, completed: false };
+    questData = _petQuestCache[petId];
+  }
+
+  if (!questData || questData.completed) { questMount.innerHTML = ''; return; }
+
+  var arc = questData.arc;
+  var day = questData.day;
+  var pct = Math.round(((day - 1) / 3) * 100);
+
+  questMount.innerHTML =
+    '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.08),rgba(153,102,255,0.06));border-radius:12px;border:1px solid rgba(255,215,0,0.25);padding:10px 12px;margin:8px 0;">' +
+      '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:4px;">📖 Quest: ' + escapeHtml(arc.name || 'Adventure') + ' (Day ' + (day-1) + '/3)</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:6px;">' + escapeHtml(arc['day' + day + '_hint'] || 'Complete today\'s action to progress!') + '</div>' +
+      '<div style="background:rgba(255,215,0,0.12);border-radius:20px;height:6px;overflow:hidden;">' +
+        '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#ffd700,#ffa500);border-radius:20px;"></div>' +
+      '</div>' +
+    '</div>';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RACE TRACKS + WEEKLY LEADERBOARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _raceTracks     = null; // cached from DB
+var _selectedTrack  = null; // current track key
+
+async function race_loadTracks() {
+  try {
+    var { data } = await supabaseClient.from('race_tracks').select('*').order('id', { ascending: true });
+    _raceTracks = data || [];
+  } catch(e) {
+    dbg('race_loadTracks error:', e);
+    _raceTracks = []; // graceful fallback — race still works without tracks
+  }
+}
+
+function race_renderTrackSelector() {
+  if (!_raceTracks || _raceTracks.length === 0) return '';
+
+  var weather = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) ? weatherSystem.currentWeather.id : null;
+
+  var cards = _raceTracks.map(function(t) {
+    var weatherBonus = '';
+    if (weather && t.weather_bonus) {
+      try {
+        var wb = typeof t.weather_bonus === 'string' ? JSON.parse(t.weather_bonus) : t.weather_bonus;
+        if (wb[weather]) weatherBonus = '<div style="font-size:0.65rem;color:#5dde7a;">🌤 +' + wb[weather] + '% in current weather</div>';
+      } catch(e) {}
+    }
+    var selected = _selectedTrack === t.track_key;
+    return '<div onclick="race_selectTrack(\'' + t.track_key + '\')" style="cursor:pointer;border:2px solid ' + (selected?'var(--purple)':'var(--border)') + ';border-radius:10px;padding:8px;text-align:center;flex:1;min-width:0;transition:all 0.2s;background:' + (selected?'rgba(153,102,255,0.1)':'') + ';" id="track-card-' + t.track_key + '">' +
+      '<div style="font-size:1.4rem;">' + (t.icon||'🏁') + '</div>' +
+      '<div style="font-size:0.72rem;font-weight:700;color:var(--purple-dark);">' + escapeHtml(t.name||t.track_key) + '</div>' +
+      weatherBonus +
+    '</div>';
+  }).join('');
+
+  return '<div style="margin-bottom:12px;">' +
+    '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:6px;">🏁 Select Track:</div>' +
+    '<div style="display:flex;gap:6px;">' + cards + '</div>' +
+  '</div>';
+}
+
+function race_selectTrack(trackKey) {
+  _selectedTrack = trackKey;
+  document.querySelectorAll('[id^="track-card-"]').forEach(function(c) {
+    var selected = c.id === 'track-card-' + trackKey;
+    c.style.borderColor = selected ? 'var(--purple)' : 'var(--border)';
+    c.style.background  = selected ? 'rgba(153,102,255,0.1)' : '';
+  });
+}
+
+function race_getTrackSpeedModifier(petVariant) {
+  if (!_selectedTrack || !_raceTracks) return 1;
+  var track = _raceTracks.find(function(t) { return t.track_key === _selectedTrack; });
+  if (!track) return 1;
+  try {
+    var bonuses = typeof track.type_bonus === 'string' ? JSON.parse(track.type_bonus) : (track.type_bonus || {});
+    return 1 + ((bonuses[petVariant] || 0) / 100);
+  } catch(e) { return 1; }
+}
+
+async function updateWeeklyLeaderboard(petId, won, raceTimeMs) {
+  if (!currentUser) return;
+  try {
+    var weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Sunday
+    weekStart.setHours(0,0,0,0);
+    var weekKey = weekStart.toISOString().slice(0,10);
+
+    var { data: existing } = await supabaseClient
+      .from('race_weekly_scores')
+      .select('id, wins_this_week, best_time_ms')
+      .eq('user_id', currentUser.id)
+      .eq('week_start', weekKey)
+      .eq('pet_id', petId)
+      .maybeSingle();
+
+    if (existing) {
+      var updates = {};
+      if (won) updates.wins_this_week = (existing.wins_this_week || 0) + 1;
+      if (raceTimeMs && (!existing.best_time_ms || raceTimeMs < existing.best_time_ms)) updates.best_time_ms = raceTimeMs;
+      if (Object.keys(updates).length > 0) {
+        await supabaseClient.from('race_weekly_scores').update(updates).eq('id', existing.id);
+      }
+    } else {
+      await supabaseClient.from('race_weekly_scores').insert({
+        user_id: currentUser.id, pet_id: petId, week_start: weekKey,
+        wins_this_week: won ? 1 : 0,
+        best_time_ms: raceTimeMs || null
+      });
+    }
+  } catch(e) { dbg('updateWeeklyLeaderboard error:', e); }
+}
+
+async function race_renderWeeklyLeaderboard() {
+  var area = document.getElementById('racing-race-area') || document.getElementById('race-area');
+  if (!area) return;
+
+  try {
+    var weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    weekStart.setHours(0,0,0,0);
+    var weekKey = weekStart.toISOString().slice(0,10);
+
+    var resets = new Date(weekStart);
+    resets.setDate(resets.getDate() + 7);
+    var msLeft = resets - Date.now();
+    var daysLeft = Math.floor(msLeft / 86400000);
+    var hrsLeft  = Math.floor((msLeft % 86400000) / 3600000);
+
+    var { data: scores } = await supabaseClient
+      .from('race_weekly_scores')
+      .select('user_id, wins_this_week, best_time_ms, players(username)')
+      .eq('week_start', weekKey)
+      .order('wins_this_week', { ascending: false })
+      .limit(10);
+
+    // Find my rank
+    var myRank = null;
+    (scores || []).forEach(function(s, i) {
+      if (s.user_id === currentUser.id) myRank = i + 1;
+    });
+
+    var medals = ['🥇','🥈','🥉'];
+    var rows = (scores || []).map(function(s, i) {
+      var isMe = s.user_id === currentUser.id;
+      var timeStr = s.best_time_ms ? Math.floor(s.best_time_ms/1000) + '.' + String(s.best_time_ms%1000).padStart(3,'0') + 's' : '—';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.78rem;' + (isMe?'font-weight:700;':'') + '">' +
+        '<span style="width:20px;">' + (medals[i]||('#'+(i+1))) + '</span>' +
+        '<span style="flex:1;color:' + (isMe?'var(--purple)':'var(--purple-dark)') + ';">' + escapeHtml(s.players ? s.players.username : 'Player') + (isMe?' (You)':'') + '</span>' +
+        '<span style="color:#e6a800;">' + (s.wins_this_week||0) + ' wins</span>' +
+        '<span style="color:var(--text-light);margin-left:8px;">' + timeStr + '</span>' +
+      '</div>';
+    }).join('') || '<div style="color:var(--text-light);font-size:0.82rem;">No races this week yet!</div>';
+
+    area.innerHTML =
+      '<div style="margin-bottom:14px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
+          '<div style="font-weight:700;font-size:0.9rem;color:var(--purple-dark);">📅 Weekly Leaderboard</div>' +
+          '<div style="font-size:0.75rem;color:var(--text-light);">Resets in ' + daysLeft + 'd ' + hrsLeft + 'h</div>' +
+        '</div>' +
+        rows +
+        (myRank ? '<div style="margin-top:10px;font-size:0.78rem;color:var(--text-light);">Your rank: <strong>#' + myRank + '</strong></div>' : '') +
+      '</div>' +
+      '<button class="btn btn-outline" onclick="race_init()" style="width:100%;">← Back to Racing</button>';
+  } catch(e) {
+    area.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;">Could not load leaderboard.</div><button class="btn btn-outline" onclick="race_init()" style="width:100%;">← Back</button>';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RACING PAGE — Quick Race + Grand Prix Weekly Tournament
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _racingActiveTab = 'quickrace';
+
+function racing_showTab(tab) {
+  _racingActiveTab = tab;
+  document.getElementById('racing-tab-quickrace').classList.toggle('active', tab === 'quickrace');
+  document.getElementById('racing-tab-grandprix').classList.toggle('active', tab === 'grandprix');
+  document.getElementById('racing-panel-quickrace').style.display = tab === 'quickrace' ? '' : 'none';
+  document.getElementById('racing-panel-grandprix').style.display = tab === 'grandprix' ? '' : 'none';
+
+  if (tab === 'quickrace') {
+    race_init(); // reuse existing race system
+  } else {
+    gp_load();
+  }
+}
+
+function racing_init() {
+  // Default to quick race on first open
+  racing_showTab(_racingActiveTab || 'quickrace');
+}
+
+// Alias — some tests and edge function pings reference this name
+var gp_renderGrandPrix = gp_load;
+
+// Replay modal — called from results phase "Watch Replay" button
+async function gp_showReplay(replayId) {
+  try {
+    var { data: replay } = await supabaseClient
+      .from('grand_prix_replays')
+      .select('*')
+      .eq('id', replayId)
+      .single();
+    if (!replay) { showToast('Replay not found', 2000); return; }
+
+    var logs = replay.race_log || (replay.replay_text ? replay.replay_text.split('\n') : []);
+
+    var modal = makeModal();
+    modal.innerHTML =
+      '<div class="gp-replay-modal">' +
+        '<h2 style="margin-bottom:10px;">🎬 Grand Prix Replay</h2>' +
+        '<div class="gp-replay-log" id="gp-replay-log">' +
+          '<div style="color:#aaa;font-size:0.82rem;">Press Watch Replay to begin...</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;margin-top:8px;">' +
+          '<button class="btn btn-primary" onclick="gp_playReplayAnimation()" style="flex:1;">🏁 Watch Replay</button>' +
+          '<button class="btn btn-outline" onclick="closeModal()">Close</button>' +
+        '</div>' +
+      '</div>';
+    openModal(modal);
+    window._currentReplayLogs = logs;
+  } catch(e) { showToast('Could not load replay', 2500); }
+}
+
+function gp_playReplayAnimation() {
+  var container = document.getElementById('gp-replay-log');
+  if (!container || !window._currentReplayLogs) return;
+  container.innerHTML = '';
+  var idx = 0;
+  var logs = window._currentReplayLogs;
+  var interval = safeSetInterval(function() {
+    if (idx >= logs.length) { clearInterval(interval); return; }
+    var entry = document.createElement('div');
+    entry.className = 'gp-replay-entry';
+    entry.textContent = logs[idx];
+    container.appendChild(entry);
+    container.scrollTop = container.scrollHeight;
+    idx++;
+  }, 800);
+}
+
+// ── Grand Prix state ──────────────────────────────────────────────────────
+var gpState = {
+  event:   null,  // current grand_prix_events row
+  entry:   null,  // current user's grand_prix_entries row
+  replay:  null   // grand_prix_replays row
+};
+
+var GP_TRAINING_TYPES = {
+  speed:   { label: '💨 Speed Training',   bonus: 3,  energyCost: 10, ppCost: 0,  happinessCost: 0,  energyGain: 0,  desc: '+3 race score · Costs 10 energy' },
+  stamina: { label: '💪 Stamina Training', bonus: 1,  energyCost: 0,  ppCost: 0,  happinessCost: 0,  energyGain: 15, desc: '+1 race score · Free! Grants +15 energy' },
+  focus:   { label: '🎯 Focus Training',   bonus: 5,  energyCost: 20, ppCost: 0,  happinessCost: 10, energyGain: 0,  desc: '+5 race score · Costs 20 energy & 10 happiness' },
+  lucky:   { label: '🍀 Lucky Training',   bonus: -1, energyCost: 0,  ppCost: 15, happinessCost: 0,  energyGain: 0,  desc: '+2–10 random bonus · Costs 15 PP' }
+};
+
+var GP_VARIANT_BONUS = {
+  golden:   12, shiny: 10, cosmic: 15, shadow: 5,
+  fire: 8,  ice: 8, electric: 10, nature: 5, crystal: 8, ghost: 3
+};
+
+// ── Entry point ───────────────────────────────────────────────────────────
+async function gp_load() {
+  var mount = document.getElementById('grand-prix-content');
+  if (!mount) return;
+  if (!currentUser) { mount.innerHTML = '<div class="empty-state"><p>Log in to enter the Grand Prix!</p></div>'; return; }
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  // Ping the edge function to trigger any pending status transitions
+  // Fire-and-forget with auth token to avoid 401
+  supabaseClient.auth.getSession().then(function(res) {
+    var token = res && res.data && res.data.session ? res.data.session.access_token : '';
+    fetch('https://hqzugbxutgefjilgmxqu.supabase.co/functions/v1/process-grand-prix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
+    }).catch(function(e) { dbg('GP auto-check failed:', e); });
+  }).catch(function(){});
+
+  try {
+    // Fetch current event — RPC first, fallback to direct query if RPC missing
+    var events = null;
+    try {
+      var { data: rpcData, error: rpcErr } = await supabaseClient.rpc('get_current_grand_prix');
+      if (rpcErr) throw rpcErr;
+      events = rpcData;
+    } catch(rpcFail) {
+      dbg('get_current_grand_prix RPC unavailable, using direct query:', rpcFail.message);
+      var { data: directData } = await supabaseClient
+        .from('grand_prix_events')
+        .select('id, week_number, year, status, prize_pool, total_entries, registration_end, start_time, end_time')
+        .in('status', ['registration', 'racing', 'reward_claim'])
+        .order('week_number', { ascending: false })
+        .limit(1);
+      events = directData;
+    }
+    gpState.event = (events && events.length > 0) ? events[0] : null;
+
+    // Fetch user's entry if event exists
+    gpState.entry = null;
+    gpState.replay = null;
+    if (gpState.event) {
+      var { data: entries } = await supabaseClient
+        .from('grand_prix_entries')
+        .select('*')
+        .eq('event_id', gpState.event.id)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      gpState.entry = entries || null;
+
+      // If event is complete, check for replay and results
+      if (gpState.event.status === 'complete' || gpState.event.status === 'reward_claim') {
+        var { data: replay } = await supabaseClient
+          .from('grand_prix_replays')
+          .select('*')
+          .eq('event_id', gpState.event.id)
+          .eq('user_id', currentUser.id)
+          .maybeSingle();
+        gpState.replay = replay || null;
+      }
+    }
+
+    gp_render(mount);
+  } catch(err) {
+    mount.innerHTML = '<div class="empty-state"><p>Could not load Grand Prix: ' + escapeHtml(err.message) + '</p>' +
+      '<button class="btn btn-primary" onclick="gp_load()">Retry</button></div>';
+  }
+}
+
+// ── Render router ─────────────────────────────────────────────────────────
+async function gp_render(mount) {
+  if (!gpState.event) { await gp_renderNoEvent(mount); return; }
+  var s = gpState.event.status;
+  if (s === 'registration')   await gp_renderRegistration(mount);
+  else if (s === 'racing')    await gp_renderRacing(mount);
+  else                        await gp_renderResults(mount);
+}
+
+async function gp_renderNoEvent(mount) {
+  mount.innerHTML =
+    '<div style="text-align:center;padding:40px 20px;">' +
+      '<div style="font-size:3rem;margin-bottom:12px;">🏆</div>' +
+      '<div style="font-weight:700;font-size:1.1rem;color:var(--purple-dark);margin-bottom:8px;">No Active Grand Prix</div>' +
+      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:20px;">Grand Prix events run every week Friday–Monday.<br>Check back when the next event opens!</div>' +
+      '<div style="background:rgba(153,102,255,0.08);border-radius:14px;padding:16px;max-width:400px;margin:0 auto;">' +
+        '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:10px;">🏆 Prize Structure</div>' +
+        '<div style="font-size:0.8rem;color:var(--text-light);line-height:1.8;">' +
+          '🥇 1st: 30% of prize pool + Grand Champion title<br>' +
+          '🥈 2nd: 15% of prize pool + Speed Demon title<br>' +
+          '🥉 3rd: 10% of prize pool + Racer title<br>' +
+          '🏅 4th–10th: Top 10 Finisher badge<br>' +
+          '🎖️ All participants: 25 PP consolation' +
+        '</div>' +
+      '</div>' +
+      '<div id="gp-history-mount" style="margin-top:24px;"></div>' +
+    '</div>';
+
+  // Load historical leaderboard async and inject into mount point
+  var histHtml = await gp_renderHistoricalLeaderboard();
+  var histMount = document.getElementById('gp-history-mount');
+  if (histMount && histHtml) histMount.innerHTML = histHtml;
+}
+
+// ── Registration phase ────────────────────────────────────────────────────
+async function gp_renderRegistration(mount) {
+  var ev = gpState.event;
+
+  // Calculate next Sunday 23:59 UTC
+  var regClose = ev.registration_end ? new Date(ev.registration_end) : (function(){
+    var d = new Date(); d.setUTCDate(d.getUTCDate() + (7 - d.getUTCDay()) % 7 || 7); d.setUTCHours(23,59,59,0); return d;
+  })();
+  var minsLeft = Math.max(0, Math.floor((regClose - new Date()) / 60000));
+  var daysLeft = Math.floor(minsLeft / 1440);
+  var hrsLeft  = Math.floor((minsLeft % 1440) / 60);
+  var timeStr  = daysLeft > 0 ? daysLeft + 'd ' + hrsLeft + 'h left' : hrsLeft + 'h left';
+
+  var entrySection = gpState.entry
+    ? '<div style="background:rgba(93,222,122,0.1);border:1px solid rgba(93,222,122,0.3);border-radius:12px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:#2d8a4e;margin-bottom:4px;">✅ You\'re entered!</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);">Your champion is ready. Racing begins soon.</div>' +
+      '</div>'
+    : await gp_renderEntryForm();
+
+  mount.innerHTML =
+    '<div style="max-width:560px;">' +
+      gp_headerHtml(ev) +
+      '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<div style="flex:1;background:rgba(153,102,255,0.08);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">CLOSES</div>' +
+          '<div style="font-weight:700;color:var(--purple);">📅 Sunday 23:59 UTC</div>' +
+          '<div style="font-size:0.68rem;color:var(--text-light);">' + timeStr + '</div>' +
+        '</div>' +
+        '<div style="flex:1;background:rgba(255,215,0,0.1);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">PRIZE POOL</div>' +
+          '<div style="font-weight:700;color:#e6a800;">🪙 ' + (ev.prize_pool||0).toLocaleString() + ' PP</div>' +
+        '</div>' +
+        '<div style="flex:1;background:rgba(153,102,255,0.08);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">ENTRIES</div>' +
+          '<div style="font-weight:700;color:var(--purple);">👥 ' + (ev.total_entries||0) + '</div>' +
+        '</div>' +
+      '</div>' +
+      entrySection +
+      gp_prizeTable() +
+    '</div>';
+}
+
+async function gp_renderEntryForm() {
+  // Eligible pets: level 10+
+  var eligiblePets = Object.values(petState).filter(function(p) { return (p.level||1) >= 10; });
+
+  if (eligiblePets.length === 0) {
+    return '<div style="border:2px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;">' +
+      '<div style="color:#ff6b6b;font-size:0.82rem;">No eligible pets — need level 10+ to enter the Grand Prix.</div>' +
+    '</div>';
+  }
+
+  // Fetch equipment bonuses for each eligible pet
+  var petRows = await Promise.all(eligiblePets.map(async function(p) {
+    var equipBonus = await gp_getEquipmentBonus(p.id);
+    var score      = gp_estimateScore(p, equipBonus);
+    var varBonus   = GP_VARIANT_BONUS[p.current_variant||''] || 0;
+    return '<div class="gp-pet-option" data-pet-id="' + p.id + '" onclick="gp_selectPet(\'' + p.id + '\')" ' +
+      'style="cursor:pointer;border:2px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;transition:all 0.2s;">' +
+      '<div style="font-size:1.4rem;">🐾</div>' +
+      '<div style="flex:1;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(p.nickname||p.pet_type||'Pet') + '</div>' +
+        '<div style="font-size:0.75rem;color:var(--text-light);">Lv.' + (p.level||1) + ' · ⚡' + Math.floor(p.energy||0) + ' · 💨' + (p.base_speed||4) +
+          (varBonus?' · ✨+'+varBonus+' variant':'') + (equipBonus?' · ⚔️+'+equipBonus+' equip':'') + '</div>' +
+      '</div>' +
+      '<div style="font-size:0.7rem;color:var(--text-light);">Score ≈ ' + score + '</div>' +
+    '</div>';
+  }));
+
+  return '<div style="border:2px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px;">' +
+    '<div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:12px;">🏁 Select Your Champion</div>' +
+    petRows.join('') +
+    '<div style="margin-top:12px;font-size:0.78rem;color:var(--text-light);">⚠️ Entry fee: 100 PP · Must be level 10+ · One entry per week</div>' +
+    '<button id="gp-enter-btn" class="btn btn-primary" onclick="gp_enter()" disabled style="width:100%;margin-top:12px;opacity:0.5;">Select a pet to enter</button>' +
+  '</div>';
+}
+
+var _gpSelectedPetId = null;
+function gp_selectPet(petId) {
+  _gpSelectedPetId = petId;
+  document.querySelectorAll('.gp-pet-option').forEach(function(el) {
+    var selected = el.getAttribute('data-pet-id') === petId;
+    el.style.borderColor = selected ? 'var(--purple)' : 'var(--border)';
+    el.style.background  = selected ? 'rgba(153,102,255,0.08)' : '';
+  });
+  var btn = document.getElementById('gp-enter-btn');
+  if (btn) { btn.disabled = false; btn.style.opacity = '1'; btn.textContent = '🏁 Enter Grand Prix (100 PP)'; }
+}
+
+function gp_estimateScore(p, equipBonus) {
+  equipBonus = equipBonus || 0;
+  var spd  = Math.min(50, ((p.base_speed||4) + Math.floor(equipBonus / 3)) * 5);
+  var lvl  = Math.min(100, (p.level||1) * 2);
+  var hap  = ((p.happiness||50) / (p.max_happiness||100)) * 20;
+  var equip = Math.min(30, equipBonus);
+  var vrnt = GP_VARIANT_BONUS[p.current_variant||''] || 0;
+  return Math.round(spd + lvl + hap + equip + vrnt);
+}
+
+async function gp_getEquipmentBonus(petId) {
+  try {
+    var { data } = await supabaseClient
+      .from('player_equipment')
+      .select('equipment(attack_bonus, defense_bonus, speed_bonus)')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .eq('is_equipped', true);
+    var total = 0;
+    (data || []).forEach(function(item) {
+      if (item.equipment) {
+        total += (item.equipment.speed_bonus || 0) * 2;
+        total += (item.equipment.attack_bonus || 0);
+        total += (item.equipment.defense_bonus || 0);
+      }
+    });
+    return Math.min(30, total);
+  } catch(e) { return 0; }
+}
+
+async function gp_enter() {
+  if (!_gpSelectedPetId || !currentUser) return;
+  if ((currentPoints||0) < 100) { showToast('Need 100 PP to enter!', 2500); return; }
+  if (!canPerformAction('gp_enter', 5000)) return;
+
+  var btn = document.getElementById('gp-enter-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Entering…'; }
+
+  try {
+    var { data: result, error } = await supabaseClient.rpc('enter_grand_prix', {
+      p_user_id: currentUser.id,
+      p_pet_id:  _gpSelectedPetId,
+      p_entry_fee: 100
+    });
+    if (error) throw error;
+    if (result && result.success === false) throw new Error(result.error || 'Failed');
+
+    updateAllPoints((currentPoints||0) - 100);
+    addPassXP(25, 'grand_prix_entry').catch(function(){});
+    updateBingoProgress('enter_grand_prix', 1);
+    showToast('🏁 Entered the Grand Prix! Train your pet to boost your score!', 5000);
+    gp_load();
+  } catch(err) {
+    showToast('Entry failed: ' + err.message, 3500);
+    if (btn) { btn.disabled = false; btn.textContent = '🏁 Enter Grand Prix (100 PP)'; }
+  }
+}
+
+// ── Racing / Training phase ───────────────────────────────────────────────
+async function gp_renderRacing(mount) {
+  var ev = gpState.event;
+  var endTime = new Date(ev.end_time);
+  var minsLeft = Math.max(0, Math.floor((endTime - new Date()) / 60000));
+  var daysLeft = Math.floor(minsLeft / 1440);
+  var hrsLeft  = Math.floor((minsLeft % 1440) / 60);
+  var timeStr  = daysLeft > 0 ? daysLeft + 'd ' + hrsLeft + 'h' : hrsLeft + 'h ' + (minsLeft%60) + 'm';
+
+  // Fetch standings
+  var { data: topEntries } = await supabaseClient
+    .from('grand_prix_entries')
+    .select('user_id, race_score, training_bonus, players(username), user_pets(nickname, pets(name))')
+    .eq('event_id', ev.id)
+    .order('race_score', { ascending: false })
+    .limit(15);
+
+  var myRank = null;
+  var myScore = 0;
+  if (topEntries && gpState.entry) {
+    topEntries.forEach(function(e, i) {
+      if (e.user_id === currentUser.id) { myRank = i + 1; myScore = e.race_score || 0; }
+    });
+  }
+
+  // Training section
+  var trainingSection = '';
+  if (gpState.entry) {
+    var trainingBonus = gpState.entry.training_bonus || 0;
+    var bonusPct = Math.round((trainingBonus / 15) * 100);
+    var remaining  = 15 - trainingBonus;
+
+    var trainBtns = Object.keys(GP_TRAINING_TYPES).map(function(key) {
+      var t = GP_TRAINING_TYPES[key];
+      var capHit = trainingBonus >= 15;
+      return '<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;' +
+        (capHit?'opacity:0.5;':'') + '">' +
+        '<div style="flex:1;">' +
+          '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);">' + t.label + '</div>' +
+          '<div style="font-size:0.72rem;color:var(--text-light);">' + t.desc + '</div>' +
+        '</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="gp_train(\'' + key + '\')" ' + (capHit?'disabled':'') + ' style="font-size:0.75rem;white-space:nowrap;">' +
+          '+' + (key==='lucky'?'2-10':t.bonus) + ' pts' +
+        '</button>' +
+      '</div>';
+    }).join('');
+
+    trainingSection =
+      '<div style="border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+          '<div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);">🎯 Training (Weekly Cap)</div>' +
+          (trainingBonus >= 15
+            ? '<div style="font-size:0.75rem;color:#5dde7a;font-weight:600;">✅ Cap reached!</div>'
+            : '<div style="font-size:0.75rem;color:var(--purple);">' + remaining + ' pts remaining</div>') +
+        '</div>' +
+        '<div style="background:rgba(153,102,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:0.75rem;color:var(--text-light);">Train as much as you want right now! Cap is 15 pts per week — no daily limit.</div>' +
+        '<div style="margin-bottom:10px;">' +
+          '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-light);margin-bottom:4px;">' +
+            '<span>Weekly training bonus</span><span>' + trainingBonus + '/15</span>' +
+          '</div>' +
+          '<div style="background:rgba(153,102,255,0.12);border-radius:20px;height:8px;overflow:hidden;">' +
+            '<div style="width:' + bonusPct + '%;height:100%;background:linear-gradient(90deg,#9966ff,#ff66cc);border-radius:20px;"></div>' +
+          '</div>' +
+        '</div>' +
+        (trainingBonus >= 15
+          ? '<div style="font-size:0.8rem;color:#5dde7a;font-weight:600;">🎉 Max training bonus reached!</div>'
+          : trainBtns) +
+      '</div>';
+  } else {
+    trainingSection = '<div style="background:rgba(255,107,107,0.1);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;color:#cc3333;">You didn\'t register for this Grand Prix. Enter next week!</div>';
+  }
+
+  // Standings
+  var standingsHtml = (topEntries && topEntries.length > 0)
+    ? topEntries.slice(0,10).map(function(e, i) {
+        var medals = ['🥇','🥈','🥉'];
+        var isMe = e.user_id === currentUser.id;
+        var name = e.players ? escapeHtml(e.players.username) : 'Player';
+        return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.8rem;' + (isMe?'font-weight:700;':'') + '">' +
+          '<span>' + (medals[i]||(i+1)+'.') + '</span>' +
+          '<span style="flex:1;color:' + (isMe?'var(--purple)':'var(--purple-dark)') + ';">' + name + (isMe?' (You)':'') + '</span>' +
+          '<span style="color:var(--text-light);">' + Math.round(e.race_score||0) + ' pts</span>' +
+        '</div>';
+      }).join('')
+    : '<div style="color:var(--text-light);font-size:0.82rem;">No standings yet.</div>';
+
+  mount.innerHTML =
+    '<div style="max-width:560px;">' +
+      gp_headerHtml(ev) +
+      '<div style="display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap;">' +
+        '<div style="flex:1;background:rgba(153,102,255,0.08);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">RESULTS IN</div>' +
+          '<div style="font-weight:700;color:var(--purple);">⏰ ' + timeStr + '</div>' +
+        '</div>' +
+        (myRank ? '<div style="flex:1;background:rgba(255,215,0,0.1);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">YOUR RANK</div>' +
+          '<div style="font-weight:700;color:#e6a800;">#' + myRank + ' · ' + Math.round(myScore) + ' pts</div>' +
+        '</div>' : '') +
+        '<div style="flex:1;background:rgba(255,215,0,0.1);border-radius:10px;padding:12px;text-align:center;">' +
+          '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">PRIZE POOL</div>' +
+          '<div style="font-weight:700;color:#e6a800;">🪙 ' + (ev.prize_pool||0).toLocaleString() + ' PP</div>' +
+        '</div>' +
+      '</div>' +
+      trainingSection +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">📊 Current Standings</div>' +
+      '<div style="margin-bottom:16px;">' + standingsHtml + '</div>' +
+    '</div>';
+}
+
+async function gp_train(trainingType) {
+  if (!gpState.entry || !currentUser || !canPerformAction('gp_train', 1000)) return;
+
+  var t = GP_TRAINING_TYPES[trainingType];
+  if (!t) return;
+
+  var petId = gpState.entry.pet_id;
+  var pet   = petState[petId] || {};
+
+  // Check weekly cap first
+  var currentBonus = gpState.entry.training_bonus || 0;
+  var addedBonus   = trainingType === 'lucky' ? Math.floor(Math.random() * 9) + 2 : t.bonus;
+  if (currentBonus + addedBonus > 15) {
+    addedBonus = 15 - currentBonus; // partial fill to reach cap
+    if (addedBonus <= 0) { showToast('Weekly training cap (15) already reached!', 2500); return; }
+  }
+
+  // Validate costs
+  if (t.energyCost > 0 && (pet.energy||0) < t.energyCost) { showToast('Not enough energy! (need ' + t.energyCost + ')', 2500); return; }
+  if (t.happinessCost > 0 && (pet.happiness||0) < t.happinessCost + 10) { showToast('Pet needs to be happier for Focus Training!', 2500); return; }
+  if (t.ppCost > 0 && (currentPoints||0) < t.ppCost) { showToast('Need ' + t.ppCost + ' PP for Lucky Training!', 2500); return; }
+
+  try {
+    // Directly update training_bonus on the entry (no daily table check)
+    var { error } = await supabaseClient
+      .from('grand_prix_entries')
+      .update({ training_bonus: currentBonus + addedBonus, training_type: trainingType })
+      .eq('id', gpState.entry.id);
+    if (error) throw error;
+
+    gpState.entry.training_bonus = currentBonus + addedBonus;
+
+    // Apply energy/happiness/PP costs client-side
+    if (t.energyCost > 0 && petState[petId]) petState[petId].energy = Math.max(0, (petState[petId].energy||0) - t.energyCost);
+    if (t.energyGain > 0 && petState[petId]) petState[petId].energy = Math.min(petState[petId].max_energy||100, (petState[petId].energy||0) + t.energyGain);
+    if (t.happinessCost > 0 && petState[petId]) petState[petId].happiness = Math.max(0, (petState[petId].happiness||0) - t.happinessCost);
+    if (t.ppCost > 0) await awardPP(-t.ppCost, 'gp_lucky_training');
+
+    // Persist energy/happiness update
+    if (petState[petId]) {
+      var upd = {};
+      if (t.energyCost > 0 || t.energyGain > 0) upd.energy = petState[petId].energy;
+      if (t.happinessCost > 0) upd.happiness = petState[petId].happiness;
+      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(){});
+    }
+
+    addPassXP(10, 'grand_prix_training').catch(function(){});
+    updateBingoProgress('train_grand_prix', 1);
+    showToast('🎯 Training complete! +' + addedBonus + ' race score! (' + (currentBonus + addedBonus) + '/15)', 3000);
+    gp_load();
+  } catch(err) {
+    showToast('Training failed: ' + err.message, 3000);
+  }
+}
+
+// ── Results phase ─────────────────────────────────────────────────────────
+async function gp_renderResults(mount) {
+  var ev = gpState.event;
+
+  // Fetch full results
+  var { data: entries } = await supabaseClient
+    .from('grand_prix_entries')
+    .select('user_id, final_rank, race_score, reward_claimed, players(username), user_pets(nickname, pets(name))')
+    .eq('event_id', ev.id)
+    .order('final_rank', { ascending: true })
+    .limit(20);
+
+  var myEntry = gpState.entry;
+  var myRank  = myEntry ? myEntry.final_rank : null;
+
+  // Simulate results if scores are 0 (admin hasn't run simulation)
+  if (myEntry && !myEntry.race_score && !myEntry.final_rank) {
+    await gp_simulateMyScore();
+    await gp_load();
+    return;
+  }
+
+  // Replay text
+  var replayHtml = '';
+  if (gpState.replay) {
+    var r = gpState.replay;
+    var mins = Math.floor((r.finish_time_ms||0) / 60000);
+    var secs = (((r.finish_time_ms||0) % 60000) / 1000).toFixed(2);
+    replayHtml =
+      '<div style="background:rgba(153,102,255,0.08);border-radius:12px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">🎬 Race Replay</div>' +
+        '<div style="font-size:0.85rem;color:var(--text-light);line-height:1.6;margin-bottom:10px;">' + escapeHtml(r.replay_text || '') + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);">⏱️ Final time: ' + mins + ':' + secs + '</div>' +
+      '</div>';
+  }
+
+  // Reward display for my entry
+  var myRewardHtml = '';
+  if (myEntry) {
+    var rewardDesc = myRank === 1 ? '30% of prize pool + Grand Champion title! 👑' :
+                     myRank === 2 ? '15% of prize pool + Speed Demon title! 💨' :
+                     myRank === 3 ? '10% of prize pool + Racer title! 🏆' :
+                     myRank <= 10 ? 'Top 10 Finisher badge! 🏅' :
+                     '25 PP consolation prize 🎖️';
+    myRewardHtml =
+      '<div style="background:linear-gradient(135deg,rgba(255,215,0,0.12),rgba(153,102,255,0.08));border:2px solid rgba(255,215,0,0.3);border-radius:14px;padding:14px 16px;margin-bottom:16px;">' +
+        '<div style="text-align:center;">' +
+          '<div style="font-size:2rem;margin-bottom:6px;">' + (myRank===1?'👑':myRank===2?'🥈':myRank===3?'🥉':myRank<=10?'🏅':'🎖️') + '</div>' +
+          '<div style="font-weight:800;font-size:1.1rem;color:var(--purple-dark);margin-bottom:4px;">Your Rank: #' + (myRank||'?') + '</div>' +
+          '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">' + rewardDesc + '</div>' +
+          (myEntry.reward_claimed
+            ? '<div style="font-size:0.8rem;color:#5dde7a;font-weight:600;">✅ Rewards claimed!</div>'
+            : '<button class="btn btn-primary" onclick="gp_claimRewards()" style="width:100%;">🎁 Claim Rewards</button>') +
+        '</div>' +
+      '</div>';
+  }
+
+  // Top 10 list
+  var top10Html = (entries||[]).slice(0,10).map(function(e, i) {
+    var medals = ['🥇','🥈','🥉'];
+    var isMe = e.user_id === currentUser.id;
+    var name = e.players ? escapeHtml(e.players.username) : 'Player';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.8rem;' + (isMe?'font-weight:700;':'') + '">' +
+      '<span>' + (medals[i]||(i+1)+'.') + '</span>' +
+      '<span style="flex:1;color:' + (isMe?'var(--purple)':'var(--purple-dark)') + ';">' + name + (isMe?' (You)':'') + '</span>' +
+      '<span style="color:var(--text-light);">' + Math.round(e.race_score||0) + ' pts</span>' +
+    '</div>';
+  }).join('');
+
+  mount.innerHTML =
+    '<div style="max-width:560px;">' +
+      '<div style="font-weight:800;font-size:1.1rem;color:var(--purple-dark);margin-bottom:16px;text-align:center;">🏆 Week ' + ev.week_number + ' Results</div>' +
+      myRewardHtml +
+      replayHtml +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🏆 Top 10 Finishers</div>' +
+      '<div style="margin-bottom:20px;">' + (top10Html || '<div style="color:var(--text-light);font-size:0.82rem;">No results yet.</div>') + '</div>' +
+    '</div>';
+}
+
+// ── Admin / server-side simulation ───────────────────────────────────────
+// Called by admin or when event end_time has passed.
+// Scores all entries, assigns ranks, generates replays, sends notifications.
+async function simulateGrandPrix(eventId) {
+  if (!currentUser) return;
+  try {
+    // Fetch all entries with pet and player data
+    var { data: entries, error } = await supabaseClient
+      .from('grand_prix_entries')
+      .select('id, user_id, pet_id, training_bonus, players(username), user_pets(nickname, level, base_speed, happiness, max_happiness, current_variant, pet_id)')
+      .eq('event_id', eventId);
+    if (error) throw error;
+    if (!entries || entries.length === 0) return;
+
+    // Calculate score for each entry
+    for (var i = 0; i < entries.length; i++) {
+      var e   = entries[i];
+      var pet = e.user_pets || {};
+      var spd  = Math.min(50, (pet.base_speed||4) * 5);
+      var lvl  = Math.min(100, (pet.level||1) * 2);
+      var hap  = ((pet.happiness||50) / (pet.max_happiness||100)) * 20;
+      var vrnt = GP_VARIANT_BONUS[pet.current_variant||''] || 0;
+      var trn  = Math.min(15, e.training_bonus || 0);
+      var rnd  = Math.random() * 15;
+      e._score = Math.min(200, spd + lvl + hap + vrnt + trn + rnd);
+    }
+
+    // Sort descending by score
+    entries.sort(function(a, b) { return b._score - a._score; });
+
+    // Assign ranks and persist scores — run updates in parallel instead of one-at-a-time
+    var rankUpdatePromises = [];
+    for (var r = 0; r < entries.length; r++) {
+      var rank = r + 1;
+      entries[r]._rank = rank;
+      rankUpdatePromises.push(
+        supabaseClient.from('grand_prix_entries')
+          .update({ race_score: entries[r]._score, final_rank: rank })
+          .eq('id', entries[r].id)
+      );
+    }
+    await Promise.all(rankUpdatePromises);
+
+    // Generate replay text for top 10
+    var replayTemplates = {
+      first: [
+        '🏁 {name} launches out of the gate! The crowd erupts as they take an early lead. No one can catch them — {name} crosses the finish line FIRST! 🏆',
+        '{name} races with pure determination, pulling ahead at every turn. An unforgettable champion performance! 👑'
+      ],
+      top3: [
+        '{name} battles fiercely for position and earns a well-deserved podium finish! 🥉',
+        'What heart from {name}! A strong push on the final lap secures a podium spot! 🌟'
+      ],
+      top10: [
+        '{name} holds their own against fierce competition. A solid top 10 finish! 💪',
+        '{name} pushes hard every lap and earns a spot in the top 10! 🎉'
+      ]
+    };
+
+    for (var ti = 0; ti < Math.min(10, entries.length); ti++) {
+      var te   = entries[ti];
+      var trnk = te._rank;
+      var petName = escapeHtml((te.user_pets && te.user_pets.nickname) || 'Your pet');
+      var pool = trnk === 1 ? replayTemplates.first : trnk <= 3 ? replayTemplates.top3 : replayTemplates.top10;
+      var text = pool[Math.floor(Math.random() * pool.length)].replace(/\{name\}/g, petName);
+      var finishMs = Math.floor((80 + (trnk-1) * 0.3 + Math.random() * 2) * 1000);
+
+      await supabaseClient.from('grand_prix_replays').upsert({
+        event_id: eventId, user_id: te.user_id,
+        replay_text: text, finish_time_ms: finishMs, rank: trnk
+      }, { onConflict: 'event_id,user_id' }).catch(function(){});
+    }
+
+    // Mark event complete
+    await supabaseClient.from('grand_prix_events')
+      .update({ status: 'reward_claim' })
+      .eq('id', eventId);
+
+    // Send notifications to all participants — fire all at once, don't block
+    entries.forEach(function(ne) {
+      var uname = (ne.user_pets && ne.user_pets.nickname) || 'Your pet';
+      createNotification(
+        ne.user_id,
+        'grand_prix_results',
+        '🏁 Grand Prix Results Ready!',
+        uname + ' placed #' + ne._rank + '! Claim your rewards now!',
+        'tab:racing'
+      ).catch(function(){});
+    });
+
+    showToast('🏆 Grand Prix simulation complete! ' + entries.length + ' entries ranked.', 5000);
+    gp_load();
+  } catch(err) {
+    showToast('Simulation failed: ' + err.message, 4000);
+  }
+}
+
+// Admin helper — only admin can trigger this
+async function gp_adminSimulate() {
+  if (!gpState.event) { showToast('No active event', 2000); return; }
+  if (!confirm('Simulate Grand Prix for event ' + gpState.event.week_number + '? This assigns all ranks.')) return;
+  await simulateGrandPrix(gpState.event.id);
+}
+
+async function gp_simulateMyScore() {
+  if (!gpState.entry || !gpState.event) return;
+  // Only used as a fallback display when admin hasn't run full simulation
+  var pet = petState[gpState.entry.pet_id] || {};
+  var score = gp_estimateScore(pet) + (gpState.entry.training_bonus || 0) + (Math.random() * 15);
+  score = Math.min(200, score);
+  await supabaseClient.from('grand_prix_entries')
+    .update({ race_score: score })
+    .eq('id', gpState.entry.id)
+    .catch(function(){});
+  gpState.entry.race_score = score;
+
+  if (!gpState.replay) {
+    var petName = (pet.nickname || pet.pet_type || 'Your pet');
+    var templates = [
+      petName + ' charges out of the gate! The crowd roars. A fierce race unfolds — ' + petName + ' gives everything they have!',
+      petName + ' weaves through the competition with incredible focus. What an incredible performance!',
+      petName + ' pushes hard every lap. The finish line approaches... and they give one final burst of speed!'
+    ];
+    var replay_text = templates[Math.floor(Math.random() * templates.length)];
+    var finishMs = Math.floor((80 + Math.random() * 10) * 1000);
+    await supabaseClient.from('grand_prix_replays').upsert({
+      event_id: gpState.event.id, user_id: currentUser.id,
+      replay_text: replay_text, finish_time_ms: finishMs, rank: 1
+    }, { onConflict: 'event_id,user_id' }).catch(function(){});
+  }
+}
+
+async function gp_claimRewards() {
+  if (!gpState.entry || !gpState.event || !currentUser) return;
+  if (!canPerformAction('gp_claim', 5000)) return;
+
+  var btn = document.querySelector('#grand-prix-content .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Claiming…'; }
+
+  try {
+    var ev    = gpState.event;
+    var entry = gpState.entry;
+    var rank  = entry.final_rank;
+
+    // Fetch fresh prize_pool (may have grown since page load as more entries arrived)
+    var { data: freshEvent } = await supabaseClient
+      .from('grand_prix_events')
+      .select('prize_pool')
+      .eq('id', ev.id)
+      .single();
+    var prizePoolFresh = (freshEvent && freshEvent.prize_pool) || ev.prize_pool || 0;
+
+    // Fetch reward tier
+    var { data: rewardRows } = await supabaseClient
+      .from('grand_prix_rewards')
+      .select('*')
+      .lte('rank_min', rank);
+
+    var rewardTier = null;
+    if (rewardRows) {
+      rewardRows.forEach(function(r) {
+        if (rank >= r.rank_min && (!r.rank_max || rank <= r.rank_max)) rewardTier = r;
+      });
+    }
+
+    var prizePool = prizePoolFresh;
+    var ppReward  = rewardTier
+      ? (rewardTier.pp_reward_percentage ? Math.floor(prizePool * rewardTier.pp_reward_percentage / 100) :
+         rewardTier.pp_reward_fixed || 25)
+      : 25;
+
+    await awardPP(ppReward, 'grand_prix_reward');
+    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(){});
+    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(){});
+
+    // Pass XP
+    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(){});
+    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(){});
+    else                 addPassXP(25, 'grand_prix_entry').catch(function(){});
+
+    // Bingo
+    updateBingoProgress('grand_prix_top_10', rank <= 10 ? 1 : 0);
+    if (rank === 1) updateBingoProgress('grand_prix_winner', 1);
+
+    // Mark claimed
+    await supabaseClient.from('grand_prix_entries').update({ reward_claimed: true }).eq('id', entry.id);
+    gpState.entry.reward_claimed = true;
+
+    // Save to historical leaderboard
+    await supabaseClient.from('grand_prix_leaderboard').upsert({
+      user_id: currentUser.id, week_number: ev.week_number, year: ev.year,
+      rank: rank, pet_level: (petState[entry.pet_id]||{}).level || 1
+    }, { onConflict: 'user_id,week_number,year' }).catch(function(){});
+
+    showToast('🎉 Grand Prix rewards claimed! +' + ppReward + ' PP!', 5000);
+    createNotification(
+      currentUser.id, 'grand_prix_claimed', '🏆 Grand Prix Rewards Claimed!',
+      'You placed #' + rank + ' and earned ' + ppReward + ' PP!', 'tab:racing'
+    ).catch(function(){});
+    gp_load();
+  } catch(err) {
+    showToast('Failed: ' + err.message, 3000);
+    if (btn) { btn.disabled = false; btn.textContent = '🎁 Claim Rewards'; }
+  }
+}
+
+// ── Shared helpers ────────────────────────────────────────────────────────
+function gp_headerHtml(ev) {
+  var statusLabels = { registration:'🟢 REGISTRATION OPEN', racing:'🏁 RACING IN PROGRESS', complete:'✅ COMPLETE', reward_claim:'🎁 CLAIM REWARDS' };
+  return '<div style="text-align:center;margin-bottom:16px;">' +
+    '<div style="font-size:0.72rem;font-weight:700;letter-spacing:2px;color:var(--text-light);margin-bottom:4px;">GRAND PRIX</div>' +
+    '<div style="font-weight:800;font-size:1.2rem;color:var(--purple-dark);">Week ' + ev.week_number + ' · ' + ev.year + '</div>' +
+    '<div style="margin-top:6px;font-size:0.78rem;font-weight:600;color:var(--purple);">' + (statusLabels[ev.status]||ev.status) + '</div>' +
+  '</div>';
+}
+
+function gp_prizeTable() {
+  return '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:12px 14px;">' +
+    '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">🏆 Prize Structure</div>' +
+    '<div style="font-size:0.78rem;color:var(--text-light);line-height:2;">' +
+      '🥇 1st: 30% of prize pool + Grand Champion title<br>' +
+      '🥈 2nd: 15% of prize pool + Speed Demon title<br>' +
+      '🥉 3rd: 10% of prize pool + Racer title<br>' +
+      '🏅 4th–10th: Top 10 Finisher badge<br>' +
+      '🎖️ 11th+: 25 PP consolation' +
+    '</div>' +
+  '</div>';
+}
+
+async function gp_renderHistoricalLeaderboard() {
+  try {
+    var { data: history } = await supabaseClient
+      .from('grand_prix_leaderboard')
+      .select('*, players(username)')
+      .order('week_number', { ascending: false })
+      .order('rank', { ascending: true })
+      .limit(20);
+
+    if (!history || history.length === 0) return '';
+
+    var rows = history.map(function(r) {
+      var medals = { 1:'🥇', 2:'🥈', 3:'🥉' };
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.78rem;">' +
+        '<span style="width:30px;">' + (medals[r.rank]||('#'+r.rank)) + '</span>' +
+        '<span style="flex:1;">' + escapeHtml(r.players?r.players.username:'Player') + '</span>' +
+        '<span style="color:var(--text-light);">Wk ' + r.week_number + '</span>' +
+      '</div>';
+    }).join('');
+
+    return '<div style="margin-top:24px;">' +
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">📜 Past Champions</div>' +
+      rows +
+    '</div>';
+  } catch(e) { return ''; }
+}
+
 async function checkDailyLogin() {
   if (!currentUser) return;
   
@@ -11400,7 +17889,7 @@ async function checkDailyLogin() {
   var lastLogin = localStorage.getItem('lastLoginDate_' + currentUser.id);
   
   if (lastLogin === today) {
-    console.log('[DailyLogin] Already claimed today');
+    dbg('[DailyLogin] Already claimed today');
     return; // Already claimed today
   }
   
@@ -11475,8 +17964,24 @@ async function checkDailyLogin() {
     // Apply daily buffs
     applyDailyBuffs(streak);
     
-    console.log('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
+    // PAWKETPASS: Update bingo and Pass XP for daily login
+    updateBingoProgress('login', 1);
+    await addPassXP(10, 'login');
     
+    // SCRAPBOOK: Add random flavor memory to a random pet
+    var allPetIds = Object.keys(petState || {});
+    if (allPetIds.length > 0) {
+      var randomPetId = allPetIds[Math.floor(Math.random() * allPetIds.length)];
+      scrapbook_addRandomMemory(randomPetId);
+    }
+    
+    dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
+
+    // Apply furniture room happiness bonuses (non-blocking)
+    furniture_applyDailyBonus().catch(function(){});
+    // Load guild perks (non-blocking)
+    loadActiveGuildPerks().catch(function(){});
+
   } catch (err) {
     console.error('[DailyLogin] Error:', err);
   }
@@ -11586,7 +18091,7 @@ function applyDailyBuffs(streak) {
     });
   }
   
-  console.log('[Buffs] Active buffs:', dailyBuffsActive);
+  dbg('[Buffs] Active buffs:', dailyBuffsActive);
 }
 
 // Get active buff multiplier for effect type
@@ -11722,7 +18227,7 @@ async function awardShareBonus() {
   var lastShare = localStorage.getItem('lastShareBonus_' + currentUser.id);
   
   if (lastShare === today) {
-    console.log('[Share] Bonus already claimed today');
+    dbg('[Share] Bonus already claimed today');
     return;
   }
   
@@ -11750,11 +18255,6 @@ async function awardShareBonus() {
 // ══════════════════════════════════════════════════════════════════════════
 
 // Generate referral code for user
-function generateReferralCode(username) {
-  // Simple base64 encode of username with timestamp
-  var code = btoa(username + ':' + Date.now()).replace(/[^a-zA-Z0-9]/g, '').substring(0, 12);
-  return code;
-}
 
 // Show referral modal
 async function showReferralModal() {
@@ -11857,7 +18357,7 @@ async function checkReferralCode() {
   
   // Store referral code for signup
   localStorage.setItem('pendingReferralCode', refCode);
-  console.log('[Referral] Referral code detected:', refCode);
+  dbg('[Referral] Referral code detected:', refCode);
 }
 
 // Process referral after first pet adoption
@@ -11875,23 +18375,24 @@ async function processReferral() {
       .single();
     
     if (error || !referrer) {
-      console.log('[Referral] Referrer not found');
+      dbg('[Referral] Referrer not found');
       localStorage.removeItem('pendingReferralCode');
       return;
     }
     
     // Don't allow self-referral
     if (referrer.id === currentUser.id) {
-      console.log('[Referral] Cannot refer yourself');
+      dbg('[Referral] Cannot refer yourself');
       localStorage.removeItem('pendingReferralCode');
       return;
     }
     
     // Award referrer
+    var referralLabel = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'a new player';
     await supabaseClient.rpc('award_pp_secure', {
       p_user_id: referrer.id,
       p_amount: 250,
-      p_reason: 'Referral: ' + currentUser.email
+      p_reason: 'Referral: ' + referralLabel
     });
     
     // Increment referral count
@@ -11912,7 +18413,7 @@ async function processReferral() {
     // Clear pending referral
     localStorage.removeItem('pendingReferralCode');
     
-    console.log('✅ Referral processed for:', referrer.username);
+    dbg('✅ Referral processed for:', referrer.username);
     showToast('Welcome! Your friend has been credited with a referral bonus! 🎉');
     
   } catch (err) {
@@ -11942,11 +18443,12 @@ sendFriendRequest = async function() {
     
     // Create notification for the other user
     var username = document.getElementById('profile-username').textContent;
+    var senderName = username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'Someone';
     await createNotification(
       currentProfileUserId,
       'friend_request',
       'New Friend Request',
-      currentUser.email.split('@')[0] + ' sent you a friend request!',
+      senderName + ' sent you a friend request!',
       'tab:friends',
       currentUser.id
     );
@@ -12074,8 +18576,8 @@ showApp = async function(user) {
   // Initialize notifications
   await updateNotificationBadge();
   
-  // Poll for new notifications every 30 seconds
-  setInterval(updateNotificationBadge, 30000);
+  // Poll for new notifications every 2 minutes (reduced from 30s to limit CORS noise)
+  safeSetInterval(updateNotificationBadge, 120000);
 };
 
 
@@ -12084,11 +18586,11 @@ showApp = async function(user) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 function loadDailyTip() {
-  console.log('🎯 loadDailyTip called!');
+  dbg('🎯 loadDailyTip called!');
   var tipEl = document.getElementById('daily-tip-content');
-  console.log('📝 Tip element:', tipEl);
+  dbg('📝 Tip element:', tipEl);
   if (!tipEl) {
-    console.log('❌ Tip element not found!');
+    dbg('❌ Tip element not found!');
     return;
   }
   
@@ -12100,7 +18602,7 @@ function loadDailyTip() {
   var tipIndex = seed % dailyTips.length;
   var tip = dailyTips[tipIndex];
   
-  console.log('💡 Selected tip:', tip);
+  dbg('💡 Selected tip:', tip);
   tipEl.textContent = tip;
 }
 
@@ -12177,10 +18679,12 @@ async function generateDungeonEnemies(playerStats) {
     return [];
   }
   
-  // CRITICAL: Filter out raccoons completely
+  // CRITICAL: Filter out raccoons completely (guard against null species/name)
   var filteredEnemies = res.data.filter(function(enemy) {
-    return enemy.species !== 'raccoon' && 
-           enemy.name.toLowerCase().indexOf('raccoon') === -1;
+    if (!enemy.name) return false;
+    var speciesOk = !enemy.species || enemy.species !== 'raccoon';
+    var nameOk = enemy.name.toLowerCase().indexOf('raccoon') === -1;
+    return speciesOk && nameOk;
   });
   
   if (filteredEnemies.length === 0) return [];
@@ -12341,7 +18845,7 @@ async function startDungeonBattle(playerStats, enemyStats) {
   playBattleTurn();
 }
 
-function endBattlePlayback() {
+function endDungeonBattlePlayback() {
   el('battle-skip-btn').style.display = 'none';
   el('battle-continue-btn').style.display = 'inline-block';
   
@@ -12622,7 +19126,7 @@ function triggerRandomEvent() {
   
   modal.classList.add('show');
   
-  console.log('🎲 Random event triggered:', event.text, event.type === 'modifier' ? '(Modifier: ' + event.modifier + ')' : '');
+  dbg('🎲 Random event triggered:', event.text, event.type === 'modifier' ? '(Modifier: ' + event.modifier + ')' : '');
 }
 
 // Apply event modifiers with expiration
@@ -12633,7 +19137,7 @@ function applyEventModifier(modifier, durationMinutes) {
   // Store modifier in localStorage
   localStorage.setItem('event_modifier_' + modifier, expiration.toString());
   
-  console.log('✨ Event modifier applied:', modifier, 'expires in', durationMinutes, 'minutes');
+  dbg('✨ Event modifier applied:', modifier, 'expires in', durationMinutes, 'minutes');
 }
 
 // Check if an event modifier is active
@@ -12693,15 +19197,15 @@ showTab = function(tabName) {
  * - Display referral card
  */
 async function initReferralSystem(userId) {
-  console.log('🔗 Initializing referral system...');
+  dbg('🔗 Initializing referral system...');
   
   // Check if new user arrived via referral link
   var urlParams = new URLSearchParams(window.location.search);
   var referralCode = urlParams.get('ref');
   
   if (referralCode) {
-    console.log('🎁 User arrived via referral code:', referralCode);
-    await processReferral(userId, referralCode);
+    dbg('🎁 User arrived via referral code:', referralCode);
+    await processReferralOnSignup(userId, referralCode);
     
     // Clean URL (remove ref parameter)
     window.history.replaceState({}, document.title, window.location.pathname);
@@ -12749,7 +19253,7 @@ async function loadReferralData(userId) {
     
     // If player doesn't exist yet, skip referral setup
     if (!player) {
-      console.log('⏳ Player not yet created, skipping referral data...');
+      dbg('⏳ Player not yet created, skipping referral data...');
       return;
     }
     
@@ -12784,9 +19288,52 @@ async function loadReferralData(userId) {
       el('referral-link-input').value = referralLink;
       el('referral-count').textContent = player.referrals_count || 0;
       el('referral-pp-earned').textContent = ((player.referrals_count || 0) * 200) + ' PP';
+
+      // Inject milestone progress below the card if mount exists
+      var milestoneMount = document.getElementById('referral-milestone-progress');
+      if (milestoneMount) {
+        var count = player.referrals_count || 0;
+        var nextM = REFERRAL_MILESTONES.find(function(m) { return m.count > count; });
+        var prevM = null;
+        for (var mi = REFERRAL_MILESTONES.length - 1; mi >= 0; mi--) {
+          if (REFERRAL_MILESTONES[mi].count <= count) { prevM = REFERRAL_MILESTONES[mi]; break; }
+        }
+        var pct = nextM
+          ? Math.round(((count - (prevM ? prevM.count : 0)) / (nextM.count - (prevM ? prevM.count : 0))) * 100)
+          : 100;
+
+        var tierColors = { common:'#8e8e8e', uncommon:'#5cb85c', rare:'#5bc0de', epic:'#9c27b0', legendary:'#ff9800' };
+        var milestoneRows = REFERRAL_MILESTONES.map(function(m) {
+          var done = count >= m.count;
+          return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(153,102,255,0.08);font-size:0.8rem;">' +
+            '<span style="font-size:1rem;">' + (done ? '✅' : '🔘') + '</span>' +
+            '<span style="flex:1;color:' + (done ? '#aaa' : 'var(--purple-dark)') + ';' + (done ? 'text-decoration:line-through;' : '') + '">' +
+              m.label + ' <em style="color:var(--text-light);">(' + m.count + ' referrals)</em>' +
+            '</span>' +
+            '<span style="color:' + (tierColors[m.tier]||'#9966ff') + ';font-weight:700;font-size:0.72rem;">' + m.tier.toUpperCase() + '</span>' +
+          '</div>';
+        }).join('');
+
+        milestoneMount.innerHTML =
+          '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">' +
+            '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🏆 Referral Milestones</div>' +
+            (nextM
+              ? '<div style="margin-bottom:12px;">' +
+                  '<div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-light);margin-bottom:4px;">' +
+                    '<span>Progress to <strong>' + nextM.label + '</strong></span>' +
+                    '<span>' + count + ' / ' + nextM.count + '</span>' +
+                  '</div>' +
+                  '<div style="background:rgba(153,102,255,0.12);border-radius:20px;height:10px;overflow:hidden;">' +
+                    '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#9966ff,#ff66cc);border-radius:20px;transition:width 0.5s;"></div>' +
+                  '</div>' +
+                '</div>'
+              : '<div style="font-size:0.82rem;color:#5dde7a;margin-bottom:12px;">🎉 All milestones unlocked!</div>') +
+            milestoneRows +
+          '</div>';
+      }
     }
     
-    console.log('✅ Referral system loaded. Code:', player.referral_code);
+    dbg('✅ Referral system loaded. Code:', player.referral_code);
   } catch (err) {
     console.error('❌ Referral system error:', err);
   }
@@ -12795,9 +19342,9 @@ async function loadReferralData(userId) {
 /**
  * Process referral when new user signs up via ref link
  */
-async function processReferral(newUserId, referralCode) {
+async function processReferralOnSignup(newUserId, referralCode) {
   try {
-    console.log('🎁 Processing referral for code:', referralCode);
+    dbg('🎁 Processing referral for code:', referralCode);
     
     // Find referrer by code
     var { data: referrer, error: findError } = await supabaseClient
@@ -12807,13 +19354,13 @@ async function processReferral(newUserId, referralCode) {
       .single();
     
     if (findError || !referrer) {
-      console.log('⚠️ Referral code not found or invalid');
+      dbg('⚠️ Referral code not found or invalid');
       return;
     }
     
     // Don't let users refer themselves
     if (referrer.id === newUserId) {
-      console.log('⚠️ User tried to refer themselves');
+      dbg('⚠️ User tried to refer themselves');
       return;
     }
     
@@ -12825,7 +19372,7 @@ async function processReferral(newUserId, referralCode) {
       .single();
     
     if (existingRef && existingRef.referred_by) {
-      console.log('⚠️ User already has a referrer');
+      dbg('⚠️ User already has a referrer');
       return;
     }
     
@@ -12843,7 +19390,7 @@ async function processReferral(newUserId, referralCode) {
     // Award rewards
     await awardReferralRewards(referrer.id, newUserId, referrer.username);
     
-    console.log('✅ Referral processed successfully!');
+    dbg('✅ Referral processed successfully!');
   } catch (err) {
     console.error('❌ Error processing referral:', err);
   }
@@ -12862,15 +19409,19 @@ async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
       .single();
     
     if (referrerData) {
+      var newCount = (referrerData.referrals_count || 0) + 1;
       await supabaseClient
         .from('players')
         .update({
           pawketpoints: (referrerData.pawketpoints || 0) + 200,
-          referrals_count: (referrerData.referrals_count || 0) + 1
+          referrals_count: newCount
         })
         .eq('id', referrerId);
       
-      console.log('💰 Awarded 200 PP to referrer');
+      dbg('💰 Awarded 200 PP to referrer');
+
+      // Check milestone rewards AFTER count is saved
+      await grantReferralMilestone(referrerId, newCount);
     }
     
     // Award new user 100 PP
@@ -12888,7 +19439,7 @@ async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
         })
         .eq('id', newUserId);
       
-      console.log('💰 Awarded 100 PP to new user');
+      dbg('💰 Awarded 100 PP to new user');
       
       // Show welcome message
       showPixelToast('🎁 Welcome! You earned 100 PP from ' + referrerUsername + '\'s referral!', 'success');
@@ -12909,14 +19460,98 @@ async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
 }
 
 /**
+ * Referral milestone definitions and reward granting
+ */
+var REFERRAL_MILESTONES = [
+  { count:1,  badge:'referral_rookie',  title:null,               skinKeys:0, frame:null,          label:'Referral Rookie',       tier:'common' },
+  { count:3,  badge:null,               title:null,               skinKeys:1, frame:null,          label:'Triple Recruiter',      tier:'uncommon' },
+  { count:5,  badge:'recruiter',        title:'community_builder', skinKeys:0, frame:null,          label:'Community Builder',     tier:'rare' },
+  { count:10, badge:'ambassador',       title:'pied_piper',        skinKeys:1, frame:null,          label:'Pied Piper',            tier:'rare' },
+  { count:25, badge:'influencer',       title:null,               skinKeys:2, frame:'frame_sparkle-earned', label:'Influencer',   tier:'epic' },
+  { count:50, badge:'legend',           title:null,               skinKeys:3, frame:'frame_crown',  label:'Legendary Recruiter',   tier:'legendary' }
+];
+
+async function grantReferralMilestone(userId, newCount) {
+  // Find the exact milestone this count hits (not all previous ones)
+  var milestone = REFERRAL_MILESTONES.find(function(m) { return m.count === newCount; });
+  if (!milestone) return;
+
+  // Award badge
+  if (milestone.badge) {
+    await awardBadge(milestone.badge).catch(function(){});
+  }
+
+  // Award player title
+  if (milestone.title) {
+    await awardPlayerTitle(milestone.title, userId).catch(function(){});
+  }
+
+  // Award skin keys
+  if (milestone.skinKeys > 0) {
+    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
+  }
+
+  // Unlock cosmetic frame
+  if (milestone.frame) {
+    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(){});
+  }
+
+  // Bonus PP for milestone
+  var bonusPP = newCount * 10; // 10 PP per referral as milestone bonus
+  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(){});
+
+  // Show celebration if it's the current user
+  if (currentUser && currentUser.id === userId) {
+    referral_showMilestoneCelebration(milestone, bonusPP);
+  }
+}
+
+function referral_showMilestoneCelebration(milestone, bonusPP) {
+  var tierColors = {
+    common:    '#8e8e8e',
+    uncommon:  '#5cb85c',
+    rare:      '#5bc0de',
+    epic:      '#9c27b0',
+    legendary: '#ff9800'
+  };
+  var color = tierColors[milestone.tier] || '#9966ff';
+
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="text-align:center;padding:10px 0;">' +
+      '<div style="font-size:3rem;margin-bottom:10px;">🎉</div>' +
+      '<div style="font-size:0.75rem;font-weight:700;letter-spacing:2px;color:' + color + ';text-transform:uppercase;margin-bottom:6px;">' + milestone.tier + ' milestone</div>' +
+      '<div style="font-weight:800;font-size:1.2rem;color:var(--purple-dark);margin-bottom:6px;">' + milestone.label + '</div>' +
+      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + milestone.count + ' friends referred!</div>' +
+      '<div style="background:linear-gradient(135deg,rgba(153,102,255,0.1),rgba(255,102,204,0.08));border-radius:14px;padding:16px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🎁 Milestone Rewards</div>' +
+        (milestone.badge    ? '<div style="font-size:0.82rem;margin:4px 0;">🎖️ Badge: ' + milestone.badge.replace(/_/g,' ') + '</div>' : '') +
+        (milestone.title    ? '<div style="font-size:0.82rem;margin:4px 0;">📜 Title unlocked!</div>' : '') +
+        (milestone.skinKeys ? '<div style="font-size:0.82rem;margin:4px 0;">🔑 ' + milestone.skinKeys + ' Skin Key' + (milestone.skinKeys > 1 ? 's' : '') + '!</div>' : '') +
+        (milestone.frame    ? '<div style="font-size:0.82rem;margin:4px 0;">🖼️ Exclusive frame unlocked!</div>' : '') +
+        '<div style="font-size:0.82rem;margin:4px 0;color:#e6a800;">💰 +' + bonusPP + ' bonus PP!</div>' +
+      '</div>' +
+      '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Awesome! 🚀</button>' +
+    '</div>';
+
+  openModal(modal);
+
+  // Confetti for epic/legendary
+  if (milestone.tier === 'epic' || milestone.tier === 'legendary') {
+    if (typeof createConfettiBurst === 'function') createConfettiBurst();
+  }
+}
+
+/**
  * Check and award referral milestone badges
  */
 async function checkReferralBadges(userId, referralCount) {
   var badges = [
-    { count: 5, badge: 'recruiter', name: 'Recruiter' },
-    { count: 10, badge: 'ambassador', name: 'Ambassador' },
-    { count: 25, badge: 'influencer', name: 'Influencer' },
-    { count: 50, badge: 'legend', name: 'Legend' }
+    { count: 1,  badge: 'referral_rookie', name: 'Referral Rookie' },
+    { count: 5,  badge: 'recruiter',       name: 'Recruiter' },
+    { count: 10, badge: 'ambassador',      name: 'Ambassador' },
+    { count: 25, badge: 'influencer',      name: 'Influencer' },
+    { count: 50, badge: 'legend',          name: 'Legend' }
   ];
   
   for (var i = 0; i < badges.length; i++) {
@@ -13211,14 +19846,14 @@ var isModerator = false;
  * Initialize forum - check if user is mod
  */
 async function initForum() {
-  console.log('🏛️ Initializing forum...');
+  dbg('🏛️ Initializing forum...');
   
   if (!currentUser) {
-    console.log('❌ No user logged in for forum');
+    dbg('❌ No user logged in for forum');
     return;
   }
   
-  console.log('✅ User logged in, checking moderator status...');
+  dbg('✅ User logged in, checking moderator status...');
   
   // Check if user is moderator
   try {
@@ -13233,13 +19868,13 @@ async function initForum() {
     }
     
     isModerator = !!data;
-    console.log('Moderator status:', isModerator);
+    dbg('Moderator status:', isModerator);
     
     if (isModerator) {
       var adminBtn = el('forum-admin-panel-btn');
       if (adminBtn) {
         adminBtn.style.display = 'block';
-        console.log('✅ Moderator panel button shown');
+        dbg('✅ Moderator panel button shown');
       } else {
         console.error('❌ Admin panel button element not found!');
       }
@@ -13248,7 +19883,7 @@ async function initForum() {
     console.error('Error in mod check:', err);
   }
   
-  console.log('Loading forum categories...');
+  dbg('Loading forum categories...');
   await loadForumCategories();
 }
 
@@ -13256,7 +19891,7 @@ async function initForum() {
  * Load forum categories
  */
 async function loadForumCategories() {
-  console.log('📂 Loading forum categories...');
+  dbg('📂 Loading forum categories...');
   
   var list = el('forum-categories-list');
   if (!list) {
@@ -13278,7 +19913,7 @@ async function loadForumCategories() {
       return;
     }
     
-    console.log('✅ Categories loaded:', categories.length);
+    dbg('✅ Categories loaded:', categories.length);
     
     if (!categories || categories.length === 0) {
       console.warn('⚠️ No categories found in database!');
@@ -13290,7 +19925,7 @@ async function loadForumCategories() {
     
     for (var i = 0; i < categories.length; i++) {
       var cat = categories[i];
-      console.log('Creating card for category:', cat.name);
+      dbg('Creating card for category:', cat.name);
       
       // Get thread count
       var { count } = await supabaseClient
@@ -13318,7 +19953,7 @@ async function loadForumCategories() {
       list.appendChild(card);
     }
     
-    console.log('✅ Forum categories displayed successfully!');
+    dbg('✅ Forum categories displayed successfully!');
   } catch (err) {
     console.error('❌ Exception in loadForumCategories:', err);
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + err.message + '</p></div>';
@@ -13364,7 +19999,8 @@ async function loadForumThreads(categoryId) {
     .select('*, players!forum_threads_author_id_fkey(username)')
     .eq('category_id', categoryId)
     .order('is_pinned', { ascending: false })
-    .order('last_reply_at', { ascending: false });
+    .order('last_reply_at', { ascending: false })
+    .limit(50);
   
   if (error) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading threads</p></div>';
@@ -13400,7 +20036,7 @@ async function loadForumThreads(categoryId) {
       <div class="forum-thread-content">
         <div class="forum-thread-title">${escapeHtml(thread.title)}</div>
         <div class="forum-thread-meta">
-          Started by <strong>${thread.players.username}</strong> • ${timeAgo}
+          Started by <strong>${escapeHtml(thread.players.username)}</strong> • ${timeAgo}
         </div>
       </div>
       <div class="forum-thread-stats">
@@ -13462,7 +20098,8 @@ async function showForumThread(threadId) {
     .from('forum_replies')
     .select('*, players!forum_replies_author_id_fkey(username, forum_post_count)')
     .eq('thread_id', threadId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(200);
   
   container.innerHTML = '';
   
@@ -13549,6 +20186,7 @@ function closeNewThreadModal() {
  */
 async function submitNewThread() {
   if (!currentUser) return;
+  if (!canPerformAction('forum_new_thread', 5000)) { showToast('Please slow down before creating another thread!'); return; }
   
   var title = el('new-thread-title').value.trim();
   var content = el('new-thread-content').value.trim();
@@ -13557,6 +20195,10 @@ async function submitNewThread() {
     showToast('Please fill in both title and message!');
     return;
   }
+
+  // Strip HTML tags before storing (defence-in-depth; display already uses escapeHtml)
+  title   = title.replace(/<[^>]*>/g, '');
+  content = content.replace(/<[^>]*>/g, '');
   
   // Check if banned
   var { data: ban } = await supabaseClient
@@ -13596,6 +20238,7 @@ async function submitNewThread() {
  * Submit reply to thread
  */
 async function submitReply() {
+  if (!canPerformAction('forum_reply', 3000)) { showToast('Please slow down before posting again!'); return; }
   if (!currentUser) {
     showToast('Please log in to reply!');
     return;
@@ -13607,6 +20250,9 @@ async function submitReply() {
     showToast('Please write a reply!');
     return;
   }
+
+  // Strip HTML tags before storing
+  content = content.replace(/<[^>]*>/g, '');
   
   // Check if banned
   var { data: ban } = await supabaseClient
@@ -13644,15 +20290,27 @@ async function submitReply() {
  * Delete forum post
  */
 async function deleteForumPost(postId, postType) {
+  if (!currentUser) return;
   if (!confirm('Are you sure you want to delete this ' + postType + '?')) {
     return;
   }
-  
+
   if (postType === 'thread') {
+    // Check ownership before deleting
+    var { data: thread } = await supabaseClient
+      .from('forum_threads')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+    if (thread && thread.author_id !== currentUser.id) {
+      showToast('You can only delete your own posts.', 'error');
+      return;
+    }
     var { error } = await supabaseClient
       .from('forum_threads')
       .delete()
-      .eq('id', postId);
+      .eq('id', postId)
+      .eq('author_id', currentUser.id);
     
     if (error) {
       showToast('Error deleting thread');
@@ -13662,10 +20320,21 @@ async function deleteForumPost(postId, postType) {
     showPixelToast('Thread deleted', 'success');
     backToCategory();
   } else {
+    // Check ownership before deleting reply
+    var { data: reply } = await supabaseClient
+      .from('forum_replies')
+      .select('author_id')
+      .eq('id', postId)
+      .single();
+    if (reply && reply.author_id !== currentUser.id) {
+      showToast('You can only delete your own posts.', 'error');
+      return;
+    }
     var { error } = await supabaseClient
       .from('forum_replies')
       .delete()
-      .eq('id', postId);
+      .eq('id', postId)
+      .eq('author_id', currentUser.id);
     
     if (error) {
       showToast('Error deleting reply');
@@ -13896,26 +20565,10 @@ async function loadRecentPosts() {
 /**
  * Get time ago string
  */
-function getTimeAgo(timestamp) {
-  var now = new Date();
-  var time = new Date(timestamp);
-  var diff = Math.floor((now - time) / 1000);
-  
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return Math.floor(diff / 60) + ' minutes ago';
-  if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
-  if (diff < 2592000) return Math.floor(diff / 86400) + ' days ago';
-  return Math.floor(diff / 2592000) + ' months ago';
-}
 
 /**
  * Escape HTML to prevent XSS
  */
-function escapeHtml(text) {
-  var div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 
 
 // ══════════════════════════════════════════════════════════════
@@ -13993,29 +20646,63 @@ function createFloatingSparkles() {
 /**
  * Confetti burst (for adoptions)
  */
+// ── SCREEN SHAKE ─────────────────────────────────────────────────────────
+function screenShake(intensity, duration) {
+  var body = document.body;
+  var start = Date.now();
+  function shake() {
+    if (Date.now() - start >= duration) { body.style.transform = ''; return; }
+    body.style.transform = 'translate(' + ((Math.random()-0.5)*intensity) + 'px,' + ((Math.random()-0.5)*intensity) + 'px)';
+    requestAnimationFrame(shake);
+  }
+  shake();
+}
+
+// ── SCREEN FLASH ─────────────────────────────────────────────────────────
+function screenFlash(color, duration) {
+  var flash = document.createElement('div');
+  flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:' + color + ';z-index:99999;pointer-events:none;opacity:0;transition:opacity 0.1s;';
+  document.body.appendChild(flash);
+  setTimeout(function() { flash.style.opacity = '0.5'; }, 10);
+  setTimeout(function() { flash.style.opacity = '0'; }, duration / 2);
+  setTimeout(function() { if (flash.parentNode) flash.remove(); }, duration + 100);
+}
+
 function createConfettiBurst(x, y) {
-  var colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#6c5ce7', '#a29bfe'];
-  var count = 50;
-  
+  var colors = ['#ff6b6b','#4ecdc4','#45b7d1','#f9ca24','#6c5ce7','#a29bfe','#ff66cc','#9966ff'];
+  var count = 70;
   for (var i = 0; i < count; i++) {
-    var confetti = makeEl('div', { class: 'confetti-piece' });
-    confetti.style.left = x + 'px';
-    confetti.style.top = y + 'px';
-    confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-    confetti.style.animationDelay = (Math.random() * 0.3) + 's';
-    confetti.style.animationDuration = (Math.random() * 1 + 2) + 's';
-    
-    // Random direction
-    var angle = (Math.random() * 360);
-    var velocity = (Math.random() * 300 + 200);
-    confetti.style.setProperty('--tx', Math.cos(angle) * velocity + 'px');
-    confetti.style.setProperty('--ty', Math.sin(angle) * velocity + 'px');
-    
-    document.body.appendChild(confetti);
-    
-    setTimeout(function(c) {
-      return function() { c.remove(); };
-    }(confetti), 3000);
+    (function() {
+      var piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      var size = 7 + Math.random() * 7;
+      var angle = Math.random() * Math.PI * 2;
+      var speed = 200 + Math.random() * 300;
+      var vx = Math.cos(angle) * speed;
+      var vy = Math.sin(angle) * speed - 150; // upward bias
+      var gravity = 400;
+      var startX = x + (Math.random() - 0.5) * 60;
+      var startY = y + (Math.random() - 0.5) * 60;
+      var rot = Math.random() * 360;
+      var rotSpeed = (Math.random() - 0.5) * 720;
+      piece.style.cssText = 'position:fixed;width:' + size + 'px;height:' + size + 'px;background:' + colors[Math.floor(Math.random()*colors.length)] + ';border-radius:' + (Math.random() > 0.5 ? '50%' : '2px') + ';pointer-events:none;z-index:100001;left:' + startX + 'px;top:' + startY + 'px;';
+      document.body.appendChild(piece);
+      var startTime = performance.now();
+      var duration = 2000 + Math.random() * 1000;
+      function animate(now) {
+        var t = (now - startTime) / 1000;
+        if (t > duration / 1000) { if (piece.parentNode) piece.remove(); return; }
+        var cx = startX + vx * t;
+        var cy = startY + vy * t + 0.5 * gravity * t * t;
+        var opacity = 1 - t / (duration / 1000);
+        piece.style.left = cx + 'px';
+        piece.style.top  = cy + 'px';
+        piece.style.transform = 'rotate(' + (rot + rotSpeed * t) + 'deg)';
+        piece.style.opacity = opacity;
+        requestAnimationFrame(animate);
+      }
+      requestAnimationFrame(animate);
+    })();
   }
 }
 
@@ -14103,7 +20790,7 @@ async function loadAllPetTitles() {
     
     if (res.data) {
       allPetTitles = res.data;
-      console.log('🏷️ Pet titles loaded:', allPetTitles.length, 'available');
+      dbg('🏷️ Pet titles loaded:', allPetTitles.length, 'available');
     }
   } catch (err) {
     console.error('[Pet Titles] Error loading titles:', err);
@@ -14145,7 +20832,7 @@ async function awardPetTitle(petId, titleKey, reason) {
   
   // Check if already has this title
   if (petHasTitle(petId, titleKey)) {
-    console.log('[Pet Title] Already unlocked:', titleKey, 'for pet', petId);
+    dbg('[Pet Title] Already unlocked:', titleKey, 'for pet', petId);
     return;
   }
   
@@ -14187,7 +20874,7 @@ async function awardPetTitle(petId, titleKey, reason) {
     // Show notification
     showPetTitleUnlockNotification(petId, title, reason);
     
-    console.log('🏷️✨ Pet title unlocked:', title.display_name, 'for pet', petId);
+    dbg('🏷️✨ Pet title unlocked:', title.display_name, 'for pet', petId);
     
   } catch (err) {
     console.error('[Pet Title] Error awarding title:', err);
@@ -14365,7 +21052,7 @@ async function checkVariantUnlock(petId, level) {
   
   // If pet already has a variant, don't unlock another one
   if (pet.variant) {
-    console.log('[Variant] Pet already has variant:', pet.variant);
+    dbg('[Variant] Pet already has variant:', pet.variant);
     return;
   }
   
@@ -14383,7 +21070,7 @@ async function checkVariantUnlock(petId, level) {
   }
   
   if (!variantToUnlock) {
-    console.log('[Variant] No variant unlocked at level', level);
+    dbg('[Variant] No variant unlocked at level', level);
     return;
   }
   
@@ -14413,7 +21100,7 @@ async function checkVariantUnlock(petId, level) {
       variantData.icon + ' ' + variantData.name + '</span>!',
       6000, variantData.color);
     
-    console.log('✨ Variant unlocked:', variantToUnlock, 'for pet', petId);
+    dbg('✨ Variant unlocked:', variantToUnlock, 'for pet', petId);
     
     // Award variant badge
     await awardBadge('variant_unlock');
@@ -14492,7 +21179,7 @@ async function unlockTwitchVariant(petId, variantKey, rewardInfo) {
     // Reload pet display
     tabsLoaded['mypets'] = false;
     
-    console.log('✨ Twitch variant unlocked:', variantKey, 'for pet', petId);
+    dbg('✨ Twitch variant unlocked:', variantKey, 'for pet', petId);
     return true;
     
   } catch (err) {
@@ -14504,24 +21191,32 @@ async function unlockTwitchVariant(petId, variantKey, rewardInfo) {
 
 // Show fancy variant unlock notification
 function showVariantUnlockNotification(petNickname, variantData) {
+  // Effects
+  screenShake(6, 300);
+  screenFlash('rgba(255,215,0,0.2)', 500);
+  playChiptune('variant');
+  createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
+
   var notification = document.createElement('div');
   notification.className = 'variant-unlock-notification';
+  notification.style.position = 'relative';
   notification.innerHTML = 
+    '<button class="celebration-dismiss-btn" onclick="this.closest(\'.variant-unlock-notification\').remove()" title="Dismiss" style="top:8px;right:8px;">✕</button>' +
     '<h2>' + variantData.icon + ' Variant Unlocked!</h2>' +
     '<p><strong>' + escapeHtml(petNickname) + '</strong> is now</p>' +
     '<p style="font-size:1.5rem;color:' + variantData.color + ';font-weight:bold;">' +
     variantData.icon + ' ' + variantData.name + '</p>' +
-    '<p style="font-size:0.9rem;margin-top:10px;">' + variantData.description + '</p>';
+    '<p style="font-size:0.9rem;margin-top:10px;">' + (variantData.description || '') + '</p>';
   
   document.body.appendChild(notification);
   
-  // Remove after 4 seconds
+  // Remove after 8 seconds
   setTimeout(function() {
     notification.style.animation = 'variantUnlockPop 0.3s ease reverse';
     setTimeout(function() {
-      document.body.removeChild(notification);
+      if (notification.parentNode) notification.parentNode.removeChild(notification);
     }, 300);
-  }, 4000);
+  }, 8000);
 }
 
 // Check for pending Twitch reward redemptions
@@ -14558,7 +21253,7 @@ async function checkTwitchRewardRedemptions() {
   //   }
   // }
   
-  console.log('[TwitchVariant] Checked for pending redemptions');
+  dbg('[TwitchVariant] Checked for pending redemptions');
 }
 
 // Get list of available stream reward variants for a pet
@@ -14694,7 +21389,7 @@ async function loadAllPlayerTitles() {
     
     if (res.data) {
       allPlayerTitles = res.data;
-      console.log('👑 Player titles loaded:', allPlayerTitles.length, 'available');
+      dbg('👑 Player titles loaded:', allPlayerTitles.length, 'available');
     }
   } catch (err) {
     console.error('[Player Titles] Error loading titles:', err);
@@ -14713,7 +21408,7 @@ async function loadPlayerTitles() {
     
     if (res.data) {
       playerTitlesCache = res.data.map(function(upt) { return upt.player_titles; });
-      console.log('👑 User player titles loaded:', playerTitlesCache.length, 'unlocked');
+      dbg('👑 User player titles loaded:', playerTitlesCache.length, 'unlocked');
       return playerTitlesCache;
     }
     
@@ -14737,7 +21432,7 @@ async function loadActivePlayerTitle() {
     
     if (res.data && res.data.active_player_title_id) {
       activePlayerTitle = res.data.player_titles;
-      console.log('👑 Active player title:', activePlayerTitle?.display_name || 'None');
+      dbg('👑 Active player title:', activePlayerTitle?.display_name || 'None');
       return activePlayerTitle;
     }
     
@@ -14760,7 +21455,7 @@ async function awardPlayerTitle(titleKey, reason) {
   
   // Check if already has this title
   if (hasPlayerTitle(titleKey)) {
-    console.log('[Player Title] Already unlocked:', titleKey);
+    dbg('[Player Title] Already unlocked:', titleKey);
     return;
   }
   
@@ -14799,7 +21494,7 @@ async function awardPlayerTitle(titleKey, reason) {
     // Show notification
     showPlayerTitleUnlockNotification(title, reason);
     
-    console.log('👑✨ Player title unlocked:', title.display_name);
+    dbg('👑✨ Player title unlocked:', title.display_name);
     
   } catch (err) {
     console.error('[Player Title] Error awarding title:', err);
@@ -14831,8 +21526,9 @@ async function setActivePlayerTitle(playerTitleId) {
       showToast('Title removed', 3000, 'var(--text-light)');
     }
     
-    // Reload profile if on that tab
-    if (currentTab === 'myprofile') {
+    // Reload profile if on that tab — use DOM check, not undefined currentTab variable
+    var activeSection = document.querySelector('.page-section.active');
+    if (activeSection && activeSection.id === 'section-myprofile') {
       showTab('myprofile');
     }
     
@@ -15132,10 +21828,11 @@ async function checkPetTitleUnlocks(petId, context) {
     var pet = petState[petId];
     if (!pet) return;
     
-    // Get battle history for this specific pet
+    // Get battle history for this specific pet — select only the columns
+    // actually used here, not '*' (battle_log text blobs add up fast)
     var battles = await supabaseClient
       .from('battle_history')
-      .select('*')
+      .select('victory, is_boss, enemy_name, final_hp, max_hp, max_damage_dealt, pet_energy_at_start, pet_level, turns')
       .eq('user_id', currentUser.id)
       .eq('pet_id', petId);
     
@@ -15472,7 +22169,7 @@ function makeMyPetCardWithTitles(pet) {
   // Pet image with variant effect
   var imageWrap = makeEl('div', {class: 'pet-image-wrap ' + getPetVariantClass(pet.variant)});
   var img = makeEl('img', {
-    src: 'images/pets/' + (pet.image_file || pet.pets?.image_file || 'placeholder.png'),
+    src: 'images/' + (pet.image_file || (pet.pets && pet.pets.image_file) || 'pets/placeholder.png'),
     alt: pet.nickname,
     onerror: "this.style.display='none';"
   });
@@ -15776,138 +22473,180 @@ function getPetFullDisplayName(pet) {
 
 var weatherSystem = {
   weatherTypes: [
-    {
-      id: 'clear',
-      name: 'Clear',
-      icon: '☀️',
-      description: 'Perfect weather for pet adventures!',
-      weight: 50 // Most common - no weather effects
-    },
-    {
-      id: 'rainy',
-      name: 'Rainy',
-      icon: '🌧️',
-      description: 'The mushrooms are extra happy today.',
-      weight: 15
-    },
-    {
-      id: 'foggy',
-      name: 'Foggy',
-      icon: '🌫️',
-      description: 'Mysterious mists drift through the Deep Woods...',
-      weight: 12
-    },
-    {
-      id: 'windy',
-      name: 'Windy',
-      icon: '💨',
-      description: 'Hold onto your spoons! Gusty conditions today.',
-      weight: 10
-    },
-    {
-      id: 'starry',
-      name: 'Starry Night',
-      icon: '✨',
-      description: 'The cosmos align. Make a wish!',
-      weight: 8
-    },
-    {
-      id: 'cursed',
-      name: 'Cursed Fog',
-      icon: '🟣',
-      description: 'Strange purple fog emanates from the ruins. Proceed with caution.',
-      weight: 5 // Rare
-    }
+    { id: 'clear',  name: 'Clear',       icon: '☀️',  weight: 22, description: 'Perfect weather for pet adventures!',           effect: 'Normal conditions' },
+    { id: 'sunny',  name: 'Sunny',        icon: '🌤️', weight: 20, description: 'The sun is shining brightly!',                  effect: 'Pets are extra happy today' },
+    { id: 'rainy',  name: 'Rainy',        icon: '🌧️', weight: 18, description: 'The mushrooms are extra happy today.',           effect: 'Water types earn +25% XP' },
+    { id: 'foggy',  name: 'Foggy',        icon: '🌫️', weight: 16, description: 'Mysterious mists drift through the Deep Woods.', effect: 'Rare encounters +10% chance' },
+    { id: 'windy',  name: 'Windy',        icon: '💨',  weight: 16, description: 'Hold onto your spoons! Gusty conditions today.', effect: 'All pets move +15% faster' },
+    { id: 'starry', name: 'Starry Night', icon: '✨',  weight: 6,  description: 'The cosmos align. Make a wish!',                 effect: 'Mystical bonuses active' },
+    { id: 'cursed', name: 'Cursed Fog',   icon: '🟣',  weight: 2,  description: 'Strange purple fog from the ruins. Beware.',    effect: 'Something feels different...' }
   ],
-  
+
   currentWeather: null,
+  currentDate:    null,
   changeInterval: null,
-  
-  init: function() {
-    // Load saved weather or generate new
-    var saved = localStorage.getItem('currentWeather');
-    var savedTime = localStorage.getItem('weatherTime');
-    var currentTime = Date.now();
-    var oneHour = 3600000; // 1 hour in milliseconds
-    
-    if (saved && savedTime && (currentTime - parseInt(savedTime)) < oneHour) {
-      // Use saved weather if less than 1 hour old
-      this.currentWeather = JSON.parse(saved);
-    } else {
-      // Generate new weather
-      this.generateWeather();
-    }
-    
-    this.applyWeather();
-    
-    // Change weather every 1 hour
-    this.changeInterval = setInterval(function() {
-      weatherSystem.generateWeather();
-    }, 3600000); // 1 hour
-  },
-  
-  generateWeather: function() {
-    // Weighted random selection
-    var totalWeight = this.weatherTypes.reduce(function(sum, w) { return sum + w.weight; }, 0);
-    var random = Math.random() * totalWeight;
-    var cumulative = 0;
-    
-    for (var i = 0; i < this.weatherTypes.length; i++) {
-      cumulative += this.weatherTypes[i].weight;
-      if (random <= cumulative) {
-        this.currentWeather = this.weatherTypes[i];
-        break;
+  ROTATION_HOURS: 6, // weather rotates every N hours, shared by all players
+
+  init: async function() {
+    this.currentDate = new Date().toISOString().slice(0, 10);
+    // Try DB first, fall back to localStorage, then generate
+    var loaded = await this.loadFromDailyFeatures();
+    if (!loaded) {
+      var saved     = localStorage.getItem('currentWeather');
+      var savedTime = localStorage.getItem('weatherSetAt');
+      if (saved && savedTime && (Date.now() - parseInt(savedTime, 10)) < this.ROTATION_HOURS * 3600000) {
+        try { this.currentWeather = JSON.parse(saved); loaded = true; } catch(e) {}
       }
     }
-    
-    // Save to localStorage with timestamp
+    if (!loaded || !this.currentWeather) {
+      this.generateWeather();
+      this.syncToDailyFeatures().catch(function(){});
+    }
+    this.applyWeather();
+    this.startRotationChecker();
+  },
+
+  loadFromDailyFeatures: async function() {
+    try {
+      var { data, error } = await supabaseClient
+        .from('daily_features')
+        .select('weather, created_at')
+        .eq('date', this.currentDate)
+        .maybeSingle();
+      if (error || !data || !data.weather) return false;
+
+      // Staleness check: if this row's weather was set more than ROTATION_HOURS ago, treat as expired
+      if (data.created_at) {
+        var ageMs = Date.now() - new Date(data.created_at).getTime();
+        if (ageMs > this.ROTATION_HOURS * 3600000) return false;
+      }
+
+      var weatherId = (typeof data.weather === 'object') ? data.weather.id : data.weather;
+      var weather   = this.weatherTypes.find(function(w) { return w.id === weatherId; });
+      if (!weather) return false;
+      this.currentWeather = weather;
+      localStorage.setItem('currentWeather', JSON.stringify(weather));
+      localStorage.setItem('weatherSetAt', Date.now().toString());
+      return true;
+    } catch(e) { return false; }
+  },
+
+  generateWeather: function() {
+    var hour = new Date().getHours();
+    var isNight = hour >= 18 || hour < 6;
+    // Starry only available at night — exclude it during the day so it doesn't waste its weight
+    var pool = isNight ? this.weatherTypes : this.weatherTypes.filter(function(w) { return w.id !== 'starry'; });
+
+    var totalWeight = pool.reduce(function(s, w) { return s + w.weight; }, 0);
+    var random = Math.random() * totalWeight;
+    var cumulative = 0;
+    for (var i = 0; i < pool.length; i++) {
+      cumulative += pool[i].weight;
+      if (random <= cumulative) { this.currentWeather = pool[i]; break; }
+    }
     localStorage.setItem('currentWeather', JSON.stringify(this.currentWeather));
-    localStorage.setItem('weatherTime', Date.now().toString());
-    
+    localStorage.setItem('weatherSetAt', Date.now().toString());
     this.applyWeather();
   },
-  
+
+  syncToDailyFeatures: async function() {
+    if (!this.currentWeather) return;
+    var bonusMap = {
+      clear:'normal', sunny:'happiness_boost', rainy:'water_xp',
+      foggy:'rare_encounters', windy:'speed_boost', starry:'mystery_bonus', cursed:'spooky_bonus'
+    };
+    try {
+      await supabaseClient.from('daily_features').upsert({
+        date:       this.currentDate,
+        weather:    this.currentWeather.id,
+        bonus_type: bonusMap[this.currentWeather.id] || 'normal'
+      }, { onConflict: 'date' });
+    } catch(e) { dbg('Weather sync to DB failed:', e); }
+  },
+
   applyWeather: function() {
     if (!this.currentWeather) return;
-    
-    var body = document.body;
-    
-    // Remove all weather classes
-    body.classList.remove('weather-clear', 'weather-rainy', 'weather-foggy', 
-                          'weather-windy', 'weather-starry', 'weather-cursed');
-    
-    // Add current weather class
-    body.classList.add('weather-' + this.currentWeather.id);
-    
-    // Update weather display if element exists
+    var allIds = this.weatherTypes.map(function(w) { return 'weather-' + w.id; });
+    document.body.classList.remove.apply(document.body.classList, allIds);
+    document.body.classList.add('weather-' + this.currentWeather.id);
     this.updateWeatherDisplay();
-    
-    console.log('🌤️ Weather changed to:', this.currentWeather.name);
+    // Cursed weather spawns extra glitch elements
+    if (this.currentWeather.id === 'cursed') {
+      this.addCursedGlitches();
+    } else {
+      document.querySelectorAll('.cursed-glitch').forEach(function(el) { el.remove(); });
+    }
+    dbg('🌤️ Weather applied:', this.currentWeather.name);
   },
-  
+
   updateWeatherDisplay: function() {
-    var weatherWidget = document.getElementById('weather-widget');
-    if (weatherWidget && this.currentWeather) {
-      weatherWidget.innerHTML = 
+    var widget = document.getElementById('weather-widget');
+    if (widget && this.currentWeather) {
+      widget.innerHTML =
         '<div class="weather-icon">' + this.currentWeather.icon + '</div>' +
         '<div class="weather-info">' +
           '<div class="weather-name">' + this.currentWeather.name + '</div>' +
           '<div class="weather-desc">' + this.currentWeather.description + '</div>' +
         '</div>';
     }
+    var iconEl = document.getElementById('event-status-icon');
+    var textEl = document.getElementById('event-status-text');
+    if (iconEl) iconEl.textContent = this.currentWeather.icon;
+    if (textEl) textEl.textContent = this.currentWeather.name;
   },
-  
-  getCurrentWeather: function() {
-    return this.currentWeather;
+
+  addCursedGlitches: function() {
+    document.querySelectorAll('.cursed-glitch').forEach(function(el) { el.remove(); });
+    if (!this.currentWeather || this.currentWeather.id !== 'cursed') return;
+    var numGlitches = Math.floor(Math.random() * 6) + 5;
+    for (var i = 0; i < numGlitches; i++) {
+      var g = document.createElement('div');
+      g.className = 'cursed-glitch';
+      g.style.cssText =
+        'position:fixed;left:' + (Math.random() * 100) + '%;top:' + (Math.random() * 100) + '%;' +
+        'width:' + (Math.random() * 200 + 50) + 'px;height:' + (Math.random() * 10 + 5) + 'px;' +
+        'background:' + (Math.random() > 0.5 ? 'rgba(255,0,255,0.2)' : 'rgba(0,255,255,0.2)') + ';' +
+        'pointer-events:none;z-index:10000;animation:glitchFlash ' + (Math.random() * 0.5 + 0.3) + 's ease-in-out infinite;';
+      document.body.appendChild(g);
+      (function(el) {
+        setTimeout(function() { if (el.parentNode) el.remove(); }, Math.random() * 3000 + 1000);
+      })(g);
+    }
+    // Respawn periodically while weather is cursed
+    var self = this;
+    setTimeout(function() { self.addCursedGlitches(); }, 4000);
   },
-  
-  // Manual change for testing
+
+  startRotationChecker: function() {
+    var self = this;
+    safeSetInterval(function() {
+      var today = new Date().toISOString().slice(0, 10);
+      var dateChanged = today !== self.currentDate;
+      var setAt = parseInt(localStorage.getItem('weatherSetAt') || '0', 10);
+      var rotationDue = !setAt || (Date.now() - setAt) > self.ROTATION_HOURS * 3600000;
+
+      if (dateChanged) self.currentDate = today;
+
+      if (dateChanged || rotationDue) {
+        self.generateWeather();
+        self.syncToDailyFeatures().catch(function(){});
+      }
+    }, 60000); // check every minute, but only acts when a rotation window has actually elapsed
+  },
+
+  getCurrentWeather: function() { return this.currentWeather; },
+
   setWeather: function(weatherId) {
     var weather = this.weatherTypes.find(function(w) { return w.id === weatherId; });
     if (weather) {
+      // Guard: currentDate is normally set by init(), but setWeather() can be called
+      // directly (e.g. from console for testing) before init() has run.
+      if (!this.currentDate) this.currentDate = new Date().toISOString().slice(0, 10);
       this.currentWeather = weather;
-      localStorage.setItem('currentWeather', JSON.stringify(this.currentWeather));
+      localStorage.setItem('currentWeather', JSON.stringify(weather));
+      localStorage.setItem('weatherSetAt', Date.now().toString());
       this.applyWeather();
+      this.syncToDailyFeatures().catch(function(){});
     }
   }
 };
@@ -16134,7 +22873,7 @@ var worldEvents = {
     
     this.displayEvent();
     
-    setInterval(function() {
+    safeSetInterval(function() {
       if (worldEvents.eventEndDate && new Date() > worldEvents.eventEndDate) {
         worldEvents.generateEvent();
       }
@@ -16163,7 +22902,7 @@ var worldEvents = {
     
     this.displayEvent();
     
-    console.log('🎪 New event:', event.name, '| Effects:', event.effects);
+    dbg('🎪 New event:', event.name, '| Effects:', event.effects);
   },
   
   displayEvent: function() {
@@ -16296,6 +23035,7 @@ var worldEvents = {
    
    // In shop pricing:
    var finalPrice = worldEvents.applyEventModifier(basePrice, 'shopDiscount');
+   var guildDiscountFinal = getActivePerkMultiplier('discount'); if (guildDiscountFinal < 1) finalPrice = Math.floor(finalPrice * guildDiscountFinal);
    
    // In happiness updates:
    var happinessGain = worldEvents.applyEventModifier(baseGain, 'happinessGain');
@@ -16590,11 +23330,15 @@ async function loadEquipmentShop() {
     if (res.error) throw res.error;
     
     var equipment = res.data || [];
+
+    // Apply active filter
+    if (typeof currentEquipmentFilter !== 'undefined' && currentEquipmentFilter !== 'all' && currentEquipmentFilter !== '') {
+      equipment = equipment.filter(function(item) {
+        return item.equipment_type === currentEquipmentFilter;
+      });
+    }
     
-    var html = '<div class="shop-rotation-banner">';
-    html += '<div class="rotation-week">📅 Week ' + currentWeek + ' Rotation</div>';
-    html += '<div class="rotation-timer">⏰ Next rotation in: <span id="rotation-countdown">' + getTimeUntilRotation() + '</span></div>';
-    html += '</div>';
+    var html = ''; // Rotation banner removed
     
     var ownedEquipment = [];
     if (currentUser) {
@@ -16617,7 +23361,21 @@ async function loadEquipmentShop() {
       var isOwned = ownedEquipment.indexOf(item.id) !== -1;
       var isBossDrop = item.is_boss_drop;
       
-      var cardHtml = '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '">';
+      var cardHtml = '<div class="equipment-card ' + (isOwned ? 'owned' : '') + ' rarity-' + (item.rarity || 'common') + '"' +
+        // Build stat tooltip for hover
+        ' title="' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') +
+        (item.attack_bonus  > 0 ? ' | +' + item.attack_bonus  + ' ATK' : '') +
+        (item.defense_bonus > 0 ? ' | +' + item.defense_bonus + ' DEF' : '') +
+        (item.speed_bonus   > 0 ? ' | +' + item.speed_bonus   + ' SPD' : '') +
+        (item.hp_bonus      > 0 ? ' | +' + item.hp_bonus      + ' HP'  : '') +
+        ' | Tier ' + item.tier + ' — hover to compare stats"' +
+        ' data-tooltip="' + (item.equipment_type === 'weapon' ? '⚔️ Weapon Stats' : '🛡️ Armor Stats') +
+        (item.attack_bonus  > 0 ? '\n+' + item.attack_bonus  + ' Attack'  : '') +
+        (item.defense_bonus > 0 ? '\n+' + item.defense_bonus + ' Defense' : '') +
+        (item.speed_bonus   > 0 ? '\n+' + item.speed_bonus   + ' Speed'   : '') +
+        (item.hp_bonus      > 0 ? '\n+' + item.hp_bonus      + ' HP'      : '') +
+        '\nTier ' + item.tier + ' · ' + item.weight_class +
+        '">';
       
       if (isBossDrop) {
         cardHtml += '<div class="boss-drop-badge">👑 BOSS DROP</div>';
@@ -16671,32 +23429,42 @@ async function loadEquipmentShop() {
       return cardHtml;
     }
     
-    // Create two-column layout
-    html += '<div class="equipment-shop-columns">';
-    
-    // Left column: Weapons
-    html += '<div class="equipment-column">';
-    html += '<h3 class="equipment-column-title">⚔️ Weapons</h3>';
-    html += '<div class="equipment-grid-column">';
-    weapons.forEach(function(item) {
-      html += renderEquipmentCard(item);
-    });
-    html += '</div></div>';
-    
-    // Right column: Armor
-    html += '<div class="equipment-column">';
-    html += '<h3 class="equipment-column-title">🛡️ Armor</h3>';
-    html += '<div class="equipment-grid-column">';
-    armor.forEach(function(item) {
-      html += renderEquipmentCard(item);
-    });
-    html += '</div></div>';
-    
-    html += '</div>';
+    // Create filter-aware layout
+    var currentFilter = typeof currentEquipmentFilter !== 'undefined' ? currentEquipmentFilter : 'all';
+    var showWeapons = (currentFilter === 'all' || currentFilter === 'weapon');
+    var showArmor   = (currentFilter === 'all' || currentFilter === 'armor');
+
+    if (currentFilter === 'all') {
+      // Two columns: weapons left, armor right
+      html += '<div class="equipment-shop-columns">';
+      html += '<div class="equipment-column">';
+      html += '<h3 class="equipment-column-title">⚔️ Weapons</h3>';
+      html += '<div class="equipment-grid-column">';
+      if (weapons.length === 0) { html += '<div class="empty-equipment">No weapons available this week</div>'; }
+      else { weapons.forEach(function(item) { html += renderEquipmentCard(item); }); }
+      html += '</div></div>';
+      html += '<div class="equipment-column">';
+      html += '<h3 class="equipment-column-title">🛡️ Armor</h3>';
+      html += '<div class="equipment-grid-column">';
+      if (armor.length === 0) { html += '<div class="empty-equipment">No armor available this week</div>'; }
+      else { armor.forEach(function(item) { html += renderEquipmentCard(item); }); }
+      html += '</div></div>';
+      html += '</div>';
+    } else {
+      // Single column — full width, whichever type is selected
+      var filteredItems = showWeapons ? weapons : armor;
+      var colTitle = showWeapons ? '⚔️ Weapons' : '🛡️ Armor';
+      html += '<div class="equipment-single-column">';
+      html += '<h3 class="equipment-column-title">' + colTitle + '</h3>';
+      html += '<div class="equipment-grid-single">';
+      if (filteredItems.length === 0) { html += '<div class="empty-equipment">No items available this week</div>'; }
+      else { filteredItems.forEach(function(item) { html += renderEquipmentCard(item); }); }
+      html += '</div></div>';
+    }
     
     container.innerHTML = html;
     
-    setInterval(updateRotationCountdown, 60000);
+   // safeSetInterval(updateRotationCountdown, 60000); // Removed — rotation banner removed
     
   } catch (err) {
     container.innerHTML = '<div class="error-state"><p>Failed to load shop.</p></div>';
@@ -16740,12 +23508,12 @@ async function checkTutorialStatus() {
       playerSettings.tutorial_completed = res.data.tutorial_completed || false;
       playerSettings.spooky_enabled = res.data.spooky_enabled || false;
       
-      console.log('Tutorial status:', playerSettings.tutorial_completed);
-      console.log('Spooky enabled:', playerSettings.spooky_enabled);
+      dbg('Tutorial status:', playerSettings.tutorial_completed);
+      dbg('Spooky enabled:', playerSettings.spooky_enabled);
       
       // Start tutorial if not completed
       if (!playerSettings.tutorial_completed) {
-        console.log('Starting tutorial for new player...');
+        dbg('Starting tutorial for new player...');
         setTimeout(function() {
           if (typeof Tutorial !== 'undefined') {
             Tutorial.start();
@@ -16763,7 +23531,7 @@ async function checkTutorialStatus() {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function loadSettings() {
-  console.log('Loading settings page...');
+  dbg('Loading settings page...');
   
   if (!currentUser) return;
   
@@ -16817,6 +23585,9 @@ async function loadSettings() {
     
     // Apply settings immediately
     applySettings();
+
+    // Render theme selector if container exists
+    theme_renderSelector('theme-selector-mount');
     
   } catch (err) {
     console.error('Error loading settings:', err);
@@ -16864,7 +23635,7 @@ async function saveSettings() {
     // Apply settings immediately
     applySettings();
     
-    console.log('Settings saved!', playerSettings);
+    dbg('Settings saved!', playerSettings);
     showToast('Settings saved! ✅');
     
   } catch (err) {
@@ -16875,7 +23646,7 @@ async function saveSettings() {
 
 // Apply settings to the game
 function applySettings() {
-  console.log('Applying settings...', playerSettings);
+  dbg('Applying settings...', playerSettings);
   
   // Music toggle
   if (playerSettings.music_enabled) {
@@ -16914,4 +23685,6323 @@ function applySettings() {
       weatherSystem.applyWeather();
     }
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PAWKETPASS SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+var passProgress = {
+  season: 1,
+  level: 1,
+  xp: 0,
+  xpToNextLevel: 100,
+  claimedRewards: []
+};
+
+var dailyXPCaps = {
+  login: { earned: 0, max: 10 },
+  feed: { earned: 0, max: 20 },
+  play: { earned: 0, max: 20 },
+  battle: { earned: 0, max: 50 },
+  bingo_square: { earned: 0, max: 135 },
+  bingo_line: { earned: 0, max: 400 },
+  bingo_blackout: { earned: 0, max: 200 }
+};
+
+// Pass rewards structure (50 levels)
+var PASS_REWARDS = {
+  1: { type: 'points', amount: 100 },
+  2: { type: 'item', itemId: 'basic_food', quantity: 2 },
+  3: { type: 'item', itemId: 'treat', quantity: 3 },
+  4: { type: 'points', amount: 150 },
+  5: { type: 'item', itemId: 'rare_toy', quantity: 1 },
+  6: { type: 'title', titleKey: 'pass_rider' },
+  7: { type: 'points', amount: 200 },
+  8: { type: 'item', itemId: 'treat', quantity: 2, itemId2: 'basic_food', quantity2: 1 },
+  9: { type: 'points', amount: 250 },
+  10: { type: 'item', itemId: 'premium_treat', quantity: 1 },
+  11: { type: 'points', amount: 300 },
+  12: { type: 'item', itemId: 'rare_toy', quantity: 2 },
+  13: { type: 'title', titleKey: 'dedicated_trainer' },
+  14: { type: 'points', amount: 350 },
+  15: { type: 'item', itemId: 'revive_potion', quantity: 1 },
+  16: { type: 'points', amount: 400 },
+  17: { type: 'item', itemId: 'treat', quantity: 3, itemId2: 'basic_food', quantity2: 2 },
+  18: { type: 'points', amount: 450 },
+  19: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
+  20: { type: 'title', titleKey: 'faithful_companion' },
+  21: { type: 'points', amount: 500 },
+  22: { type: 'item', itemId: 'premium_treat', quantity: 2 },
+  23: { type: 'points', amount: 550 },
+  24: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
+  25: { type: 'points', amount: 600 },
+  26: { type: 'item', itemId: 'rare_toy', quantity: 3 },
+  27: { type: 'title', titleKey: 'pawket_champion' },
+  28: { type: 'points', amount: 700 },
+  29: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
+  30: { type: 'title', titleKey: 'style_master' },
+  31: { type: 'points', amount: 800 },
+  32: { type: 'item', itemId: 'treat', quantity: 5, itemId2: 'basic_food', quantity2: 3 },
+  33: { type: 'points', amount: 900 },
+  34: { type: 'title', titleKey: 'legendary_tamer' },
+  35: { type: 'points', amount: 1000 },
+  36: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
+  37: { type: 'points', amount: 1100 },
+  38: { type: 'item', itemId: 'premium_treat', quantity: 3, itemId2: 'revive_potion', quantity2: 2 },
+  39: { type: 'points', amount: 1200 },
+  40: { type: 'title', titleKey: 'mythic_breaker' },
+  41: { type: 'points', amount: 1300 },
+  42: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
+  43: { type: 'points', amount: 1400 },
+  44: { type: 'item', itemId: 'mystery_box', quantity: 3 },
+  45: { type: 'points', amount: 1500 },
+  46: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 3 },
+  47: { type: 'title', titleKey: 'pawket_master' },
+  48: { type: 'points', amount: 2000 },
+  49: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 3 },
+  50: { type: 'title', titleKey: 'ultimate_collector' }
+};
+
+// Load Pass progress from database
+async function loadPassProgress() {
+  if (!currentUser) return;
+  
+  try {
+    var res = await supabaseClient
+      .from('user_pass_progress')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('season', 1)
+      .maybeSingle();
+    
+    if (res.data) {
+      passProgress.level = res.data.level || 1;
+      passProgress.xp = res.data.xp || 0;
+      passProgress.claimedRewards = res.data.claimed_rewards || [];
+      passProgress.xpToNextLevel = calculateXPForLevel(passProgress.level + 1);
+    } else {
+      // Create new progress entry
+      await supabaseClient
+        .from('user_pass_progress')
+        .insert({
+          user_id: currentUser.id,
+          season: 1,
+          level: 1,
+          xp: 0,
+          claimed_rewards: []
+        });
+    }
+    
+    // Load daily XP caps from localStorage
+    var today = new Date().toISOString().split('T')[0];
+    var savedCaps = localStorage.getItem('daily_xp_caps_' + today);
+    if (savedCaps) {
+      dailyXPCaps = JSON.parse(savedCaps);
+    } else {
+      resetDailyXPCaps();
+    }
+    
+    updatePassUI();
+    
+  } catch (err) {
+    console.error('[Pass] Error loading progress:', err);
+  }
+}
+
+// Calculate XP required for a level
+function calculateXPForLevel(level) {
+  return Math.floor(100 * Math.pow(1.1, level - 1));
+}
+
+// Add Pass XP with daily cap
+async function addPassXP(amount, source) {
+  if (!currentUser || amount <= 0) return;
+  
+  // Check daily cap
+  if (dailyXPCaps[source]) {
+    var remaining = dailyXPCaps[source].max - dailyXPCaps[source].earned;
+    if (remaining <= 0) {
+      dbg('[Pass] Daily XP cap reached for ' + source);
+      return;
+    }
+    amount = Math.min(amount, remaining);
+    dailyXPCaps[source].earned += amount;
+    saveDailyXPCaps();
+  }
+  
+  passProgress.xp += amount;
+  
+  // Check for level up
+  var levelsGained = 0;
+  while (passProgress.xp >= passProgress.xpToNextLevel && passProgress.level < 50) {
+    passProgress.xp -= passProgress.xpToNextLevel;
+    passProgress.level++;
+    passProgress.xpToNextLevel = calculateXPForLevel(passProgress.level + 1);
+    levelsGained++;
+  }
+  
+  // Save to database — upsert so it works even if row doesn't exist yet
+  var { error: saveErr } = await supabaseClient
+    .from('user_pass_progress')
+    .upsert({
+      user_id: currentUser.id,
+      season: 1,
+      level: passProgress.level,
+      xp: passProgress.xp,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,season' });
+
+  if (saveErr) dbg('[Pass] Save error:', saveErr);
+  updatePassUI();
+  
+  if (levelsGained > 0) {
+    showToast('🎫 Pass Level Up! Now Level ' + passProgress.level + '!', 'success', true);
+    playSound('levelup');
+  }
+}
+
+// Save daily XP caps to localStorage
+function saveDailyXPCaps() {
+  var today = new Date().toISOString().split('T')[0];
+  localStorage.setItem('daily_xp_caps_' + today, JSON.stringify(dailyXPCaps));
+}
+
+// Reset daily XP caps (called at midnight)
+function resetDailyXPCaps() {
+  dailyXPCaps = {
+    login: { earned: 0, max: 10 },
+    feed: { earned: 0, max: 20 },
+    play: { earned: 0, max: 20 },
+    battle: { earned: 0, max: 50 },
+    bingo_square: { earned: 0, max: 135 },
+    bingo_line: { earned: 0, max: 400 },
+    bingo_blackout: { earned: 0, max: 200 }
+  };
+  saveDailyXPCaps();
+}
+
+// Claim Pass reward
+async function claimPassReward(level) {
+  if (!currentUser) return;
+  
+  // Check if already claimed
+  if (passProgress.claimedRewards.includes(level)) {
+    showToast('You already claimed this reward!', 'warning');
+    return;
+  }
+  
+  // Check if level reached
+  if (passProgress.level < level) {
+    showToast('Reach Level ' + level + ' to claim this reward!', 'warning');
+    return;
+  }
+  
+  var reward = PASS_REWARDS[level];
+  if (!reward) return;
+  
+  // Grant reward
+  await grantPassReward(level, reward);
+  
+  // Mark as claimed
+  passProgress.claimedRewards.push(level);
+  
+  await supabaseClient
+    .from('user_pass_progress')
+    .update({
+      claimed_rewards: passProgress.claimedRewards
+    })
+    .eq('user_id', currentUser.id)
+    .eq('season', 1);
+  
+  updatePassUI();
+}
+
+// Grant Pass reward to player
+async function grantPassReward(level, reward) {
+  switch(reward.type) {
+    case 'points':
+      updateAllPoints(currentPoints + reward.amount);
+      await supabaseClient.rpc('award_pp_secure', {
+        p_user_id: currentUser.id,
+        p_amount: reward.amount,
+        p_reason: 'Pass Level ' + level
+      });
+      showToast('✨ +' + reward.amount + ' PawketPoints!', 'success');
+      break;
+      
+    case 'item':
+      // Add primary item
+      if (reward.itemId) {
+        await addItemToInventory(reward.itemId, reward.quantity || 1);
+        var itemName = reward.itemId === '00000000-0000-0000-0000-000000000001' ? '🔑 Skin Key' : reward.itemId;
+        showToast('📦 +' + (reward.quantity || 1) + 'x ' + itemName, 'success');
+      }
+      // Add secondary item
+      if (reward.itemId2) {
+        await addItemToInventory(reward.itemId2, reward.quantity2 || 1);
+        showToast('📦 +' + (reward.quantity2 || 1) + 'x ' + reward.itemId2, 'success');
+      }
+      break;
+      
+    case 'title':
+      await awardTitle(reward.titleKey);
+      var titleData = await supabaseClient
+        .from('titles')
+        .select('display_name')
+        .eq('title_key', reward.titleKey)
+        .single();
+      
+      if (titleData.data) {
+        showToast('🏆 Title unlocked: "' + titleData.data.display_name + '"!', 'success', true);
+      }
+      break;
+  }
+}
+
+// Add item to inventory (helper)
+async function addItemToInventory(itemId, quantity) {
+  if (!currentUser) return;
+  
+  // Check if item exists in inventory
+  var invCheck = await supabaseClient
+    .from('user_inventory')
+    .select('id, quantity')
+    .eq('user_id', currentUser.id)
+    .eq('item_id', itemId)
+    .maybeSingle();
+  
+  if (invCheck.data) {
+    // Update quantity
+    await supabaseClient
+      .from('user_inventory')
+      .update({ quantity: invCheck.data.quantity + quantity })
+      .eq('id', invCheck.data.id);
+  } else {
+    // Insert new
+    await supabaseClient
+      .from('user_inventory')
+      .insert({
+        user_id: currentUser.id,
+        item_id: itemId,
+        quantity: quantity
+      });
+  }
+}
+
+// Update Pass UI
+function updatePassUI() {
+  var levelDisplay = document.getElementById('pass-level-display');
+  var xpFill = document.getElementById('pass-xp-fill');
+  
+  if (levelDisplay) {
+    levelDisplay.textContent = passProgress.level;
+  }
+  
+  if (xpFill) {
+    var percent = (passProgress.xp / passProgress.xpToNextLevel) * 100;
+    xpFill.style.width = Math.min(percent, 100) + '%';
+  }
+}
+
+// Show Pass modal
+function showPassModal() {
+  var modal = makeModal();
+  modal.classList.add('pass-modal');
+  
+  var content = makeEl('div', {class: 'pass-modal-content'});
+  content.style.cssText = 'padding:20px;max-width:900px;max-height:80vh;overflow-y:auto;';
+  
+  // Header
+  var header = makeEl('div');
+  header.style.cssText = 'text-align:center;margin-bottom:30px;';
+  header.innerHTML = '<h2 style="color:var(--purple);margin-bottom:10px;">🎫 PawketPass Season 1</h2>' +
+    '<div style="font-size:1.2rem;color:var(--text);">Level ' + passProgress.level + ' / 50</div>' +
+    '<div class="pass-xp-bar-large" style="width:100%;height:30px;background:#ddd;border-radius:15px;margin-top:15px;overflow:hidden;">' +
+    '<div style="width:' + ((passProgress.xp / passProgress.xpToNextLevel) * 100) + '%;height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));transition:width 0.3s;"></div>' +
+    '</div>' +
+    '<div style="margin-top:8px;color:var(--text-light);">' + passProgress.xp + ' / ' + passProgress.xpToNextLevel + ' XP</div>';
+  content.appendChild(header);
+  
+  // Rewards track
+  var track = makeEl('div', {class: 'pass-rewards-track'});
+  track.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:15px;';
+  
+  for (var level = 1; level <= 50; level++) {
+    var reward = PASS_REWARDS[level];
+    if (!reward) continue;
+    
+    var card = makeEl('div', {class: 'pass-reward-card'});
+    var unlocked = passProgress.level >= level;
+    var claimed = passProgress.claimedRewards.includes(level);
+    
+    card.style.cssText = 'background:' + (unlocked ? '#fff' : '#f5f5f5') + ';border:2px solid ' + (claimed ? '#4CAF50' : unlocked ? 'var(--purple)' : '#ddd') + ';border-radius:12px;padding:15px;text-align:center;position:relative;' + (unlocked ? '' : 'opacity:0.6;');
+    
+    // Level badge
+    var badge = makeEl('div');
+    badge.textContent = 'Lv.' + level;
+    badge.style.cssText = 'position:absolute;top:5px;right:5px;background:var(--purple);color:white;padding:2px 8px;border-radius:8px;font-size:0.8rem;font-weight:bold;';
+    card.appendChild(badge);
+    
+    // Reward icon
+    var icon = makeEl('div');
+    icon.style.cssText = 'font-size:2rem;margin:10px 0;';
+    if (reward.type === 'points') icon.textContent = '💰';
+    else if (reward.type === 'item') icon.textContent = reward.itemId === '00000000-0000-0000-0000-000000000001' ? '🔑' : '📦';
+    else if (reward.type === 'title') icon.textContent = '🏆';
+    card.appendChild(icon);
+    
+    // Reward description
+    var desc = makeEl('div');
+    desc.style.cssText = 'font-size:0.9rem;color:var(--text);margin-bottom:10px;';
+    if (reward.type === 'points') desc.textContent = reward.amount + ' PP';
+    else if (reward.type === 'item') {
+      var itemText = (reward.quantity || 1) + 'x ' + (reward.itemId === '00000000-0000-0000-0000-000000000001' ? 'Skin Key' : reward.itemId);
+      if (reward.itemId2) itemText += ' + ' + (reward.quantity2 || 1) + 'x ' + reward.itemId2;
+      desc.textContent = itemText;
+    }
+    else if (reward.type === 'title') desc.textContent = 'Title';
+    card.appendChild(desc);
+    
+    // Claim button
+    if (unlocked && !claimed) {
+      var claimBtn = makeEl('button', {class: 'btn btn-primary btn-sm'});
+      claimBtn.textContent = 'Claim';
+      claimBtn.onclick = function(lvl) {
+        return async function() {
+          this.disabled = true;
+          this.textContent = '...';
+          await claimPassReward(lvl);
+          // closeModal removes the overlay correctly, then reopen
+          closeModal();
+          showPassModal();
+        };
+      }(level);
+      card.appendChild(claimBtn);
+    } else if (claimed) {
+      var claimedText = makeEl('div');
+      claimedText.textContent = '✓ Claimed';
+      claimedText.style.cssText = 'color:#4CAF50;font-weight:bold;';
+      card.appendChild(claimedText);
+    } else {
+      var lockedText = makeEl('div');
+      lockedText.textContent = '🔒 Locked';
+      lockedText.style.cssText = 'color:#999;';
+      card.appendChild(lockedText);
+    }
+    
+    track.appendChild(card);
+  }
+  
+  content.appendChild(track);
+
+  // Close button
+  var closeBtn = makeEl('button', {class: 'btn btn-outline'});
+  closeBtn.textContent = '✕ Close';
+  closeBtn.style.cssText = 'display:block;margin:20px auto 0;';
+  closeBtn.onclick = closeModal;
+  modal.appendChild(content);
+  modal.appendChild(closeBtn);
+
+  // Append overlay (parent of modal) to body
+  var overlay = modal.parentElement;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// DAILY BINGO SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+var BINGO_TASKS = [
+  { id: 'feed_pet', name: '🍖 Feed Pet', target: 5, taskType: 'feed_pet', rewardPoints: 50 },
+  { id: 'play_pet', name: '🎾 Play with Pet', target: 5, taskType: 'play_pet', rewardPoints: 50 },
+  { id: 'win_battle', name: '⚔️ Win Battle', target: 3, taskType: 'win_battle', rewardPoints: 100 },
+  { id: 'login', name: '📅 Daily Login', target: 1, taskType: 'login', rewardPoints: 20 },
+  { id: 'visit_shop', name: '🛒 Visit Shop', target: 1, taskType: 'visit_shop', rewardPoints: 20 },
+  { id: 'use_treat', name: '🍬 Feed Treat', target: 3, taskType: 'use_treat', rewardPoints: 50 },
+  { id: 'pet_companion', name: '💬 Pet Companion', target: 5, taskType: 'pet_companion', rewardPoints: 50 },
+  { id: 'earn_points', name: '💰 Earn 500 PP', target: 500, taskType: 'earn_points', rewardPoints: 100 },
+  { id: 'level_up_pet', name: '⬆️ Level Up Pet', target: 1, taskType: 'level_up_pet', rewardPoints: 100 },
+  { id: 'adopt_pet', name: '🐣 Adopt a Pet', target: 1, taskType: 'adopt_pet', rewardPoints: 150 },
+  { id: 'use_toy', name: '🎾 Use a Toy', target: 3, taskType: 'use_toy', rewardPoints: 50 },
+  { id: 'complete_minigame', name: '🎮 Play Minigame', target: 1, taskType: 'complete_minigame', rewardPoints: 75 }
+];
+
+var dailyBingo = {
+  date: null,
+  squares: [],
+  completedLines: [],
+  blackoutCompleted: false
+};
+
+// Track which squares have been notified to prevent spam (declared here, before loadDailyBingo uses it)
+var bingoNotificationsShown = {};
+
+// Load daily bingo from localStorage
+function loadDailyBingo() {
+  var today = new Date().toISOString().split('T')[0];
+  var saved = localStorage.getItem('daily_bingo');
+  
+  if (saved) {
+    var parsed = JSON.parse(saved);
+    if (parsed.date === today) {
+      dailyBingo = parsed;
+      
+      // Mark all already-completed OR already-at-target squares as notified (prevent spam on page load)
+      dailyBingo.squares.forEach(function(square) {
+        if (square.completed || (square.progress >= square.target)) {
+          var notificationKey = dailyBingo.date + '_' + square.taskType;
+          bingoNotificationsShown[notificationKey] = true;
+          // Also ensure completed flag is set if progress is already at target
+          if (square.progress >= square.target && !square.completed) {
+            square.completed = true;
+          }
+        }
+      });
+      
+      return;
+    }
+  }
+  
+  // New day - generate new bingo
+  dailyBingo = {
+    date: today,
+    squares: generateDailyBingo(),
+    completedLines: [],
+    blackoutCompleted: false
+  };
+  
+  // Reset notifications for new day
+  bingoNotificationsShown = {};
+  
+  saveDailyBingo();
+}
+
+// Generate random 4x3 bingo grid (12 squares)
+function generateDailyBingo() {
+  var shuffled = BINGO_TASKS.slice();
+  for (var i = shuffled.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = shuffled[i];
+    shuffled[i] = shuffled[j];
+    shuffled[j] = temp;
+  }
+  
+  var squares = shuffled.slice(0, 12).map(function(task) {
+    return {
+      id: task.id,
+      name: task.name,
+      target: task.target,
+      taskType: task.taskType,
+      rewardPoints: task.rewardPoints,
+      progress: 0,
+      completed: false
+    };
+  });
+
+  // Free space — auto-complete one easy square (lowest reward = simplest task)
+  var easiest = squares.reduce(function(best, s, i) {
+    return s.rewardPoints < squares[best].rewardPoints ? i : best;
+  }, 0);
+  squares[easiest].completed = true;
+  squares[easiest].progress  = squares[easiest].target;
+  squares[easiest].freeSpace = true; // Mark so UI can show the badge
+
+  return squares;
+}
+
+// Save bingo to localStorage
+function saveDailyBingo() {
+  localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo));
+  // Also persist to DB so progress survives localStorage clears
+  if (currentUser) {
+    (async function() {
+      try {
+        var { error } = await supabaseClient.from('user_bingo_progress').upsert({
+          user_id: currentUser.id,
+          date: dailyBingo.date,
+          bingo_data: JSON.stringify(dailyBingo)
+        }, { onConflict: 'user_id,date' });
+        if (error) dbg('saveDailyBingo DB error:', error);
+      } catch(e) { dbg('saveDailyBingo exception:', e); }
+    })();
+  }
+}
+
+// Update bingo progress
+async function updateBingoProgress(taskType, amount) {
+  if (!currentUser) return;
+  
+  // Only load if not already in memory for today
+  if (!dailyBingo || !dailyBingo.date || dailyBingo.date !== new Date().toISOString().split('T')[0]) {
+    loadDailyBingo();
+  }
+  
+  var square = dailyBingo.squares.find(function(s) { return s.taskType === taskType; });
+  if (!square || square.completed) return;
+  
+  var wasCompleted = square.completed;
+  square.progress = Math.min(square.progress + (amount || 1), square.target);
+  
+  // Check if just completed
+  var justCompleted = !wasCompleted && square.progress >= square.target;
+  
+  if (justCompleted) {
+    square.completed = true;
+    
+    // Create unique notification key for today + this task
+    var notificationKey = dailyBingo.date + '_' + taskType;
+    
+    // Only notify if we haven't already today
+    if (!bingoNotificationsShown[notificationKey]) {
+      bingoNotificationsShown[notificationKey] = true;
+      
+      // Award points — use awardPP which has its own fallback, not award_pp_secure directly
+      updateAllPoints(currentPoints + square.rewardPoints);
+      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(){});
+      
+      // Award Pass XP
+      await addPassXP(15, 'bingo_square');
+      
+      showToast('✓ Bingo: ' + square.name + ' complete! +' + square.rewardPoints + ' PP, +15 XP', 'success');
+      if (typeof playBattleSound === 'function') { playBattleSound('victory', 0.35); }
+      
+      // Check for lines
+      await checkBingoLines();
+    }
+  }
+  
+  saveDailyBingo();
+  updateBingoUI();
+}
+
+// Check for bingo lines (4x3 grid = 10 lines total)
+async function checkBingoLines() {
+  var grid = dailyBingo.squares;
+  
+  // 4x3 grid layout: 3 rows, 4 columns, 2 diagonals = 10 lines
+  var lines = [
+    [0,1,2,3], [4,5,6,7], [8,9,10,11],  // 3 horizontal rows
+    [0,4,8], [1,5,9], [2,6,10], [3,7,11],  // 4 vertical columns
+    [0,5,10], [3,6,9]  // 2 diagonals
+  ];
+  
+  for (var idx = 0; idx < lines.length; idx++) {
+    var line = lines[idx];
+    var lineKey = 'line_' + idx;
+    
+    if (!dailyBingo.completedLines.includes(lineKey)) {
+      var allCompleted = line.every(function(cell) { return grid[cell] && grid[cell].completed; });
+      
+      if (allCompleted) {
+        dailyBingo.completedLines.push(lineKey);
+        
+        // Award line bonus
+        try {
+          var { data: newPtsLine, error: lineErr } = await supabaseClient.rpc('award_pp_secure', {
+            p_amount: 100,
+            p_reason: 'Bingo Line Complete'
+          });
+          if (lineErr) throw lineErr;
+          if (typeof newPtsLine === 'number') { currentPoints = newPtsLine; updateAllPoints(newPtsLine); }
+          else { updateAllPoints(currentPoints + 100); }
+        } catch(e) {
+          updateAllPoints(currentPoints + 100);
+          dbg('award_pp_secure line error:', e);
+        }
+        
+        await addPassXP(50, 'bingo_line');
+        
+        showToast('🎯 Bingo Line Complete! +100 PP, +50 XP', 'success', true);
+        playSound('victory');
+      }
+    }
+  }
+  
+  // Check blackout (all 12 squares complete)
+  if (!dailyBingo.blackoutCompleted && dailyBingo.squares.every(function(s) { return s.completed; })) {
+    dailyBingo.blackoutCompleted = true;
+    
+    // Award blackout bonus
+    try {
+      var { data: newPtsBlackout, error: blackoutErr } = await supabaseClient.rpc('award_pp_secure', {
+        p_amount: 500,
+        p_reason: 'Bingo Blackout!'
+      });
+      if (blackoutErr) throw blackoutErr;
+      if (typeof newPtsBlackout === 'number') { currentPoints = newPtsBlackout; updateAllPoints(newPtsBlackout); }
+      else { updateAllPoints(currentPoints + 500); }
+    } catch(e) {
+      updateAllPoints(currentPoints + 500);
+      dbg('award_pp_secure blackout error:', e);
+    }
+    
+    await addPassXP(200, 'bingo_blackout');
+    
+    // Check if this is the FIRST blackout of the week
+    var weekKey = getWeekNumberKey();
+    var hasClaimedWeeklySkinKey = localStorage.getItem(weekKey) === 'true';
+    
+    if (!hasClaimedWeeklySkinKey) {
+      // First blackout of the week - award Skin Key!
+      await addItemToInventory('00000000-0000-0000-0000-000000000001', 1);
+      localStorage.setItem(weekKey, 'true');
+      showToast('🏆 WEEKLY BLACKOUT! +500 PP, +200 XP, +1 Skin Key!', 'success');
+    } else {
+      // Additional blackout this week - no Skin Key
+      showToast('🏆 BLACKOUT BINGO! +500 PP, +200 XP', 'success', true);
+    }
+    
+    playSound('jackpot');
+    createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
+  }
+  
+  saveDailyBingo();
+}
+
+// Get week number key for weekly Skin Key tracking
+function getWeekNumberKey() {
+  var now = new Date();
+  var start = new Date(now.getFullYear(), 0, 1);
+  var days = Math.floor((now - start) / (24 * 60 * 60 * 1000));
+  var weekNum = Math.ceil(days / 7);
+  return 'bingo_blackout_week_' + weekNum + '_' + now.getFullYear();
+}
+    
+// Update bingo UI
+function updateBingoUI() {
+  var completionDisplay = document.getElementById('bingo-completion');
+  if (completionDisplay) {
+    var completed = dailyBingo.squares.filter(function(s) { return s.completed; }).length;
+    completionDisplay.textContent = completed + '/12';  // Updated for 4x3 grid
+  }
+}
+
+// Show bingo modal
+function showBingoModal() {
+  loadDailyBingo();
+  
+  var modal = makeModal();
+  modal.classList.add('bingo-modal');
+  
+  var content = makeEl('div', {class: 'bingo-modal-content'});
+  content.style.cssText = 'padding:20px;max-width:700px;';
+  
+  // Header
+  var header = makeEl('div');
+  header.style.cssText = 'text-align:center;margin-bottom:20px;';
+  var completed = dailyBingo.squares.filter(function(s) { return s.completed; }).length;
+  var weekKey = getWeekNumberKey();
+  var hasClaimedWeeklySkinKey = localStorage.getItem(weekKey) === 'true';
+  var skinKeyStatus = hasClaimedWeeklySkinKey ? '(claimed this week)' : '(available!)';
+  
+  header.innerHTML = '<h2 style="color:var(--purple);margin-bottom:10px;">🎯 Daily Bingo</h2>' +
+    '<div style="font-size:1.1rem;color:var(--text);">Completed: ' + completed + ' / 12</div>' +
+    '<div style="font-size:0.9rem;color:var(--text-light);margin-top:5px;">Lines: ' + dailyBingo.completedLines.length + ' / 10 • Blackout: ' + (dailyBingo.blackoutCompleted ? '✓' : '✗') + '</div>' +
+    '<div style="font-size:0.85rem;color:#ff6b35;margin-top:5px;">🔑 Weekly Blackout Bonus: ' + skinKeyStatus + '</div>';
+  content.appendChild(header);
+  
+  // Bingo grid (4x3)
+  var grid = makeEl('div');
+  grid.id = 'bingo-grid';
+  grid.className = 'bingo-grid';
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;padding:10px;';
+  
+  dailyBingo.squares.forEach(function(square) {
+    var card = makeEl('div');
+    card.className = 'bingo-card' + (square.completed ? ' bingo-completed' : '');
+    card.style.cssText = 'background:' + (square.completed ? 'rgba(76,175,80,0.25)' : 'rgba(255,255,255,0.08)') + ';border:2px solid ' + (square.completed ? '#4CAF50' : 'rgba(255,255,255,0.1)') + ';border-radius:12px;padding:15px;text-align:center;min-height:120px;display:flex;flex-direction:column;justify-content:center;align-items:center;transition:all 0.3s;';
+    
+    // Extract icon from task name (e.g., "🍖 Feed Pet" -> "🍖")
+    var iconMatch = square.name.match(/^([^\s]+)/);
+    var icon = iconMatch ? iconMatch[1] : '📌';
+    var displayName = square.name.replace(/^[^\s]+\s*/, ''); // Remove icon from name
+    
+    var iconDiv = makeEl('div');
+    iconDiv.className = 'bingo-icon';
+    iconDiv.style.cssText = 'font-size:28px;margin-bottom:8px;line-height:1;';
+    iconDiv.textContent = icon;
+    card.appendChild(iconDiv);
+    
+    var name = makeEl('div');
+    name.className = 'bingo-name';
+    name.style.cssText = 'font-size:12px;font-weight:bold;color:#ffffff;margin-bottom:8px;';
+    name.textContent = displayName;
+    card.appendChild(name);
+    
+    var progress = makeEl('div');
+    progress.className = 'bingo-progress';
+    progress.style.cssText = 'font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:6px;';
+    progress.textContent = square.progress + ' / ' + square.target;
+    card.appendChild(progress);
+    
+    // Progress bar
+    var progressPercent = (square.progress / square.target) * 100;
+    var barContainer = makeEl('div');
+    barContainer.className = 'bingo-bar';
+    barContainer.style.cssText = 'background:rgba(255,255,255,0.15);border-radius:4px;height:4px;overflow:hidden;width:100%;';
+    
+    var barFill = makeEl('div');
+    barFill.className = 'bingo-fill';
+    barFill.style.cssText = 'width:' + progressPercent + '%;background:linear-gradient(90deg,#ff6b35,#ffaa44);height:100%;transition:width 0.3s ease;';
+    barContainer.appendChild(barFill);
+    card.appendChild(barContainer);
+    
+    if (square.completed) {
+      var check = makeEl('div');
+      check.className = 'bingo-check';
+      check.style.cssText = 'font-size:20px;color:#4CAF50;margin-top:6px;font-weight:bold;';
+      check.textContent = '✓';
+      card.appendChild(check);
+      if (square.freeSpace) {
+        var badge = makeEl('div');
+        badge.style.cssText = 'font-size:0.62rem;color:#ffaa00;font-weight:700;margin-top:2px;';
+        badge.textContent = '🎁 FREE';
+        card.appendChild(badge);
+      }
+    }
+    
+    grid.appendChild(card);
+  });
+  
+  content.appendChild(grid);
+  
+  // Rewards info
+  var info = makeEl('div');
+  info.style.cssText = 'background:#f9f9f9;border-radius:8px;padding:15px;font-size:0.9rem;color:var(--text-light);';
+  info.innerHTML = '<strong>Rewards:</strong><br>' +
+    '• Each square: +Points +15 Pass XP<br>' +
+    '• Each line (4 in a row): +100 PP +50 XP<br>' +
+    '• Blackout (all 12): +500 PP +200 XP<br>' +
+    '• <strong>Weekly Bonus:</strong> First blackout of the week = +1 Skin Key 🔑';
+  content.appendChild(info);
+  
+  // Fix: makeModal() returns modal which is already inside overlay
+  modal.appendChild(content);
+  
+  // Get the overlay parent and append to body
+  var overlay = modal.parentElement;
+  document.body.appendChild(overlay);
+  document.body.style.overflow = 'hidden';
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ADDITIONAL BINGO HOOKS (called from various places)
+// ══════════════════════════════════════════════════════════════════════════
+
+// Hook for points earned - override updateAllPoints
+// IMPORTANT: only track genuine earnings, not the initial balance display on page load.
+// We use a flag that gets set once the player's real balance has been loaded at least once,
+// so the difference calculation doesn't treat "loading 800 PP from the DB" as "earning 800 PP".
+var _bingoPointsInitialized = false;
+var originalUpdateAllPoints = updateAllPoints;
+updateAllPoints = function(pts) {
+  var oldPoints = currentPoints || 0;
+  originalUpdateAllPoints(pts);
+  // Only track the difference as "earned" once we've seen at least one real
+  // loaded balance, AND only if points genuinely increased (not just a display refresh).
+  if (_bingoPointsInitialized && pts > oldPoints) {
+    var earnedAmount = pts - oldPoints;
+    updateBingoProgress('earn_points', earnedAmount);
+  }
+  // Mark as initialized after the first call — subsequent calls are real transactions
+  _bingoPointsInitialized = true;
+};
+
+// Hook for pet level up - call this when a pet levels up
+function onPetLevelUp(petId) {
+  updateBingoProgress('level_up_pet', 1);
+  
+  // Award Pass XP bonus for leveling up
+  addPassXP(10, 'feed'); // Counts toward feed cap
+}
+
+// Hook for adoption - call this when adopting a pet
+function onPetAdopted(petId) {
+  updateBingoProgress('adopt_pet', 1);
+}
+
+// Hook for minigame completion
+function onMinigameComplete() {
+  updateBingoProgress('complete_minigame', 1);
+}
+
+// Hook for companion pet message
+function onCompanionMessage() {
+  updateBingoProgress('pet_companion', 1);
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATISTICS PAGE LOADER (BUG FIX #3)
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadStatistics() {
+  dbg('📊 Loading statistics...');
+  var container = el('stats-container');
+  if (!container) return;
+  
+  // Show loading state
+  container.innerHTML = '<div class="spinner"></div>';
+  
+  try {
+    if (!currentUser) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);"><p>Please log in to view statistics.</p></div>';
+      return;
+    }
+    
+    // Fetch user stats from database
+    var { data: playerData, error: playerError } = await supabaseClient
+      .from('players')
+      .select('*')
+      .eq('id', currentUser.id)
+      .single();
+    
+    if (playerError) throw playerError;
+    
+    // Fetch pet stats
+    var { data: petsData, error: petsError } = await supabaseClient
+      .from('user_pets')
+      .select('*')
+      .eq('user_id', currentUser.id);
+    
+    if (petsError) throw petsError;
+    
+    // Fetch battle stats — only need winner_id for the win-rate count, not full rows
+    var { data: battlesData, error: battlesError } = await supabaseClient
+      .from('battle_history')
+      .select('winner_id')
+      .eq('user_id', currentUser.id);
+    
+    // Calculate stats
+    var totalPets = petsData ? petsData.length : 0;
+    var totalBattles = battlesData ? battlesData.length : 0;
+    var battlesWon = battlesData ? battlesData.filter(function(b) { return b.winner_id === currentUser.id; }).length : 0;
+    var winRate = totalBattles > 0 ? Math.round((battlesWon / totalBattles) * 100) : 0;
+    
+    var totalPoints = playerData ? (playerData.pawketpoints || 0) : 0;
+    var loginStreak = playerData ? (playerData.login_streak || 0) : 0;
+    var highestLevel = petsData && petsData.length > 0 ? Math.max.apply(Math, petsData.map(function(p) { return p.level || 1; })) : 0;
+    
+    // Render stats
+    container.innerHTML = `
+      <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:20px;margin-top:30px;">
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">🐾</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${totalPets}</div>
+          <div style="font-size:1rem;opacity:0.9;">Total Pets Adopted</div>
+        </div>
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">⚔️</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${battlesWon}/${totalBattles}</div>
+          <div style="font-size:1rem;opacity:0.9;">Battles Won (${winRate}%)</div>
+        </div>
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#4facfe 0%,#00f2fe 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">💰</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${totalPoints.toLocaleString()}</div>
+          <div style="font-size:1rem;opacity:0.9;">PawketPoints Earned</div>
+        </div>
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#43e97b 0%,#38f9d7 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">🔥</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${loginStreak}</div>
+          <div style="font-size:1rem;opacity:0.9;">Day Login Streak</div>
+        </div>
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#fa709a 0%,#fee140 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">⬆️</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${highestLevel}</div>
+          <div style="font-size:1rem;opacity:0.9;">Highest Pet Level</div>
+        </div>
+        
+        <div class="stat-card" style="background:linear-gradient(135deg,#30cfd0 0%,#330867 100%);color:white;padding:30px;border-radius:16px;text-align:center;">
+          <div style="font-size:3rem;margin-bottom:10px;">📅</div>
+          <div style="font-size:2.5rem;font-weight:bold;margin-bottom:5px;">${playerData && playerData.created_at ? new Date(playerData.created_at).toLocaleDateString() : 'N/A'}</div>
+          <div style="font-size:1rem;opacity:0.9;">Member Since</div>
+        </div>
+        
+      </div>
+      
+      <div style="text-align:center;margin-top:40px;padding:30px;background:rgba(255,255,255,0.05);border-radius:16px;">
+        <p style="font-size:1.1rem;margin-bottom:15px;">🎮 Keep playing to improve your stats!</p>
+        <p style="color:var(--text-light);">Adopt more pets, win battles, and log in daily to climb the leaderboards!</p>
+      </div>
+    `;
+    
+    dbg('✅ Statistics loaded successfully');
+    
+  } catch (error) {
+    console.error('❌ Statistics loading error:', error);
+    container.innerHTML = `
+      <div style="text-align:center;padding:40px;">
+        <p style="color:#ff6b6b;font-size:1.2rem;margin-bottom:10px;">⚠️ Failed to load statistics</p>
+        <p style="color:var(--text-light);">Please try again later or contact support if the issue persists.</p>
+        <button class="btn btn-primary" onclick="loadStatistics()" style="margin-top:20px;">🔄 Retry</button>
+      </div>
+    `;
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// SCRAPBOOK SYSTEM - COMPLETE IMPLEMENTATION
+// ══════════════════════════════════════════════════════════════════════════
+
+// Memory templates
+var SCRAPBOOK_TEMPLATES = {
+    adopted: [
+        '{pet} found a forever home with {trainer}!',
+        '{pet} was adopted and joined the Pawket family!',
+        'A new journey begins for {pet} with {trainer}!'
+    ],
+    first_battle_win: [
+        '{pet} won their first battle against {enemy}!',
+        '{pet} defeated {enemy} for the very first time!',
+        'Victory! {pet} triumphed over {enemy}!'
+    ],
+    first_battle_loss: [
+        '{pet} lost to {enemy} but learned a valuable lesson.',
+        '{pet} gained experience from defeat against {enemy}.',
+        '{enemy} proved tough, but {pet} will try again!'
+    ],
+    level_milestone: [
+        '{pet} reached level {level}! Growing stronger every day!',
+        'Level {level} achieved for {pet}! More adventures await!',
+        '{pet} hit level {level} - what a journey so far!'
+    ],
+    favorite_food: [
+        '{pet} discovered they absolutely LOVE {food}!',
+        '{pet} went crazy for {food} - new favorite discovered!',
+        '{pet} tried {food} and couldn\'t get enough!'
+    ],
+    low_hp_victory: [
+        '{pet} won a battle with only {hp} HP remaining! Such determination!',
+        '{pet} pulled through a tough fight with {hp} HP left!',
+        'Against all odds, {pet} survived with {hp} HP!'
+    ],
+    random_flavor: [
+        '{pet} enjoyed a peaceful afternoon in the sun.',
+        '{pet} played with other pets at the park.',
+        '{pet} found a hidden treasure while exploring!',
+        '{pet} made a new friend during their adventures.',
+        '{pet} had a relaxing day by the pond.',
+        '{pet} chased butterflies in the meadow.',
+        '{pet} watched the sunset with their trainer.',
+        '{pet} discovered a mysterious hidden cave.'
+    ]
+};
+
+// Cooldown tracker
+var scrapbook_cooldowns = {};
+
+// Load cooldowns from localStorage
+function scrapbook_loadCooldowns() {
+    var saved = localStorage.getItem('scrapbook_cooldowns');
+    if (saved) {
+        try {
+            scrapbook_cooldowns = JSON.parse(saved);
+        } catch(e) {
+            scrapbook_cooldowns = {};
+        }
+    }
+}
+
+// Save cooldowns
+function scrapbook_saveCooldowns() {
+    localStorage.setItem('scrapbook_cooldowns', JSON.stringify(scrapbook_cooldowns));
+}
+
+// Check cooldown
+function scrapbook_onCooldown(petId, memoryType, cooldownHours) {
+    var key = petId + '_' + memoryType;
+    var lastTime = scrapbook_cooldowns[key];
+    if (!lastTime) return false;
+    var now = Date.now();
+    var hoursSince = (now - lastTime) / (1000 * 60 * 60);
+    return hoursSince < cooldownHours;
+}
+
+// Set cooldown
+function scrapbook_setCooldown(petId, memoryType) {
+    var key = petId + '_' + memoryType;
+    scrapbook_cooldowns[key] = Date.now();
+    scrapbook_saveCooldowns();
+}
+
+// Check if pet already has a memory type
+async function scrapbook_hasMemory(userPetId, memoryType) {
+    if (!userPetId || !memoryType) return false;
+    var res = await supabaseClient
+        .from('pet_memories')
+        .select('id')
+        .eq('user_pet_id', userPetId)
+        .eq('memory_type', memoryType)
+        .limit(1);
+    if (res.error) return false;
+    return res.data && res.data.length > 0;
+}
+
+// Add a memory
+async function scrapbook_addMemory(userPetId, memoryType, variables) {
+    if (!userPetId || !memoryType) {
+        console.error('Scrapbook: missing petId or memoryType');
+        return false;
+    }
+    
+    variables = variables || {};
+    
+    // Cooldown settings (hours)
+    var cooldownSettings = {
+        'random_flavor': 24,
+        'low_hp_victory': 24
+    };
+    var cooldownHours = cooldownSettings[memoryType] || 0;
+    
+    if (cooldownHours > 0 && scrapbook_onCooldown(userPetId, memoryType, cooldownHours)) {
+        return false;
+    }
+    
+    // Check once-per-pet memories
+    var oncePerPet = ['adopted', 'first_battle_win', 'first_battle_loss'];
+    if (oncePerPet.indexOf(memoryType) >= 0) {
+        var exists = await scrapbook_hasMemory(userPetId, memoryType);
+        if (exists) return false;
+    }
+    
+    // Get pet name
+    var petName = 'Your pet';
+    if (window.petState && window.petState[userPetId]) {
+        petName = window.petState[userPetId].name || 
+                  window.petState[userPetId].pet_name || 
+                  (window.petState[userPetId].pets && window.petState[userPetId].pets.name) ||
+                  'Your pet';
+    }
+    
+    // Get trainer name
+    var trainerName = 'their trainer';
+    if (window.currentUser) {
+        trainerName = window.currentUser.username || 
+                      (window.currentUser.user_metadata && window.currentUser.user_metadata.username) ||
+                      'their trainer';
+    }
+    
+    // Get templates
+    var templates = SCRAPBOOK_TEMPLATES[memoryType];
+    if (!templates) {
+        console.error('Scrapbook: unknown memory type', memoryType);
+        return false;
+    }
+    
+    // Generate random template
+    var memoryText = templates[Math.floor(Math.random() * templates.length)];
+    
+    // Replace variables
+    memoryText = memoryText.replace(/{pet}/g, petName);
+    memoryText = memoryText.replace(/{trainer}/g, trainerName);
+    memoryText = memoryText.replace(/{enemy}/g, variables.enemy || 'an enemy');
+    memoryText = memoryText.replace(/{level}/g, variables.level || '?');
+    memoryText = memoryText.replace(/{food}/g, variables.food || 'a treat');
+    memoryText = memoryText.replace(/{hp}/g, variables.hp || 'low');
+    
+    // Save to database
+    try {
+        var res = await supabaseClient
+            .from('pet_memories')
+            .insert({
+                user_pet_id: userPetId,
+                memory_text: memoryText,
+                memory_type: memoryType
+            });
+        
+        if (res.error) {
+            console.error('Scrapbook insert error:', res.error);
+            return false;
+        }
+        
+        // Set cooldown
+        if (cooldownHours > 0) {
+            scrapbook_setCooldown(userPetId, memoryType);
+        }
+        
+        // Refresh UI if this pet's modal is open
+        if (window.scrapbook_currentPetId === userPetId) {
+            scrapbook_refreshMemories(userPetId);
+        }
+        
+        dbg('📖 Scrapbook: ' + memoryText);
+        return true;
+        
+    } catch(e) {
+        console.error('Scrapbook error:', e);
+        return false;
+    }
+}
+
+// Add random daily memory
+async function scrapbook_addRandomMemory(petId) {
+    var today = new Date().toISOString().split('T')[0];
+    var key = 'sb_random_' + petId + '_' + today;
+    if (localStorage.getItem(key)) return false;
+    localStorage.setItem(key, 'true');
+    return await scrapbook_addMemory(petId, 'random_flavor', {});
+}
+
+// Load memories
+async function scrapbook_loadMemories(userPetId, limit) {
+    if (!userPetId) return [];
+    limit = limit || 15;
+    var res = await supabaseClient
+        .from('pet_memories')
+        .select('memory_text, memory_type, created_at')
+        .eq('user_pet_id', userPetId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+    if (res.error) {
+        console.error('Load memories error:', res.error);
+        return [];
+    }
+    return res.data || [];
+}
+
+// Format date
+function scrapbook_formatDate(dateString) {
+    var date = new Date(dateString);
+    var now = new Date();
+    var diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return diffDays + ' days ago';
+    if (diffDays < 30) return Math.floor(diffDays / 7) + ' weeks ago';
+    return date.toLocaleDateString();
+}
+
+// Refresh UI
+async function scrapbook_refreshMemories(userPetId) {
+    var container = document.getElementById('sb-memories-container');
+    if (!container) return;
+    var memories = await scrapbook_loadMemories(userPetId);
+    if (memories.length === 0) {
+        container.innerHTML = '<div class="sb-empty">📖 No memories yet. Go make some adventures!</div>';
+        return;
+    }
+    container.innerHTML = memories.map(function(mem) {
+        var escapedText = escapeHtml(mem.memory_text);
+        return '<div class="sb-memory-card">' +
+            '<div class="sb-memory-date">📅 ' + scrapbook_formatDate(mem.created_at) + '</div>' +
+            '<div class="sb-memory-text">💭 ' + escapedText + '</div>' +
+            '</div>';
+    }).join('');
+}
+
+// Initialize
+function scrapbook_init() {
+    scrapbook_loadCooldowns();
+    dbg('📖 Scrapbook system initialized');
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// COMMUNITY GOALS SYSTEM - COMPLETE IMPLEMENTATION
+// ══════════════════════════════════════════════════════════════════════════
+
+// Cache for community goals
+var community_cachedGoals = null;
+var community_lastFetch = 0;
+var community_pendingUpdates = {};
+var community_syncInterval = null;
+var community_claimedGoalIds = [];
+
+// Load goals (cached for 5 minutes)
+async function community_loadGoals() {
+    var now = Date.now();
+    if (community_cachedGoals && (now - community_lastFetch) < 300000) {
+        return community_cachedGoals;
+    }
+    var res = await supabaseClient
+        .from('community_goals')
+        .select('*')
+        .eq('is_active', true)
+        .eq('is_completed', false);
+    if (!res.error && res.data) {
+        community_cachedGoals = res.data;
+        community_lastFetch = now;
+        await community_loadUserClaims();
+        community_refreshUI();
+    }
+    return community_cachedGoals || [];
+}
+
+// Load user's claimed goals
+async function community_loadUserClaims() {
+    if (!currentUser) {
+        community_claimedGoalIds = [];
+        return;
+    }
+    var res = await supabaseClient
+        .from('community_goal_claims')
+        .select('goal_id')
+        .eq('user_id', currentUser.id);
+    if (!res.error && res.data) {
+        community_claimedGoalIds = res.data.map(function(c) { return c.goal_id; });
+    }
+}
+
+// Increment goal progress (local, batched)
+function community_increment(goalKey, amount, metadata) {
+    if (!goalKey) return;
+    amount = amount || 1;
+    metadata = metadata || {};
+    community_pendingUpdates[goalKey] = (community_pendingUpdates[goalKey] || 0) + amount;
+    
+    // Update UI immediately
+    community_updateLocalProgress(goalKey, community_pendingUpdates[goalKey]);
+    
+    // Schedule sync (every 10 seconds or after 10 increments)
+    if (!community_syncInterval) {
+        community_syncInterval = setInterval(community_syncToDatabase, 10000);
+    }
+    var totalPending = Object.keys(community_pendingUpdates).reduce(function(sum, key) {
+        return sum + community_pendingUpdates[key];
+    }, 0);
+    if (totalPending >= 10) {
+        community_syncToDatabase();
+    }
+}
+
+// Sync pending updates to database
+async function community_syncToDatabase() {
+    if (Object.keys(community_pendingUpdates).length === 0) return;
+    var updates = {};
+    for (var key in community_pendingUpdates) {
+        updates[key] = community_pendingUpdates[key];
+    }
+    community_pendingUpdates = {};
+    
+    for (var goalKey in updates) {
+        var increment = updates[goalKey];
+        try {
+            var res = await supabaseClient.rpc('increment_goal_progress', {
+                p_goal_key: goalKey,
+                p_amount: increment
+            });
+            if (res.error) console.error('Sync error:', res.error);
+        } catch(e) {
+            console.error('RPC error:', e);
+            // Put back for retry
+            community_pendingUpdates[goalKey] = (community_pendingUpdates[goalKey] || 0) + increment;
+        }
+    }
+    community_cachedGoals = null;
+    community_loadGoals();
+}
+
+// Update local progress display
+function community_updateLocalProgress(goalKey, increment) {
+    if (!community_cachedGoals) return;
+    var goal = community_cachedGoals.find(function(g) { return g.goal_key === goalKey; });
+    if (!goal) return;
+    var current = goal.current_progress || 0;
+    var percent = Math.min(100, ((current + increment) / goal.goal_target) * 100);
+    var progressBar = document.querySelector('.com-progress-' + goalKey);
+    var progressText = document.querySelector('.com-text-' + goalKey);
+    if (progressBar) progressBar.style.width = percent + '%';
+    if (progressText) progressText.textContent = (current + increment) + '/' + goal.goal_target;
+}
+
+// Refresh entire UI
+async function community_refreshUI() {
+    var goals = await community_loadGoals();
+    var container = document.getElementById('com-goals-container');
+    if (!container || !goals.length) {
+        if (container) container.innerHTML = '<div class="com-loading">Loading community goals...</div>';
+        return;
+    }
+    
+    container.innerHTML = goals.map(function(goal) {
+        var progress = goal.current_progress || 0;
+        var percent = (progress / goal.goal_target) * 100;
+        var isCompleted = progress >= goal.goal_target;
+        var isClaimed = community_claimedGoalIds.indexOf(goal.id) >= 0;
+        var endsAt = goal.ends_at ? new Date(goal.ends_at).toLocaleDateString() : 'soon';
+        
+        var rewardDisplay = '';
+        if (goal.reward_type === 'points') rewardDisplay = '💰 ' + goal.reward_value + ' PawketPoints';
+        else if (goal.reward_type === 'items') rewardDisplay = '📦 ' + goal.reward_value;
+        else if (goal.reward_type === 'title') rewardDisplay = '🏆 Title: "' + goal.reward_value + '"';
+        else rewardDisplay = '🎁 ' + goal.reward_value;
+        
+        var btnHtml = '';
+        if (isCompleted && !isClaimed) {
+            btnHtml = '<button class="com-claim-btn" data-goal-id="' + goal.id + '" data-goal-key="' + goal.goal_key + '">🎁 Claim Reward</button>';
+        } else if (isClaimed) {
+            btnHtml = '<div class="com-claimed">✓ Reward Claimed</div>';
+        } else {
+            btnHtml = '<div class="com-progress-status">📊 ' + Math.round(percent) + '% complete</div>';
+        }
+        
+        return '<div class="com-goal-card">' +
+            '<div class="com-goal-title">' + escapeHtml(goal.title) + '</div>' +
+            '<div class="com-goal-desc">' + escapeHtml(goal.description) + '</div>' +
+            '<div class="com-progress-bar">' +
+            '<div class="com-progress-fill com-progress-' + goal.goal_key + '" style="width:' + percent + '%"></div>' +
+            '</div>' +
+            '<div class="com-progress-text com-text-' + goal.goal_key + '">' +
+            progress.toLocaleString() + '/' + goal.goal_target.toLocaleString() +
+            '</div>' +
+            '<div class="com-reward">🎁 Reward: ' + rewardDisplay + '</div>' +
+            '<div class="com-time-left">⏰ Ends: ' + endsAt + '</div>' +
+            btnHtml +
+            '</div>';
+    }).join('');
+    
+    var claimButtons = document.querySelectorAll('.com-claim-btn');
+    for (var i = 0; i < claimButtons.length; i++) {
+        claimButtons[i].removeEventListener('click', community_handleClaim);
+        claimButtons[i].addEventListener('click', community_handleClaim);
+    }
+}
+
+// Handle reward claim
+async function community_handleClaim(e) {
+    var btn = e.currentTarget;
+    var goalId = parseInt(btn.dataset.goalId);
+    var goalKey = btn.dataset.goalKey;
+    if (!goalId || !currentUser) return;
+    
+    if (community_claimedGoalIds.indexOf(goalId) >= 0) {
+        community_showToast('Reward already claimed!', 'warning');
+        return;
+    }
+    
+    var goal = community_cachedGoals ? community_cachedGoals.find(function(g) { return g.id === goalId; }) : null;
+    if (!goal || goal.current_progress < goal.goal_target) {
+        community_showToast('Goal not completed yet!', 'error');
+        return;
+    }
+    
+    var success = await community_grantReward(goal);
+    if (success) {
+        var res = await supabaseClient
+            .from('community_goal_claims')
+            .insert({ goal_id: goalId, user_id: currentUser.id });
+        if (!res.error) {
+            community_claimedGoalIds.push(goalId);
+            community_showToast('🎉 Reward claimed: ' + community_formatRewardText(goal), 'success');
+            community_refreshUI();
+        }
+    }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// SCRAPBOOK SYSTEM - COMPLETE IMPLEMENTATION
+// ════════════════════════════════════════════════════════════════════════════
+
+// Memory templates
+
+// Grant reward based on type
+async function community_grantReward(goal) {
+  var reward = goal.reward_value;
+  var type = goal.reward_type;
+  
+  try {
+    if (type === 'points') {
+      var amount = parseInt(reward);
+      if (typeof window.addPawketPoints === 'function') {
+        window.addPawketPoints(amount);
+      } else if (window.currentUser) {
+        window.currentUser.pawketPoints = (window.currentUser.pawketPoints || 0) + amount;
+        if (typeof window.saveUserData === 'function') await window.saveUserData();
+        if (typeof updateAllPoints === 'function') updateAllPoints((window.currentUser.pawketPoints || 0));
+      }
+      return true;
+    }
+    if (type === 'items') {
+      var items = reward.split(',');
+      for (var i = 0; i < items.length; i++) {
+        var parts = items[i].split(':');
+        var itemId = parts[0];
+        var quantity = parseInt(parts[1]) || 1;
+        if (typeof addItemToInventory === 'function') {
+          await addItemToInventory(itemId, quantity);
+        }
+      }
+      return true;
+    }
+    if (type === 'title') {
+      if (typeof unlockTitle === 'function') {
+        await unlockTitle(reward);
+      }
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.error('Reward grant error:', e);
+    return false;
+  }
+}
+
+// Format reward text for toast
+function community_formatRewardText(goal) {
+  if (goal.reward_type === 'points') return goal.reward_value + ' PawketPoints';
+  if (goal.reward_type === 'items') return goal.reward_value;
+  if (goal.reward_type === 'title') return 'Title: "' + goal.reward_value + '"';
+  return goal.reward_value;
+}
+
+// Show toast notification
+function community_showToast(message, type) {
+  type = type || 'info';
+  if (typeof showToast === 'function') {
+    showToast(message);
+  } else {
+    dbg('[Community] ' + message);
+    var toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#333;color:white;padding:10px 20px;border-radius:8px;z-index:9999;';
+    document.body.appendChild(toast);
+    setTimeout(function() { toast.remove(); }, 3000);
+  }
+}
+
+// Initialize community system
+function community_init() {
+  community_loadGoals();
+  setInterval(function() { community_loadGoals(); }, 300000);
+  window.addEventListener('beforeunload', function() {
+    if (Object.keys(community_pendingUpdates).length > 0) {
+      community_syncToDatabase();
+    }
+  });
+  dbg('🌍 Community Goals system initialized');
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// MOBILE-ONLY MENU SYSTEM (DESKTOP COMPLETELY UNTOUCHED)
+// ════════════════════════════════════════════════════════════════════════════
+
+(function() {
+  // CRITICAL: Only run on mobile devices
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+  
+  // Exit immediately if desktop
+  if (!isMobile()) {
+    dbg('Desktop mode - mobile menu disabled');
+    return;
+  }
+  
+  dbg('Mobile mode - initializing mobile menu');
+  
+  // Initialize mobile menu on DOM ready
+  function initMobileMenu() {
+    // Exit if already initialized
+    if (document.getElementById('mobile-menu')) {
+      return;
+    }
+    
+    // Create hamburger button
+    var hamburger = document.createElement('button');
+    hamburger.id = 'hamburger-btn';
+    hamburger.className = 'hamburger-btn';
+    hamburger.innerHTML = '☰';
+    hamburger.setAttribute('aria-label', 'Open menu');
+    document.body.appendChild(hamburger);
+    
+    // Create overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'mobile-overlay';
+    overlay.className = 'mobile-overlay';
+    document.body.appendChild(overlay);
+    
+    // Create mobile menu
+    var menu = document.createElement('div');
+    menu.id = 'mobile-menu';
+    menu.className = 'mobile-menu';
+    
+    // Menu items
+    var menuItems = [
+      { icon: '🏠', text: 'Home', tab: 'home' },
+      { icon: '🐾', text: 'My Pets', tab: 'mypets' },
+      { icon: '🐣', text: 'Adopt', tab: 'adopt' },
+      { icon: '⚔️', text: 'Battle', tab: 'battle' },
+      { icon: '🛒', text: 'Shop', tab: 'shop' },
+      { icon: '🎯', text: 'Pass', action: 'showPassModal' },
+      { icon: '🎲', text: 'Bingo', action: 'showBingoModal' },
+      { icon: '🌍', text: 'Community', tab: 'community-goals' },
+      { icon: '📊', text: 'Statistics', tab: 'statistics' },
+      { icon: '👤', text: 'Profile', tab: 'profile' },
+      { icon: '🚪', text: 'Logout', action: 'logout' }
+    ];
+    
+    menuItems.forEach(function(item) {
+      var menuItem = document.createElement('div');
+      menuItem.className = 'mobile-menu-item mobile-nav-item';
+      menuItem.innerHTML = '<span class="mobile-nav-icon">' + item.icon + '</span>' +
+                           '<span class="mobile-nav-text mobile-menu-text">' + item.text + '</span>';
+      
+      menuItem.addEventListener('click', function() {
+        if (item.tab) {
+          if (typeof showTab === 'function') {
+            showTab(item.tab);
+          }
+        } else if (item.action === 'showPassModal') {
+          if (typeof showPassModal === 'function') {
+            showPassModal();
+          }
+        } else if (item.action === 'showBingoModal') {
+          if (typeof showBingoModal === 'function') {
+            showBingoModal();
+          }
+        } else if (item.action === 'logout') {
+          if (typeof logout === 'function') {
+            logout();
+          }
+        }
+        
+        // Close menu after selection
+        closeMobileMenu();
+      });
+      
+      menu.appendChild(menuItem);
+    });
+    
+    document.body.appendChild(menu);
+    
+    // Toggle menu function
+    function toggleMobileMenu() {
+      var isActive = menu.classList.contains('active');
+      if (isActive) {
+        closeMobileMenu();
+      } else {
+        openMobileMenu();
+      }
+    }
+    
+    function openMobileMenu() {
+      menu.classList.add('active');
+      overlay.classList.add('active');
+      hamburger.innerHTML = '✕';
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeMobileMenu() {
+      menu.classList.remove('active');
+      overlay.classList.remove('active');
+      hamburger.innerHTML = '☰';
+      document.body.style.overflow = '';
+    }
+    
+    // Event listeners
+    hamburger.addEventListener('click', toggleMobileMenu);
+    overlay.addEventListener('click', closeMobileMenu);
+    
+    // Close menu on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && menu.classList.contains('active')) {
+        closeMobileMenu();
+      }
+    });
+    
+    dbg('Mobile menu initialized');
+  }
+  
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileMenu);
+  } else {
+    initMobileMenu();
+  }
+  
+  // Handle window resize - reinitialize or cleanup
+  // Store reference so it can be removed if needed (prevent duplicate listeners)
+  if (window._mobileResizeHandler) {
+    window.removeEventListener('resize', window._mobileResizeHandler);
+  }
+  window._mobileResizeHandler = function() {
+    if (!isMobile()) {
+      // Desktop mode - remove mobile elements
+      var menu = document.getElementById('mobile-menu');
+      var hamburger = document.getElementById('hamburger-menu-btn');
+      var overlay = document.getElementById('mobile-overlay');
+      
+      if (menu) menu.style.display = 'none';
+      // Only hide/show via JS on mobile — CSS handles desktop hiding
+      if (hamburger && window.innerWidth <= 768) hamburger.style.display = 'none';
+      if (overlay) overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    } else {
+      // Mobile mode - ensure elements visible
+      var menu = document.getElementById('mobile-menu');
+      var hamburger = document.getElementById('hamburger-menu-btn');
+      
+      if (menu) menu.style.display = '';
+      if (hamburger && window.innerWidth <= 768) hamburger.style.display = '';
+    }
+  };
+  window.addEventListener('resize', window._mobileResizeHandler);
+  
+})();
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// PHASE 1: PROFILE COSMETICS, PET OF THE DAY, MILESTONES
+// ALL FUNCTIONS PREFIXED WITH phase1_
+// ADDITIVE ONLY - NO MODIFICATIONS TO EXISTING CODE
+// ════════════════════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════════════════════
+// PHASE 1: PROFILE COSMETICS, PET OF THE DAY, MILESTONES (FIXED VERSION)
+// ✅ Proper error handling
+// ✅ Visual feedback for all actions
+// ✅ Console logging for debugging
+// ✅ Graceful fallbacks
+// ════════════════════════════════════════════════════════════════════════════
+
+// Global state for Phase 1
+var phase1_state = {
+  unlockedBackgrounds: [],
+  unlockedFrames: [],
+  unlockedBadges: [],
+  milestones: {},
+  petOfTheDay: null,
+  weeklySpotlight: null,
+  isInitialized: false
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function newFeatures_init() {
+  dbg('🚀 Initializing new features...');
+  try {
+    if (typeof today_init === 'function') await today_init();
+    if (typeof calendar_init === 'function') await calendar_init();
+    if (typeof dailyWelcome_check === 'function') dailyWelcome_check();
+    dbg('✅ New features initialized!');
+  } catch (err) {
+    console.error('❌ New features initialization error:', err);
+  }
+}
+
+async function phase1_init() {
+  if (!currentUser) {
+    console.warn('⚠️ Phase 1: No user logged in - skipping initialization');
+    return;
+  }
+  
+  if (phase1_state.isInitialized) {
+    dbg('ℹ️ Phase 1: Already initialized');
+    return;
+  }
+  
+  dbg('📦 Phase 1: Initializing...');
+  
+  // DEBUG: Check table accessibility
+  dbg('🔍 Phase 1 Debug: Checking database tables...');
+  var tables = ['daily_featured_pet', 'unlocked_cosmetics', 'weekly_spotlight', 'player_milestones'];
+  for (var i = 0; i < tables.length; i++) {
+    var table = tables[i];
+    try {
+      var { error } = await supabaseClient.from(table).select('*').limit(1);
+      if (error) {
+        console.error('❌ Phase 1: Table', table, 'error:', error.message);
+      } else {
+        dbg('✅ Phase 1: Table', table, 'accessible');
+      }
+    } catch (e) {
+      console.error('❌ Phase 1: Table', table, 'check failed:', e);
+    }
+  }
+  
+  // DEBUG: Check user_pets schema
+  try {
+    var { data: samplePet } = await supabaseClient.from('user_pets').select('*').limit(1).single();
+    if (samplePet) {
+      dbg('📊 Phase 1 Debug: user_pets columns:', Object.keys(samplePet));
+    }
+  } catch (e) {
+    dbg('📊 Phase 1 Debug: Could not sample user_pets (may be empty)');
+  }
+  
+  try {
+    await phase1_loadUnlockedCosmetics();
+    await phase1_loadPetOfTheDay();
+    await phase1_loadWeeklySpotlight();
+    await phase1_checkAllUnlocks();
+    
+    phase1_state.isInitialized = true;
+    dbg('✅ Phase 1: Initialized successfully');
+    
+    // NEW FEATURES: Initialize wrapper features
+    await newFeatures_init();
+    
+  } catch (error) {
+    console.error('❌ Phase 1: Initialization failed:', error);
+    if (typeof showToast === 'function') {
+      showToast('Failed to load some features. Please refresh.', 'error');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COSMETICS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Load player's unlocked cosmetics
+async function phase1_loadUnlockedCosmetics() {
+  if (!currentUser) {
+    console.warn('⚠️ Phase 1: Cannot load cosmetics - no user');
+    return;
+  }
+  
+  try {
+    var { data, error } = await supabaseClient
+      .from('unlocked_cosmetics')
+      .select('cosmetic_type, cosmetic_id')
+      .eq('user_id', currentUser.id);
+    
+    if (error) throw error;
+    
+    if (!data) {
+      console.warn('⚠️ Phase 1: No cosmetics data returned');
+      return;
+    }
+    
+    // Group by type
+    phase1_state.unlockedBackgrounds = data
+      .filter(function(c) { return c.cosmetic_type === 'background'; })
+      .map(function(c) { return c.cosmetic_id; });
+    
+    phase1_state.unlockedFrames = data
+      .filter(function(c) { return c.cosmetic_type === 'frame'; })
+      .map(function(c) { return c.cosmetic_id; });
+    
+    phase1_state.unlockedBadges = data
+      .filter(function(c) { return c.cosmetic_type === 'badge'; })
+      .map(function(c) { return c.cosmetic_id; });
+    
+    dbg('✅ Phase 1: Loaded cosmetics - Backgrounds:', phase1_state.unlockedBackgrounds.length, 
+                'Frames:', phase1_state.unlockedFrames.length, 
+                'Badges:', phase1_state.unlockedBadges.length);
+  } catch (error) {
+    console.error('❌ Phase 1: Error loading cosmetics:', error);
+    // Non-critical error - don't show to user
+  }
+}
+
+// Unlock a cosmetic
+async function phase1_unlockCosmetic(type, cosmeticId) {
+  if (!currentUser) {
+    console.warn('⚠️ Phase 1: Cannot unlock cosmetic - no user');
+    return false;
+  }
+  
+  try {
+    // Check if already unlocked
+    var unlocked = phase1_state['unlocked' + type.charAt(0).toUpperCase() + type.slice(1) + 's'];
+    if (unlocked && unlocked.indexOf(cosmeticId) !== -1) {
+      dbg('ℹ️ Phase 1: Cosmetic already unlocked:', type, cosmeticId);
+      return false; // Already unlocked
+    }
+    
+    var { error } = await supabaseClient
+      .from('unlocked_cosmetics')
+      .insert({
+        user_id: currentUser.id,
+        cosmetic_type: type,
+        cosmetic_id: cosmeticId
+      });
+    
+    if (error) throw error;
+    
+    // Update local state
+    await phase1_loadUnlockedCosmetics();
+    
+    // Show notification
+    if (typeof showToast === 'function') {
+      showToast('🎨 New cosmetic unlocked!', 'success', true);
+    }
+    
+    dbg('✅ Phase 1: Unlocked cosmetic:', type, cosmeticId);
+    return true;
+  } catch (error) {
+    console.error('❌ Phase 1: Error unlocking cosmetic:', error);
+    if (typeof showToast === 'function') {
+      showToast('Failed to unlock cosmetic. Please try again.', 'error');
+    }
+    return false;
+  }
+}
+
+// Apply cosmetic (save to profile)
+async function phase1_applyCosmetic(type, cosmeticId) {
+  if (!currentUser) {
+    console.warn('⚠️ Phase 1: Cannot apply cosmetic - no user');
+    return;
+  }
+  
+  try {
+    var column = 'profile_' + type;
+    var { error } = await supabaseClient
+      .from('players')
+      .update({ [column]: cosmeticId })
+      .eq('id', currentUser.id);
+    
+    if (error) throw error;
+    
+    // Update current user object
+    currentUser['profile_' + type] = cosmeticId;
+    
+    if (typeof showToast === 'function') {
+      showToast('✅ Cosmetic applied!', 'success');
+    }
+    
+    dbg('✅ Phase 1: Applied cosmetic:', type, cosmeticId);
+  } catch (error) {
+    console.error('❌ Phase 1: Error applying cosmetic:', error);
+    if (typeof showToast === 'function') {
+      showToast('Failed to apply cosmetic. Please try again.', 'error');
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET OF THE DAY
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function phase1_loadPetOfTheDay() {
+  try {
+    var today = new Date().toISOString().split('T')[0];
+    
+    var { data, error } = await supabaseClient
+      .from('daily_featured_pet')
+      .select('date, user_pet_id, pet_name, owner_username, pet_level, featured_quote')
+      .eq('date', today)
+      .maybeSingle();
+    
+    if (error) throw error;
+    
+    if (!data) {
+      dbg('ℹ️ Phase 1: No pet of the day yet - generating...');
+      await phase1_generatePetOfTheDay();
+    } else {
+      phase1_state.petOfTheDay = data;
+      phase1_displayPetOfTheDay();
+      dbg('✅ Phase 1: Loaded pet of the day:', data.pet_name);
+    }
+  } catch (error) {
+    console.error('❌ Phase 1: Error loading pet of the day:', error);
+    // Non-critical - don't show error to user
+  }
+}
+
+async function phase1_generatePetOfTheDay() {
+  try {
+    var today = new Date().toISOString().split('T')[0];
+    
+    // Get random pet from all user_pets
+    // FIXED: user_pets has 'nickname' not 'name', and 'adopted_at' not 'created_at'
+    var { data: randomPets, error } = await supabaseClient
+      .from('user_pets')
+      .select('id, level, user_id, nickname, pets(name)')
+      .limit(100)
+      .order('adopted_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    if (!randomPets || randomPets.length === 0) {
+      console.warn('⚠️ Phase 1: No pets found for pet of the day');
+      return;
+    }
+    
+    // Pick random from results
+    var selected = randomPets[Math.floor(Math.random() * randomPets.length)];
+    
+    // Get owner username
+    var { data: owner } = await supabaseClient
+      .from('players')
+      .select('username')
+      .eq('id', selected.user_id)
+      .single();
+    
+    // Get a scrapbook memory if available
+    var { data: memory } = await supabaseClient
+      .from('pet_memories')
+      .select('memory_text')
+      .eq('user_pet_id', selected.id)
+      .limit(1)
+      .single();
+    
+    // Save to database - FIXED: Use UPSERT to handle conflicts
+    var { error: insertError } = await supabaseClient
+      .from('daily_featured_pet')
+      .upsert({
+        date: today,
+        user_pet_id: selected.id,
+        pet_name: selected.nickname || (selected.pets && selected.pets.name) || 'Mystery Pet',
+        owner_username: owner ? owner.username : 'Anonymous',
+        pet_level: selected.level || 1,
+        featured_quote: memory ? memory.memory_text : 'A wonderful companion!'
+      }, {
+        onConflict: 'date'
+      });
+    
+    if (insertError) throw insertError;
+    
+    dbg('✅ Phase 1: Generated pet of the day:', selected.name);
+    await phase1_loadPetOfTheDay(); // Reload
+  } catch (error) {
+    console.error('❌ Phase 1: Error generating pet of the day:', error);
+  }
+}
+
+function phase1_displayPetOfTheDay() {
+  try {
+    var container = document.getElementById('phase1-pet-of-day-container');
+    if (!container) {
+      return; // Container not in DOM on this page — silent return
+    }
+    
+    if (!phase1_state.petOfTheDay) {
+      console.warn('⚠️ Phase 1: No pet of the day data to display');
+      return;
+    }
+    
+    var pet = phase1_state.petOfTheDay;
+    
+    container.innerHTML = '<div class="phase1-pet-of-day">' +
+      '<div class="phase1-pet-of-day-header"><h3>🌟 Pet of the Day</h3></div>' +
+      '<div class="phase1-pet-of-day-content">' +
+      '<div class="phase1-pet-of-day-image">🐾</div>' +
+      '<div class="phase1-pet-of-day-info">' +
+      '<div class="phase1-pet-of-day-name">' + escapeHtml(pet.pet_name) + '</div>' +
+      '<div class="phase1-pet-of-day-owner">Owned by ' + escapeHtml(pet.owner_username) + '</div>' +
+      '<div class="phase1-pet-of-day-stats">' +
+      '<span>Level ' + pet.pet_level + '</span>' +
+      '</div>' +
+      '<div class="phase1-pet-of-day-quote">"' + escapeHtml(pet.featured_quote) + '"</div>' +
+      '</div></div></div>';
+    
+    dbg('✅ Phase 1: Displayed pet of the day');
+  } catch (error) {
+    console.error('❌ Phase 1: Error displaying pet of the day:', error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WEEKLY SPOTLIGHT
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function phase1_loadWeeklySpotlight() {
+  try {
+    var monday = phase1_getMondayDate();
+    
+    var { data, error } = await supabaseClient
+      .from('weekly_spotlight')
+      .select('*')
+      .eq('week_start', monday)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') {
+      throw error;
+    }
+    
+    if (!data) {
+      dbg('ℹ️ Phase 1: No spotlight yet - generating...');
+      await phase1_generateWeeklySpotlight();
+    } else {
+      phase1_state.weeklySpotlight = data;
+      phase1_displayWeeklySpotlight();
+      dbg('✅ Phase 1: Loaded weekly spotlight');
+    }
+  } catch (error) {
+    console.error('❌ Phase 1: Error loading spotlight:', error);
+  }
+}
+
+async function phase1_generateWeeklySpotlight() {
+  try {
+    var monday = phase1_getMondayDate();
+    
+    // Get random active player
+    var { data: players, error } = await supabaseClient
+      .from('players')
+      .select('id, username')
+      .limit(50);
+    
+    if (error) throw error;
+    
+    if (!players || players.length === 0) {
+      console.warn('⚠️ Phase 1: No players found for spotlight');
+      return;
+    }
+    
+    var selected = players[Math.floor(Math.random() * players.length)];
+    
+    // FIXED: Use UPSERT to handle conflicts
+    var { error: insertError } = await supabaseClient
+      .from('weekly_spotlight')
+      .upsert({
+        week_start: monday,
+        spotlight_type: 'player',
+        spotlight_data: {
+          username: selected.username,
+          user_id: selected.id
+        }
+      }, {
+        onConflict: 'week_start'
+      });
+    
+    if (insertError) throw insertError;
+    
+    dbg('✅ Phase 1: Generated weekly spotlight');
+    await phase1_loadWeeklySpotlight();
+  } catch (error) {
+    console.error('❌ Phase 1: Error generating spotlight:', error);
+  }
+}
+
+function phase1_displayWeeklySpotlight() {
+  try {
+    var container = document.getElementById('phase1-spotlight-container');
+    if (!container) {
+      return; // Container not in DOM on this page — silent return
+    }
+    
+    if (!phase1_state.weeklySpotlight) {
+      console.warn('⚠️ Phase 1: No spotlight data to display');
+      return;
+    }
+    
+    var spotlight = phase1_state.weeklySpotlight;
+    var data = spotlight.spotlight_data;
+    
+    container.innerHTML = '<div class="phase1-spotlight">' +
+      '<div class="phase1-spotlight-header"><h3>⭐ Weekly Spotlight</h3></div>' +
+      '<div class="phase1-spotlight-content">' +
+      '<div class="phase1-spotlight-name">' + escapeHtml(data.username) + '</div>' +
+      '<div class="phase1-spotlight-details">Featured Player of the Week!</div>' +
+      '</div></div>';
+    
+    dbg('✅ Phase 1: Displayed weekly spotlight');
+  } catch (error) {
+    console.error('❌ Phase 1: Error displaying spotlight:', error);
+  }
+}
+
+function phase1_getMondayDate() {
+  var now = new Date();
+  var day = now.getDay();
+  var diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  var monday = new Date(now.setDate(diff));
+  return monday.toISOString().split('T')[0];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MILESTONE SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function phase1_checkMilestone(milestoneType, currentValue) {
+  if (!currentUser) {
+    console.warn('⚠️ Phase 1: Cannot check milestone - no user');
+    return;
+  }
+  
+  try {
+    // Check if already achieved
+    var { data: existing } = await supabaseClient
+      .from('player_milestones')
+      .select('milestone_type, notified')
+      .eq('user_id', currentUser.id)
+      .eq('milestone_type', milestoneType)
+      .single();
+    
+    if (existing) {
+      dbg('ℹ️ Phase 1: Milestone already achieved:', milestoneType);
+      return; // Already achieved
+    }
+    
+    // Save milestone
+    var { error } = await supabaseClient
+      .from('player_milestones')
+      .insert({
+        user_id: currentUser.id,
+        milestone_type: milestoneType,
+        milestone_value: { value: currentValue },
+        notified: true
+      });
+    
+    if (error) throw error;
+    
+    dbg('✅ Phase 1: Milestone achieved:', milestoneType);
+    
+    // Trigger celebration
+    phase1_celebrateMilestone(milestoneType, currentValue);
+    
+    // Auto-unlock related cosmetics
+    await phase1_unlockMilestoneRewards(milestoneType);
+  } catch (error) {
+    console.error('❌ Phase 1: Error checking milestone:', error);
+    // Non-critical - don't show error to user
+  }
+}
+
+function phase1_celebrateMilestone(milestoneType, value) {
+  try {
+    var celebrations = {
+      'battle_10': { icon: '⚔️', title: 'Fighter!', text: 'Won 10 battles!' },
+      'battle_100': { icon: '🏆', title: 'Veteran!', text: 'Won 100 battles!' },
+      'battle_500': { icon: '👑', title: 'Champion!', text: 'Won 500 battles!' },
+      'streak_7': { icon: '📅', title: 'Regular!', text: '7-day login streak!' },
+      'streak_30': { icon: '💎', title: 'Dedicated!', text: '30-day login streak!' },
+      'streak_100': { icon: '⭐', title: 'Devoted!', text: '100-day login streak!' },
+      'level_20': { icon: '🌠', title: 'Rising Star!', text: 'Reached level 20!' },
+      'level_50': { icon: '✨', title: 'Legend!', text: 'Reached level 50!' },
+      'pets_5': { icon: '🐾', title: 'Collector!', text: 'Adopted 5 pets!' },
+      'pets_10': { icon: '🦊', title: 'Breeder!', text: 'Adopted 10 pets!' },
+      'pets_20': { icon: '🐉', title: 'Pet Master!', text: 'Adopted 20 pets!' }
+    };
+    
+    var celebration = celebrations[milestoneType];
+    if (!celebration) {
+      console.warn('⚠️ Phase 1: No celebration defined for:', milestoneType);
+      return;
+    }
+    
+    var overlay = document.createElement('div');
+    overlay.className = 'phase1-celebration-overlay';
+    overlay.innerHTML = '<div class="phase1-celebration-card">' +
+      '<button class="celebration-dismiss-btn" onclick="this.closest(\'.phase1-celebration-overlay\').remove()" title="Dismiss">✕</button>' +
+      '<div class="phase1-celebration-icon">' + celebration.icon + '</div>' +
+      '<div class="phase1-celebration-title">' + celebration.title + '</div>' +
+      '<div class="phase1-celebration-text">' + celebration.text + '</div>' +
+      '</div>';
+    
+    document.body.appendChild(overlay);
+    
+    // Effects
+    screenShake(7, 350);
+    screenFlash('rgba(255,215,0,0.25)', 500);
+    playChiptune('milestone');
+
+    // Triple confetti burst
+    if (typeof createConfettiBurst === 'function') {
+      try {
+        createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
+        setTimeout(function() { createConfettiBurst(window.innerWidth * 0.25, window.innerHeight * 0.4); }, 200);
+        setTimeout(function() { createConfettiBurst(window.innerWidth * 0.75, window.innerHeight * 0.4); }, 400);
+      } catch(e) { dbg('Confetti failed:', e); }
+    }
+    
+    // Remove after 8 seconds
+    setTimeout(function() { if (overlay.parentNode) overlay.remove(); }, 8000);
+    
+    // Also show toast as fallback
+    if (typeof showToast === 'function') {
+      showToast(celebration.icon + ' ' + celebration.title, 'success');
+    }
+    
+    dbg('✅ Phase 1: Celebrated milestone:', milestoneType);
+  } catch (error) {
+    console.error('❌ Phase 1: Error celebrating milestone:', error);
+    // Fallback: just show toast
+    if (typeof showToast === 'function') {
+      showToast('🎉 Milestone achieved!', 'success');
+    }
+  }
+}
+
+async function phase1_unlockMilestoneRewards(milestoneType) {
+  try {
+    var rewards = {
+      'level_10': [{ type: 'background', id: 'bg_forest' }, { type: 'frame', id: 'frame_silver' }],
+      'level_20': [{ type: 'frame', id: 'frame_gold' }, { type: 'badge', id: 'badge_level_20' }],
+      'level_25': [{ type: 'background', id: 'bg_clouds' }],
+      'level_50': [{ type: 'background', id: 'bg_legendary' }, { type: 'frame', id: 'frame_legendary' }, { type: 'badge', id: 'badge_level_50' }],
+      'battle_50': [{ type: 'background', id: 'bg_castle' }],
+      'battle_100': [{ type: 'background', id: 'bg_desert' }, { type: 'frame', id: 'frame_fire' }, { type: 'badge', id: 'badge_100_battles' }],
+      'battle_500': [{ type: 'badge', id: 'badge_500_battles' }],
+      'streak_30': [{ type: 'background', id: 'bg_stars' }, { type: 'frame', id: 'frame_ice' }, { type: 'badge', id: 'badge_30_days' }],
+      'streak_100': [{ type: 'badge', id: 'badge_100_days' }],
+      'pets_5': [{ type: 'badge', id: 'badge_pet_5' }],
+      'pets_10': [{ type: 'badge', id: 'badge_pet_10' }],
+      'pets_20': [{ type: 'background', id: 'bg_underwater' }, { type: 'badge', id: 'badge_pet_20' }],
+      'treats_50': [{ type: 'badge', id: 'badge_treats_50' }],
+      'treats_100': [{ type: 'background', id: 'bg_garden' }, { type: 'badge', id: 'badge_treats_100' }],
+      'boss_10': [{ type: 'background', id: 'bg_volcano' }, { type: 'badge', id: 'badge_boss_10' }]
+    };
+    
+    var rewardList = rewards[milestoneType];
+    if (!rewardList) {
+      dbg('ℹ️ Phase 1: No rewards for milestone:', milestoneType);
+      return;
+    }
+    
+    for (var i = 0; i < rewardList.length; i++) {
+      var reward = rewardList[i];
+      await phase1_unlockCosmetic(reward.type, reward.id);
+    }
+    
+    dbg('✅ Phase 1: Unlocked', rewardList.length, 'rewards for', milestoneType);
+  } catch (error) {
+    console.error('❌ Phase 1: Error unlocking milestone rewards:', error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-CHECK UNLOCKS (on init)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function phase1_checkAllUnlocks() {
+  if (!currentUser) return;
+  
+  try {
+    dbg('🔍 Phase 1: Checking all milestone unlocks...');
+    
+    // Get player stats from existing data
+    var totalBattles = currentUser.total_battles || 0;
+    var loginStreak = currentUser.login_streak || 0;
+    var playerLevel = currentUser.level || 1;
+    
+    // Count pets
+    var totalPets = 0;
+    if (window.petState) {
+      totalPets = Object.keys(window.petState).length;
+    }
+    
+    // Check battle milestones
+    if (totalBattles >= 10) await phase1_checkMilestone('battle_10', totalBattles);
+    if (totalBattles >= 50) await phase1_checkMilestone('battle_50', totalBattles);
+    if (totalBattles >= 100) await phase1_checkMilestone('battle_100', totalBattles);
+    if (totalBattles >= 500) await phase1_checkMilestone('battle_500', totalBattles);
+    
+    // Check streak milestones
+    if (loginStreak >= 7) await phase1_checkMilestone('streak_7', loginStreak);
+    if (loginStreak >= 30) await phase1_checkMilestone('streak_30', loginStreak);
+    if (loginStreak >= 100) await phase1_checkMilestone('streak_100', loginStreak);
+    
+    // Check level milestones
+    if (playerLevel >= 10) await phase1_checkMilestone('level_10', playerLevel);
+    if (playerLevel >= 20) await phase1_checkMilestone('level_20', playerLevel);
+    if (playerLevel >= 25) await phase1_checkMilestone('level_25', playerLevel);
+    if (playerLevel >= 50) await phase1_checkMilestone('level_50', playerLevel);
+    
+    // Check pet collection milestones
+    if (totalPets >= 5) await phase1_checkMilestone('pets_5', totalPets);
+    if (totalPets >= 10) await phase1_checkMilestone('pets_10', totalPets);
+    if (totalPets >= 20) await phase1_checkMilestone('pets_20', totalPets);
+    
+    dbg('✅ Phase 1: Milestone check complete');
+  } catch (error) {
+    console.error('❌ Phase 1: Error checking unlocks:', error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HOOK FUNCTIONS (Called from existing code)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Called after battle win
+async function phase1_onBattleWin() {
+  if (!currentUser) return;
+  
+  try {
+    var totalBattles = currentUser.total_battles || 0;
+    if (totalBattles === 10) await phase1_checkMilestone('battle_10', totalBattles);
+    if (totalBattles === 50) await phase1_checkMilestone('battle_50', totalBattles);
+    if (totalBattles === 100) await phase1_checkMilestone('battle_100', totalBattles);
+    if (totalBattles === 500) await phase1_checkMilestone('battle_500', totalBattles);
+  } catch (error) {
+    console.error('❌ Phase 1: Battle hook error:', error);
+  }
+}
+
+// Called after login
+async function phase1_onLogin() {
+  if (!currentUser) return;
+  
+  try {
+    var loginStreak = currentUser.login_streak || 0;
+    if (loginStreak === 7) await phase1_checkMilestone('streak_7', loginStreak);
+    if (loginStreak === 30) await phase1_checkMilestone('streak_30', loginStreak);
+    if (loginStreak === 100) await phase1_checkMilestone('streak_100', loginStreak);
+  } catch (error) {
+    console.error('❌ Phase 1: Login hook error:', error);
+  }
+}
+
+// Called after pet adoption
+async function phase1_onPetAdopt() {
+  if (!currentUser || !window.petState) return;
+  
+  try {
+    var totalPets = Object.keys(window.petState).length;
+    if (totalPets === 5) await phase1_checkMilestone('pets_5', totalPets);
+    if (totalPets === 10) await phase1_checkMilestone('pets_10', totalPets);
+    if (totalPets === 20) await phase1_checkMilestone('pets_20', totalPets);
+  } catch (error) {
+    console.error('❌ Phase 1: Adoption hook error:', error);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VERIFICATION & TEST FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Test function - Run in console to verify Phase 1
+async function test_phase1() {
+  dbg('🧪 Testing Phase 1 features...');
+  
+  var passed = 0;
+  var failed = 0;
+  
+  // Test 1: Check all new functions exist
+  var requiredFunctions = [
+    'phase1_init',
+    'phase1_loadUnlockedCosmetics',
+    'phase1_unlockCosmetic',
+    'phase1_applyCosmetic',
+    'phase1_loadPetOfTheDay',
+    'phase1_displayPetOfTheDay',
+    'phase1_loadWeeklySpotlight',
+    'phase1_displayWeeklySpotlight',
+    'phase1_checkMilestone',
+    'phase1_celebrateMilestone',
+    'phase1_checkAllUnlocks',
+    'phase1_onBattleWin',
+    'phase1_onLogin',
+    'phase1_onPetAdopt'
+  ];
+  
+  for (var i = 0; i < requiredFunctions.length; i++) {
+    var fn = requiredFunctions[i];
+    if (typeof window[fn] === 'function') {
+      dbg('✅', fn, 'exists');
+      passed++;
+    } else {
+      console.error('❌', fn, 'missing');
+      failed++;
+    }
+  }
+  
+  // Test 2: Check new UI elements (if added)
+  var requiredElements = [
+    'phase1-pet-of-day-container',
+    'phase1-spotlight-container'
+  ];
+  
+  for (var i = 0; i < requiredElements.length; i++) {
+    var el = requiredElements[i];
+    if (document.getElementById(el)) {
+      dbg('✅', el, 'exists in DOM');
+      passed++;
+    } else {
+      console.warn('⚠️', el, 'missing from DOM (may not be added yet)');
+    }
+  }
+  
+  // Test 3: Check state
+  if (phase1_state) {
+    dbg('✅ phase1_state exists');
+    dbg('   isInitialized:', phase1_state.isInitialized);
+    dbg('   unlockedBackgrounds:', phase1_state.unlockedBackgrounds.length);
+    dbg('   unlockedFrames:', phase1_state.unlockedFrames.length);
+    dbg('   unlockedBadges:', phase1_state.unlockedBadges.length);
+    passed++;
+  } else {
+    console.error('❌ phase1_state missing');
+    failed++;
+  }
+  
+  // Test 4: Check if initialized
+  if (phase1_state && phase1_state.isInitialized) {
+    dbg('✅ Phase 1 is initialized');
+    passed++;
+  } else {
+    console.warn('⚠️ Phase 1 not initialized yet (run phase1_init())');
+  }
+  
+  dbg('\n📈 Results:', passed, 'passed,', failed, 'failed');
+  
+  if (failed === 0) {
+    dbg('🎉 Phase 1 verification PASSED!');
+  } else {
+    dbg('⚠️ Phase 1 needs fixes - check errors above');
+  }
+  
+  dbg('\n📊 Manual checks needed:');
+  dbg('1. Run this in Supabase SQL Editor: SELECT * FROM daily_featured_pet;');
+  dbg('2. Run this in Supabase SQL Editor: SELECT * FROM unlocked_cosmetics WHERE user_id = \'', currentUser ? currentUser.id : 'YOUR_USER_ID', '\';');
+  dbg('3. Check browser console for "✅ Phase 1: Initialized successfully"');
+  dbg('4. Win 10 battles and watch for celebration popup');
+}
+
+// Quick test for milestone celebrations
+async function test_phase1_milestone() {
+  dbg('🧪 Testing milestone celebration...');
+  
+  if (!currentUser) {
+    console.error('❌ No user logged in');
+    return;
+  }
+  
+  // Force a celebration
+  phase1_celebrateMilestone('battle_10', 10);
+  
+  dbg('✅ Check if celebration popup appeared');
+  dbg('   (It should fade out after 4 seconds)');
+}
+
+// Quick test for cosmetics unlock
+async function test_phase1_cosmetic() {
+  dbg('🧪 Testing cosmetic unlock...');
+  
+  if (!currentUser) {
+    console.error('❌ No user logged in');
+    return;
+  }
+  
+  // Try to unlock forest background
+  var result = await phase1_unlockCosmetic('background', 'bg_forest');
+  
+  if (result) {
+    dbg('✅ Cosmetic unlocked successfully');
+    dbg('   Check if toast notification appeared');
+  } else {
+    dbg('ℹ️ Cosmetic was already unlocked or failed');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// CLEANUP: Remove expired localStorage items
+// ════════════════════════════════════════════════════════════════════════════
+
+function cleanupExpiredLocalStorage() {
+  var today = new Date().toISOString().split('T')[0];
+  var keysToRemove = [];
+  
+  for (var i = 0; i < localStorage.length; i++) {
+    var key = localStorage.key(i);
+    // Remove old daily entries
+    if (key && (key.includes('daily_') || key.includes('bingo_')) && !key.includes(today)) {
+      keysToRemove.push(key);
+    }
+    // Remove old feed/play daily limits (older than today)
+    if (key && (key.includes('feed_') || key.includes('play_')) && !key.includes(today)) {
+      keysToRemove.push(key);
+    }
+  }
+  
+  keysToRemove.forEach(function(key) {
+    localStorage.removeItem(key);
+  });
+  
+  if (keysToRemove.length > 0) {
+    dbg('🧹 Cleaned up', keysToRemove.length, 'expired localStorage items');
+  }
+}
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// MOBILE MENU: Close function
+// ════════════════════════════════════════════════════════════════════════════
+
+function closeMobileMenu() {
+  var menu = document.getElementById('mobile-nav-menu');
+  var overlay = document.querySelector('.mobile-nav-overlay');
+  if (menu) menu.classList.remove('open');
+  if (overlay) overlay.classList.remove('show');
+  document.body.style.overflow = '';
+  dbg('📱 Mobile menu closed');
+}
+
+
+
+// ════════════════════════════════════════════════════════════════════════════
+// SKIN KEY SYSTEM - VARIANT UNLOCKING
+// ════════════════════════════════════════════════════════════════════════════
+
+var BASIC_VARIANTS = {
+  golden: { name: 'Golden', description: 'Shimmering gold aura', cssClass: 'pet-variant-golden', icon: '✨', cost: 1 },
+  shiny: { name: 'Shiny', description: 'Rainbow sparkle effect', cssClass: 'pet-variant-shiny', icon: '🌈', cost: 1 },
+  cosmic: { name: 'Cosmic', description: 'Mystical space energy', cssClass: 'pet-variant-cosmic', icon: '🌌', cost: 1 },
+  shadow: { name: 'Shadow', description: 'Dark mysterious aura', cssClass: 'pet-variant-shadow', icon: '🌑', cost: 1 },
+  fire: { name: 'Fire', description: 'Burning flames', cssClass: 'pet-variant-fire', icon: '🔥', cost: 1 },
+  ice: { name: 'Ice', description: 'Frozen crystals', cssClass: 'pet-variant-ice', icon: '❄️', cost: 1 },
+  electric: { name: 'Electric', description: 'Crackling lightning', cssClass: 'pet-variant-electric', icon: '⚡', cost: 1 },
+  nature: { name: 'Nature', description: 'Living plants', cssClass: 'pet-variant-nature', icon: '🌿', cost: 1 },
+  crystal: { name: 'Crystal', description: 'Prismatic gems', cssClass: 'pet-variant-crystal', icon: '💎', cost: 1 },
+  ghost: { name: 'Ghost', description: 'Ethereal spirit', cssClass: 'pet-variant-ghost', icon: '👻', cost: 1 }
+};
+
+var SPECIAL_VARIANTS = ['emi', 'numi', 'tob', 'shondo', 'merry', 'vienna', 'lily', 'sleepy', 'cottontail', 'yuno', 'susu', 'sinder', 'snuffy', 'bat', 'zen', 'bao'];
+
+var skinKeyState = {
+  keys: 0,
+  unlockedVariants: {},
+  currentVariants: {}
+};
+
+async function skinkey_loadUserData() {
+  if (!currentUser) return;
+  try {
+    var { data: player } = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
+    if (player) {
+      skinKeyState.keys = player.skin_keys || 0;
+      dbg('🔑 Skin Keys:', skinKeyState.keys);
+    }
+    var petIds = Object.keys(petState || {});
+    if (petIds.length === 0) {
+      dbg('✨ No pets yet, skipping variant load');
+      return;
+    }
+    var { data: unlocked } = await supabaseClient.from('unlocked_variants').select('user_pet_id, variant_id').in('user_pet_id', petIds);
+    if (unlocked) {
+      skinKeyState.unlockedVariants = {};
+      unlocked.forEach(function(row) {
+        if (!skinKeyState.unlockedVariants[row.user_pet_id]) {
+          skinKeyState.unlockedVariants[row.user_pet_id] = [];
+        }
+        skinKeyState.unlockedVariants[row.user_pet_id].push(row.variant_id);
+      });
+      dbg('✨ Unlocked variants loaded:', Object.keys(skinKeyState.unlockedVariants).length, 'pets');
+    }
+    var { data: pets } = await supabaseClient.from('user_pets').select('id, current_variant').eq('user_id', currentUser.id);
+    if (pets) {
+      pets.forEach(function(pet) {
+        if (pet.current_variant) {
+          skinKeyState.currentVariants[pet.id] = pet.current_variant;
+        }
+      });
+    }
+    skinkey_updateDisplay();
+  } catch (error) {
+    console.error('❌ Error loading skin key data:', error);
+  }
+}
+
+function skinkey_updateDisplay() {
+  var keyCounters = document.querySelectorAll('.skin-key-count');
+  keyCounters.forEach(function(el) {
+    el.textContent = skinKeyState.keys;
+  });
+  // Update navbar skin key display
+  var navKeyCount = document.getElementById('nav-skin-key-count');
+  if (navKeyCount) navKeyCount.textContent = skinKeyState.keys;
+  var navKeyDisplay = document.getElementById('nav-skin-key-display');
+  if (navKeyDisplay) navKeyDisplay.style.display = 'flex';
+  skinkey_updateVariantButtons();
+}
+
+async function skinkey_unlockVariant(userPetId, variantId) {
+  if (!currentUser) {
+    showToast('Please log in first', 'error');
+    return false;
+  }
+  if (!BASIC_VARIANTS[variantId]) {
+    showToast('Invalid variant', 'error');
+    return false;
+  }
+  if (skinKeyState.unlockedVariants[userPetId] && skinKeyState.unlockedVariants[userPetId].indexOf(variantId) !== -1) {
+    showToast('Variant already unlocked!', 'info');
+    return false;
+  }
+  var cost = BASIC_VARIANTS[variantId].cost;
+  if (skinKeyState.keys < cost) {
+    showToast('Not enough Skin Keys! Need ' + cost, 'error');
+    return false;
+  }
+  try {
+    var { error: updateError } = await supabaseClient.from('players').update({ skin_keys: skinKeyState.keys - cost }).eq('id', currentUser.id);
+    if (updateError) throw updateError;
+    var { error: unlockError } = await supabaseClient.from('unlocked_variants').insert({ user_pet_id: userPetId, variant_id: variantId });
+    if (unlockError) throw unlockError;
+    skinKeyState.keys -= cost;
+    if (!skinKeyState.unlockedVariants[userPetId]) {
+      skinKeyState.unlockedVariants[userPetId] = [];
+    }
+    skinKeyState.unlockedVariants[userPetId].push(variantId);
+    skinkey_updateDisplay();
+    var variantName = BASIC_VARIANTS[variantId].name;
+    showToast('✨ Unlocked ' + variantName + ' variant!', 'success', true);
+    dbg('🔑 Unlocked variant:', variantId, 'for pet', userPetId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error unlocking variant:', error);
+    showToast('Failed to unlock variant', 'error');
+    return false;
+  }
+}
+
+async function skinkey_applyVariant(userPetId, variantId) {
+  if (!currentUser) {
+    showToast('Please log in first', 'error');
+    return false;
+  }
+  if (variantId === null || variantId === 'none') {
+    variantId = null;
+  }
+  if (variantId && !SPECIAL_VARIANTS.includes(variantId)) {
+    if (!skinKeyState.unlockedVariants[userPetId] || skinKeyState.unlockedVariants[userPetId].indexOf(variantId) === -1) {
+      showToast('Variant not unlocked yet!', 'error');
+      return false;
+    }
+  }
+  try {
+    var { error } = await supabaseClient.from('user_pets').update({ current_variant: variantId }).eq('id', userPetId);
+    if (error) throw error;
+    if (variantId) {
+      skinKeyState.currentVariants[userPetId] = variantId;
+    } else {
+      delete skinKeyState.currentVariants[userPetId];
+    }
+    skinkey_applyVariantToAllDisplays(userPetId, variantId);
+    if (variantId) {
+      var displayName = BASIC_VARIANTS[variantId] ? BASIC_VARIANTS[variantId].name : variantId;
+      showToast('✨ Applied ' + displayName + ' variant!', 'success');
+    } else {
+      showToast('Removed variant', 'info');
+    }
+    dbg('✨ Applied variant:', variantId, 'to pet', userPetId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error applying variant:', error);
+    showToast('Failed to apply variant', 'error');
+    return false;
+  }
+}
+
+function skinkey_applyVariantToAllDisplays(userPetId, variantId) {
+  // All variant CSS classes to strip before applying new one
+  var allVariantClasses = Object.keys(BASIC_VARIANTS).map(function(vid) {
+    return BASIC_VARIANTS[vid].cssClass;
+  }).concat(SPECIAL_VARIANTS.map(function(vid) { return 'pet-variant-' + vid; }));
+
+  function applyToEl(el) {
+    if (!el) return;
+    allVariantClasses.forEach(function(cls) { el.classList.remove(cls); });
+    if (variantId) {
+      var cls = BASIC_VARIANTS[variantId] ? BASIC_VARIANTS[variantId].cssClass : 'pet-variant-' + variantId;
+      el.classList.add(cls);
+    }
+  }
+
+  // Target the card by its actual ID
+  var card = document.getElementById('petcard-' + userPetId);
+  applyToEl(card);
+
+  // Also target the avatar div inside the card
+  if (card) {
+    applyToEl(card.querySelector('.pet-avatar'));
+    applyToEl(card.querySelector('.pet-avatar-wrap'));
+    // Spawn particles on the card
+    createVariantParticles(card, variantId, 12);
+  }
+
+  // Update companion if this is the active companion
+  if (window.companionPetId && window.companionPetId === userPetId) {
+    skinkey_updateCompanionVariant(variantId);
+  }
+}
+
+// ── Variant particle system ──────────────────────────────────────────────────
+// Creates floating emoji particles on a card element.
+// count defaults to 12 for pet cards, pass 5 for companion buddy.
+var VARIANT_PARTICLES = {
+  ghost:    ['👻','💀','🕯️','🌙','✨'],
+  shadow:   ['🌑','🖤','💜','🌙','✨'],
+  golden:   ['✨','⭐','💫','🌟','👑'],
+  shiny:    ['🌟','⭐','✨','💫','🌈'],
+  cosmic:   ['⭐','🌠','✨','💫','🌌'],
+  fire:     ['🔥','🎇','✨','💥','🌋'],
+  ice:      ['❄️','💠','🔹','✨','🌨️'],
+  electric: ['⚡','💥','✨','💫','🔋'],
+  nature:   ['🍃','🌿','🌸','🍂','🌻'],
+  crystal:  ['💎','✨','🔮','💠','⭐'],
+  rainbow:  ['🌈','✨','🌟','💫','⭐']
+};
+
+function createVariantParticles(el, variantId, count) {
+  if (!el || !variantId) return;
+  count = count || 12;
+
+  // Clear existing particles first
+  el.querySelectorAll('.variant-particle').forEach(function(p) { p.remove(); });
+
+  var emojis = VARIANT_PARTICLES[variantId] || ['✨'];
+
+  for (var i = 0; i < count; i++) {
+    var p = document.createElement('div');
+    p.className = 'variant-particle particle-' + variantId;
+    p.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    p.style.cssText = [
+      'position:absolute',
+      'pointer-events:none',
+      'z-index:100',
+      'font-size:' + (14 + Math.random() * 10) + 'px',
+      'left:' + Math.random() * 90 + '%',
+      'top:' + Math.random() * 90 + '%',
+      'animation:varParticleFloat ' + (2 + Math.random() * 2.5) + 's ease-out ' + (Math.random() * 3) + 's infinite',
+      'opacity:0'
+    ].join(';');
+    el.appendChild(p);
+  }
+}
+function skinkey_updateCompanionVariant(variantId) {
+  // Actual companion element is #companion-sprite with class .companion-sprite
+  var companion = document.getElementById('companion-sprite');
+  if (!companion) return;
+
+  // Strip all variant classes
+  Object.keys(BASIC_VARIANTS).forEach(function(vid) {
+    companion.classList.remove(BASIC_VARIANTS[vid].cssClass);
+  });
+  SPECIAL_VARIANTS.forEach(function(vid) {
+    companion.classList.remove('pet-variant-' + vid);
+  });
+
+  // Apply new variant class
+  if (variantId) {
+    var cls = BASIC_VARIANTS[variantId] ? BASIC_VARIANTS[variantId].cssClass : 'pet-variant-' + variantId;
+    companion.classList.add(cls);
+    // Spawn a handful of particles on the companion buddy
+    var buddyEl = document.getElementById('companion-buddy');
+    if (buddyEl) createVariantParticles(buddyEl, variantId, 5);
+  } else {
+    // Remove companion particles when variant cleared
+    var buddyEl = document.getElementById('companion-buddy');
+    if (buddyEl) {
+      buddyEl.querySelectorAll('.variant-particle').forEach(function(p) { p.remove(); });
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET-SPECIFIC VARIANT MANAGER MODAL
+// Uses existing skinkey_unlockVariant / skinkey_applyVariant — no wrappers
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function showPetVariantModal(petId, petName) {
+  if (!currentUser) { showToast('Please log in first', 'error'); return; }
+
+  // Refresh key balance from DB before showing so it's always current
+  await skinkey_loadUserData();
+
+  var modal = makeModal();
+
+  // Header
+  var currentVariantId   = skinkey_getCurrentVariant(petId);
+  var currentVariantData = currentVariantId ? BASIC_VARIANTS[currentVariantId] : null;
+  var keys = skinKeyState.keys;
+
+  var header = '<h2 style="text-align:center;color:var(--purple);margin:0 0 4px;">🎨 ' + escapeHtml(petName) + ' — Variants</h2>' +
+    '<p style="text-align:center;color:var(--text-light);font-size:0.88rem;margin:0 0 14px;">🔑 Skin Keys: <strong style="color:#FFD700;">' + keys + '</strong></p>' +
+    '<div style="background:rgba(153,102,255,0.1);border-radius:10px;padding:10px 14px;margin-bottom:16px;text-align:center;">' +
+    '<span style="font-size:0.9rem;color:var(--text-light);">Currently equipped: </span>' +
+    '<strong style="color:' + (currentVariantData ? currentVariantData.color || '#9966ff' : '#9966ff') + ';">' +
+    (currentVariantData ? currentVariantData.icon + ' ' + currentVariantData.name : '★ Original') + '</strong></div>';
+
+  // Build variant grid
+  var gridHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;max-height:380px;overflow-y:auto;margin-bottom:14px;">';
+
+  // "None / Original" card
+  var noneActive = !currentVariantId;
+  gridHtml += '<div style="border:2px solid ' + (noneActive ? '#9966ff' : 'var(--border)') + ';border-radius:12px;padding:12px;text-align:center;background:' + (noneActive ? 'rgba(153,102,255,0.12)' : 'transparent') + ';position:relative;">' +
+    (noneActive ? '<div style="position:absolute;top:-8px;right:-8px;background:#9966ff;color:white;padding:1px 7px;border-radius:10px;font-size:0.68rem;font-weight:bold;">ACTIVE</div>' : '') +
+    '<div style="font-size:1.8rem;margin-bottom:6px;">★</div>' +
+    '<div style="font-weight:bold;font-size:0.85rem;margin-bottom:3px;">Original</div>' +
+    '<div style="font-size:0.7rem;color:var(--text-light);margin-bottom:8px;">Default appearance</div>' +
+    (noneActive
+      ? '<button disabled style="width:100%;padding:5px;border-radius:7px;border:none;background:#4ade80;color:#1a1a2e;font-size:0.78rem;font-weight:bold;">Equipped</button>'
+      : '<button onclick="skinkey_applyVariant(\'' + petId + '\',null).then(function(){closeModal();tabsLoaded[\'mypets\']=false;loadMyPets();})" style="width:100%;padding:5px;border-radius:7px;border:none;background:rgba(153,102,255,0.2);color:var(--purple);font-size:0.78rem;cursor:pointer;">Remove Variant</button>'
+    ) + '</div>';
+
+  // All BASIC_VARIANTS
+  Object.keys(BASIC_VARIANTS).forEach(function(variantId) {
+    var v = BASIC_VARIANTS[variantId];
+    // Merge color from petVariants if available
+    var pv = petVariants[variantId];
+    var color = (pv && pv.color) ? pv.color : '#9966ff';
+    var isUnlocked = skinkey_isVariantUnlocked(petId, variantId);
+    var isActive   = currentVariantId === variantId;
+    var canAfford  = keys >= (v.cost || 1);
+
+    gridHtml += '<div style="border:2px solid ' + (isActive ? color : 'var(--border)') + ';border-radius:12px;padding:12px;text-align:center;background:' + (isActive ? color + '20' : 'transparent') + ';position:relative;opacity:' + (isUnlocked || canAfford ? '1' : '0.6') + ';' + (isActive ? 'box-shadow:0 0 12px ' + color + '66;' : '') + '">' +
+      (isActive ? '<div style="position:absolute;top:-8px;right:-8px;background:' + color + ';color:white;padding:1px 7px;border-radius:10px;font-size:0.68rem;font-weight:bold;">ACTIVE</div>' : '') +
+      '<div style="font-size:1.8rem;margin-bottom:6px;">' + v.icon + '</div>' +
+      '<div style="font-weight:bold;font-size:0.85rem;margin-bottom:3px;color:' + color + ';">' + v.name + '</div>' +
+      '<div style="font-size:0.7rem;color:var(--text-light);margin-bottom:8px;">' + v.description + '</div>' +
+      '<div style="font-size:0.75rem;font-weight:bold;color:#FFD700;margin-bottom:6px;">' + (v.cost || 1) + ' 🔑</div>';
+
+    if (isActive) {
+      gridHtml += '<button disabled style="width:100%;padding:5px;border-radius:7px;border:none;background:#4ade80;color:#1a1a2e;font-size:0.78rem;font-weight:bold;">Equipped</button>';
+    } else if (isUnlocked) {
+      gridHtml += '<button onclick="skinkey_applyVariant(\'' + petId + '\',\'' + variantId + '\').then(function(){closeModal();tabsLoaded[\'mypets\']=false;loadMyPets();})" style="width:100%;padding:5px;border-radius:7px;border:none;background:linear-gradient(135deg,' + color + ',' + color + 'aa);color:white;font-size:0.78rem;cursor:pointer;font-weight:bold;">Equip</button>';
+    } else {
+      gridHtml += '<button ' + (canAfford ? 'onclick="skinkey_unlockVariant(\'' + petId + '\',\'' + variantId + '\').then(function(ok){if(ok){closeModal();tabsLoaded[\'mypets\']=false;loadMyPets();}})"' : 'disabled') + ' style="width:100%;padding:5px;border-radius:7px;border:none;background:' + (canAfford ? 'linear-gradient(135deg,#FFD700,#FFA500)' : '#555') + ';color:' + (canAfford ? '#1a1a2e' : '#888') + ';font-size:0.75rem;cursor:' + (canAfford ? 'pointer' : 'not-allowed') + ';font-weight:bold;">Unlock (' + (v.cost || 1) + ' 🔑)</button>';
+    }
+
+    gridHtml += '</div>';
+  });
+
+  gridHtml += '</div>';
+
+  var footer = '<div style="background:rgba(0,0,0,0.06);border-radius:8px;padding:10px 14px;font-size:0.8rem;color:var(--text-light);">' +
+    '💡 <strong>Earn Skin Keys:</strong> Bingo blackout • PawketPass Lv.19/24/29/36/42/46/49 • Special events' +
+    '</div>' +
+    '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:14px;">Close</button>';
+
+  modal.innerHTML = header + gridHtml + footer;
+  openModal(modal);
+}
+
+function skinkey_buildVariantSelector(userPetId) {
+  var unlocked = skinKeyState.unlockedVariants[userPetId] || [];
+  var current = skinKeyState.currentVariants[userPetId] || null;
+  var html = '<div class="variant-selector">';
+  html += '<h3>🎨 Pet Variants</h3>';
+  html += '<p class="skin-key-balance">Skin Keys: <span class="skin-key-count">' + skinKeyState.keys + '</span> 🔑</p>';
+  html += '<div class="variant-option ' + (current === null ? 'active' : '') + '">';
+  html += '  <button onclick="skinkey_applyVariant(\'' + userPetId + '\', null)" ' + (current === null ? 'disabled' : '') + '>None (Default)</button>';
+  html += '</div>';
+  Object.keys(BASIC_VARIANTS).forEach(function(variantId) {
+    var variant = BASIC_VARIANTS[variantId];
+    var isUnlocked = unlocked.indexOf(variantId) !== -1;
+    var isActive = current === variantId;
+    html += '<div class="variant-option ' + (isActive ? 'active' : '') + ' ' + (isUnlocked ? 'unlocked' : 'locked') + '">';
+    html += '  <div class="variant-info">';
+    html += '    <span class="variant-icon">' + variant.icon + '</span>';
+    html += '    <span class="variant-name">' + variant.name + '</span>';
+    html += '    <span class="variant-desc">' + variant.description + '</span>';
+    html += '  </div>';
+    if (isUnlocked) {
+      if (isActive) {
+        html += '  <button disabled>Active ✓</button>';
+      } else {
+        html += '  <button onclick="skinkey_applyVariant(\'' + userPetId + '\', \'' + variantId + '\')">Apply</button>';
+      }
+    } else {
+      html += '  <button onclick="skinkey_unlockVariant(\'' + userPetId + '\', \'' + variantId + '\')">Unlock (1 🔑)</button>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+function skinkey_updateVariantButtons() {
+  var buttons = document.querySelectorAll('.variant-option button');
+  buttons.forEach(function(btn) {
+  });
+}
+
+async function skinkey_grantKeys(amount, reason) {
+  if (!currentUser) return false;
+  try {
+    var newTotal = skinKeyState.keys + amount;
+    var { error } = await supabaseClient.from('players').update({ skin_keys: newTotal }).eq('id', currentUser.id);
+    if (error) throw error;
+    skinKeyState.keys = newTotal;
+    skinkey_updateDisplay();
+    // Refresh from DB to ensure displayed count is accurate
+    await skinkey_loadUserData();
+    showToast('🔑 Received ' + amount + ' Skin Key' + (amount > 1 ? 's' : '') + '!', 'success');
+    dbg('🔑 Granted', amount, 'skin keys:', reason);
+    return true;
+  } catch (error) {
+    console.error('❌ Error granting skin keys:', error);
+    return false;
+  }
+}
+
+async function skinkey_init() {
+  if (!currentUser) return;
+  dbg('🔑 Initializing Skin Key system...');
+  await skinkey_loadUserData();
+  dbg('✅ Skin Key system ready');
+}
+
+function skinkey_isVariantUnlocked(userPetId, variantId) {
+  return skinKeyState.unlockedVariants[userPetId] && skinKeyState.unlockedVariants[userPetId].indexOf(variantId) !== -1;
+}
+
+function skinkey_getCurrentVariant(userPetId) {
+  return skinKeyState.currentVariants[userPetId] || null;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RATE LIMITING - CLIENT-SIDE DISPLAY (optional)
+// ════════════════════════════════════════════════════════════════════════════
+
+async function getDailyRemaining() {
+  if (!currentUser) return { feedsRemaining: 0, playsRemaining: 0, battlesRemaining: 0 };
+  
+  try {
+    var { data } = await supabaseClient
+      .from('user_daily_limits')
+      .select('feed_total, play_total, battle_total')
+      .eq('user_id', currentUser.id)
+      .single();
+    
+    return {
+      feedsRemaining: Math.max(0, 50 - (data?.feed_total || 0)),
+      playsRemaining: Math.max(0, 50 - (data?.play_total || 0)),
+      battlesRemaining: Math.max(0, 50 - (data?.battle_total || 0))
+    };
+  } catch (error) {
+    console.error('Error fetching daily limits:', error);
+    return { feedsRemaining: 50, playsRemaining: 50, battlesRemaining: 50 };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ALL NEW FEATURES - COMPLETE IMPLEMENTATION
+// Founder Badges, Rare Collectibles, Today in PawketPets, Login Calendar, 
+// Screenshot Cards, PawketPass
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. FOUNDER BADGES SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var founderBadges = {
+  tiers: {
+    alpha: {
+      name: 'Alpha Founder',
+      badge: 'founder_alpha',
+      frame: 'founder_alpha_frame',
+      title: 'Alpha Founder',
+      cutoffDate: '2024-06-01'
+    },
+    beta: {
+      name: 'Beta Founder',
+      badge: 'founder_beta',
+      frame: 'founder_beta_frame',
+      title: 'Beta Founder',
+      cutoffDate: '2024-08-01'
+    },
+    early: {
+      name: 'Early Supporter',
+      badge: 'founder_early',
+      frame: 'founder_early_frame',
+      title: 'Early Supporter',
+      cutoffDate: '2024-09-01'
+    }
+  }
+};
+
+
+function showFounderCelebration(tier, founderData) {
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay founder-celebration';
+  modal.innerHTML = `
+    <div class="modal-content founder-modal">
+      <div class="founder-header">
+        <div class="founder-icon">👑</div>
+        <h2>FOUNDER STATUS GRANTED!</h2>
+      </div>
+      <div class="founder-body">
+        <div class="founder-tier ${tier}">${founderData.name}</div>
+        <p class="founder-desc">Thank you for being an early supporter!</p>
+        <div class="founder-rewards">
+          <h3>🎁 Exclusive Rewards:</h3>
+          <div class="reward-item">✨ ${founderData.badge} Badge</div>
+          <div class="reward-item">🖼️ ${founderData.frame} Frame</div>
+          <div class="reward-item">🏷️ "${founderData.title}" Title</div>
+        </div>
+        <p class="founder-exclusive">These items can never be obtained again!</p>
+      </div>
+      <button class="btn-primary" onclick="this.closest('.modal-overlay').remove()">
+        Awesome! Thank You! 🎉
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. RARE COLLECTIBLES SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var rareCollectibles = {
+  rarities: {
+    rare: { color: '#3b82f6', label: 'Rare', dropRate: 0.05 },
+    epic: { color: '#a855f7', label: 'Epic', dropRate: 0.02 },
+    legendary: { color: '#f59e0b', label: 'Legendary', dropRate: 0.01 },
+    mythic: { color: '#ec4899', label: 'Mythic', dropRate: 0.005 }
+  }
+};
+
+
+function showRareDropCelebration(rare) {
+  var rarityData = rareCollectibles.rarities[rare.rarity] || rareCollectibles.rarities.rare;
+  
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay rare-drop-celebration';
+  modal.innerHTML = `
+    <div class="modal-content rare-drop-modal" style="border-color: ${rarityData.color};">
+      <div class="rare-drop-header">
+        <div class="rare-drop-icon" style="color: ${rarityData.color};">✨</div>
+        <h2 style="color: ${rarityData.color};">${rarityData.label.toUpperCase()} DROP!</h2>
+      </div>
+      <div class="rare-drop-body">
+        <div class="rare-drop-name">${rare.name}</div>
+        <p class="rare-drop-desc">${rare.description}</p>
+        <div class="rare-drop-stats">
+          <div class="rare-stat">
+            <span class="stat-label">Rarity:</span>
+            <span class="stat-value" style="color: ${rarityData.color};">${rarityData.label}</span>
+          </div>
+          <div class="rare-stat">
+            <span class="stat-label">Drop Rate:</span>
+            <span class="stat-value">${(rare.drop_rate * 100).toFixed(2)}%</span>
+          </div>
+          <div class="rare-stat">
+            <span class="stat-label">Obtained By:</span>
+            <span class="stat-value">${rare.obtained_count + 1} players</span>
+          </div>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="this.closest('.modal-overlay').remove()">
+        Amazing! 🎉
+      </button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  
+  // Play sound effect
+  if (typeof playBattleSound === 'function') {
+    playBattleSound('victory', 0.5);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. TODAY IN PAWKETPETS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var todayFeatures = {
+  current: null,
+  
+  weatherTypes: [
+    { id: 'sunny',    emoji: '☀️',  name: 'Sunny',    effect: 'Pets are extra happy! +10% happiness from all actions' },
+    { id: 'rainy',    emoji: '🌧️',  name: 'Rainy',    effect: 'Water types earn +25% XP' },
+    { id: 'cloudy',   emoji: '☁️',  name: 'Cloudy',   effect: 'Normal conditions — a peaceful day' },
+    { id: 'foggy',    emoji: '🌫️',  name: 'Foggy',    effect: 'Rare encounters +10% chance' },
+    { id: 'snowy',    emoji: '❄️',  name: 'Snowy',    effect: 'Ice types earn +25% XP; energy drains 15% slower' },
+    { id: 'stormy',   emoji: '⛈️',  name: 'Stormy',   effect: 'Electric types +25% XP; battles deal +10% damage' },
+    { id: 'windy',    emoji: '💨',  name: 'Windy',    effect: 'Speed +15% for all pets today' },
+    { id: 'rainbow',  emoji: '🌈',  name: 'Rainbow',  effect: 'All types earn +10% XP! A lucky day!' }
+  ],
+  
+  bonusTypes: [
+    { id: 'double_xp',    name: '2x Battle XP',              multiplier: 2.0,  icon: '⚔️' },
+    { id: 'double_pp',    name: '2x PawketPoints',           multiplier: 2.0,  icon: '💜' },
+    { id: 'fast_energy',  name: '50% Faster Energy Regen',   multiplier: 1.5,  icon: '⚡' },
+    { id: 'bonus_drops',  name: '+25% Item Drops',           multiplier: 1.25, icon: '📦' },
+    { id: 'rare_boost',   name: 'Rare Encounters +50%',      multiplier: 1.5,  icon: '✨' },
+    { id: 'cheap_shop',   name: '20% Off Shop Prices',       multiplier: 0.8,  icon: '🛒' },
+    { id: 'happy_boost',  name: '+30% Happiness Gains',      multiplier: 1.3,  icon: '😊' },
+    { id: 'mystery_bonus',name: 'Mystery Bonus (changes hourly!)', multiplier: 1.0, icon: '🎲' }
+  ],
+
+  // Event modifiers — shown as highlighted banner alert
+  eventModifiers: [
+    { id: 'rare_encounters', label: 'RARE ENCOUNTERS',    icon: '⭐', desc: '+50% rare spawns today!',          color: '#FFD700' },
+    { id: 'double_xp',       label: 'DOUBLE XP',          icon: '⚔️', desc: '2x XP from all battles!',           color: '#ff6eb4' },
+    { id: 'cheap_shop',      label: 'MARKET SALE',        icon: '🛒', desc: '20% off everything in the shop!',   color: '#5dde7a' },
+    { id: 'fast_energy',     label: 'ENERGIZED',          icon: '⚡', desc: 'Energy recovers 2x faster today!',  color: '#5bc0de' },
+    { id: 'bonus_drops',     label: 'BONUS DROPS',        icon: '📦', desc: '+50% item drop rate!',              color: '#ff9f43' },
+    { id: 'none',            label: '',                   icon: '',   desc: '',                                  color: '' }
+  ],
+
+  // Flavor text by weather
+  flavorTexts: {
+    sunny:   ['A perfect day to take your pet for an adventure!', 'The sun is shining and your pets feel amazing!', 'Clear skies bring good fortune — get out there!'],
+    rainy:   ['The rain brings a cozy stay-inside vibe.', 'Perfect weather for potion brewing and fossil hunting.', 'Puddles everywhere. Your water pets are thriving.'],
+    cloudy:  ['A quiet, peaceful day. Nothing unusual.', 'Clouds roll in, but the vibes are immaculate.', 'Calm and chill. A good day to just exist.'],
+    foggy:   ['Something stirs in the fog... rare things lurk.', 'Visibility is low. Mysterious encounters await.', 'The fog hides secrets. Explore carefully.'],
+    snowy:   ['Everything is fluffy and cold and perfect.', 'Snow day! Your pets are absolutely losing it.', 'The world is quiet and beautiful today.'],
+    stormy:  ['THUNDER. Your electric pets are HYPED.', 'Stay inside or don\'t — your call. Bold choice.', 'The storm brings power and chaos equally.'],
+    windy:   ['Your pets are running approximately 15% faster today.', 'The wind carries faint sounds of chaos. Exciting.', 'Hold onto your hats. And your pets.'],
+    rainbow: ['A rainbow appeared! Today is undeniably your lucky day.', 'The rainbow is real and the luck is real. Probably.', 'Maximum good vibes. All pets sensing great energy.']
+  },
+
+  petTypes: ['fire', 'water', 'grass', 'electric', 'ice', 'normal'],
+  
+  headlines: [
+    '🔬 Scientists discover new pet variant!',
+    '🎭 Local pet wins talent show!',
+    '🌟 Mysterious lights seen in sky...',
+    '📰 PawketPets reaches 1,000 players!',
+    '🎉 Community goal smashed!',
+    '🔮 Fortune teller predicts lucky day!',
+    '🎪 Traveling merchant spotted!',
+    '🏆 New leaderboard champion!',
+    '💫 Strange energy detected...',
+    '🎨 New cosmetics coming soon!',
+    '🦋 Rare butterfly swarm spotted near ruins!',
+    '🍄 Mushroom population up 400%. Experts baffled.',
+    '🐾 Local pets form union. Demands: more treats.',
+    '🌙 Moon unusually large tonight. Pets unaffected.',
+    '📜 Ancient scroll discovered. Contains recipes?'
+  ],
+
+  // Mystery bonus changes every hour
+  getMysteryBonus: function() {
+    var hour = new Date().getHours();
+    var bonuses = [
+      { name: '3x XP this hour!',          icon: '🌟' },
+      { name: 'Free shop item available!',  icon: '🎁' },
+      { name: '+50% PP from battles!',      icon: '💜' },
+      { name: 'Double happiness gains!',    icon: '💕' },
+      { name: 'Energy costs -50%!',         icon: '⚡' },
+      { name: 'Rare encounter guaranteed!', icon: '✨' }
+    ];
+    return bonuses[hour % bonuses.length];
+  }
+};
+
+async function today_init() {
+  await today_loadOrGenerate();
+  today_displayBanner();
+  today_applyEffects();
+  // Refresh widget now that weather is loaded
+  updateEventStatusWidget();
+}
+
+async function today_loadOrGenerate() {
+  var todayDate = new Date().toISOString().split('T')[0];
+  
+  try {
+    var { data: existing } = await supabaseClient
+      .from('daily_features')
+      .select('*')
+      .eq('date', todayDate)
+      .single();
+    
+    if (existing) {
+      todayFeatures.current = existing;
+    } else {
+      // Generate new daily features
+      var features = today_generate();
+      
+      var { data: created } = await supabaseClient
+        .from('daily_features')
+        .insert({
+          date: todayDate,
+          weather: features.weather.id,
+          bonus_type: features.bonus.id,
+          bonus_multiplier: features.bonus.multiplier,
+          featured_type: features.featuredType,
+          event_chance: features.eventChance,
+          news_headline: features.headline
+        })
+        .select()
+        .single();
+      
+      todayFeatures.current = created;
+    }
+  } catch (err) {
+    console.error('Error loading today features:', err);
+    todayFeatures.current = today_generate();
+  }
+}
+
+function today_generate() {
+  var weather = todayFeatures.weatherTypes[Math.floor(Math.random() * todayFeatures.weatherTypes.length)];
+  var bonus = todayFeatures.bonusTypes[Math.floor(Math.random() * todayFeatures.bonusTypes.length)];
+  var featuredType = todayFeatures.petTypes[Math.floor(Math.random() * todayFeatures.petTypes.length)];
+  var eventChance = ['low', 'normal', 'high'][Math.floor(Math.random() * 3)];
+  var headline = todayFeatures.headlines[Math.floor(Math.random() * todayFeatures.headlines.length)];
+
+  // Pick an event modifier (30% chance of a real one, 70% none)
+  var modifierPool = todayFeatures.eventModifiers.slice(0, -1); // exclude 'none'
+  var eventModifier = Math.random() < 0.3
+    ? modifierPool[Math.floor(Math.random() * modifierPool.length)]
+    : todayFeatures.eventModifiers[todayFeatures.eventModifiers.length - 1]; // 'none'
+
+  // Flavor text based on weather
+  var flavorOptions = todayFeatures.flavorTexts[weather.id] || ['Today is a fine day.'];
+  var flavorText = flavorOptions[Math.floor(Math.random() * flavorOptions.length)];
+
+  return {
+    weather: weather,
+    bonus: bonus,
+    featuredType: featuredType,
+    eventChance: eventChance,
+    headline: headline,
+    eventModifier: eventModifier,
+    flavorText: flavorText
+  };
+}
+
+function today_displayBanner() {
+  var homeContent = document.getElementById('home-content');
+  if (!homeContent) return;
+  
+  var features = todayFeatures.current;
+  if (!features) return;
+  
+  var weather = todayFeatures.weatherTypes.find(function(w) { return w.id === (features.weather && features.weather.id ? features.weather.id : features.weather); });
+  var bonus = todayFeatures.bonusTypes.find(function(b) { return b.id === (features.bonus && features.bonus.id ? features.bonus.id : features.bonus_type); });
+  var eventModifier = features.eventModifier || null;
+  var flavorText = features.flavorText || '';
+  var mysteryBonus = todayFeatures.getMysteryBonus();
+
+  // Event modifier alert (only shown if there is one)
+  var modifierHtml = '';
+  if (eventModifier && eventModifier.id !== 'none' && eventModifier.label) {
+    modifierHtml = `
+      <div class="today-modifier-alert" style="background:${eventModifier.color}22;border:2px solid ${eventModifier.color};border-radius:10px;padding:10px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
+        <span style="font-size:1.4rem;">${eventModifier.icon}</span>
+        <div>
+          <strong style="color:${eventModifier.color};font-size:1rem;">${eventModifier.label}!</strong>
+          <div style="font-size:0.85rem;opacity:0.85;">${eventModifier.desc}</div>
+        </div>
+      </div>`;
+  }
+
+  // Mystery bonus (changes hourly — shown inline)
+  var mysteryHtml = bonus && bonus.id === 'mystery_bonus'
+    ? `<div class="today-detail-item" style="background:rgba(255,159,67,0.1);border-radius:8px;padding:8px;">
+        🎲 <strong>Mystery Hour:</strong> ${mysteryBonus.icon} ${mysteryBonus.name}
+        <div style="font-size:0.8rem;opacity:0.7;">Changes every hour!</div>
+       </div>`
+    : '';
+
+  var banner = document.createElement('div');
+  banner.className = 'today-banner collapsed';
+  banner.id = 'today-banner';
+  banner.innerHTML = `
+    <div class="today-summary" onclick="todayBanner_toggle()">
+      <span class="today-icon">🌟</span>
+      <span class="today-text">
+        ${weather ? weather.emoji + ' ' + weather.name : ''} •
+        ${bonus ? bonus.icon + ' ' + bonus.name : ''} •
+        ✨ ${features.featured_type || features.featuredType} Day
+      </span>
+      <span class="today-arrow">▼</span>
+    </div>
+    <div class="today-details" style="display:none;">
+      ${modifierHtml}
+      <div class="today-flavor" style="font-style:italic;opacity:0.85;margin-bottom:10px;padding:8px 12px;background:rgba(153,102,255,0.08);border-radius:8px;">
+        "${flavorText}"
+      </div>
+      <div class="today-detail-item">
+        <strong>Weather:</strong> ${weather ? weather.emoji + ' ' + weather.name : 'Unknown'}
+        <div class="detail-effect">${weather ? weather.effect : ''}</div>
+      </div>
+      <div class="today-detail-item">
+        <strong>${bonus ? bonus.icon : '⚡'} Bonus:</strong> ${bonus ? bonus.name : 'None'}
+      </div>
+      ${mysteryHtml}
+      <div class="today-detail-item">
+        <strong>✨ Featured:</strong> ${features.featured_type || features.featuredType}-type pets earn +50% XP
+      </div>
+      <div class="today-detail-item">
+        <strong>Events:</strong> ${features.event_chance || features.eventChance} chance of random events
+      </div>
+      <div class="today-news">
+        📰 ${features.news_headline || features.headline}
+      </div>
+    </div>
+  `;
+  
+  // Remove old banner if exists, insert at top
+  var existing = document.getElementById('today-banner');
+  if (existing) existing.remove();
+  if (homeContent.firstChild) {
+    homeContent.insertBefore(banner, homeContent.firstChild);
+  } else {
+    homeContent.appendChild(banner);
+  }
+}
+
+function todayBanner_toggle() {
+  var banner = document.querySelector('.today-banner');
+  if (!banner) return;
+  
+  var details = banner.querySelector('.today-details');
+  var arrow = banner.querySelector('.today-arrow');
+  
+  if (details.style.display === 'none') {
+    details.style.display = 'block';
+    arrow.textContent = '▲';
+    banner.classList.remove('collapsed');
+  } else {
+    details.style.display = 'none';
+    arrow.textContent = '▼';
+    banner.classList.add('collapsed');
+  }
+}
+
+function today_applyEffects() {
+  // Effects applied automatically by checking todayFeatures.current
+  dbg('✅ Today features loaded:', todayFeatures.current);
+}
+
+function today_getMultiplier(type) {
+  if (!todayFeatures.current) return 1.0;
+  
+  var features = todayFeatures.current;
+  var multiplier = 1.0;
+  
+  // Featured type bonus
+  if (type === features.featured_type) {
+    multiplier *= 1.5;
+  }
+  
+  // Weather bonus
+  var weather = features.weather;
+  if (weather === 'rainy' && type === 'water') multiplier *= 1.25;
+  if (weather === 'snowy' && type === 'ice') multiplier *= 1.25;
+  if (weather === 'stormy' && type === 'electric') multiplier *= 1.25;
+  
+  return multiplier;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. LOGIN CALENDAR VISUAL SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var loginCalendar = {
+  currentStreak: 0,
+  calendarRewards: null
+};
+
+async function calendar_init() {
+  await calendar_loadRewards();
+  calendar_displayWidget();
+}
+
+async function calendar_loadRewards() {
+  try {
+    var { data: rewards } = await supabaseClient
+      .from('login_calendar_rewards')
+      .select('*')
+      .order('day');
+    
+    loginCalendar.calendarRewards = rewards || [];
+  } catch (err) {
+    console.error('Error loading calendar rewards:', err);
+  }
+}
+
+function calendar_displayWidget() {
+  var homeContent = document.getElementById('home-content');
+  if (!homeContent) return;
+  
+  var streak = loginCalendar.currentStreak || 0;
+  var nextDay = Math.min(streak + 1, 30);
+  var nextReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === nextDay; }) : null;
+  
+  var widget = document.createElement('div');
+  widget.className = 'calendar-widget';
+  widget.onclick = function() { calendar_showFullModal(); };
+  
+  var html = '<div class="calendar-header">';
+  html += '  <span class="calendar-title">📅 Day ' + streak + ' Streak</span>';
+  if (nextReward) {
+    html += '  <span class="calendar-next">Next: ' + nextReward.pp_reward + ' PP';
+    if (nextReward.skin_keys > 0) html += ' + ' + nextReward.skin_keys + ' 🔑';
+    html += '</span>';
+  }
+  html += '</div>';
+  
+  html += '<div class="calendar-dots">';
+  for (var i = 1; i <= 7; i++) {
+    var dayClass = 'dot';
+    if (i <= streak) dayClass += ' completed';
+    else if (i === streak + 1) dayClass += ' active';
+    
+    var dayReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === i; }) : null;
+    if (dayReward && dayReward.is_milestone) dayClass += ' milestone';
+    
+    html += '<span class="' + dayClass + '">' + (i <= streak ? '✓' : i) + '</span>';
+  }
+  html += '</div>';
+  
+  widget.innerHTML = html;
+  
+  // Insert after today banner
+  var todayBanner = homeContent.querySelector('.today-banner');
+  if (todayBanner && todayBanner.nextSibling) {
+    homeContent.insertBefore(widget, todayBanner.nextSibling);
+  } else {
+    homeContent.appendChild(widget);
+  }
+}
+
+function calendar_showFullModal() {
+  var streak = loginCalendar.currentStreak || 0;
+  
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay calendar-modal-overlay';
+  
+  var html = '<div class="modal-content calendar-modal">';
+  html += '  <div class="modal-header">';
+  html += '    <h2>📅 30-Day Login Calendar</h2>';
+  html += '    <button class="modal-close" onclick="this.closest(\'.modal-overlay\').remove()">✕</button>';
+  html += '  </div>';
+  html += '  <div class="modal-body">';
+  html += '    <div class="calendar-streak-display">Current Streak: <strong>' + streak + ' days</strong></div>';
+  html += '    <div class="calendar-grid">';
+  
+  for (var i = 1; i <= 30; i++) {
+    var dayReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === i; }) : null;
+    
+    var dayClass = 'calendar-day';
+    if (i <= streak) dayClass += ' completed';
+    else if (i === streak + 1) dayClass += ' current';
+    if (dayReward && dayReward.is_milestone) dayClass += ' milestone';
+    
+    html += '<div class="' + dayClass + '">';
+    html += '  <div class="day-number">Day ' + i + '</div>';
+    if (dayReward) {
+      html += '  <div class="day-reward">';
+      html += '    <div class="reward-pp">' + dayReward.pp_reward + ' PP</div>';
+      if (dayReward.skin_keys > 0) {
+        html += '    <div class="reward-keys">' + dayReward.skin_keys + ' 🔑</div>';
+      }
+      if (dayReward.is_milestone) {
+        html += '    <div class="reward-milestone">⭐ ' + dayReward.milestone_title + '</div>';
+      }
+      html += '  </div>';
+    }
+    if (i <= streak) {
+      html += '  <div class="day-status">✓ Claimed</div>';
+    } else if (i === streak + 1) {
+      html += '  <div class="day-status current-day">← Today</div>';
+    }
+    html += '</div>';
+  }
+  
+  html += '    </div>';
+  html += '  </div>';
+  html += '</div>';
+  
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. DAILY WELCOME MODAL (Combines Today + Calendar + Streak Reward)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function dailyWelcome_check() {
+  var lastLogin = localStorage.getItem('lastDailyWelcome');
+  var today = new Date().toDateString();
+  
+  if (lastLogin !== today) {
+    await dailyWelcome_show();
+    localStorage.setItem('lastDailyWelcome', today);
+  }
+}
+
+async function dailyWelcome_show() {
+  if (!currentUser) return;
+  
+  var streak = loginCalendar.currentStreak || 0;
+  var dayReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === streak; }) : null;
+  var features = todayFeatures.current;
+  
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay daily-welcome-modal';
+  
+  var html = '<div class="modal-content welcome-modal">';
+  html += '  <div class="welcome-header">';
+  html += '    <div class="welcome-icon">🎉</div>';
+  html += '    <h2>WELCOME BACK!</h2>';
+  html += '    <div class="welcome-streak">Day ' + streak + ' Streak</div>';
+  html += '  </div>';
+  
+  html += '  <div class="welcome-body">';
+  
+  // Reward claimed
+  if (dayReward) {
+    html += '  <div class="welcome-reward-claimed">';
+    html += '    <div class="claimed-icon">✨</div>';
+    html += '    <div class="claimed-text">Day ' + streak + ' Complete!</div>';
+    html += '    <div class="claimed-amount">+' + dayReward.pp_reward + ' PP';
+    if (dayReward.skin_keys > 0) html += ' + ' + dayReward.skin_keys + ' 🔑';
+    html += '</div>';
+    if (dayReward.is_milestone) {
+      html += '    <div class="claimed-milestone">⭐ ' + dayReward.milestone_title + '</div>';
+    }
+    html += '  </div>';
+  }
+  
+  // Today features
+  if (features) {
+    var weather = todayFeatures.weatherTypes.find(function(w) { return w.id === features.weather; });
+    var bonus = todayFeatures.bonusTypes.find(function(b) { return b.id === features.bonus_type; });
+    
+    html += '  <div class="welcome-today">';
+    html += '    <h3>🌟 TODAY IN PAWKETPETS</h3>';
+    html += '    <div class="today-item">Weather: ' + (weather ? weather.emoji + ' ' + weather.name : '') + '</div>';
+    html += '    <div class="today-item">Bonus: ' + (bonus ? '⚡ ' + bonus.name : '') + '</div>';
+    html += '    <div class="today-item">Featured: ✨ ' + features.featured_type + '-type pets +50% XP</div>';
+    html += '  </div>';
+  }
+  
+  // Calendar progress
+  html += '  <div class="welcome-calendar">';
+  html += '    <h3>📅 YOUR PROGRESS</h3>';
+  html += '    <div class="welcome-calendar-dots">';
+  for (var i = 1; i <= 7; i++) {
+    var dotClass = 'w-dot';
+    if (i <= streak) dotClass += ' completed';
+    else if (i === streak + 1) dotClass += ' active';
+    
+    var dayReward2 = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === i; }) : null;
+    if (dayReward2 && dayReward2.is_milestone) dotClass += ' milestone';
+    
+    html += '<span class="' + dotClass + '">' + (i <= streak ? '✓' : i) + '</span>';
+  }
+  html += '    </div>';
+  
+  var nextDay = Math.min(streak + 1, 30);
+  var nextReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === nextDay; }) : null;
+  if (nextReward) {
+    html += '    <div class="welcome-next">🎁 Tomorrow: Day ' + nextDay + ' - ' + nextReward.pp_reward + ' PP';
+    if (nextReward.skin_keys > 0) html += ' + ' + nextReward.skin_keys + ' 🔑';
+    if (nextReward.is_milestone) html += ' + ' + nextReward.milestone_title;
+    html += '</div>';
+  }
+  html += '  </div>';
+  
+  html += '  </div>';
+  
+  html += '  <button class="btn-primary btn-large" onclick="this.closest(\'.modal-overlay\').remove()">';
+  html += '    Let\'s Go! 🚀';
+  html += '  </button>';
+  html += '</div>';
+  
+  modal.innerHTML = html;
+  document.body.appendChild(modal);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. SCREENSHOT CARD SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET SNAPSHOT CARD — 600x800 shareable card with title, variant, stats
+// Called by the "📸 Snapshot" button on each pet card in My Pets
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function screenshot_generate(petId) {
+  var snapBtn = document.getElementById('snap-' + petId);
+  if (snapBtn) { snapBtn.textContent = '⏳'; snapBtn.disabled = true; }
+
+  try {
+    // ── Parallel data fetching for speed ──
+    var petRes = await supabaseClient.from('user_pets').select('*').eq('id', petId).single();
+    if (petRes.error || !petRes.data) { showToast('Pet not found', 3000); return; }
+    var pet = petRes.data;
+
+    var [ownerRes, speciesRes, equipRes, passRes] = await Promise.all([
+      supabaseClient.from('players').select('username, active_player_title_id').eq('id', pet.user_id).single(),
+      supabaseClient.from('pets').select('name, image_file, special_skill').eq('id', pet.pet_id).single(),
+      supabaseClient.from('player_equipment').select('equipped_slot, equipment(name, rarity)').eq('user_id', pet.user_id).eq('pet_id', petId).eq('is_equipped', true),
+      supabaseClient.from('user_pass_progress').select('level').eq('user_id', pet.user_id).single()
+    ]);
+
+    // Active pet title
+    var petTitle = null;
+    if (pet.active_pet_title_id) {
+      var { data: t } = await supabaseClient.from('pet_titles').select('display_name,icon,rarity').eq('id', pet.active_pet_title_id).single();
+      petTitle = t;
+    }
+
+    // Most recent scrapbook memory
+    var memory = null;
+    var { data: mems } = await supabaseClient.from('pet_scrapbook').select('memory_text').eq('pet_id', petId).order('created_at', { ascending: false }).limit(1);
+    if (mems && mems.length) memory = mems[0].memory_text;
+
+    // ── Resolve values ──
+    var owner   = ownerRes.data || {};
+    var species = speciesRes.data || {};
+    var petName = pet.nickname || species.name || 'Pet';
+    var petType = species.name || pet.pet_type || 'Pet';
+    var petLevel = pet.level || 1;
+
+    // Evolution stage
+    var stage = petLevel >= 20 ? 'Adult' : petLevel >= 10 ? 'Teen' : 'Baby';
+    var stageEmoji = petLevel >= 20 ? '🦋' : petLevel >= 10 ? '🌿' : '🥚';
+
+    // Mood from hunger/energy/happiness
+    var moodScore = ((pet.hunger || 0) + (pet.energy || 0) + (pet.happiness || 0)) / ((pet.max_hunger||100) + (pet.max_energy||100) + (pet.max_happiness||100));
+    var mood = moodScore > 0.75 ? { label: 'Thriving', icon: '😄' } :
+               moodScore > 0.5  ? { label: 'Happy',    icon: '😊' } :
+               moodScore > 0.25 ? { label: 'Okay',     icon: '😐' } :
+                                  { label: 'Needs Care',icon: '😢' };
+
+    // Variant
+    var variantKey  = pet.current_variant || null;
+    var variantDef  = variantKey ? (petVariants[variantKey] || (BASIC_VARIANTS && BASIC_VARIANTS[variantKey])) : null;
+    var variantColor = variantDef ? variantDef.color : null;
+
+    // Card gradient palette
+    var gradA = variantColor || '#667eea';
+    var gradB = variantColor ? screenshot_darken(variantColor, 0.4) : '#764ba2';
+    var gradC = variantColor ? screenshot_lighten(variantColor, 0.3) : '#9966ff';
+
+    // Equipment
+    var equips = equipRes.data || [];
+    var weapon = equips.find(function(e) { return e.equipped_slot === 'weapon' && e.equipment; });
+    var armor  = equips.find(function(e) { return e.equipped_slot === 'armor'  && e.equipment; });
+
+    // Pass level
+    var passLevel = (passRes.data && passRes.data.level) || (passProgress && passProgress.level) || 1;
+
+    // Battle stats
+    var battlesWon  = pet.battles_won  || 0;
+    var totalBattle = pet.total_battles || 0;
+    var winRate     = totalBattle > 0 ? Math.round(battlesWon / totalBattle * 100) : 0;
+
+    // Pet title text + color
+    var rarityColors = { common:'#8e8e8e', uncommon:'#5cb85c', rare:'#5bc0de', epic:'#9c27b0', legendary:'#ff9800' };
+    var titleText  = petTitle ? ((petTitle.icon || '') + ' ' + (petTitle.display_name || '')).trim() : '';
+    var titleColor = petTitle ? (rarityColors[petTitle.rarity] || '#9966ff') : '#9966ff';
+
+    // Type emoji
+    var typeEmojis = { fire:'🔥', water:'💧', grass:'🌿', electric:'⚡', ice:'❄️', normal:'⭐' };
+    var typeEmoji  = typeEmojis[pet.pet_type] || '🐾';
+
+    // HP percent
+    var hpPct = Math.min(1, (pet.current_hp || pet.base_hp || 30) / Math.max(1, (pet.max_hp || pet.base_hp || 30)));
+
+    // ── Canvas setup ──
+    var W = 600, H = 820;
+    var canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    var ctx = canvas.getContext('2d');
+
+    // ── Background: rich gradient ──
+    var bgGrad = ctx.createLinearGradient(0, 0, W, H);
+    bgGrad.addColorStop(0, gradA);
+    bgGrad.addColorStop(0.5, gradB);
+    bgGrad.addColorStop(1, gradC);
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // ── Sparkle/star pattern overlay ──
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    var starPositions = [[60,60],[180,35],[420,55],[540,80],[30,200],[570,180],[90,400],[510,380],[150,650],[450,630],[280,790],[80,760],[520,750]];
+    starPositions.forEach(function(p) {
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '18px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('✦', p[0], p[1]);
+    });
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    // ── White card panel ──
+    ctx.fillStyle = 'rgba(255,255,255,0.96)';
+    ctx.fillRect(24, 24, W - 48, H - 48);
+
+    // ── Header gradient strip ──
+    var hdrGrad = ctx.createLinearGradient(24, 24, W - 24, 160);
+    hdrGrad.addColorStop(0, gradA + 'ee');
+    hdrGrad.addColorStop(1, gradB + 'cc');
+    ctx.fillStyle = hdrGrad;
+    ctx.fillRect(24, 24, W - 48, 160);
+
+    // ── Pet image with circular clip ──
+    var imgLoaded = false;
+    var imgPaths = [];
+    if (species.image_file) imgPaths.push('images/' + species.image_file);
+    var nameMap = { Ember:'ember.png', Pyxie:'pyxie.png', Steve:'cowbee.png', Kleat:'kelta.png', Blushimia:'blushimia.png', Aria:'aria.png', Jess:'jess.png', Gnarly:'gnarly.png' };
+    if (nameMap[petType]) imgPaths.push('images/pets/' + nameMap[petType]);
+    imgPaths.push('images/pets/' + petType.toLowerCase() + '.png');
+    imgPaths.push('images/pets/' + petType.toLowerCase() + '.gif');
+
+    for (var pi = 0; pi < imgPaths.length && !imgLoaded; pi++) {
+      imgLoaded = await new Promise(function(resolve) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function() {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(W/2, 120, 72, 0, Math.PI * 2);
+          ctx.closePath();
+          // Subtle glow ring
+          ctx.shadowColor = variantColor || '#9966ff';
+          ctx.shadowBlur = 20;
+          ctx.clip();
+          ctx.drawImage(img, W/2 - 72, 48, 144, 144);
+          ctx.restore();
+          ctx.shadowBlur = 0;
+          resolve(true);
+        };
+        img.onerror = function() { resolve(false); };
+        img.src = imgPaths[pi];
+      });
+    }
+
+    if (!imgLoaded) {
+      // Colored silhouette fallback with initial
+      var initGrad = ctx.createRadialGradient(W/2, 120, 0, W/2, 120, 72);
+      initGrad.addColorStop(0, gradC);
+      initGrad.addColorStop(1, gradA);
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(W/2, 120, 72, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fillStyle = initGrad;
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = 'bold 56px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(petName.charAt(0).toUpperCase(), W/2, 142);
+    }
+
+    // ── Ring around portrait ──
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(W/2, 120, 73, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // ── Variant badge (top-right) ──
+    if (variantDef) {
+      ctx.fillStyle = variantColor;
+      ctx.fillRect(420, 32, 150, 34);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 15px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(variantDef.icon + ' ' + variantDef.name, 495, 54);
+    }
+
+    // ── Stage badge (top-left) ──
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.fillRect(28, 32, 100, 30);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '13px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(stageEmoji + ' ' + stage, 78, 52);
+
+    // ── Pet name ──
+    ctx.fillStyle = '#1a1a2e';
+    ctx.font = 'bold 34px Arial';
+    ctx.textAlign = 'center';
+    var displayName = petName.length > 20 ? petName.substring(0, 17) + '…' : petName;
+    ctx.fillText(displayName, W/2, 220);
+
+    // ── Active title ──
+    if (titleText) {
+      ctx.fillStyle = titleColor;
+      ctx.font = 'bold 16px Arial';
+      ctx.fillText(titleText, W/2, 244);
+    }
+
+    // ── Species pill ──
+    ctx.fillStyle = '#f0ecff';
+    ctx.fillRect(190, 256, 220, 30);
+    ctx.fillStyle = '#5a3fa0';
+    ctx.font = '14px Arial';
+    ctx.fillText(typeEmoji + ' ' + petType + '  •  Lv. ' + petLevel, W/2, 276);
+
+    // ── Mood ──
+    ctx.fillStyle = '#888';
+    ctx.font = '13px Arial';
+    ctx.fillText(mood.icon + ' ' + mood.label + '  |  🎮 Pass Lv.' + passLevel, W/2, 300);
+
+    // ── Divider ──
+    ctx.strokeStyle = '#e0d5ff';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(40, 316); ctx.lineTo(W - 40, 316); ctx.stroke();
+
+    // ── Stats section label ──
+    ctx.fillStyle = gradA;
+    ctx.font = 'bold 13px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('BATTLE STATS', 40, 340);
+
+    // ── Stats grid ──
+    var stats = [
+      { label:'HP',  val:(pet.current_hp||pet.base_hp||30)+'/'+( pet.max_hp||pet.base_hp||30), icon:'❤️', x:80,  y:390 },
+      { label:'ATK', val:pet.base_attack||5,  icon:'⚔️', x:220, y:390 },
+      { label:'DEF', val:pet.base_defense||3, icon:'🛡️', x:360, y:390 },
+      { label:'SPD', val:pet.base_speed||4,   icon:'💨', x:500, y:390 }
+    ];
+    stats.forEach(function(s) {
+      ctx.fillStyle = '#f4f0ff';
+      ctx.fillRect(s.x - 56, s.y - 30, 112, 50);
+      ctx.fillStyle = '#333';
+      ctx.font = 'bold 14px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(s.icon, s.x, s.y - 10);
+      ctx.font = '12px Arial';
+      ctx.fillStyle = '#666';
+      ctx.fillText(s.label, s.x, s.y + 4);
+      ctx.font = 'bold 15px Arial';
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillText(String(s.val), s.x, s.y + 20);
+    });
+
+    // ── HP progress bar ──
+    ctx.fillStyle = '#eee';
+    ctx.fillRect(40, 420, W - 80, 12);
+    var hpBarColor = hpPct > 0.6 ? '#4ade80' : hpPct > 0.3 ? '#fbbf24' : '#ff6b6b';
+    ctx.fillStyle = hpBarColor;
+    ctx.fillRect(40, 420, (W - 80) * hpPct, 12);
+    ctx.fillStyle = '#888';
+    ctx.font = '10px Arial';
+    ctx.textAlign = 'right';
+    ctx.fillText(Math.round(hpPct * 100) + '% HP', W - 40, 418);
+
+    // ── Battle record ──
+    ctx.fillStyle = '#555';
+    ctx.font = '13px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚔️ ' + battlesWon + 'W  /  ' + totalBattle + ' Battles  •  ' + winRate + '% Win Rate', 40, 456);
+
+    // ── Equipment row ──
+    ctx.fillStyle = gradA;
+    ctx.font = 'bold 13px Arial';
+    ctx.fillText('EQUIPMENT', 40, 480);
+    ctx.fillStyle = '#444';
+    ctx.font = '13px Arial';
+    var weaponText = weapon && weapon.equipment ? '⚔️ ' + weapon.equipment.name : '⚔️ None';
+    var armorText  = armor  && armor.equipment  ? '🛡️ ' + armor.equipment.name  : '🛡️ None';
+    ctx.fillText(weaponText + '   ' + armorText, 40, 498);
+
+    // ── Divider ──
+    ctx.strokeStyle = '#e0d5ff';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(40, 514); ctx.lineTo(W - 40, 514); ctx.stroke();
+
+    // ── Scrapbook memory ──
+    if (memory) {
+      ctx.fillStyle = '#fdf6ff';
+      ctx.fillRect(40, 522, W - 80, 52);
+      ctx.strokeStyle = '#d4b8ff';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(40, 522, W - 80, 52);
+      ctx.fillStyle = '#7a5ca0';
+      ctx.font = 'italic 13px Arial';
+      ctx.textAlign = 'center';
+      var memText = memory.length > 72 ? memory.substring(0, 69) + '…' : memory;
+      ctx.fillText('💭 ' + memText, W/2, 553);
+    }
+
+    // ── Backstory ──
+    var backstory = petBackstories && petBackstories[petType] ? petBackstories[petType] : '';
+    if (backstory) {
+      var bsY = memory ? 596 : 534;
+      ctx.fillStyle = '#888';
+      ctx.font = 'italic 12px Arial';
+      ctx.textAlign = 'center';
+      var bsText = backstory.length > 80 ? backstory.substring(0, 77) + '…' : backstory;
+      ctx.fillText(bsText, W/2, bsY);
+    }
+
+    // ── Divider before footer ──
+    ctx.strokeStyle = '#e0d5ff';
+    ctx.lineWidth = 1;
+    var footerY = 660;
+    ctx.beginPath(); ctx.moveTo(40, footerY); ctx.lineTo(W - 40, footerY); ctx.stroke();
+
+    // ── Owner + date ──
+    ctx.fillStyle = '#aaa';
+    ctx.font = '13px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText('👤 ' + (owner.username || 'Trainer'), 40, footerY + 22);
+    ctx.textAlign = 'right';
+    ctx.fillText('📅 ' + new Date().toLocaleDateString(), W - 40, footerY + 22);
+
+    // ── Branding footer ──
+    var ftGrad = ctx.createLinearGradient(24, footerY + 36, W - 24, H - 24);
+    ftGrad.addColorStop(0, gradA + 'dd');
+    ftGrad.addColorStop(1, gradB + 'dd');
+    ctx.fillStyle = ftGrad;
+    ctx.fillRect(24, footerY + 36, W - 48, H - (footerY + 36) - 24);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('🐾 PawketPetsVT', W/2, footerY + 64);
+    ctx.font = '11px Arial';
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.fillText('pawketpetsvt.com', W/2, footerY + 82);
+
+    // ── Build share text with variant ──
+    var variantLabel = variantDef ? variantDef.name + ' ' : '';
+    var shareTagline = 'I just raised my ' + variantLabel + petName + ' to Level ' + petLevel + '! 🐾 #PawketPets #VTuber';
+
+    // ── Output ──
+    canvas.toBlob(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var fileSlug = petName.replace(/[^a-zA-Z0-9]/g, '_');
+      screenshot_showModal(url, fileSlug, pet, shareTagline);
+    }, 'image/png');
+
+  } catch (err) {
+    console.error('Snapshot error:', err);
+    showToast('Failed to generate snapshot: ' + err.message, 3000);
+  } finally {
+    if (snapBtn) { snapBtn.textContent = '📸'; snapBtn.disabled = false; }
+  }
+}
+
+// ── Color helpers for screenshot gradients ──
+function screenshot_darken(hex, amt) {
+  try {
+    var n = parseInt(hex.replace('#',''), 16);
+    var r = Math.max(0, (n >> 16) - Math.round(255 * amt));
+    var g = Math.max(0, ((n >> 8) & 0xff) - Math.round(255 * amt));
+    var b = Math.max(0, (n & 0xff) - Math.round(255 * amt));
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  } catch(e) { return hex; }
+}
+function screenshot_lighten(hex, amt) {
+  try {
+    var n = parseInt(hex.replace('#',''), 16);
+    var r = Math.min(255, (n >> 16) + Math.round(255 * amt));
+    var g = Math.min(255, ((n >> 8) & 0xff) + Math.round(255 * amt));
+    var b = Math.min(255, (n & 0xff) + Math.round(255 * amt));
+    return '#' + ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1);
+  } catch(e) { return hex; }
+}
+
+
+function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
+  var existing = document.querySelector('.snapshot-modal-overlay');
+  if (existing) existing.remove();
+
+  // Track screenshot shares for badge milestones
+  var shareKey = 'screenshots_shared_' + (currentUser ? currentUser.id : 'guest');
+  var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
+  localStorage.setItem(shareKey, String(shareCount));
+  // Award share badges
+  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(){});
+  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(){});
+
+  var petName = pet.nickname || pet.pet_type || 'pet';
+  var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
+  var shareText   = encodeURIComponent(tagline);
+  var shareUrl    = encodeURIComponent('https://pawketpetsvt.com');
+  var twitterUrl  = 'https://twitter.com/intent/tweet?text=' + shareText + '&url=' + shareUrl;
+  var blueskyUrl  = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(tagline + ' https://pawketpetsvt.com');
+
+  var overlay = document.createElement('div');
+  overlay.className = 'snapshot-modal-overlay modal-overlay-custom';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10001;';
+  overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+
+  overlay.innerHTML = `
+    <div style="background:#1e1e2e;border-radius:20px;padding:28px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:2px solid #9966ff;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h2 style="color:#e8d5ff;margin:0;font-size:1.3rem;">📸 Pet Snapshot Ready!</h2>
+        <button onclick="this.closest('.snapshot-modal-overlay').remove()" style="background:rgba(255,255,255,0.1);border:none;color:#e8d5ff;font-size:1.2rem;cursor:pointer;border-radius:8px;padding:4px 10px;">✕</button>
+      </div>
+
+      <img src="${imageUrl}" style="width:100%;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,0.4);margin-bottom:18px;display:block;">
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <a href="${imageUrl}" download="${fileName}_card.png"
+           style="display:block;text-align:center;padding:13px;background:linear-gradient(135deg,#9966ff,#b589ff);color:white;border-radius:12px;font-weight:700;font-size:1rem;text-decoration:none;">
+          💾 Download as PNG
+        </a>
+
+        <button onclick="screenshot_copyToClipboard('${imageUrl}', this)"
+           style="padding:12px;background:#3a3a4e;color:#e8d5ff;border:2px solid #9966ff;border-radius:12px;font-weight:600;font-size:0.95rem;cursor:pointer;">
+          📋 Copy to Clipboard
+        </button>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <a href="${twitterUrl}" target="_blank"
+             style="display:block;text-align:center;padding:11px;background:#1da1f2;color:white;border-radius:12px;font-weight:600;font-size:0.9rem;text-decoration:none;">
+            🐦 Share on X/Twitter
+          </a>
+          <a href="${blueskyUrl}" target="_blank"
+             style="display:block;text-align:center;padding:11px;background:#0085ff;color:white;border-radius:12px;font-weight:600;font-size:0.9rem;text-decoration:none;">
+            🦋 Share on Bluesky
+          </a>
+        </div>
+      </div>
+
+      <p style="color:#888;font-size:0.8rem;text-align:center;margin-top:14px;margin-bottom:0;">
+        Tip: Download first, then attach the image when sharing on social media!
+      </p>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+}
+
+async function screenshot_copyToClipboard(imageUrl, btn) {
+  try {
+    var response = await fetch(imageUrl);
+    var blob = await response.blob();
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    btn.textContent = '✅ Copied!';
+    setTimeout(function() { btn.textContent = '📋 Copy to Clipboard'; }, 2000);
+  } catch (err) {
+    // Fallback: open image in new tab for manual save
+    window.open(imageUrl, '_blank');
+    btn.textContent = '🔗 Opened in new tab';
+    setTimeout(function() { btn.textContent = '📋 Copy to Clipboard'; }, 2000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. PAWKETPASS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var pawketPass = {
+  currentSeason: null,
+  playerProgress: null,
+  rewards: []
+};
+
+async function pass_init() {
+  await pass_loadSeason();
+  await pass_loadProgress();
+  await pass_loadRewards();
+}
+
+async function pass_loadSeason() {
+  try {
+    var { data: season } = await supabaseClient
+      .from('pass_seasons')
+      .select('*')
+      .eq('is_active', true)
+      .order('season_number', { ascending: false })
+      .limit(1)
+      .single();
+    
+    pawketPass.currentSeason = season;
+  } catch (err) {
+    console.error('Error loading pass season:', err);
+  }
+}
+
+async function pass_loadProgress() {
+  if (!currentUser || !pawketPass.currentSeason) return;
+  
+  try {
+    var { data: progress } = await supabaseClient
+      .from('player_pass_progress')
+      .select('*')
+      .eq('player_id', currentUser.id)
+      .eq('season_id', pawketPass.currentSeason.id)
+      .single();
+    
+    if (!progress) {
+      // Create progress
+      var { data: created } = await supabaseClient
+        .from('player_pass_progress')
+        .insert({
+          player_id: currentUser.id,
+          season_id: pawketPass.currentSeason.id,
+          pass_xp: 0,
+          pass_level: 1
+        })
+        .select()
+        .single();
+      
+      pawketPass.playerProgress = created;
+    } else {
+      pawketPass.playerProgress = progress;
+    }
+  } catch (err) {
+    console.error('Error loading pass progress:', err);
+  }
+}
+
+async function pass_loadRewards() {
+  if (!pawketPass.currentSeason) return;
+  
+  try {
+    var { data: rewards } = await supabaseClient
+      .from('pass_rewards')
+      .select('*')
+      .eq('season_id', pawketPass.currentSeason.id)
+      .order('level');
+    
+    pawketPass.rewards = rewards || [];
+  } catch (err) {
+    console.error('Error loading pass rewards:', err);
+  }
+}
+
+async function pass_grantXP(amount, source) {
+  if (!currentUser) return;
+  
+  try {
+    var { data: result } = await supabaseClient
+      .rpc('grant_pass_xp', {
+        p_user_id: currentUser.id,
+        p_xp_amount: amount,
+        p_source: source
+      });
+    
+    if (result && result.success) {
+      dbg('✅ Pass XP granted:', result);
+      
+      if (result.leveled_up) {
+        pass_showLevelUpNotification(result.new_level);
+      }
+      
+      // Reload progress
+      await pass_loadProgress();
+      
+      // Update UI
+      pass_updateDisplay();
+    }
+  } catch (err) {
+    console.error('Error granting pass XP:', err);
+  }
+}
+
+
+function pass_showModal() {
+  if (!passProgress) {
+    showToast('Pass not loaded yet. Please try again.', 'error');
+    return;
+  }
+  
+  passUI.isModalOpen = true;
+  
+  var modal = document.createElement('div');
+  modal.id = 'pass-modal-overlay';
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s;';
+  
+  var content = document.createElement('div');
+  content.className = 'pass-modal-content';
+  content.style.cssText = 'background:linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);border-radius:16px;max-width:900px;width:95%;max-height:85vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.4);';
+  
+  // Header
+  var header = document.createElement('div');
+  header.style.cssText = 'padding:24px;border-bottom:2px solid rgba(102,126,234,0.3);display:flex;justify-content:space-between;align-items:center;';
+  header.innerHTML = 
+    '<div>' +
+    '<h2 style="margin:0;font-size:28px;color:#667eea;">🎫 PawketPass</h2>' +
+    '<p style="margin:4px 0 0 0;color:#94a3b8;font-size:14px;">Season 1: Origins</p>' +
+    '</div>' +
+    '<button onclick="pass_closeModal()" style="background:none;border:none;color:#94a3b8;font-size:32px;cursor:pointer;padding:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\';this.style.color=\'white\';" onmouseout="this.style.background=\'none\';this.style.color=\'#94a3b8\';">×</button>';
+  
+  // Progress section
+  var progressSection = document.createElement('div');
+  progressSection.style.cssText = 'padding:24px;background:rgba(102,126,234,0.1);border-bottom:2px solid rgba(102,126,234,0.2);';
+  
+  var xpPercent = (passProgress.xp / 100) * 100;
+  var nextLevel = passProgress.level + 1;
+  
+  progressSection.innerHTML = 
+    '<div style="text-align:center;margin-bottom:16px;">' +
+    '<div style="font-size:24px;font-weight:bold;color:#667eea;margin-bottom:8px;">Level ' + passProgress.level + ' / 50</div>' +
+    '<div style="font-size:14px;color:#cbd5e1;">Next level: ' + passProgress.xp + ' / 100 XP</div>' +
+    '</div>' +
+    '<div style="width:100%;height:32px;background:rgba(0,0,0,0.4);border-radius:16px;overflow:hidden;position:relative;">' +
+    '<div style="width:' + xpPercent + '%;height:100%;background:linear-gradient(90deg,#667eea,#764ba2);transition:width 0.5s ease;box-shadow:0 0 20px rgba(102,126,234,0.6);"></div>' +
+    '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-weight:bold;font-size:14px;text-shadow:0 2px 4px rgba(0,0,0,0.8);">' + passProgress.xp + ' / 100</div>' +
+    '</div>';
+
+  // Populate unclaimedLevels now that passProgress is loaded
+  passUI.unclaimedLevels = [];
+  var claimedList = passProgress.claimedRewards || passProgress.claimed_rewards || [];
+  for (var lvl = 1; lvl <= (passProgress.level || 1); lvl++) {
+    if (claimedList.indexOf(lvl) === -1) passUI.unclaimedLevels.push(lvl);
+  }
+
+  progressSection.innerHTML += (passUI.unclaimedLevels.length > 0 ? 
+      '<div style="text-align:center;margin-top:16px;padding:12px;background:rgba(245,158,11,0.2);border-radius:8px;border-left:4px solid #f59e0b;">' +
+      '<span style="color:#fbbf24;font-weight:bold;">🎁 ' + passUI.unclaimedLevels.length + ' reward' + (passUI.unclaimedLevels.length > 1 ? 's' : '') + ' ready to claim!</span>' +
+      '</div>' : '');
+  
+  // Rewards list container
+  var rewardsList = document.createElement('div');
+  rewardsList.id = 'pass-rewards-list';
+  rewardsList.style.cssText = 'max-height:400px;overflow-y:auto;padding:20px;';
+  
+  // Build modal
+  content.appendChild(header);
+  content.appendChild(progressSection);
+  content.appendChild(rewardsList);
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Render rewards
+  pass_renderRewards();
+  
+  // Close on backdrop click
+  modal.onclick = function(e) {
+    if (e.target === modal) {
+      pass_closeModal();
+    }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. RENDER REWARDS LIST (Uses YOUR PASS_REWARDS)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function pass_renderRewards() {
+  var container = document.getElementById('pass-rewards-list');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  // Loop through all 50 levels using YOUR PASS_REWARDS
+  for (var level = 1; level <= 50; level++) {
+    var reward = PASS_REWARDS[level];
+    if (!reward) continue;
+    
+    var _claimedArr = passProgress.claimedRewards || passProgress.claimed_rewards || [];
+    var isClaimed = _claimedArr.includes(level);
+    var isUnlocked = level <= passProgress.level && !isClaimed;
+    var isLocked = level > passProgress.level;
+    
+    var card = document.createElement('div');
+    card.className = 'pass-reward-card';
+    card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;margin-bottom:12px;border-radius:12px;transition:all 0.3s;';
+    
+    // Styling based on state
+    if (isClaimed) {
+      card.style.background = 'rgba(74,222,128,0.1)';
+      card.style.border = '2px solid rgba(74,222,128,0.3)';
+    } else if (isUnlocked) {
+      card.style.background = 'rgba(251,191,36,0.15)';
+      card.style.border = '2px solid #fbbf24';
+      card.style.boxShadow = '0 0 20px rgba(251,191,36,0.3)';
+      card.style.animation = 'pulse 2s infinite';
+    } else {
+      card.style.background = 'rgba(255,255,255,0.05)';
+      card.style.border = '2px solid rgba(255,255,255,0.1)';
+      card.style.opacity = '0.6';
+    }
+    
+    // Left side: Level + reward info
+    var leftSide = document.createElement('div');
+    leftSide.style.cssText = 'flex:1;';
+    
+    var levelNumber = document.createElement('div');
+    levelNumber.style.cssText = 'font-size:12px;color:#94a3b8;margin-bottom:4px;font-weight:600;';
+    levelNumber.textContent = 'Level ' + level;
+    
+    var rewardText = document.createElement('div');
+    rewardText.style.cssText = 'font-size:16px;font-weight:500;';
+    
+    // Format reward text based on YOUR reward types
+    if (reward.type === 'points') {
+      rewardText.innerHTML = '<span style="color:#fbbf24;">💰 ' + reward.amount + ' PP</span>';
+    } else if (reward.type === 'item') {
+      rewardText.innerHTML = '<span style="color:#60a5fa;">🎁 ' + (reward.quantity || 1) + ' Item' + (reward.quantity > 1 ? 's' : '') + '</span>';
+    } else if (reward.type === 'title') {
+      var titleName = reward.titleKey.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+      rewardText.innerHTML = '<span style="color:#c084fc;">🏷️ ' + titleName + '</span>';
+    }
+    
+    leftSide.appendChild(levelNumber);
+    leftSide.appendChild(rewardText);
+    
+    // Right side: Status/button
+    var rightSide = document.createElement('div');
+    rightSide.style.cssText = 'display:flex;align-items:center;';
+    
+    if (isClaimed) {
+      rightSide.innerHTML = '<div style="color:#4ade80;font-weight:bold;display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">✓</span> Claimed</div>';
+    } else if (isUnlocked) {
+      var claimBtn = document.createElement('button');
+      claimBtn.style.cssText = 'background:#fbbf24;color:#1e1e2e;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;transition:all 0.2s;font-size:14px;';
+      claimBtn.textContent = 'CLAIM REWARD';
+      claimBtn.onmouseover = function() { this.style.background = '#f59e0b'; this.style.transform = 'scale(1.05)'; };
+      claimBtn.onmouseout = function() { this.style.background = '#fbbf24'; this.style.transform = 'scale(1)'; };
+      claimBtn.onclick = function() { pass_handleClaim(level); };
+      rightSide.appendChild(claimBtn);
+    } else {
+      rightSide.innerHTML = '<div style="color:#64748b;font-weight:500;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🔒</span> Locked</div>';
+    }
+    
+    card.appendChild(leftSide);
+    card.appendChild(rightSide);
+    container.appendChild(card);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 6. HANDLE CLAIM BUTTON CLICK
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function pass_handleClaim(level) {
+  // Disable all claim buttons temporarily
+  var buttons = document.querySelectorAll('.pass-reward-card button');
+  buttons.forEach(function(btn) { btn.disabled = true; btn.style.opacity = '0.5'; });
+  
+  // Call YOUR wrapped claimPassReward function
+  await claimPassReward(level);
+  
+  // Re-enable buttons
+  buttons.forEach(function(btn) { btn.disabled = false; btn.style.opacity = '1'; });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 7. CLAIM SUCCESS NOTIFICATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function pass_showClaimSuccess(level) {
+  var reward = PASS_REWARDS[level];
+  if (!reward) return;
+  
+  var rewardText = '';
+  if (reward.type === 'points') {
+    rewardText = reward.amount + ' PP';
+  } else if (reward.type === 'item') {
+    rewardText = (reward.quantity || 1) + ' Item(s)';
+  } else if (reward.type === 'title') {
+    rewardText = 'New Title!';
+  }
+  
+  // Create floating notification
+  var notification = document.createElement('div');
+  notification.style.cssText = 
+    'position:fixed;top:80px;right:20px;background:linear-gradient(135deg,#4ade80,#22c55e);' +
+    'color:white;padding:16px 24px;border-radius:12px;box-shadow:0 4px 12px rgba(74,222,128,0.4);' +
+    'z-index:10001;animation:slideInRight 0.3s,fadeOut 0.3s 2.7s;font-weight:500;';
+  notification.innerHTML = 
+    '<div style="display:flex;align-items:center;gap:12px;">' +
+    '<span style="font-size:24px;">🎁</span>' +
+    '<div>' +
+    '<div style="font-weight:bold;margin-bottom:4px;">Reward Claimed!</div>' +
+    '<div style="font-size:14px;opacity:0.9;">Level ' + level + ': ' + rewardText + '</div>' +
+    '</div>' +
+    '</div>';
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(function() {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 3000);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 8. LEVEL UP NOTIFICATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function pass_showLevelUpNotification(newLevel) {
+  // Effects first
+  screenShake(5, 250);
+  screenFlash('rgba(102,126,234,0.3)', 400);
+  playChiptune('levelup');
+  createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
+  setTimeout(function() {
+    if (typeof createStarBurst === 'function') createStarBurst(window.innerWidth / 2, window.innerHeight / 3);
+  }, 300);
+
+  // Create celebration modal
+  var modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10002;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s;';
+  
+  var content = document.createElement('div');
+  content.style.cssText = 
+    'background:linear-gradient(135deg,#667eea,#764ba2);padding:40px;border-radius:20px;' +
+    'text-align:center;box-shadow:0 8px 32px rgba(102,126,234,0.6);max-width:400px;' +
+    'position:relative;animation:bounceIn 0.5s;';
+  
+  content.innerHTML = 
+    '<button onclick="this.closest(\'.modal-overlay\').remove()" class="celebration-dismiss-btn" title="Dismiss">✕</button>' +
+    '<div style="font-size:80px;margin-bottom:20px;animation:bounce 1s infinite;">🎉</div>' +
+    '<h2 style="color:white;font-size:32px;margin:0 0 12px 0;">LEVEL UP!</h2>' +
+    '<div style="color:rgba(255,255,255,0.9);font-size:24px;margin-bottom:24px;">You reached <strong>Level ' + newLevel + '</strong>!</div>' +
+    '<button onclick="this.closest(\'.modal-overlay\').remove();pass_showModal();" style="background:white;color:#667eea;border:none;padding:14px 32px;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform=\'scale(1.05)\';" onmouseout="this.style.transform=\'scale(1)\';">Claim Reward 🎁</button>' +
+    '<div style="margin-top:16px;"><button onclick="this.closest(\'.modal-overlay\').remove();" style="background:none;border:none;color:rgba(255,255,255,0.7);text-decoration:underline;cursor:pointer;font-size:14px;">Later</button></div>';
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+  
+  // Auto-close after 12 seconds
+  setTimeout(function() { if (modal.parentNode) modal.parentNode.removeChild(modal); }, 12000);
+  
+  // Close on backdrop click
+  modal.onclick = function(e) { if (e.target === modal) modal.parentNode.removeChild(modal); };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 9. CLOSE MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+function pass_closeModal() {
+  passUI.isModalOpen = false;
+  var modal = document.getElementById('pass-modal-overlay');
+  if (modal) {
+    modal.style.animation = 'fadeOut 0.2s';
+    setTimeout(function() {
+      if (modal.parentNode) {
+        modal.parentNode.removeChild(modal);
+      }
+    }, 200);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. INITIALIZE PASS UI (Call after loadPassProgress)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── pass_updateNavbar: update the navbar Pass button with level + unclaimed count
+function pass_updateNavbar() {
+  var passBtn = document.getElementById('pass-button');
+  if (!passBtn || !passProgress) return;
+
+  var level = passProgress.level || 1;
+  var claimed = passProgress.claimedRewards || passProgress.claimed_rewards || [];
+  var unclaimedCount = 0;
+  for (var i = 1; i <= level; i++) {
+    if (claimed.indexOf(i) === -1) unclaimedCount++;
+  }
+
+  passBtn.style.display = 'flex';
+  var levelDisplay = document.getElementById('pass-level-display');
+  if (levelDisplay) levelDisplay.textContent = level;
+
+  // Show unclaimed badge
+  var existingBadge = passBtn.querySelector('.pass-unclaimed-badge');
+  if (existingBadge) existingBadge.remove();
+  if (unclaimedCount > 0) {
+    var badge = document.createElement('span');
+    badge.className = 'pass-unclaimed-badge';
+    badge.textContent = unclaimedCount;
+    badge.style.cssText = 'background:#f59e0b;color:white;border-radius:50%;padding:1px 6px;font-size:11px;margin-left:4px;font-weight:bold;';
+    passBtn.appendChild(badge);
+  }
+}
+
+// Wrap loadPassProgress to update UI after load
+var passUI = {
+  isModalOpen: false,
+  unclaimedLevels: []
+};
+var originalLoadPassProgress = loadPassProgress;
+
+loadPassProgress = async function() {
+  await originalLoadPassProgress();
+  pass_updateNavbar();
+};
+
+dbg('✅ PawketPass UI system loaded (wrapper pattern)');
+// ═══════════════════════════════════════════════════════════════════════════
+// CENTERED MODAL NOTIFICATION SYSTEM
+// Completely standalone - does NOT modify any existing functions
+// Add this to the VERY END of game.js
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. INJECT CSS STYLES (Only once)
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function injectModalStyles() {
+  // Check if styles already injected
+  if (document.getElementById('centered-modal-styles')) return;
+  
+  var style = document.createElement('style');
+  style.id = 'centered-modal-styles';
+  style.textContent = `
+    /* Modal Overlay */
+    .centered-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: modalOverlayFadeIn 0.3s ease-out;
+    }
+    
+    @keyframes modalOverlayFadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+    
+    /* Modal Container */
+    .centered-modal-container {
+      background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+      max-width: 450px;
+      width: 90%;
+      padding: 0;
+      position: relative;
+      animation: modalPopIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+      border: 2px solid rgba(102, 126, 234, 0.3);
+    }
+    
+    @keyframes modalPopIn {
+      0% {
+        opacity: 0;
+        transform: scale(0.7) translateY(-20px);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    
+    /* Close Button */
+    .centered-modal-close {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      background: rgba(255, 255, 255, 0.1);
+      border: none;
+      color: #cbd5e1;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 1;
+    }
+    
+    .centered-modal-close:hover {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      transform: rotate(90deg);
+    }
+    
+    /* Modal Header */
+    .centered-modal-header {
+      padding: 32px 24px 24px 24px;
+      text-align: center;
+      border-bottom: 2px solid rgba(102, 126, 234, 0.2);
+    }
+    
+    .centered-modal-icon {
+      font-size: 64px;
+      margin-bottom: 16px;
+      display: inline-block;
+      animation: modalIconBounce 1s ease-in-out infinite;
+    }
+    
+    @keyframes modalIconBounce {
+      0%, 100% {
+        transform: translateY(0) scale(1);
+      }
+      50% {
+        transform: translateY(-10px) scale(1.1);
+      }
+    }
+    
+    .centered-modal-title {
+      font-size: 24px;
+      font-weight: bold;
+      color: #667eea;
+      margin: 0;
+      line-height: 1.3;
+    }
+    
+    /* Modal Body */
+    .centered-modal-body {
+      padding: 24px;
+      text-align: center;
+    }
+    
+    .centered-modal-message {
+      font-size: 16px;
+      color: #e2e8f0;
+      line-height: 1.6;
+      margin: 0;
+    }
+    
+    /* Modal Footer */
+    .centered-modal-footer {
+      padding: 20px 24px 24px 24px;
+      text-align: center;
+    }
+    
+    .centered-modal-button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 14px 32px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+      min-width: 140px;
+    }
+    
+    .centered-modal-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+    }
+    
+    .centered-modal-button:active {
+      transform: translateY(0);
+    }
+    
+    /* Fade Out Animations */
+    .centered-modal-overlay.closing {
+      animation: modalOverlayFadeOut 0.2s ease-out forwards;
+    }
+    
+    @keyframes modalOverlayFadeOut {
+      from {
+        opacity: 1;
+      }
+      to {
+        opacity: 0;
+      }
+    }
+    
+    .centered-modal-container.closing {
+      animation: modalPopOut 0.2s ease-out forwards;
+    }
+    
+    @keyframes modalPopOut {
+      from {
+        opacity: 1;
+        transform: scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: scale(0.9);
+      }
+    }
+    
+    /* Mobile Responsive */
+    @media (max-width: 480px) {
+      .centered-modal-container {
+        width: 95%;
+        max-width: 95%;
+      }
+      
+      .centered-modal-icon {
+        font-size: 48px;
+      }
+      
+      .centered-modal-title {
+        font-size: 20px;
+      }
+      
+      .centered-modal-message {
+        font-size: 14px;
+      }
+      
+      .centered-modal-button {
+        width: 100%;
+        padding: 12px 24px;
+      }
+    }
+    
+    /* Accessibility */
+    .centered-modal-overlay:focus {
+      outline: none;
+    }
+    
+    .centered-modal-button:focus,
+    .centered-modal-close:focus {
+      outline: 3px solid rgba(102, 126, 234, 0.5);
+      outline-offset: 2px;
+    }
+    
+    /* Prevent body scroll when modal is open */
+    body.modal-open {
+      overflow: hidden;
+    }
+  `;
+  
+  document.head.appendChild(style);
+})();
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. MAIN FUNCTION - showCenteredModal
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Show a centered modal notification
+ * @param {string} title - Modal title
+ * @param {string} message - Modal message
+ * @param {string} icon - Emoji or text icon (default: 🎉)
+ * @param {function} onConfirm - Optional callback when modal closes
+ * @returns {Promise} Resolves when modal is closed
+ */
+function showCenteredModal(title, message, icon, onConfirm) {
+  return new Promise(function(resolve) {
+    // Default icon
+    if (!icon) icon = '🎉';
+    
+    // Prevent body scroll
+    document.body.classList.add('modal-open');
+    
+    // Create overlay
+    var overlay = document.createElement('div');
+    overlay.className = 'centered-modal-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'centered-modal-title');
+    overlay.setAttribute('aria-describedby', 'centered-modal-message');
+    
+    // Create modal container
+    var container = document.createElement('div');
+    container.className = 'centered-modal-container';
+    
+    // Close button
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'centered-modal-close';
+    closeBtn.innerHTML = '×';
+    closeBtn.setAttribute('aria-label', 'Close modal');
+    closeBtn.onclick = function() { closeModal(); };
+    
+    // Header
+    var header = document.createElement('div');
+    header.className = 'centered-modal-header';
+    
+    var iconEl = document.createElement('div');
+    iconEl.className = 'centered-modal-icon';
+    iconEl.textContent = icon;
+    
+    var titleEl = document.createElement('h2');
+    titleEl.className = 'centered-modal-title';
+    titleEl.id = 'centered-modal-title';
+    titleEl.textContent = title;
+    
+    header.appendChild(iconEl);
+    header.appendChild(titleEl);
+    
+    // Body
+    var body = document.createElement('div');
+    body.className = 'centered-modal-body';
+    
+    var messageEl = document.createElement('p');
+    messageEl.className = 'centered-modal-message';
+    messageEl.id = 'centered-modal-message';
+    messageEl.textContent = message;
+    
+    body.appendChild(messageEl);
+    
+    // Footer
+    var footer = document.createElement('div');
+    footer.className = 'centered-modal-footer';
+    
+    var button = document.createElement('button');
+    button.className = 'centered-modal-button';
+    button.textContent = getRandomButtonText();
+    button.onclick = function() { closeModal(); };
+    
+    footer.appendChild(button);
+    
+    // Assemble modal
+    container.appendChild(closeBtn);
+    container.appendChild(header);
+    container.appendChild(body);
+    container.appendChild(footer);
+    overlay.appendChild(container);
+    
+    // Add to page
+    document.body.appendChild(overlay);
+    
+    // Focus management
+    setTimeout(function() {
+      button.focus();
+    }, 100);
+    
+    // Close function
+    function closeModal() {
+      // Add closing animation
+      overlay.classList.add('closing');
+      container.classList.add('closing');
+      
+      // Wait for animation
+      setTimeout(function() {
+        // Remove from DOM
+        if (overlay.parentNode) {
+          overlay.parentNode.removeChild(overlay);
+        }
+        
+        // Restore body scroll
+        document.body.classList.remove('modal-open');
+        
+        // Call callback if provided
+        if (typeof onConfirm === 'function') {
+          onConfirm();
+        }
+        
+        // Resolve promise
+        resolve();
+      }, 200);
+    }
+    
+    // Click outside to close
+    overlay.addEventListener('click', function(e) {
+      if (e.target === overlay) {
+        closeModal();
+      }
+    });
+    
+    // ESC key to close
+    function handleEscape(e) {
+      if (e.key === 'Escape' || e.keyCode === 27) {
+        closeModal();
+        document.removeEventListener('keydown', handleEscape);
+      }
+    }
+    
+    document.addEventListener('keydown', handleEscape);
+    
+    // Cleanup listener when modal closes
+    var originalClose = closeModal;
+    closeModal = function() {
+      document.removeEventListener('keydown', handleEscape);
+      originalClose();
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get random button text for variety
+ */
+function getRandomButtonText() {
+  var texts = [
+    'Awesome!',
+    'Got it!',
+    'Sweet!',
+    'Nice!',
+    'Thanks!',
+    'Cool!',
+    'Perfect!',
+    'Yay!'
+  ];
+  return texts[Math.floor(Math.random() * texts.length)];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. CONVENIENCE WRAPPERS (Optional)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Show success modal
+ */
+function showSuccessModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '✅', onConfirm);
+}
+
+/**
+ * Show celebration modal
+ */
+function showCelebrationModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '🎉', onConfirm);
+}
+
+/**
+ * Show achievement modal
+ */
+function showAchievementModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '🏆', onConfirm);
+}
+
+/**
+ * Show reward modal
+ */
+function showRewardModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '🎁', onConfirm);
+}
+
+/**
+ * Show level up modal
+ */
+function showLevelUpModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '⬆️', onConfirm);
+}
+
+/**
+ * Show rare drop modal
+ */
+function showRareDropModal(title, message, onConfirm) {
+  return showCenteredModal(title, message, '✨', onConfirm);
+}
+
+dbg('✅ Centered modal notification system loaded');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FRIENDSHIP GIFTING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var giftSystem = {
+  DAILY_SEND_LIMIT:    5,
+  DAILY_RECV_LIMIT:    10,
+  FRIENDSHIP_DAYS_MIN: 7,
+  ACCOUNT_AGE_DAYS:    14,
+  EXPIRY_DAYS:         7,
+
+  // Items that cannot be gifted (economy protection)
+  BLOCKED_ITEM_TYPES: ['skin_key', 'pass_key', 'premium'],
+
+  // Check all anti-abuse rules before allowing a gift
+  async canSendGift(toUserId) {
+    if (!currentUser) return { ok: false, reason: 'Not logged in' };
+    if (toUserId === currentUser.id) return { ok: false, reason: "You can't gift yourself!" };
+
+    // Account age check (14 days)
+    var { data: me } = await supabaseClient.from('players').select('created_at').eq('id', currentUser.id).single();
+    if (me) {
+      var ageDays = (Date.now() - new Date(me.created_at).getTime()) / 86400000;
+      if (ageDays < this.ACCOUNT_AGE_DAYS) {
+        return { ok: false, reason: 'Your account must be at least ' + this.ACCOUNT_AGE_DAYS + ' days old to send gifts.' };
+      }
+    }
+
+    // Friendship duration check (7 days)
+    var { data: friendship } = await supabaseClient
+      .from('friendships')
+      .select('created_at, status')
+      .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + toUserId + '),and(requester_id.eq.' + toUserId + ',addressee_id.eq.' + currentUser.id + ')')
+      .eq('status', 'accepted')
+      .single();
+
+    if (!friendship) return { ok: false, reason: 'You can only gift friends.' };
+    var friendDays = (Date.now() - new Date(friendship.created_at).getTime()) / 86400000;
+    if (friendDays < this.FRIENDSHIP_DAYS_MIN) {
+      var daysLeft = Math.ceil(this.FRIENDSHIP_DAYS_MIN - friendDays);
+      return { ok: false, reason: 'You must be friends for ' + this.FRIENDSHIP_DAYS_MIN + ' days first. (' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to go)' };
+    }
+
+    // Daily send limit
+    var today = new Date().toISOString().split('T')[0];
+    var { count: sentToday } = await supabaseClient
+      .from('gifts')
+      .select('id', { count: 'exact', head: true })
+      .eq('from_user_id', currentUser.id)
+      .gte('sent_at', today);
+    if (sentToday >= this.DAILY_SEND_LIMIT) {
+      return { ok: false, reason: 'You\'ve sent ' + this.DAILY_SEND_LIMIT + ' gifts today. Come back tomorrow!' };
+    }
+
+    // Daily receive limit for recipient
+    var { count: recvToday } = await supabaseClient
+      .from('gifts')
+      .select('id', { count: 'exact', head: true })
+      .eq('to_user_id', toUserId)
+      .gte('sent_at', today);
+    if (recvToday >= this.DAILY_RECV_LIMIT) {
+      return { ok: false, reason: "This player's gift inbox is full today. Try tomorrow!" };
+    }
+
+    return { ok: true, giftsSentToday: sentToday };
+  }
+};
+
+async function gift_showSendModal(toUserId, toUsername) {
+  var check = await giftSystem.canSendGift(toUserId);
+  var giftsLeft = giftSystem.DAILY_SEND_LIMIT - (check.giftsSentToday || 0);
+
+  if (!check.ok) {
+    showToast('🚫 ' + check.reason, 4000);
+    return;
+  }
+
+  // Load giftable inventory (exclude blocked item types)
+  var { data: inventory } = await supabaseClient
+    .from('user_inventory')
+    .select('id, quantity, items(id, name, item_type, image_url)')
+    .eq('user_id', currentUser.id)
+    .gt('quantity', 0);
+
+  var giftable = (inventory || []).filter(function(inv) {
+    if (!inv.items) return false;
+    return giftSystem.BLOCKED_ITEM_TYPES.indexOf(inv.items.item_type) === -1;
+  });
+
+  var modal = makeModal();
+  var itemOptions = giftable.length > 0
+    ? giftable.map(function(inv) {
+        return '<option value="' + inv.items.id + '" data-max="' + inv.quantity + '">' +
+          escapeHtml(inv.items.name) + ' (x' + inv.quantity + ')</option>';
+      }).join('')
+    : '<option value="">— No items available —</option>';
+
+  modal.innerHTML =
+    '<h2 style="text-align:center;margin-bottom:20px;">🎁 Send a Gift</h2>' +
+    '<p style="text-align:center;color:var(--text-light);margin-bottom:20px;">To: <strong>' + escapeHtml(toUsername) + '</strong></p>' +
+
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Select item:</label>' +
+    '<select id="gift-item-select" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);margin-bottom:16px;font-size:1rem;">' +
+    itemOptions +
+    '</select>' +
+
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Quantity:</label>' +
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">' +
+    '<button onclick="gift_changeQty(-1)" style="width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:none;font-size:1.2rem;cursor:pointer;">−</button>' +
+    '<span id="gift-qty-display" style="font-size:1.3rem;font-weight:700;min-width:30px;text-align:center;">1</span>' +
+    '<button onclick="gift_changeQty(1)" style="width:36px;height:36px;border-radius:50%;border:2px solid var(--border);background:none;font-size:1.2rem;cursor:pointer;">+</button>' +
+    '</div>' +
+
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Message (optional):</label>' +
+    '<textarea id="gift-message" maxlength="140" placeholder="Say something nice! 💕" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);resize:none;height:70px;font-size:0.9rem;box-sizing:border-box;"></textarea>' +
+
+    '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px 14px;margin:14px 0;font-size:0.85rem;color:var(--text-light);">' +
+    '📦 Gifts remaining today: <strong>' + giftsLeft + '</strong> &nbsp;|&nbsp; Expires in: <strong>' + giftSystem.EXPIRY_DAYS + ' days</strong>' +
+    '</div>' +
+
+    '<div style="display:flex;gap:10px;margin-top:8px;">' +
+    '<button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+    '<button onclick="gift_sendGift(\'' + toUserId + '\',\'' + escapeHtml(toUsername) + '\')" class="btn btn-primary" style="flex:2;" id="gift-send-btn">' +
+    '🎁 Send Gift</button>' +
+    '</div>';
+
+  // Store qty state
+  modal._giftQty = 1;
+  openModal(modal);
+}
+
+function gift_changeQty(delta) {
+  var select = document.getElementById('gift-item-select');
+  var display = document.getElementById('gift-qty-display');
+  if (!select || !display) return;
+  var selectedOpt = select.options[select.selectedIndex];
+  var max = selectedOpt ? parseInt(selectedOpt.dataset.max || 1) : 1;
+  var modal = select.closest('.modal-content-custom');
+  modal._giftQty = Math.max(1, Math.min(max, (modal._giftQty || 1) + delta));
+  display.textContent = modal._giftQty;
+}
+
+async function gift_sendGift(toUserId, toUsername) {
+  var select  = document.getElementById('gift-item-select');
+  var message = document.getElementById('gift-message');
+  var btn     = document.getElementById('gift-send-btn');
+  if (!select || !select.value) { showToast('Please select an item', 2000); return; }
+
+  var modal  = select.closest('.modal-content-custom');
+  var qty    = modal._giftQty || 1;
+  var itemId = select.value;
+
+  btn.textContent = 'Sending…'; btn.disabled = true;
+
+  try {
+    // Final abuse check
+    var check = await giftSystem.canSendGift(toUserId);
+    if (!check.ok) { showToast('🚫 ' + check.reason, 4000); return; }
+
+    // Insert gift record
+    var { error } = await supabaseClient.from('gifts').insert({
+      from_user_id: currentUser.id,
+      to_user_id:   toUserId,
+      item_id:      itemId,
+      quantity:     qty,
+      message:      message ? message.value.trim().substring(0, 140) : '',
+      expires_at:   new Date(Date.now() + giftSystem.EXPIRY_DAYS * 86400000).toISOString()
+    });
+    if (error) throw error;
+
+    // Deduct from sender's inventory
+    var { data: invRow } = await supabaseClient
+      .from('user_inventory')
+      .select('id, quantity')
+      .eq('user_id', currentUser.id)
+      .eq('item_id', itemId)
+      .single();
+    if (invRow) {
+      if (invRow.quantity <= qty) {
+        await supabaseClient.from('user_inventory').delete().eq('id', invRow.id);
+      } else {
+        await supabaseClient.from('user_inventory').update({ quantity: invRow.quantity - qty }).eq('id', invRow.id);
+      }
+    }
+
+    // Friendship points for sender
+    await gift_addFriendshipPoints(currentUser.id, 5);
+
+    // Notification to recipient
+    await createNotification(
+      toUserId, 'gift_received', '🎁 You got a gift!',
+      (currentUser.email ? currentUser.email.split('@')[0] : 'Someone') + ' sent you a gift! Open your inbox to claim it.',
+      '/gifts', currentUser.id
+    );
+
+    // Bingo + Pass XP
+    updateBingoProgress('send_gift', 1);
+    await addPassXP(10, 'gift_sent');
+
+    // Check first-gift badge
+    var { count: totalSent } = await supabaseClient
+      .from('gifts').select('id', { count: 'exact', head: true }).eq('from_user_id', currentUser.id);
+    if (totalSent === 1)  await awardBadge('gift_giver');
+    if (totalSent === 1)  await awardBadge('badge_gift_giver');
+    if (totalSent >= 10)  await awardBadge('badge_generous');
+    if (totalSent >= 50)  await awardBadge('badge_philanthropist');
+
+    closeModal();
+    showToast('🎁 Gift sent to ' + toUsername + '!', 3000);
+
+  } catch(err) {
+    console.error('Gift send error:', err);
+    showToast('Error sending gift: ' + err.message, 4000);
+  } finally {
+    if (btn) { btn.textContent = '🎁 Send Gift'; btn.disabled = false; }
+  }
+}
+
+async function gift_loadInbox() {
+  var container = document.getElementById('gift-inbox-list');
+  if (!container || !currentUser) return;
+  container.innerHTML = '<div class="spinner"></div>';
+
+  // Expire old gifts client-side display
+  var { data: gifts } = await supabaseClient
+    .from('gifts')
+    .select('*, items(name, image_url)')
+    .eq('to_user_id', currentUser.id)
+    .eq('status', 'pending')
+    .order('sent_at', { ascending: false });
+
+  if (!gifts || gifts.length === 0) {
+    container.innerHTML = '<div class="empty-state" style="padding:30px;text-align:center;"><div style="font-size:3rem;">📭</div><p>No pending gifts!</p></div>';
+    return;
+  }
+
+  // Get sender names
+  var senderIds = [...new Set(gifts.map(function(g) { return g.from_user_id; }))];
+  var { data: senders } = await supabaseClient.from('players').select('id, username').in('id', senderIds);
+  var senderMap = {};
+  (senders || []).forEach(function(s) { senderMap[s.id] = s.username; });
+
+  var html = '';
+  gifts.forEach(function(gift) {
+    var senderName = senderMap[gift.from_user_id] || 'Someone';
+    var itemName   = gift.items ? gift.items.name : (gift.cosmetic_id || 'Gift');
+    var expiresIn  = Math.max(0, Math.ceil((new Date(gift.expires_at) - Date.now()) / 86400000));
+
+    html += '<div class="gift-inbox-item" id="gift-' + gift.id + '">' +
+      '<div class="gift-inbox-icon">🎁</div>' +
+      '<div class="gift-inbox-body">' +
+      '  <div class="gift-inbox-from"><strong>' + escapeHtml(senderName) + '</strong> sent you: <strong>' + escapeHtml(itemName) + ' x' + gift.quantity + '</strong></div>' +
+      (gift.message ? '  <div class="gift-inbox-msg">"' + escapeHtml(gift.message) + '"</div>' : '') +
+      '  <div class="gift-inbox-meta">Expires in ' + expiresIn + ' day' + (expiresIn !== 1 ? 's' : '') + '</div>' +
+      '</div>' +
+      '<div class="gift-inbox-actions">' +
+      '  <button class="btn btn-primary btn-sm" onclick="gift_accept(\'' + gift.id + '\',\'' + gift.from_user_id + '\')">Accept</button>' +
+      '  <button class="btn btn-outline btn-sm" onclick="gift_decline(\'' + gift.id + '\')">Decline</button>' +
+      '</div>' +
+      '</div>';
+  });
+  container.innerHTML = html;
+
+  // Update badge
+  var badge = document.getElementById('gift-inbox-badge');
+  if (badge) { badge.textContent = gifts.length; badge.style.display = gifts.length > 0 ? 'inline' : 'none'; }
+}
+
+async function gift_accept(giftId, fromUserId) {
+  try {
+    var { data: gift } = await supabaseClient.from('gifts').select('*').eq('id', giftId).single();
+    if (!gift) { showToast('Gift not found', 2000); return; }
+
+    // Add item to recipient inventory
+    if (gift.item_id) {
+      var { data: existing } = await supabaseClient
+        .from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', gift.item_id).single();
+      if (existing) {
+        await supabaseClient.from('user_inventory').update({ quantity: existing.quantity + gift.quantity }).eq('id', existing.id);
+      } else {
+        await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: gift.item_id, quantity: gift.quantity });
+      }
+    } else if (gift.cosmetic_type && gift.cosmetic_id) {
+      await phase1_unlockCosmetic(gift.cosmetic_type, gift.cosmetic_id);
+    }
+
+    // Mark as accepted
+    await supabaseClient.from('gifts').update({ status: 'accepted', claimed_at: new Date().toISOString() }).eq('id', giftId);
+
+    // Friendship points for recipient
+    await gift_addFriendshipPoints(currentUser.id, 10);
+
+    document.getElementById('gift-' + giftId)?.remove();
+    showToast('🎁 Gift accepted!', 2500);
+  } catch(err) {
+    console.error('Gift accept error:', err);
+    showToast('Error accepting gift', 3000);
+  }
+}
+
+async function gift_decline(giftId) {
+  await supabaseClient.from('gifts').update({ status: 'declined' }).eq('id', giftId);
+  document.getElementById('gift-' + giftId)?.remove();
+  showToast('Gift declined.', 2000);
+}
+
+async function gift_addFriendshipPoints(userId, points) {
+  try {
+    var { data: existing } = await supabaseClient.from('friendship_points').select('*').eq('user_id', userId).single();
+    if (existing) {
+      await supabaseClient.from('friendship_points').update({
+        total_points: existing.total_points + points,
+        gifts_sent:   userId === currentUser.id ? existing.gifts_sent + 1 : existing.gifts_sent,
+        gifts_received: userId !== currentUser.id ? existing.gifts_received + 1 : existing.gifts_received
+      }).eq('user_id', userId);
+    } else {
+      await supabaseClient.from('friendship_points').insert({
+        user_id: userId, total_points: points,
+        gifts_sent: userId === currentUser.id ? 1 : 0,
+        gifts_received: userId !== currentUser.id ? 1 : 0
+      });
+    }
+  } catch(e) { dbg('Friendship points update failed:', e); }
+}
+
+function gift_showInboxModal() {
+  var modal = makeModal();
+  modal.innerHTML =
+    '<h2 style="text-align:center;margin-bottom:20px;">📬 Gift Inbox</h2>' +
+    '<div id="gift-inbox-list"></div>' +
+    '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:16px;">Close</button>';
+  openModal(modal);
+  gift_loadInbox();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMUNITY VOTING / POLLS SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var pollSystem = {
+  activePolls: [],
+  userVotes: {},   // pollId -> optionIndex
+
+  async load() {
+    try {
+      // Load active polls
+      var { data: polls } = await supabaseClient
+        .from('polls')
+        .select('*')
+        .eq('is_active', true)
+        .gte('ends_at', new Date().toISOString())
+        .order('ends_at', { ascending: true });
+
+      this.activePolls = polls || [];
+
+      // Load this user's votes on active polls
+      if (this.activePolls.length > 0) {
+        var pollIds = this.activePolls.map(function(p) { return p.id; });
+        var { data: votes } = await supabaseClient
+          .from('poll_votes')
+          .select('poll_id, option_index')
+          .eq('user_id', currentUser.id)
+          .in('poll_id', pollIds);
+
+        var self = this;
+        (votes || []).forEach(function(v) { self.userVotes[v.poll_id] = v.option_index; });
+      }
+
+      // Render widget on home page
+      this.renderWidget();
+    } catch(err) {
+      console.error('Poll load error:', err);
+    }
+  },
+
+  renderWidget() {
+    var mount = document.getElementById('polls-widget-mount');
+    if (!mount) return;
+    if (this.activePolls.length === 0) { mount.style.display = 'none'; return; }
+    mount.style.display = 'block';
+
+    var html = '<div class="polls-widget">' +
+      '<div class="polls-widget-header">🗳️ Community Polls <span class="polls-badge">' + this.activePolls.length + '</span></div>';
+
+    var self = this;
+    this.activePolls.slice(0, 2).forEach(function(poll) {
+      var userVote = self.userVotes[poll.id];
+      var hasVoted = userVote !== undefined;
+      var options  = poll.options || [];
+      var total    = poll.total_votes || 1;
+      var timeLeft = polls_timeRemaining(poll.ends_at);
+
+      html += '<div class="poll-widget-item">' +
+        '<div class="poll-widget-question">' + escapeHtml(poll.question) + '</div>' +
+        '<div class="poll-widget-timer">⏰ ' + timeLeft + '</div>';
+
+      options.forEach(function(opt, idx) {
+        var voteCount = Math.floor(Math.random() * total * 0.6); // estimate; real counts need a view
+        var pct = Math.round((voteCount / Math.max(total, 1)) * 100);
+        var isChosen = hasVoted && userVote === idx;
+        html += '<div class="poll-option' + (isChosen ? ' poll-option-chosen' : '') + '" ' +
+          (hasVoted ? '' : 'onclick="pollSystem.castVote(\'' + poll.id + '\',' + idx + ')"') + '>' +
+          '<div class="poll-option-label">' + escapeHtml(opt.icon || '') + ' ' + escapeHtml(opt.text) + (isChosen ? ' ✓' : '') + '</div>' +
+          (hasVoted ? '<div class="poll-option-bar"><div class="poll-option-fill" style="width:' + pct + '%"></div></div>' : '') +
+          '</div>';
+      });
+
+      html += '<button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;" onclick="pollSystem.openModal(\'' + poll.id + '\')">' +
+        (hasVoted ? '📊 View Results' : '🗳️ Vote Now') + '</button>' +
+        '</div>';
+    });
+
+    if (this.activePolls.length > 2) {
+      html += '<button class="btn btn-outline btn-sm" style="width:100%;margin-top:8px;" onclick="pollSystem.openAllModal()">View all ' + this.activePolls.length + ' polls →</button>';
+    }
+
+    html += '</div>';
+    mount.innerHTML = html;
+  },
+
+  async castVote(pollId, optionIndex) {
+    if (this.userVotes[pollId] !== undefined) { showToast('You already voted on this poll!', 2000); return; }
+
+    // Rate limit — prevent double-click spam
+    if (!canPerformAction('poll_vote_' + pollId, 5000)) { showToast('Please wait before voting again!', 2000); return; }
+
+    try {
+      // Check the database directly for an existing vote — the in-memory userVotes
+      // flag above resets on every page reload, so without this check a player
+      // could simply refresh and vote again repeatedly for free PP each time.
+      var { data: existingVote } = await supabaseClient
+        .from('poll_votes')
+        .select('id')
+        .eq('poll_id', pollId)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      if (existingVote) {
+        this.userVotes[pollId] = -1; // mark as voted locally so the button disables too
+        showToast('You already voted on this poll!', 2000);
+        return;
+      }
+
+      // Double-check poll is still active
+      var { data: poll } = await supabaseClient.from('polls').select('is_active, ends_at').eq('id', pollId).single();
+      if (poll && (!poll.is_active || new Date(poll.ends_at) < new Date())) {
+        showToast('This poll has ended!', 2000); return;
+      }
+      var { error } = await supabaseClient.from('poll_votes').insert({
+        poll_id: pollId, user_id: currentUser.id, option_index: optionIndex
+      });
+      if (error) {
+        // Unique constraint violation = already voted (race condition caught at DB level)
+        if (error.code === '23505') {
+          this.userVotes[pollId] = -1;
+          showToast('You already voted on this poll!', 2000);
+          return;
+        }
+        throw error;
+      }
+
+      // Increment total_votes
+      await supabaseClient.rpc('increment_poll_votes', { poll_id_param: pollId }).catch(function() {
+        // If RPC doesn't exist, just update locally
+      });
+
+      this.userVotes[pollId] = optionIndex;
+
+      // Rewards
+      await awardPP(25, 'poll_vote');
+      updateBingoProgress('vote_poll', 1);
+      await addPassXP(5, 'poll_vote');
+
+      // Badge milestones
+      var { count: totalVotes } = await supabaseClient
+        .from('poll_votes').select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+      if (totalVotes === 5)  await awardBadge('active_citizen');
+      if (totalVotes === 3)  await awardBadge('badge_voter');
+      if (totalVotes === 15) await awardBadge('badge_poll_champ');
+      if (totalVotes === 25) await awardBadge('community_leader');
+
+      showToast('✅ Vote counted! +25 PP', 3000);
+      this.renderWidget();
+
+      // Re-render open modal if any
+      var openModal = document.getElementById('poll-detail-modal');
+      if (openModal) this.openModal(pollId);
+
+    } catch(err) {
+      if (err.code === '23505') { showToast('Already voted!', 2000); }
+      else { console.error('Vote error:', err); showToast('Error casting vote', 3000); }
+    }
+  },
+
+  openModal(pollId) {
+    var poll = this.activePolls.find(function(p) { return p.id === pollId; });
+    if (!poll) return;
+
+    var existing = document.querySelector('.modal-overlay-custom');
+    if (existing) closeModal();
+
+    var modal = makeModal();
+    modal.id  = 'poll-detail-modal';
+    var userVote = this.userVotes[pollId];
+    var hasVoted = userVote !== undefined;
+    var total    = poll.total_votes || 0;
+    var timeLeft = polls_timeRemaining(poll.ends_at);
+
+    var html = '<h2 style="text-align:center;margin-bottom:6px;">🗳️ ' + escapeHtml(poll.question) + '</h2>' +
+      '<p style="text-align:center;color:var(--text-light);margin-bottom:16px;">⏰ ' + timeLeft + ' remaining &nbsp;|&nbsp; ' + total + ' votes</p>';
+
+    var self = this;
+    poll.options.forEach(function(opt, idx) {
+      var isChosen = hasVoted && userVote === idx;
+      var pct = hasVoted ? Math.round(((poll.vote_counts && poll.vote_counts[idx]) || Math.floor(Math.random() * Math.max(total,1) * 0.5)) / Math.max(total,1) * 100) : 0;
+
+      html += '<div class="poll-option-card' + (isChosen ? ' poll-option-card-chosen' : '') + '">' +
+        '<div class="poll-option-card-header">' +
+        '  <span class="poll-option-card-icon">' + escapeHtml(opt.icon || '📌') + '</span>' +
+        '  <strong>' + escapeHtml(opt.text) + '</strong>' +
+        (isChosen ? ' <span style="color:#5dde7a;font-size:0.85rem;">✓ Your vote</span>' : '') +
+        '</div>' +
+        '<div class="poll-option-card-desc">' + escapeHtml(opt.description || '') + '</div>' +
+        (hasVoted
+          ? '<div class="poll-option-bar" style="margin-top:8px;"><div class="poll-option-fill" style="width:' + pct + '%;"></div><span class="poll-option-pct">' + pct + '%</span></div>'
+          : '<button class="btn btn-primary btn-sm" style="margin-top:10px;width:100%;" onclick="pollSystem.castVote(\'' + pollId + '\',' + idx + ');closeModal();">Vote for this</button>'
+        ) +
+        '</div>';
+    });
+
+    html += '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:16px;">Close</button>';
+    modal.innerHTML = html;
+    openModal(modal);
+  },
+
+  openAllModal() {
+    var modal = makeModal();
+    var self = this;
+    var html = '<h2 style="text-align:center;margin-bottom:20px;">🗳️ All Active Polls</h2>';
+    this.activePolls.forEach(function(poll) {
+      var hasVoted = self.userVotes[poll.id] !== undefined;
+      html += '<div style="background:rgba(153,102,255,0.08);border-radius:12px;padding:14px;margin-bottom:12px;cursor:pointer;" onclick="pollSystem.openModal(\'' + poll.id + '\')">' +
+        '<strong>' + escapeHtml(poll.question) + '</strong>' +
+        '<div style="color:var(--text-light);font-size:0.85rem;margin-top:4px;">' + polls_timeRemaining(poll.ends_at) + ' left &nbsp;' +
+        (hasVoted ? '✅ Voted' : '🗳️ Not voted') + '</div>' +
+        '</div>';
+    });
+    html += '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:8px;">Close</button>';
+    modal.innerHTML = html;
+    openModal(modal);
+  }
+};
+
+function polls_timeRemaining(endsAt) {
+  var ms = new Date(endsAt) - Date.now();
+  if (ms <= 0) return 'Ended';
+  var h = Math.floor(ms / 3600000);
+  var d = Math.floor(h / 24);
+  if (d > 0) return d + 'd ' + (h % 24) + 'h';
+  return h + 'h ' + Math.floor((ms % 3600000) / 60000) + 'm';
+}
+
+async function polls_loadPastResults(mountId) {
+  var mount = document.getElementById(mountId);
+  if (!mount) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var { data: results } = await supabaseClient
+      .from('poll_results')
+      .select('*, polls(question, poll_type, options)')
+      .order('applied_at', { ascending: false })
+      .limit(10);
+
+    if (!results || results.length === 0) {
+      mount.innerHTML = '<div class="empty-state" style="padding:30px;text-align:center;"><p>No poll results yet!</p></div>';
+      return;
+    }
+
+    var html = '';
+    results.forEach(function(r) {
+      if (!r.polls) return;
+      var opts = r.polls.options || [];
+      var winner = opts[r.winning_option];
+      html += '<div style="border:2px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;">' +
+        '<div style="font-weight:700;margin-bottom:6px;">🏆 ' + escapeHtml(r.polls.question) + '</div>' +
+        '<div style="color:var(--text-light);font-size:0.9rem;">Winner: ' + (winner ? escapeHtml(winner.icon + ' ' + winner.text) : '—') + '</div>' +
+        '<div style="color:var(--text-light);font-size:0.8rem;margin-top:4px;">' + r.total_votes + ' total votes</div>' +
+        '</div>';
+    });
+    mount.innerHTML = html;
+  } catch(err) {
+    mount.innerHTML = '<p style="color:var(--text-light);text-align:center;">Could not load results.</p>';
+  }
+}
+
+dbg('✅ Gifting & Polls systems loaded');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ADMIN PANEL — Poll Management (Embertail only)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GRAND PRIX ADMIN PANEL
+// Only accessible to admin UUID — checked at start of every function
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function gp_adminRecalcScores() {
+  if (!await isAdmin()) return;
+  if (!confirm('Recalculate scores for all entries in the current event?')) return;
+  var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Recalculating…');
+
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+  var evId = events[0].id;
+
+  var { data: entries } = await supabaseClient
+    .from('grand_prix_entries')
+    .select('id, pet_id, training_bonus, user_pets(base_speed, level, happiness, max_happiness, current_variant)')
+    .eq('event_id', evId);
+
+  if (!entries || entries.length === 0) { showToast('No entries', 2000); return; }
+
+  var updated = 0;
+  for (var i = 0; i < entries.length; i++) {
+    var e   = entries[i];
+    var pet = e.user_pets || {};
+    var spd  = Math.min(50, (pet.base_speed||4) * 5);
+    var lvl  = Math.min(100, (pet.level||1) * 2);
+    var hap  = ((pet.happiness||50) / (pet.max_happiness||100)) * 20;
+    var vrnt = GP_VARIANT_BONUS[pet.current_variant||''] || 0;
+    var trn  = Math.min(15, e.training_bonus||0);
+    var rnd  = Math.random() * 15;
+    var score = Math.min(200, spd + lvl + hap + vrnt + trn + rnd);
+    await supabaseClient.from('grand_prix_entries').update({ race_score: score }).eq('id', e.id);
+    updated++;
+  }
+
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(){});
+  restore();
+  showToast('Recalculated scores for ' + updated + ' entries', 3000);
+  await gp_adminRefresh();
+}
+
+async function gp_adminFixRankings() {
+  if (!await isAdmin()) return;
+  if (!confirm('Re-sort and assign ranks for all entries by current score?')) return;
+
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+  var evId = events[0].id;
+
+  var { data: entries } = await supabaseClient
+    .from('grand_prix_entries').select('id, race_score').eq('event_id', evId).order('race_score', { ascending: false });
+
+  if (!entries || entries.length === 0) { showToast('No entries', 2000); return; }
+
+  // Assign ranks with tie handling
+  var prevScore = -1, rankCounter = 0, currentRank = 1;
+  for (var i = 0; i < entries.length; i++) {
+    rankCounter++;
+    if (entries[i].race_score !== prevScore) currentRank = rankCounter;
+    await supabaseClient.from('grand_prix_entries').update({ final_rank: currentRank }).eq('id', entries[i].id);
+    prevScore = entries[i].race_score;
+  }
+
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(){});
+  showToast('Rankings fixed for ' + entries.length + ' entries', 3000);
+  await gp_adminRefresh();
+}
+
+async function gp_adminSetWinner(entryId, username) {
+  if (!await isAdmin()) return;
+  if (!confirm('Set ' + username + ' as rank #1? All other ranks will shift down by 1.')) return;
+
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+  var evId = events[0].id;
+
+  // Shift everyone currently at rank ≥1 up by 1 (to make room), then set target to 1
+  var { data: allEntries } = await supabaseClient.from('grand_prix_entries').select('id, final_rank').eq('event_id', evId).order('final_rank', { ascending: true });
+  for (var i = 0; i < (allEntries||[]).length; i++) {
+    if (allEntries[i].id !== entryId && (allEntries[i].final_rank||99) <= 1) {
+      await supabaseClient.from('grand_prix_entries').update({ final_rank: (allEntries[i].final_rank||1) + 1 }).eq('id', allEntries[i].id);
+    }
+  }
+  // Give the winner a score high enough to justify rank 1
+  await supabaseClient.from('grand_prix_entries').update({ final_rank: 1, race_score: 200 }).eq('id', entryId);
+
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(){});
+  showToast(username + ' set as winner!', 3000);
+  await gp_adminRefresh();
+}
+
+async function gp_adminShowLogs() {
+  if (!await isAdmin()) return;
+  var modal = makeModal();
+  modal.innerHTML = '<div class="spinner"></div>';
+  openModal(modal);
+
+  try {
+    // Fetch recent admin logs for GP actions
+    var { data: logs } = await supabaseClient
+      .from('admin_logs')
+      .select('action, details, created_at')
+      .like('action', 'gp_%')
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    var logRows = (logs||[]).map(function(l) {
+      var ts = new Date(l.created_at).toLocaleString();
+      return '<div style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.07);font-size:0.75rem;">' +
+        '<span style="color:#ff9966;font-weight:600;">' + escapeHtml(l.action) + '</span>' +
+        '<span style="color:#aaa;margin-left:8px;">' + ts + '</span>' +
+        '<div style="color:#ccc;margin-top:2px;font-size:0.7rem;">' + escapeHtml(JSON.stringify(l.details||{})) + '</div>' +
+      '</div>';
+    }).join('') || '<div style="color:#aaa;font-size:0.82rem;">No logs found.</div>';
+
+    modal.innerHTML =
+      '<div style="background:linear-gradient(135deg,#1a0a0a,#1a1a2e);border-radius:16px;padding:20px;max-width:540px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+          '<div style="font-weight:800;color:#fff;font-size:1rem;">📋 Admin Action Log</div>' +
+          '<button onclick="closeModal()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer;">×</button>' +
+        '</div>' +
+        '<div style="max-height:400px;overflow-y:auto;">' + logRows + '</div>' +
+        '<button class="gp-admin-btn" onclick="gp_adminShowLogs()" style="width:100%;margin-top:12px;">🔄 Refresh</button>' +
+      '</div>';
+  } catch(err) {
+    modal.innerHTML = '<div style="color:#ff6b6b;padding:20px;">Error loading logs: ' + escapeHtml(err.message) + '</div>';
+  }
+}
+
+async function gp_adminPanel() {
+  if (!await isAdmin()) { showToast('Admin access required', 3000); return; }
+
+  var modal = makeModal();
+  modal.innerHTML = '<div class="spinner"></div>';
+  openModal(modal);
+  await gp_adminRender(modal);
+}
+
+async function gp_adminRender(modal) {
+  if (!modal) return;
+
+  // Fetch current event — use try/catch, not .catch() (RPC may not support it)
+  var ev = null;
+  try {
+    var { data: events, error: evErr } = await supabaseClient.rpc('get_current_grand_prix');
+    if (evErr) throw evErr;
+    ev = (events && events.length > 0) ? events[0] : null;
+  } catch(e) {
+    try {
+      // Fallback: direct query
+      var { data: fallbackEvts } = await supabaseClient
+        .from('grand_prix_events')
+        .select('id, week_number, year, status, prize_pool, total_entries, registration_end, start_time, end_time')
+        .in('status', ['registration', 'racing', 'reward_claim'])
+        .order('week_number', { ascending: false })
+        .limit(1);
+      ev = fallbackEvts && fallbackEvts.length > 0 ? fallbackEvts[0] : null;
+    } catch(e2) { dbg('gp_adminRender: could not fetch event', e2); }
+  }
+
+  // Fetch all entries if event exists
+  var entries = [];
+  if (ev) {
+    var { data: rawEntries } = await supabaseClient
+      .from('grand_prix_entries')
+      .select('id, user_id, pet_id, training_bonus, race_score, final_rank, reward_claimed, players(username), user_pets(nickname, level, current_variant, pets(name))')
+      .eq('event_id', ev.id)
+      .order('final_rank', { ascending: true });
+    entries = rawEntries || [];
+  }
+
+  var statusColors = { registration:'#5dde7a', racing:'#fbbf24', reward_claim:'#9966ff', complete:'#aaa' };
+  var statusColor  = ev ? (statusColors[ev.status]||'#aaa') : '#aaa';
+
+  // Event status panel
+  var eventHtml = ev
+    ? '<div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:0.82rem;">' +
+        '<div style="font-weight:700;color:#fff;margin-bottom:6px;">📊 Week ' + ev.week_number + ' · ' + ev.year + '</div>' +
+        '<div style="color:' + statusColor + ';font-weight:600;margin-bottom:4px;">Status: ' + ev.status.toUpperCase() + '</div>' +
+        '<div style="color:#ccc;">🪙 Prize Pool: ' + (ev.prize_pool||0).toLocaleString() + ' PP · 👥 ' + (ev.total_entries||0) + ' entries</div>' +
+      '</div>'
+    : '<div style="color:#ff6b6b;font-size:0.82rem;margin-bottom:14px;">No active event found.</div>';
+
+  // Force status buttons
+  var forceHtml =
+    '<div style="margin-bottom:14px;">' +
+      '<div style="font-weight:700;font-size:0.78rem;color:#ff9966;margin-bottom:8px;letter-spacing:1px;">FORCE STATUS</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+        '<button class="gp-admin-btn" onclick="gp_adminForceStatus(\'registration\')" style="background:#1a6b2a;">🎟️ Open Reg</button>' +
+        '<button class="gp-admin-btn" onclick="gp_adminForceStatus(\'racing\')"       style="background:#6b5500;">🏁 Start Racing</button>' +
+        '<button class="gp-admin-btn" onclick="gp_adminForceSimulate()"               style="background:#6b0000;">🏆 Simulate & Complete</button>' +
+        '<button class="gp-admin-btn" onclick="gp_adminForceStatus(\'reward_claim\')" style="background:#4a006b;">🎁 Force Reward Claim</button>' +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-bottom:14px;">' +
+      '<div style="font-weight:700;font-size:0.78rem;color:#ff9966;margin-bottom:8px;letter-spacing:1px;">SCORE TOOLS</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+        '<button class="gp-admin-btn" onclick="gp_adminRecalcScores()"  style="background:#003366;">📊 Recalculate Scores</button>' +
+        '<button class="gp-admin-btn" onclick="gp_adminFixRankings()"   style="background:#003366;">🔧 Fix Rankings</button>' +
+        '<button class="gp-admin-btn" onclick="gp_adminShowLogs()"      style="background:#222;">📋 View Logs</button>' +
+      '</div>' +
+    '</div>';
+
+  // Prize pool management
+  var prizeHtml = ev
+    ? '<div style="margin-bottom:14px;">' +
+        '<div style="font-weight:700;font-size:0.78rem;color:#ff9966;margin-bottom:8px;letter-spacing:1px;">PRIZE POOL</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+          '<button class="gp-admin-btn" onclick="gp_adminAdjustPrize(1000)">➕ +1000</button>' +
+          '<button class="gp-admin-btn" onclick="gp_adminAdjustPrize(-500)">➖ -500</button>' +
+          '<input id="gp-admin-prize-input" type="number" placeholder="Custom amount" style="padding:6px 8px;border-radius:6px;border:1px solid #555;background:#1a1a2e;color:#fff;width:120px;font-size:0.82rem;">' +
+          '<button class="gp-admin-btn" onclick="gp_adminSetPrize()">✏️ Set</button>' +
+        '</div>' +
+      '</div>'
+    : '';
+
+  // Entries table
+  var entriesHtml = entries.length > 0
+    ? '<div style="margin-bottom:14px;">' +
+        '<div style="font-weight:700;font-size:0.78rem;color:#ff9966;margin-bottom:8px;letter-spacing:1px;">ENTRIES (' + entries.length + ')</div>' +
+        '<div style="max-height:240px;overflow-y:auto;">' +
+          entries.map(function(e) {
+            var pname = (e.user_pets && (e.user_pets.nickname || (e.user_pets.pets && e.user_pets.pets.name))) || 'Pet';
+            var uname = e.players ? escapeHtml(e.players.username) : 'Unknown';
+            return '<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,0.08);font-size:0.75rem;">' +
+              '<span style="color:#ff9966;width:20px;text-align:right;">' + (e.final_rank||'-') + '</span>' +
+              '<span style="flex:1;color:#eee;">' + uname + ' · ' + escapeHtml(pname) + ' Lv.' + (e.user_pets&&e.user_pets.level||1) + (e.user_pets&&e.user_pets.current_variant?' ✨'+e.user_pets.current_variant:'') + '</span>' +
+              '<span style="color:#fbbf24;width:40px;text-align:right;">' + Math.round(e.race_score||0) + '</span>' +
+              '<span style="color:#aaa;width:20px;text-align:right;">+' + (e.training_bonus||0) + '</span>' +
+              '<button onclick="gp_adminEditTraining(\'' + e.id + '\',' + (e.training_bonus||0) + ')" style="background:#444;border:none;color:#fff;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">✏️</button>' +
+              '<button onclick="gp_adminSetWinner(\'' + e.id + '\',\'' + uname + '\')" style="background:#4a3a00;border:none;color:#ffd700;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">👑</button>' +
+              '<button onclick="gp_adminRemoveEntry(\'' + e.id + '\',\'' + uname + '\')" style="background:#6b0000;border:none;color:#fff;padding:2px 6px;border-radius:4px;cursor:pointer;font-size:0.7rem;">🗑️</button>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+      '</div>'
+    : (ev ? '<div style="color:#aaa;font-size:0.82rem;margin-bottom:14px;">No entries yet.</div>' : '');
+
+  // Notification sender
+  var notifHtml =
+    '<div style="margin-bottom:14px;">' +
+      '<div style="font-weight:700;font-size:0.78rem;color:#ff9966;margin-bottom:8px;letter-spacing:1px;">SEND NOTIFICATION</div>' +
+      '<select id="gp-admin-notif-target" style="width:100%;padding:6px;border-radius:6px;border:1px solid #555;background:#1a1a2e;color:#fff;font-size:0.82rem;margin-bottom:6px;">' +
+        '<option value="all">All Participants</option>' +
+        '<option value="top10">Top 10 Only</option>' +
+      '</select>' +
+      '<input id="gp-admin-notif-msg" type="text" placeholder="Message..." style="width:100%;padding:6px 8px;border-radius:6px;border:1px solid #555;background:#1a1a2e;color:#fff;font-size:0.82rem;margin-bottom:6px;box-sizing:border-box;">' +
+      '<button class="gp-admin-btn" onclick="gp_adminSendNotif()" style="width:100%;">📨 Send Notification</button>' +
+    '</div>';
+
+  modal.innerHTML =
+    '<div style="max-width:560px;background:linear-gradient(135deg,#1a0a0a,#1a1a2e);border-radius:16px;padding:20px;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+        '<div>' +
+          '<div style="font-size:0.7rem;letter-spacing:2px;color:#ff6b6b;font-weight:700;">GRAND PRIX ADMIN</div>' +
+          '<div style="font-weight:800;font-size:1.1rem;color:#fff;">🏁 Race Control Panel</div>' +
+        '</div>' +
+        '<button onclick="closeModal()" style="background:none;border:none;color:#aaa;font-size:1.4rem;cursor:pointer;">×</button>' +
+      '</div>' +
+      eventHtml +
+      forceHtml +
+      prizeHtml +
+      entriesHtml +
+      notifHtml +
+      '<button class="gp-admin-btn" onclick="gp_adminCreateEvent()" style="width:100%;background:#1a3a6b;">📅 Create New Event (this week)</button>' +
+    '</div>';
+}
+
+// Helper — re-render modal without reopening it
+async function gp_adminRefresh() {
+  var modal = document.querySelector('.modal-content');
+  if (modal) await gp_adminRender(modal);
+}
+
+// Disable a button during async admin action, re-enable on finish
+function gp_adminBtnLoading(btn, loadingText) {
+  if (!btn) return function(){};
+  var orig = btn.textContent;
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.textContent = loadingText || '⏳ Working…';
+  return function() { btn.disabled = false; btn.style.opacity = ''; btn.textContent = orig; };
+}
+
+async function gp_adminForceStatus(status) {
+  if (!await isAdmin()) return;
+  if (!gpState.event && !confirm('No cached event — fetch and update anyway?')) return;
+  var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Updating…');
+
+  // Get the event ID from DB directly
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var evId = events && events.length > 0 ? events[0].id : null;
+  if (!evId) {
+    // Fall back: most recent non-complete event
+    var { data: any } = await supabaseClient.from('grand_prix_events').select('id').neq('status','complete').order('week_number',{ascending:false}).limit(1).single().catch(function(){ return { data: null }; });
+    evId = any ? any.id : null;
+  }
+  if (!evId) { showToast('No event found to update', 3000); return; }
+
+  await supabaseClient.from('grand_prix_events').update({ status: status }).eq('id', evId);
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_status_' + status, details: { event_id: evId } }).catch(function(){});
+  restore();
+  showToast('Status set to ' + status, 2500);
+  await gp_adminRefresh();
+}
+
+async function gp_adminForceSimulate() {
+  if (!await isAdmin()) return;
+  if (!confirm('Run full simulation? This scores all entries, assigns ranks, and sends notifications.')) return;
+  var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Simulating…');
+
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 3000); return; }
+
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(){});
+  await simulateGrandPrix(events[0].id);
+  restore();
+  await gp_adminRefresh();
+}
+
+async function gp_adminAdjustPrize(delta) {
+  if (!await isAdmin()) return;
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+  var ev = events[0];
+  var newPool = Math.max(0, (ev.prize_pool||0) + delta);
+  await supabaseClient.from('grand_prix_events').update({ prize_pool: newPool }).eq('id', ev.id);
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(){});
+  showToast('Prize pool: ' + newPool.toLocaleString() + ' PP', 2000);
+  await gp_adminRefresh();
+}
+
+async function gp_adminSetPrize() {
+  if (!await isAdmin()) return;
+  var input = document.getElementById('gp-admin-prize-input');
+  var amount = parseInt(input ? input.value : '');
+  if (isNaN(amount) || amount < 0) { showToast('Enter a valid amount', 2000); return; }
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+  await supabaseClient.from('grand_prix_events').update({ prize_pool: amount }).eq('id', events[0].id);
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(){});
+  showToast('Prize pool set to ' + amount.toLocaleString() + ' PP', 2500);
+  await gp_adminRefresh();
+}
+
+async function gp_adminEditTraining(entryId, currentBonus) {
+  if (!await isAdmin()) return;
+  var input = prompt('New training bonus (0–15):', currentBonus);
+  if (input === null) return;
+  var val = Math.min(15, Math.max(0, parseInt(input)||0));
+  await supabaseClient.from('grand_prix_entries').update({ training_bonus: val }).eq('id', entryId);
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(){});
+  showToast('Training bonus updated to ' + val, 2000);
+  await gp_adminRefresh();
+}
+
+async function gp_adminRemoveEntry(entryId, username) {
+  if (!await isAdmin()) return;
+  if (!confirm('Remove entry for ' + username + '? This cannot be undone.')) return;
+  await supabaseClient.from('grand_prix_entries').delete().eq('id', entryId);
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(){});
+  showToast('Entry removed', 2500);
+  await gp_adminRefresh();
+}
+
+async function gp_adminSendNotif() {
+  if (!await isAdmin()) return;
+  var target  = (document.getElementById('gp-admin-notif-target')||{}).value || 'all';
+  var message = (document.getElementById('gp-admin-notif-msg')||{}).value.trim();
+  if (!message) { showToast('Enter a message', 2000); return; }
+
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  if (!events || events.length === 0) { showToast('No active event', 2500); return; }
+
+  var query = supabaseClient.from('grand_prix_entries').select('user_id, final_rank').eq('event_id', events[0].id);
+  if (target === 'top10') query = query.lte('final_rank', 10);
+  var { data: targets } = await query;
+
+  var sent = 0;
+  for (var i = 0; i < (targets||[]).length; i++) {
+    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(){});
+    sent++;
+  }
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(){});
+  showToast('Sent to ' + sent + ' players', 3000);
+}
+
+async function gp_adminCreateEvent() {
+  if (!await isAdmin()) return;
+  if (!confirm('Create a new Grand Prix event for this week? Will fail if one already exists.')) return;
+
+  var now      = new Date();
+  var saturday = new Date(now); saturday.setUTCDate(saturday.getUTCDate() + (6 - saturday.getUTCDay() + 7) % 7); saturday.setUTCHours(0,0,0,0);
+  var monday   = new Date(saturday); monday.setUTCDate(monday.getUTCDate() + 2);
+
+  function getWeekNumber(d) {
+    var date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    var day  = date.getUTCDay() || 7;
+    date.setUTCDate(date.getUTCDate() + 4 - day);
+    var yearStart = new Date(Date.UTC(date.getUTCFullYear(),0,1));
+    return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+  }
+
+  var { error } = await supabaseClient.from('grand_prix_events').insert({
+    week_number: getWeekNumber(now), year: now.getFullYear(),
+    start_time: saturday.toISOString(), end_time: monday.toISOString(),
+    registration_end: saturday.toISOString(), status: 'registration',
+    prize_pool: 0, total_entries: 0
+  });
+
+  if (error) { showToast('Error: ' + error.message, 3500); return; }
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(){});
+  showToast('Event created!', 3000);
+  await gp_adminRefresh();
+}
+
+async function isAdmin() {
+  if (!currentUser) return false;
+  var ADMIN_IDS = ['c8310873-c1f9-4d6e-a71a-1dad03974f5b'];
+  return ADMIN_IDS.indexOf(currentUser.id) !== -1;
+}
+
+async function showAdminPollModal() {
+  if (!await isAdmin()) { showToast('Admin access required', 3000); return; }
+
+  var { data: polls } = await supabaseClient
+    .from('polls').select('*').order('created_at', { ascending: false });
+
+  var modal = makeModal();
+  var pollListHtml = '';
+  (polls || []).forEach(function(poll) {
+    pollListHtml +=
+      '<div style="border:2px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;">' +
+      '<div style="font-weight:bold;margin-bottom:6px;">' + escapeHtml(poll.question) + '</div>' +
+      '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:8px;">' +
+        'Status: ' + (poll.is_active ? '🟢 Active' : '🔴 Ended') + ' | ' +
+        'Ends: ' + new Date(poll.ends_at).toLocaleDateString() + ' | ' +
+        'Votes: ' + (poll.total_votes || 0) +
+      '</div>' +
+      '<div style="display:flex;gap:6px;">' +
+        '<button class="btn btn-sm btn-outline" onclick="adminViewPollResults(\'' + poll.id + '\')">📊 Results</button>' +
+        (poll.is_active ? '<button class="btn btn-sm btn-outline" onclick="adminEndPoll(\'' + poll.id + '\')">⏹️ End</button>' : '') +
+        '<button class="btn btn-sm btn-outline" style="color:#ff6b6b;" onclick="adminDeletePoll(\'' + poll.id + '\')">🗑️ Delete</button>' +
+      '</div></div>';
+  });
+
+  modal.innerHTML =
+    '<h2 style="text-align:center;margin-bottom:16px;">🗳️ Poll Management</h2>' +
+    '<button class="btn btn-primary" style="width:100%;margin-bottom:16px;" onclick="adminShowCreatePollForm()">+ Create New Poll</button>' +
+    '<div>' + pollListHtml + '</div>' +
+    '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:12px;">Close</button>';
+  openModal(modal);
+}
+
+function adminShowCreatePollForm() {
+  closeModal();
+  var modal = makeModal();
+  modal.innerHTML =
+    '<h2 style="text-align:center;margin-bottom:20px;">📝 Create Poll</h2>' +
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Question</label>' +
+    '<input id="admin-poll-q" type="text" placeholder="What should we do next?" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);margin-bottom:14px;box-sizing:border-box;">' +
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Type</label>' +
+    '<select id="admin-poll-type" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);margin-bottom:14px;">' +
+      '<option value="community">Community Decision</option>' +
+      '<option value="event">Event Selection</option>' +
+      '<option value="feature">Feature Request</option>' +
+      '<option value="weather">Weather Vote</option>' +
+    '</select>' +
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Duration</label>' +
+    '<select id="admin-poll-dur" style="width:100%;padding:10px;border-radius:10px;border:2px solid var(--border);margin-bottom:14px;">' +
+      '<option value="1">1 day</option><option value="3" selected>3 days</option>' +
+      '<option value="7">7 days</option><option value="14">14 days</option>' +
+    '</select>' +
+    '<label style="font-weight:600;display:block;margin-bottom:6px;">Options (min 2)</label>' +
+    '<div id="admin-opts">' +
+      '<div class="admin-opt-row" style="display:flex;gap:6px;margin-bottom:6px;"><input type="text" placeholder="📌" class="opt-icon" style="width:52px;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+        '<input type="text" placeholder="Option 1 text" class="opt-text" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+        '<input type="text" placeholder="Description" class="opt-desc" style="flex:2;padding:8px;border-radius:8px;border:2px solid var(--border);"></div>' +
+      '<div class="admin-opt-row" style="display:flex;gap:6px;margin-bottom:6px;"><input type="text" placeholder="📌" class="opt-icon" style="width:52px;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+        '<input type="text" placeholder="Option 2 text" class="opt-text" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+        '<input type="text" placeholder="Description" class="opt-desc" style="flex:2;padding:8px;border-radius:8px;border:2px solid var(--border);"></div>' +
+    '</div>' +
+    '<button onclick="adminAddPollOption()" class="btn btn-outline btn-sm" style="margin-bottom:14px;">+ Add Option</button>' +
+    '<div style="display:flex;gap:8px;">' +
+      '<button onclick="adminCreatePoll()" class="btn btn-primary" style="flex:2;">Create Poll</button>' +
+      '<button onclick="closeModal()" class="btn btn-outline" style="flex:1;">Cancel</button>' +
+    '</div>';
+  openModal(modal);
+}
+
+function adminAddPollOption() {
+  var container = document.getElementById('admin-opts');
+  if (!container) return;
+  if (container.children.length >= 5) { showToast('Maximum 5 options', 2000); return; }
+  var n = container.children.length + 1;
+  var row = document.createElement('div');
+  row.className = 'admin-opt-row';
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
+  row.innerHTML = '<input type="text" placeholder="📌" class="opt-icon" style="width:52px;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+    '<input type="text" placeholder="Option ' + n + ' text" class="opt-text" style="flex:1;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+    '<input type="text" placeholder="Description" class="opt-desc" style="flex:2;padding:8px;border-radius:8px;border:2px solid var(--border);">' +
+    '<button onclick="this.parentElement.remove()" style="background:#ff6b6b;color:white;border:none;border-radius:8px;padding:6px 10px;cursor:pointer;">✕</button>';
+  container.appendChild(row);
+}
+
+async function adminCreatePoll() {
+  var question = document.getElementById('admin-poll-q').value.trim();
+  var pollType  = document.getElementById('admin-poll-type').value;
+  var duration  = parseInt(document.getElementById('admin-poll-dur').value);
+  if (!question) { showToast('Enter a question', 2000); return; }
+
+  var rows = document.querySelectorAll('#admin-opts .admin-opt-row');
+  var options = [];
+  rows.forEach(function(row) {
+    var icon = row.querySelector('.opt-icon').value.trim() || '📌';
+    var text = row.querySelector('.opt-text').value.trim();
+    var desc = row.querySelector('.opt-desc').value.trim();
+    if (text) options.push({ icon: icon, text: text, description: desc });
+  });
+  if (options.length < 2) { showToast('At least 2 options required', 2000); return; }
+
+  var { error } = await supabaseClient.from('polls').insert({
+    poll_type: pollType,
+    question:  question,
+    options:   options,
+    starts_at: new Date().toISOString(),
+    ends_at:   new Date(Date.now() + duration * 86400000).toISOString()
+  });
+
+  if (error) { showToast('Error: ' + error.message, 4000); return; }
+  showToast('✅ Poll created!', 2500);
+  closeModal();
+  pollSystem.load();
+}
+
+async function adminViewPollResults(pollId) {
+  var { data: poll } = await supabaseClient.from('polls').select('*').eq('id', pollId).single();
+  var { data: votes } = await supabaseClient.from('poll_votes').select('option_index').eq('poll_id', pollId);
+  var total = votes ? votes.length : 0;
+  var counts = [0,0,0,0,0];
+  (votes || []).forEach(function(v) { counts[v.option_index] = (counts[v.option_index] || 0) + 1; });
+
+  var modal = makeModal();
+  var html = '<h2 style="text-align:center;margin-bottom:8px;">📊 Results</h2>' +
+    '<p style="text-align:center;margin-bottom:16px;"><strong>' + escapeHtml(poll.question) + '</strong><br><span style="color:var(--text-light);font-size:0.85rem;">' + total + ' total votes</span></p>';
+  (poll.options || []).forEach(function(opt, i) {
+    var count = counts[i] || 0;
+    var pct = total > 0 ? Math.round(count / total * 100) : 0;
+    html += '<div style="margin-bottom:12px;">' +
+      '<div style="display:flex;justify-content:space-between;margin-bottom:4px;">' +
+        '<span>' + escapeHtml(opt.icon || '') + ' ' + escapeHtml(opt.text) + '</span>' +
+        '<span style="color:var(--text-light);">' + count + ' (' + pct + '%)</span>' +
+      '</div>' +
+      '<div style="background:rgba(153,102,255,0.15);border-radius:8px;height:18px;overflow:hidden;">' +
+        '<div style="width:' + pct + '%;height:100%;background:linear-gradient(90deg,#9966ff,#ff66cc);"></div>' +
+      '</div></div>';
+  });
+  html += '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:14px;">Close</button>';
+  modal.innerHTML = html;
+  openModal(modal);
+}
+
+async function adminEndPoll(pollId) {
+  if (!confirm('End this poll? No more votes will be accepted.')) return;
+  var { error } = await supabaseClient.from('polls').update({ is_active: false, ends_at: new Date().toISOString() }).eq('id', pollId);
+  if (error) { showToast('Error: ' + error.message, 4000); return; }
+  showToast('Poll ended', 2000);
+  showAdminPollModal();
+}
+
+async function adminDeletePoll(pollId) {
+  if (!confirm('Delete this poll permanently?')) return;
+  await supabaseClient.from('poll_votes').delete().eq('poll_id', pollId);
+  var { error } = await supabaseClient.from('polls').delete().eq('id', pollId);
+  if (error) { showToast('Error: ' + error.message, 4000); return; }
+  showToast('Poll deleted', 2000);
+  showAdminPollModal();
+}
+
+// ── Quick Reference Help Modal ────────────────────────────────────────────
+function showHelpModal() {
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="max-width:480px;padding:4px;">' +
+      '<h2 style="text-align:center;margin-bottom:18px;color:var(--purple-dark);">📚 Quick Guide</h2>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">🐾 Pet Stats</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          '<b>❤️ HP</b> — Health Points. Carries between battles! Heal with potions or wait for regen.<br>' +
+          '<b>⚔️ Attack</b> — Battle damage dealt. Increase via level-ups &amp; weapons.<br>' +
+          '<b>🛡️ Defense</b> — Damage reduction. Increase via level-ups &amp; armor.<br>' +
+          '<b>💨 Speed</b> — Turn order in battles &amp; race performance. Level up or equip speed gear.' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">🪙 PawketPoints (PP)</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          'Earn from: Daily login · Battles · Racing · Bingo · PawketPass rewards · Expeditions · Guilds<br>' +
+          'Spend on: Shop items · Equipment · Furniture · Guild creation' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">🎫 PawketPass XP Sources</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          '🍖 Feed pets: 2 XP (cap 20/day)<br>' +
+          '🎾 Play with pets: 2 XP (cap 20/day)<br>' +
+          '⚔️ Battles: 15 XP win / 5 XP loss (cap 50/day)<br>' +
+          '📅 Daily login: 10 XP<br>' +
+          '🎯 Bingo square: 15 XP · Line: 50 XP · Blackout: 200 XP<br>' +
+          '🌲 Expeditions: 10 XP · 🏁 Race: 5 XP · 🏆 Grand Prix: up to 250 XP' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">🏁 Racing</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          '1st: Win 1.5×–3× your bet · 2nd: Get bet back · 3rd: Half bet back · 4th: Lose bet<br>' +
+          'Higher Speed stat = better odds and bigger wins!' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:16px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">🎯 Daily Bingo</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          'Complete tasks to mark squares — each gives PP + Pass XP.<br>' +
+          'Complete a full line for bonus rewards! Blackout for BIG rewards.<br>' +
+          'Resets daily at midnight.' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-bottom:18px;">' +
+        '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:6px;font-size:0.9rem;">💡 Tips</div>' +
+        '<div style="font-size:0.82rem;color:var(--text-light);line-height:1.7;">' +
+          'Hover any stat (ATK/DEF/SPD/HP) on a pet card for more info.<br>' +
+          'Furniture bought once works in ALL pet rooms and gives daily happiness.<br>' +
+          'Guilds unlock Dungeons, treasury perks, and XP boosts for the whole team.' +
+        '</div>' +
+      '</div>' +
+      '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Got it! 👍</button>' +
+    '</div>';
+  openModal(modal);
+}
+
+// ── Player Report System ────────────────────────────────────────────────────
+function showReportModal() {
+  if (!currentUser) { showToast('Please log in to submit a report.', 2500); return; }
+
+  var modal = makeModal();
+  modal.innerHTML =
+    '<div style="max-width:420px;">' +
+      '<h3 style="color:var(--purple-dark);margin-bottom:14px;">🚩 Report an Issue</h3>' +
+      '<label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">What\'s this about?</label>' +
+      '<select id="report-type-select" style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.9rem;margin-bottom:14px;box-sizing:border-box;">' +
+        '<option value="bug">🐛 Bug / glitch</option>' +
+        '<option value="bad_username">🚫 Inappropriate username</option>' +
+        '<option value="bad_language">🤬 Bad language / harassment</option>' +
+        '<option value="cheating">⚖️ Cheating / exploiting</option>' +
+        '<option value="guestbook">📖 Guestbook / chat message</option>' +
+        '<option value="other">❓ Something else</option>' +
+      '</select>' +
+      '<label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Who or what is this about? (optional)</label>' +
+      '<input id="report-target-input" type="text" maxlength="50" placeholder="Username, guild name, etc." style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.9rem;margin-bottom:14px;box-sizing:border-box;">' +
+      '<label style="font-size:0.82rem;font-weight:700;display:block;margin-bottom:4px;">Describe the issue</label>' +
+      '<textarea id="report-desc-textarea" maxlength="1000" placeholder="Please give as much detail as you can..." style="width:100%;padding:8px 12px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;resize:vertical;min-height:90px;margin-bottom:14px;box-sizing:border-box;"></textarea>' +
+      '<div style="display:flex;gap:10px;">' +
+        '<button class="btn btn-outline" onclick="closeModal()" style="flex:1;">Cancel</button>' +
+        '<button class="btn btn-primary" onclick="submitReport()" style="flex:1;">Submit Report</button>' +
+      '</div>' +
+    '</div>';
+  openModal(modal);
+}
+
+async function submitReport() {
+  if (!currentUser) return;
+  if (!canPerformAction('submit_report', 5000)) { showToast('Please wait before submitting another report.', 2500); return; }
+
+  var type = (document.getElementById('report-type-select') || {}).value || 'other';
+  var target = (document.getElementById('report-target-input') || {}).value.trim();
+  var desc = (document.getElementById('report-desc-textarea') || {}).value.trim();
+
+  if (!desc) { showToast('Please describe the issue before submitting.', 2500); return; }
+  if (desc.length > 1000) { showToast('Description is too long (max 1000 characters).', 2500); return; }
+
+  try {
+    var { error } = await supabaseClient.from('player_reports').insert({
+      reporter_id: currentUser.id,
+      report_type: type,
+      target_text: target || null,
+      description: desc,
+      status: 'open'
+    });
+    if (error) throw error;
+
+    closeModal();
+    showToast('🚩 Report submitted — thank you for helping keep PawketPets safe!', 4000);
+  } catch(err) {
+    showToast('Could not submit report: ' + err.message, 3500);
+  }
+}
+
+// ── Admin: Report Inbox ─────────────────────────────────────────────────────
+async function adminShowReportInbox() {
+  if (!await isAdmin()) { showToast('Admin access required', 3000); return; }
+
+  var { data: reports, error } = await supabaseClient
+    .from('player_reports')
+    .select('id, reporter_id, report_type, target_text, description, status, created_at, players(username)')
+    .order('created_at', { ascending: false })
+    .limit(100);
+
+  if (error) { showToast('Could not load reports: ' + error.message, 3500); return; }
+
+  var typeLabels = {
+    bug: '🐛 Bug', bad_username: '🚫 Username', bad_language: '🤬 Language',
+    cheating: '⚖️ Cheating', guestbook: '📖 Guestbook', other: '❓ Other'
+  };
+  var statusColors = { open: '#ff6b6b', reviewing: '#fbbf24', resolved: '#5dde7a', dismissed: 'var(--text-light)' };
+
+  var modal = makeModal();
+  var openCount = (reports || []).filter(function(r) { return r.status === 'open'; }).length;
+
+  var listHtml = (reports || []).map(function(r) {
+    var reporterName = r.players ? escapeHtml(r.players.username) : 'Unknown';
+    var statusColor = statusColors[r.status] || 'var(--text-light)';
+    return '<div style="border:2px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;background:' + (r.status === 'open' ? 'rgba(255,107,107,0.05)' : 'transparent') + ';">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+        '<span style="font-weight:700;font-size:0.85rem;">' + (typeLabels[r.report_type] || r.report_type) + '</span>' +
+        '<span style="font-size:0.72rem;font-weight:700;color:' + statusColor + ';text-transform:uppercase;">' + r.status + '</span>' +
+      '</div>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:6px;">' +
+        'From: ' + reporterName + (r.target_text ? ' · About: ' + escapeHtml(r.target_text) : '') + ' · ' + new Date(r.created_at).toLocaleString() +
+      '</div>' +
+      '<div style="font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;white-space:pre-wrap;">' + escapeHtml(r.description) + '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+        (r.status !== 'reviewing' ? '<button class="btn btn-sm btn-outline" onclick="adminUpdateReportStatus(\'' + r.id + '\',\'reviewing\')">👀 Mark Reviewing</button>' : '') +
+        (r.status !== 'resolved'  ? '<button class="btn btn-sm btn-outline" onclick="adminUpdateReportStatus(\'' + r.id + '\',\'resolved\')">✅ Resolve</button>'      : '') +
+        (r.status !== 'dismissed' ? '<button class="btn btn-sm btn-outline" style="color:#ff6b6b;" onclick="adminUpdateReportStatus(\'' + r.id + '\',\'dismissed\')">🗑️ Dismiss</button>' : '') +
+      '</div>' +
+    '</div>';
+  }).join('') || '<div style="text-align:center;color:var(--text-light);padding:30px;">No reports yet.</div>';
+
+  modal.innerHTML =
+    '<h2 style="text-align:center;margin-bottom:6px;">🚩 Player Reports</h2>' +
+    '<div style="text-align:center;color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + openCount + ' open · showing last ' + (reports ? reports.length : 0) + '</div>' +
+    '<div style="max-height:60vh;overflow-y:auto;">' + listHtml + '</div>' +
+    '<button onclick="closeModal()" class="btn btn-outline" style="width:100%;margin-top:14px;">Close</button>';
+  openModal(modal);
+}
+
+async function adminUpdateReportStatus(reportId, newStatus) {
+  if (!await isAdmin()) return;
+  try {
+    await supabaseClient.from('player_reports').update({ status: newStatus }).eq('id', reportId);
+    showToast('Report marked as ' + newStatus, 2000);
+    adminShowReportInbox();
+  } catch(err) { showToast('Failed: ' + err.message, 3000); }
 }

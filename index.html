@@ -12,7 +12,7 @@
   
   <!-- SEO Meta Tags -->
   <title>PawketPetsVT - Adopt Your Favorite VTuber's Digital Pet!</title>
-  <meta name="description" content="Adopt digital pets of your favorite VTubers! Play minigames, battle friends, earn rewards by watching Embertail & Pyxshuul's Twitch streams. Free virtual pet game with live Twitch integration.">
+  <meta name="description" content="Adopt digital pets of your favorite VTubers! Play minigames, battle friends, earn rewards by chatting in Embertail & Pyxshuul's Twitch streams. Free virtual pet game with live Twitch integration.">
   <meta name="keywords" content="virtual pet game, vtuber game, twitch game, pet simulator, online pet game, embertail, pyxshuul, pawketpets, digital pets, browser game, free game">
   <meta name="author" content="PawketPetsVT">
   <meta name="robots" content="index, follow">
@@ -22,7 +22,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://pawketpetsvt.github.io/">
   <meta property="og:title" content="PawketPetsVT - Adopt Your Favorite VTuber's Pet!">
-  <meta property="og:description" content="Free virtual pet game! Adopt Embertail or Pyxshuul, play minigames, battle friends, and earn rewards watching Twitch streams.">
+  <meta property="og:description" content="Free virtual pet game! Adopt Embertail or Pyxshuul, play minigames, battle friends, and earn rewards chatting in Twitch streams.">
   <meta property="og:image" content="https://pawketpetsvt.github.io/images/social-preview.png">
   <meta property="og:site_name" content="PawketPetsVT">
   
@@ -30,7 +30,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:url" content="https://pawketpetsvt.github.io/">
   <meta name="twitter:title" content="PawketPetsVT - VTuber Virtual Pet Game">
-  <meta name="twitter:description" content="Adopt Embertail & Pyxshuul! Earn rewards watching streams, battle friends, play minigames. Free!">
+  <meta name="twitter:description" content="Adopt Embertail & Pyxshuul! Earn rewards chatting in streams, battle friends, play minigames. Free!">
   <meta name="twitter:image" content="https://pawketpetsvt.github.io/images/twitter-card.png">
   
   <!-- Theme Color -->
@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260504215426">
+  <link rel="stylesheet" href="style.css?v=20260625210000">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -54,15 +54,16 @@
    ═══════════════════════════════════════════════════════════ */
 .tutorial-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;pointer-events:none}
 .tutorial-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);pointer-events:none}
-.tutorial-mascot{position:fixed;right:100px;bottom:280px;z-index:1000001;text-align:center;pointer-events:none;animation:tutorial-mascot-bounce 2s ease-in-out infinite}
+.tutorial-mascot{position:fixed;right:100px;bottom:280px;z-index:1000001;text-align:center;pointer-events:none;animation:tutorial-mascot-bounce 4s ease-in-out infinite}
 .tutorial-mascot-image{width:180px;height:180px;object-fit:contain;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));animation:tutorial-mascot-float 3s ease-in-out infinite}
 .tutorial-mascot-name{font-family:'Chewy',cursive;font-size:1.2rem;color:#fff;margin-top:12px;text-shadow:0 2px 8px rgba(0,0,0,0.5)}
 .tutorial-mascot-excited .tutorial-mascot-image{animation:tutorial-mascot-excited 0.5s ease-in-out infinite}
+.tutorial-mascot-explaining .tutorial-mascot-image{animation:tutorial-mascot-explaining 1.5s ease-in-out infinite}
 .tutorial-mascot-concerned .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,165,0,0.3))}
 .tutorial-mascot-worried .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,100,100,0.3))}
 .tutorial-mascot-scared .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,0,0,0.5));animation:tutorial-mascot-shake 0.3s ease-in-out infinite}
 .tutorial-mascot-serious .tutorial-mascot-image{filter:grayscale(0.3) drop-shadow(0 8px 24px rgba(100,0,150,0.4))}
-.tutorial-dialogue-box{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);width:90%;max-width:700px;z-index:1000002;background:linear-gradient(135deg,#fff,#fff5ff);border:4px solid var(--purple);border-radius:24px;padding:30px;box-shadow:0 12px 48px rgba(153,102,255,0.4);animation:tutorial-dialogue-enter 0.3s ease-out;pointer-events:all}
+.tutorial-dialogue-box{position:fixed;bottom:20px;left:20px;transform:none;width:320px;max-width:320px;z-index:1000002;background:linear-gradient(135deg,#fff,#fff5ff);border:4px solid var(--purple);border-radius:24px;padding:30px;box-shadow:0 12px 48px rgba(153,102,255,0.4);animation:tutorial-dialogue-enter 0.3s ease-out;pointer-events:all}
 .tutorial-dialogue-content{position:relative}
 .tutorial-dialogue-text{font-family:'Chewy',cursive;font-size:1.3rem;color:var(--purple-dark);line-height:1.6;margin-bottom:20px;min-height:80px}
 .tutorial-progress{display:flex;justify-content:center;gap:8px;margin-bottom:20px}
@@ -75,17 +76,33 @@
 .tutorial-next:disabled{opacity:0.5;cursor:not-allowed}
 .tutorial-choice-buttons{display:flex;flex-direction:column;gap:12px;width:100%}
 .tutorial-choice-buttons .btn{width:100%;padding:16px 24px;font-size:1.1rem}
-@keyframes tutorial-dialogue-enter{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
-@keyframes tutorial-mascot-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+/* Tab highlight pulse when tutorial mentions a tab */
+.tutorial-tab-highlight{animation:tutorial-tab-pulse 1s ease-in-out infinite!important;box-shadow:0 0 0 0 rgba(153,102,255,0.7)!important;outline:3px solid #9966ff!important;outline-offset:2px!important;position:relative!important;z-index:10!important}
+@keyframes tutorial-tab-pulse{0%{box-shadow:0 0 0 0 rgba(153,102,255,0.7)}70%{box-shadow:0 0 0 10px rgba(153,102,255,0)}100%{box-shadow:0 0 0 0 rgba(153,102,255,0)}}
+/* Arrow pointing at highlighted tab */
+.tutorial-tab-arrow{position:fixed;z-index:1000003;pointer-events:none;font-size:2rem;animation:tutorial-arrow-bounce 0.6s ease-in-out infinite alternate;filter:drop-shadow(0 2px 6px rgba(153,102,255,0.8))}
+@keyframes tutorial-arrow-bounce{from{transform:translateX(-8px)}to{transform:translateX(4px)}}
+/* Recap modal */
+.tutorial-recap-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:1000010;background:linear-gradient(135deg,#fff,#fff5ff);border:4px solid var(--purple);border-radius:24px;padding:40px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(153,102,255,0.5);text-align:center;pointer-events:all}
+.tutorial-recap-modal h2{font-family:'Chewy',cursive;font-size:2rem;color:var(--purple-dark);margin-bottom:16px}
+.tutorial-recap-list{text-align:left;margin:16px 0;list-style:none;padding:0}
+.tutorial-recap-list li{padding:8px 0;border-bottom:1px solid var(--purple-light);font-size:1rem;color:var(--text)}
+.tutorial-recap-list li:before{content:"✅ ";margin-right:6px}
+@keyframes tutorial-dialogue-enter{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tutorial-mascot-bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes tutorial-mascot-float{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-15px) rotate(3deg)}}
 @keyframes tutorial-mascot-excited{0%,100%{transform:scale(1) rotate(0)}25%{transform:scale(1.1) rotate(-5deg)}75%{transform:scale(1.1) rotate(5deg)}}
+@keyframes tutorial-mascot-explaining{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-6px) scale(1.03)}}
 @keyframes tutorial-mascot-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
 body.night-mode .tutorial-dialogue-box{background:linear-gradient(135deg,#2a2440,#3a3050);border-color:#9966ff;box-shadow:0 12px 48px rgba(153,102,255,0.6)}
 body.night-mode .tutorial-dialogue-text{color:#e8d5ff}
 body.night-mode .tutorial-dot{background:#9966ff}
 body.night-mode .tutorial-dot.active{background:#b589ff}
 body.night-mode .tutorial-skip{color:#b589ff!important}
-@media (max-width:768px){.tutorial-mascot{right:20px;bottom:220px;transform:scale(0.7)}.tutorial-mascot-image{font-size:6rem}.tutorial-dialogue-box{bottom:20px;width:95%;padding:20px}.tutorial-dialogue-text{font-size:1.1rem;min-height:60px}.tutorial-buttons{flex-direction:column;gap:8px}.tutorial-skip,.tutorial-next{width:100%}}
+body.night-mode .tutorial-recap-modal{background:linear-gradient(135deg,#2a2440,#3a3050);border-color:#9966ff}
+body.night-mode .tutorial-recap-modal h2{color:#e8d5ff}
+body.night-mode .tutorial-recap-list li{color:#e8d5ff;border-color:#4a3a6a}
+@media (max-width:768px){.tutorial-mascot{right:20px;bottom:220px;transform:scale(0.7)}.tutorial-mascot-image{font-size:6rem}.tutorial-dialogue-box{bottom:20px;left:50%;transform:translateX(-50%);width:90%;max-width:90%;padding:20px}.tutorial-dialogue-text{font-size:1.1rem;min-height:60px}.tutorial-buttons{flex-direction:column;gap:8px}.tutorial-skip,.tutorial-next{width:100%}}
 @media (max-width:480px){.tutorial-mascot{right:10px;bottom:200px;transform:scale(0.5)}.tutorial-dialogue-text{font-size:1rem}}
 .settings-modal-item{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:24px;background:var(--cream);border:3px solid var(--purple);border-radius:16px;box-shadow:0 4px 12px rgba(153,102,255,0.2)}
 .settings-modal-label{flex:1}
@@ -159,47 +176,65 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
 <audio id="bg-music" loop><source src="music.mp3" type="audio/mpeg" /></audio>
 
 <!-- Consolidated Navigation Bar -->
-<nav class="navbar navbar-consolidated">
-  <div class="navbar-inner">
-    <!-- Left: Logo -->
+<nav class="navbar">
+  <div class="navbar-left">
+    <!-- Hamburger: visible on mobile only, lives in navbar so it's always accessible -->
+    <button id="hamburger-menu-btn" class="hamburger-menu-btn" aria-label="Open menu">☰</button>
     <div class="navbar-logo" onclick="showTab('home')">
-      <img src="images/pawket-logo.png" alt="PawketPetsVT" /><span>Pawket</span>Pets
+      <img src="images/pawket-logo.png" alt="PawketPetsVT">
+      <span>PawketPets</span>
     </div>
-    
-    <!-- Center: Beta Warning -->
-    <div class="navbar-center">
-      <span class="beta-tag-inline">BETA</span>
-      <span class="beta-text-inline">⚠️ Game in development. Progress may reset.</span>
-      <button class="beta-contact-inline" onclick="openContactModal()">Report Issues</button>
+    <div class="beta-badge">In Beta</div>
+  </div>
+  
+  <div class="navbar-center">
+    <div class="notification-bell" id="notification-bell" style="display:none;" onclick="toggleNotificationDropdown()">
+      <span class="bell-icon">🔔</span>
+      <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
     </div>
-    
-    <!-- Right: All User Controls -->
-    <div class="navbar-user">
-      <!-- Notification Bell -->
-      <div class="notification-bell" id="notification-bell" style="display:none;" onclick="toggleNotificationDropdown()">
-        <span class="bell-icon">🔔</span>
-        <span class="notification-badge" id="notification-badge" style="display:none;">0</span>
-      </div>
-      
-      <!-- Music Player Controls -->
-      <div class="music-controls-inline">
-        <span class="music-title-inline">🎵</span>
-        <button class="music-btn-inline" id="music-play-btn" onclick="toggleMusic()" title="Play/Pause Music">▶</button>
-        <button class="music-btn-inline" onclick="stopMusic()" title="Stop Music">⏹</button>
-        <input type="range" class="music-volume-inline" id="music-volume" min="0" max="1" step="0.05" value="0.4" oninput="setVolume(this.value)" title="Volume">
-      </div>
-      
-      <span id="nav-user"></span>
-      <span id="nav-points"></span>
-      <button class="btn-nav-action" id="nav-profile" style="display:none" onclick="showTab('myprofile')">👤 Profile</button>
-      <button class="btn-nav-action" id="nav-logout" style="display:none" onclick="handleLogout()">Logout</button>
+    <div class="pass-button" id="pass-button" onclick="showPassModal()" style="display:none;">
+      🎫 <span>Pass</span> <span id="pass-level-display">1</span>
+    </div>
+    <div class="bingo-button" id="bingo-button" onclick="showBingoModal()" style="display:none;">
+      🎯 Bingo <span id="bingo-completion">0/12</span>
+    </div>
+
+    <!-- Event/Weather Status Widget -->
+    <div class="event-status-widget" id="event-status-widget" style="display:none;">
+      <div class="event-status-icon" id="event-status-icon">🌤️</div>
+      <div class="event-status-text" id="event-status-text">...</div>
+      <div class="event-status-dot" id="event-status-dot"></div>
+    </div>
+  </div>
+  
+  <div class="navbar-right">
+    <span id="nav-user"></span>
+    <span id="nav-points"></span>
+    <button onclick="showHelpModal()" title="Help & Guide" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
+    <button onclick="showReportModal()" title="Report an Issue" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
+
+    <!-- Skin Key counter — hidden until logged in -->
+    <div id="nav-skin-key-display" style="display:none;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,165,0,0.15));border-radius:20px;padding:4px 10px;border:1px solid rgba(255,215,0,0.35);cursor:help;" title="Skin Keys — use to unlock pet variants">
+      <span style="font-size:0.95rem;">🔑</span>
+      <span id="nav-skin-key-count" class="skin-key-count" style="font-weight:bold;color:#FFD700;font-size:0.88rem;">0</span>
+    </div>
+    <button class="btn-nav-action" id="nav-profile" style="display:none" onclick="showTab('myprofile')">
+      <span>👤 Profile</span>
+    </button>
+    <button class="btn-nav-action" id="nav-logout" style="display:none" onclick="handleLogout()">
+      <span>🚪 Logout</span>
+    </button>
+    <div class="music-controls">
+      <button class="music-btn" id="music-play-btn" onclick="toggleMusic()">▶</button>
+      <button class="music-btn" onclick="stopMusic()">⏹</button>
+      <input type="range" class="music-volume" id="music-volume" min="0" max="1" step="0.05" value="0.4" oninput="setVolume(this.value)">
     </div>
   </div>
 </nav>
 
 <!-- News Ticker (Second Bar) -->
 <div class="news-ticker">
-  <div class="news-ticker-inner">Welcome to PawketPetsVT! &nbsp;&nbsp; Adopt your first pet today! &nbsp;&nbsp; Watch Embertail &amp; Pyxshuul live on Twitch! &nbsp;&nbsp; New members coming soon... &nbsp;&nbsp; Earn PawketPoints by playing minigames! &nbsp;&nbsp; Stay tuned for updates! &nbsp;&nbsp;</div>
+  <div class="news-ticker-inner">Welcome to PawketPetsVT! &nbsp;&nbsp; Adopt your first pet today! &nbsp;&nbsp; Chat in our members' streams for rewards! &nbsp;&nbsp; Earn PawketPoints by playing minigames! &nbsp;&nbsp; Stay tuned for updates! &nbsp;&nbsp;</div>
 </div>
 
 <!-- Notification Dropdown -->
@@ -226,8 +261,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         </div>
       </div>
       
-      <!-- Hamburger Menu Button (Mobile Only) -->
-      <button id="hamburger-menu-btn" class="hamburger-menu-btn" aria-label="Menu">☰</button>
+      <!-- Hamburger is now in the navbar (navbar-left) for proper mobile positioning -->
     </div>
     
     <!-- DESKTOP NAVIGATION (visible on desktop) -->
@@ -248,6 +282,8 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           👥 Friends
           <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
         </button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-racing" onclick="showTab('racing')">🏁 Racing</button>
+        <button class="sidebar-nav-btn" id="sidebar-btn-guild" onclick="showTab('guild')">🏛️ Guild</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
         <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
@@ -275,11 +311,33 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             👥 Friends
             <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
           </button>
+          <button class="sidebar-nav-btn" id="sidebar-btn-racing" onclick="showTab('racing')">🏁 Racing</button>
+          <button class="sidebar-nav-btn" id="sidebar-btn-guild" onclick="showTab('guild')">🏛️ Guild</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-forum" onclick="showTab('forum')">💬 Forum</button>
           <button class="sidebar-nav-btn" id="sidebar-btn-settings" onclick="showTab('settings')">⚙️ Settings</button>
+        </div>
+      </div>
+
+      <!-- Mobile-only: Live Streamers quick view -->
+      <div class="sidebar-section mobile-streamers-section" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.1);padding-top:16px;">
+        <div class="sidebar-title" style="color:#ff9966;font-size:0.85rem;margin-bottom:10px;">📺 Our Streamers</div>
+        <div id="mobile-streamer-list" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="mobile-streamer-row" data-streamer="embertail">
+            <img src="images/pets/ember.png" alt="Embertail" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+            <span style="color:#e8d5ff;font-size:0.85rem;">Embertail</span>
+            <span class="mobile-live-dot" id="mobile-ember-dot" style="display:none;">🔴</span>
+          </div>
+          <div class="mobile-streamer-row" data-streamer="pyxshuul">
+            <img src="images/pets/pyxie.png" alt="Pyxshuul" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+            <span style="color:#e8d5ff;font-size:0.85rem;">Pyxshuul</span>
+            <span class="mobile-live-dot" id="mobile-pyxs-dot" style="display:none;">🔴</span>
+          </div>
+          <div class="mobile-streamer-row">
+            <a href="showTab('twitch')" onclick="showTab('twitch');return false;" style="color:#9966ff;font-size:0.8rem;text-decoration:none;">View all streamers →</a>
+          </div>
         </div>
       </div>
     </nav>
@@ -427,6 +485,15 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           Loading tip...
         </div>
       </div>
+
+      <!-- Gift Inbox Button -->
+      <div id="gift-inbox-bar" style="display:none;background:linear-gradient(135deg,#9966ff,#ff66cc);border-radius:14px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="gift_showInboxModal()">
+        <span style="color:white;font-weight:700;">📬 Gift Inbox</span>
+        <span id="gift-inbox-badge" style="background:white;color:#9966ff;border-radius:20px;padding:2px 10px;font-weight:700;font-size:0.9rem;display:none;">0</span>
+      </div>
+
+      <!-- Active Polls Widget -->
+      <div id="polls-widget-mount" style="margin-bottom:16px;"></div>
       
       <!-- Melon's Shop Promo -->
       <div class="melon-promo">
@@ -480,13 +547,15 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             <span class="referral-stat-value" id="referral-pp-earned">0 PP</span>
           </div>
         </div>
+        <!-- Milestone progress injected here by loadReferralData -->
+        <div id="referral-milestone-progress"></div>
       </div>
       
       <div class="section-header"><h2>About PawketPetsVT</h2><div class="section-line"></div></div>
       <div class="card" style="line-height:1.8;color:var(--text-light);">
         <p><strong style="color:var(--purple-dark);">PawketPetsVT</strong> is a fan-interactive pet game inspired by the pet games of the early 2000s. Collect, raise, and care for little virtual versions of your favourite streamers.</p>
         <br>
-        <p>Earn <strong style="color:var(--purple-dark);">PawketPoints</strong> by playing minigames, watching streams, and interacting with your pets!</p>
+        <p>Earn <strong style="color:var(--purple-dark);">PawketPoints</strong> by playing minigames, chatting in streams, and interacting with your pets!</p>
       </div>
     </div>
   </div>
@@ -563,6 +632,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       <div class="shop-tabs">
         <button class="shop-tab active" id="shop-tab-btn" onclick="showShopTab('items')">Items</button>
         <button class="shop-tab" id="equip-tab-btn" onclick="showShopTab('equipment')">⚔️ Equipment</button>
+        <button class="shop-tab" id="furn-tab-btn" onclick="showShopTab('furniture')">🪑 Furniture</button>
         <button class="shop-tab" id="inv-tab-btn" onclick="showShopTab('inventory')">My Inventory</button>
       </div>
       <div id="shop-items-panel"><div id="shop-grid" class="shop-grid"><div class="spinner"></div></div></div>
@@ -570,11 +640,15 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       <!-- EQUIPMENT SHOP PANEL -->
       <div id="shop-equipment-panel" style="display:none">
         <div class="equipment-filter-tabs">
-          <button class="filter-tab active" onclick="filterEquipment('all', event)">All</button>
-          <button class="filter-tab" onclick="filterEquipment('weapon', event)">⚔️ Weapons</button>
+          <button class="filter-tab active" onclick="filterEquipment('weapon', event)">⚔️ Weapons</button>
           <button class="filter-tab" onclick="filterEquipment('armor', event)">🛡️ Armor</button>
         </div>
         <div id="equipment-shop-grid" class="shop-grid"><div class="spinner"></div></div>
+      </div>
+
+      <!-- FURNITURE SHOP PANEL -->
+      <div id="shop-furniture-panel" style="display:none">
+        <div id="furniture-shop-grid" class="shop-grid"><div class="spinner"></div></div>
       </div>
       
       <div id="shop-inv-panel" style="display:none"><div id="inventory-grid" class="inventory-grid"><div class="spinner"></div></div></div>
@@ -775,6 +849,9 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           </div>
         </div>
 
+
+
+
       </div>
     </div>
   </div>
@@ -797,6 +874,45 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         &#128995; Visit Our Official Twitch Team Page
       </a>
 
+      <!-- Reward explanation cards — visible to everyone -->
+      <div class="twitch-rewards-section">
+        <h3 style="margin-bottom:16px;color:var(--purple-dark);">🎁 Earn PP by Being Active in Our Streams!</h3>
+        <div class="reward-cards">
+          <div class="reward-card">
+            <div class="reward-icon">💬</div>
+            <div class="reward-info">
+              <div class="reward-title">Chat Activity</div>
+              <div class="reward-desc">+2 PP every 5 minutes while chatting in any team stream</div>
+              <div class="reward-cooldown">⏱️ 5-minute cooldown between rewards</div>
+            </div>
+          </div>
+          <div class="reward-card">
+            <div class="reward-icon">✅</div>
+            <div class="reward-info">
+              <div class="reward-title">Follow</div>
+              <div class="reward-desc">+50 PP for following any team member (one-time per streamer)</div>
+            </div>
+          </div>
+          <div class="reward-card">
+            <div class="reward-icon">🎯</div>
+            <div class="reward-info">
+              <div class="reward-title">Subscribe / Gift Sub</div>
+              <div class="reward-desc">+200 PP for subscribing or gifting a sub to any team stream</div>
+            </div>
+          </div>
+          <div class="reward-card">
+            <div class="reward-icon">💎</div>
+            <div class="reward-info">
+              <div class="reward-title">Bits / Cheers</div>
+              <div class="reward-desc">+1 PP per 10 Bits cheered in any team stream</div>
+            </div>
+          </div>
+        </div>
+        <div class="twitch-tip">
+          💡 <strong>Pro Tip:</strong> Link your Twitch account below, then go chat in our streams! Rewards credit automatically — no button to click.
+        </div>
+      </div>
+
       <!-- Link account -->
       <div class="section-header" style="margin-top:36px;"><h2>Link Your Account</h2><div class="section-line"></div></div>
       <div class="token-box" id="token-box" style="display:none">
@@ -807,7 +923,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       </div>
       <div class="twitch-card">
         <h2>Connect Twitch Account</h2>
-        <p>Link your Twitch to unlock stream rewards! Earn PP for following and watching live.</p>
+        <p>Link your Twitch to unlock stream rewards! Earn PP for following and chatting live.</p>
         <div id="twitch-not-linked">
           <button class="btn-twitch" onclick="linkTwitch()">&#128995; Connect with Twitch</button>
           <p style="margin-top:14px;font-size:0.83rem;color:var(--text-light);">We only read public info. We never post on your behalf.</p>
@@ -823,6 +939,33 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             </ul>
             <button class="btn btn-primary" id="check-follows-btn" onclick="checkFollows()">Check Follows &amp; Claim Rewards</button>
           </div>
+
+          <!-- Twitch reward stats from Cloudflare worker -->
+          <div id="twitch-stats-panel" style="display:none;margin-top:18px;background:rgba(153,102,255,0.06);border:1px solid var(--purple-light);border-radius:14px;padding:14px 16px;">
+            <div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:10px;">📊 Your Twitch Rewards</div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;text-align:center;">
+              <div style="background:var(--white);border-radius:10px;padding:8px 4px;">
+                <div id="twitch-pp-earned" style="font-weight:800;font-size:1.1rem;color:var(--purple);">0</div>
+                <div style="font-size:0.68rem;color:var(--text-light);">PP Earned</div>
+              </div>
+              <div style="background:var(--white);border-radius:10px;padding:8px 4px;">
+                <div id="twitch-chats" style="font-weight:800;font-size:1.1rem;color:var(--purple);">0</div>
+                <div style="font-size:0.68rem;color:var(--text-light);">Chats</div>
+              </div>
+              <div style="background:var(--white);border-radius:10px;padding:8px 4px;">
+                <div id="twitch-follows" style="font-weight:800;font-size:1.1rem;color:var(--purple);">0</div>
+                <div style="font-size:0.68rem;color:var(--text-light);">Follows</div>
+              </div>
+              <div style="background:var(--white);border-radius:10px;padding:8px 4px;">
+                <div id="twitch-subs" style="font-weight:800;font-size:1.1rem;color:var(--purple);">0</div>
+                <div style="font-size:0.68rem;color:var(--text-light);">Subs</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;font-size:0.72rem;color:var(--text-light);line-height:1.5;">
+              💬 Chat rewards: +2 PP per 5 min · 👥 Follow: +50 PP each · 🌟 Sub: +200 PP · 🪙 Bits: +1 PP per 10
+            </div>
+          </div>
+
           <br><button class="btn btn-outline btn-sm" onclick="unlinkTwitch()">Unlink Twitch</button>
         </div>
       </div>
@@ -1011,6 +1154,33 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           </div>
         </div>
         
+        <!-- ── EXPEDITION SECTION ── -->
+        <div id="battle-expedition-section" style="margin-bottom:24px;">
+
+          <!-- Active explorations -->
+          <div style="background:linear-gradient(135deg,rgba(153,102,255,0.08),rgba(255,102,204,0.05));border-radius:16px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(153,102,255,0.2);">
+            <div style="font-weight:700;font-size:0.9rem;color:var(--purple-dark);margin-bottom:10px;">🌲 Active Explorations</div>
+            <div id="battle-active-expeditions"><div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">No pets currently exploring.</div></div>
+          </div>
+
+          <!-- Send on expedition -->
+          <details style="border:2px solid var(--border);border-radius:14px;padding:0;overflow:hidden;" ontoggle="if(this.open && document.getElementById('battle-exp-loading')) battleExp_renderForm()">
+            <summary style="padding:12px 16px;font-weight:700;font-size:0.88rem;color:var(--purple-dark);cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;">
+              🚀 Send a Pet on Expedition
+            </summary>
+            <div style="padding:14px 16px;border-top:1px solid var(--border);" id="battle-expedition-form">
+              <div id="battle-exp-loading" style="color:var(--text-light);font-size:0.82rem;">Loading pets…</div>
+            </div>
+          </details>
+
+          <!-- Expedition history -->
+          <div style="margin-top:14px;">
+            <div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">📜 Recent Expeditions</div>
+            <div id="battle-expedition-history"><div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">No expeditions yet.</div></div>
+          </div>
+
+        </div>
+
         <!-- Select Pet -->
         <div class="battle-pet-selector">
           <h3>Choose Your Fighter</h3>
@@ -1093,6 +1263,45 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
   <!-- ═══════════════════════════════════════════════════════════
        LEADERBOARDS
        ═══════════════════════════════════════════════════════════ -->
+
+  <!-- ═══════════════════════════════════════════════════════════════════
+       GUILD SECTION
+       ═══════════════════════════════════════════════════════════════ -->
+
+  <!-- ═══════════════════════════════════════════════
+       RACING PAGE — Quick Race + Grand Prix
+       ═══════════════════════════════════════════ -->
+  <div class="page-section" id="section-racing">
+    <div class="section-inner">
+      <div class="section-header">
+        <h2 class="section-title">🏁 Racing</h2>
+      </div>
+      <!-- Sub-tabs -->
+      <div class="shop-tabs" style="margin-bottom:20px;">
+        <button class="shop-tab active" id="racing-tab-quickrace" onclick="racing_showTab('quickrace')">🏎️ Quick Race</button>
+        <button class="shop-tab"        id="racing-tab-grandprix"  onclick="racing_showTab('grandprix')">🏆 Grand Prix</button>
+      </div>
+      <!-- Quick Race panel -->
+      <div id="racing-panel-quickrace">
+        <div id="racing-race-area"><div class="spinner"></div></div>
+      </div>
+      <!-- Grand Prix panel -->
+      <div id="racing-panel-grandprix" style="display:none;">
+        <div id="grand-prix-content"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-section" id="section-guild">
+    <div class="section-inner">
+      <div class="section-header">
+        <h2 class="section-title">🏛️ Guild</h2>
+      </div>
+      <!-- Guild content injected by loadGuildPage() -->
+      <div id="guild-content"><div class="spinner"></div></div>
+    </div>
+  </div>
+
   <div class="page-section" id="section-leaderboard">
     <div class="page-wrap">
       <div class="page-hero">
@@ -1103,10 +1312,10 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
 
       <!-- Leaderboard Tabs -->
       <div class="leaderboard-tabs">
-        <button class="leaderboard-tab active" onclick="switchLeaderboard('points')">💰 Most Points</button>
-        <button class="leaderboard-tab" onclick="switchLeaderboard('pets')">🐾 Most Pets</button>
-        <button class="leaderboard-tab" onclick="switchLeaderboard('levels')">⭐ Highest Levels</button>
-        <button class="leaderboard-tab" onclick="switchLeaderboard('badges')">🎖️ Most Badges</button>
+        <button class="leaderboard-tab active" onclick="switchLeaderboard('points', event)">💰 Most Points</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('streak', event)">🔥 Login Streak</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('levels', event)">⭐ Highest Levels</button>
+        <button class="leaderboard-tab" onclick="switchLeaderboard('badges', event)">🎖️ Most Badges</button>
       </div>
 
       <!-- Leaderboard Content -->
@@ -1114,7 +1323,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
         <div id="leaderboard-points" class="leaderboard-list active">
           <div class="spinner"></div>
         </div>
-        <div id="leaderboard-pets" class="leaderboard-list">
+        <div id="leaderboard-streak" class="leaderboard-list">
           <div class="spinner"></div>
         </div>
         <div id="leaderboard-levels" class="leaderboard-list">
@@ -1254,13 +1463,13 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             </div>
             <div class="team-profile-info">
               <h2 class="team-profile-name">Aria</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <div class="team-profile-role">Fae Moth Collector 🦋💀</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              A quiet critter who enjoys a little adventure and a lot of whimsy. Rosy maple moth fae who collects bones — don't worry, she lets you keep yours until you're done with them! 🦋💀
             </p>
             
             <div class="team-profile-stats">
@@ -1293,13 +1502,13 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             </div>
             <div class="team-profile-info">
               <h2 class="team-profile-name">Blushimia</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <div class="team-profile-role">Escaped Video Game Princess 👑🐕</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              A silly dog princess who escaped her video game after gaining sentience! Breaking free from the digital realm and living her best life. 👑🐕
             </p>
             
             <div class="team-profile-stats">
@@ -1309,7 +1518,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
               </div>
               <div class="team-stat">
                 <span class="team-stat-label">Favorite Game</span>
-                <span class="team-stat-value">??? WIP</span>
+                <span class="team-stat-value">The one she escaped from</span>
               </div>
             </div>
             
@@ -1324,21 +1533,21 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           </div>
         </div>
 
-        <!-- Cowbee Profile -->
+        <!-- Steve Profile -->
         <div class="team-profile-card">
           <div class="team-profile-header">
             <div class="team-profile-avatar">
-              <img src="images/pets/cowbee.png" alt="Cowbee" onerror="this.style.display='none';" />
+              <img src="images/pets/cowbee.png" alt="Steve" onerror="this.style.display='none';" />
             </div>
             <div class="team-profile-info">
-              <h2 class="team-profile-name">Cowbee</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <h2 class="team-profile-name">Steve</h2>
+              <div class="team-profile-role">Certified Menace 🐔⚡</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              A chill menace who clucks, bawks, bucks, and says the occasional bad word! As chill as a fire in hell, controlled like the beasts of Australia! 🐔⚡
             </p>
             
             <div class="team-profile-stats">
@@ -1363,21 +1572,21 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           </div>
         </div>
 
-        <!-- Kelta Profile -->
+        <!-- Kleat Profile -->
         <div class="team-profile-card">
           <div class="team-profile-header">
             <div class="team-profile-avatar">
-              <img src="images/pets/kelta.png" alt="Kelta" onerror="this.style.display='none';" />
+              <img src="images/pets/kelta.png" alt="Kleat" onerror="this.style.display='none';" />
             </div>
             <div class="team-profile-info">
-              <h2 class="team-profile-name">Kelta</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <h2 class="team-profile-name">Kleat! Gremlin Kleat!</h2>
+              <div class="team-profile-role">Grand Mage of Void & Galaxy ✨🌌</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              Yip, Yap, teehee! A grand mage studying void and galaxy magic who can open portals to anywhere! ✨🌌
             </p>
             
             <div class="team-profile-stats">
@@ -1398,6 +1607,9 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
               <a href="https://bsky.app/profile/keltathepomeranian.bsky.social" target="_blank" class="team-social-btn bluesky"">
                 <span class="social-icon">🦋</span> Bluesky
               </a>
+              <a href="https://x.com/keltathepom" target="_blank" class="team-social-btn twitter">
+                <span class="social-icon">🐦</span> Twitter/X
+              </a>
             </div>
           </div>
         </div>
@@ -1410,13 +1622,13 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             </div>
             <div class="team-profile-info">
               <h2 class="team-profile-name">Jess</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <div class="team-profile-role">Paleoart Parasaur Potion Brewer 🦕⚗️</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              A local fossil and potion-prepping paleoart Parasaur specializing in the cute and creepy! A quiet critter who enjoys a little adventure and a lot of whimsy. 🦕⚗️
             </p>
             
             <div class="team-profile-stats">
@@ -1449,13 +1661,13 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
             </div>
             <div class="team-profile-info">
               <h2 class="team-profile-name">Gnarly</h2>
-              <div class="team-profile-role">??? WIP</div>
+              <div class="team-profile-role">PaleoPlex Arcade Operator 🎮🦖</div>
             </div>
           </div>
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              ??? WIP
+              A radical gal running the PaleoPlex arcade! Loves Furbies and nachos! 🎮🦖
             </p>
             
             <div class="team-profile-stats">
@@ -1475,6 +1687,9 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
               </a>
               <a href="#" target="_blank" class="team-social-btn twitter">
                 <span class="social-icon">🐦</span> Twitter
+              </a>
+              <a href="#" target="_blank" class="team-social-btn tiktok">
+                <span class="social-icon">🎵</span> TikTok
               </a>
             </div>
           </div>
@@ -1615,6 +1830,9 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           <div class="profile-joined" id="profile-joined">Joined: ...</div>
           <div class="profile-bio" id="profile-bio" style="margin-top: 12px; color: var(--text-light); font-style: italic;"></div>
           
+          <!-- Equipped badges display row -->
+          <div id="profile-badge-display" class="profile-badge-display" style="margin-top:10px;"></div>
+          
           <!-- Friend/Block Actions (hidden for own profile) -->
           <div id="profile-actions" style="margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; display: none;">
             <button class="btn btn-primary" id="add-friend-btn" onclick="sendFriendRequest()" style="display:none;">
@@ -1676,6 +1894,16 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       <div id="profile-badges-grid" class="badges-grid">
         <div class="spinner"></div>
       </div>
+
+      <!-- Profile Cosmetics Equip Panel -->
+      <div class="section-header" style="margin-top:40px;">
+        <h2>🎨 Cosmetics</h2>
+        <div class="section-line"></div>
+      </div>
+      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:16px;">
+        Equip backgrounds, frames, and badges to customize your profile. Unlock more through milestones!
+      </p>
+      <div id="cosmetics-mount" class="cosmetics-panel"></div>
 
       <!-- Pet Collection -->
       <div class="section-header" style="margin-top: 40px;">
@@ -1904,6 +2132,37 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
           </label>
         </div>
         
+        <!-- Replay Tutorial -->
+        <div class="settings-modal-item" style="margin-top:15px;flex-direction:column;align-items:flex-start;gap:10px;">
+          <div>
+            <strong>🎓 Tutorial</strong>
+            <div style="font-size:0.85rem;color:var(--text-light);margin-top:4px;">Replay Melon's guide. No extra PP awarded on replay.</div>
+          </div>
+          <button class="btn btn-outline" onclick="Tutorial.replay()" style="border-color:var(--purple);color:var(--purple);">
+            🍈 Replay Tutorial
+          </button>
+        </div>
+
+        <!-- UI Themes -->
+        <div style="margin-top:30px;padding-top:24px;border-top:2px solid var(--border);">
+          <h3 style="color:var(--purple);margin-bottom:6px;">🎨 UI Themes</h3>
+          <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:12px;">
+            Choose a theme for the site. Unlock more through achievements and the PawketPass!
+          </p>
+          <div id="theme-selector-mount"></div>
+        </div>
+
+        <!-- Admin Panel — only visible to admins via JS -->
+         <div id="admin-panel-section" style="display:none;margin-top:30px;padding-top:24px;border-top:2px solid var(--border);">
+           <div style="background:rgba(255,69,0,0.08);border:2px solid rgba(255,69,0,0.3);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:0.8rem;font-weight:700;color:#ff4500;">⚠️ ADMIN CONTROLS — USE WITH CAUTION</div>
+           <h3 style="color:#ff4500;margin-bottom:10px;">⚙️ Admin Tools</h3>
+           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+             <button class="btn btn-primary" onclick="showAdminPollModal()" style="background:linear-gradient(135deg,#ff4500,#ff6b35);">🗳️ Manage Polls</button>
+             <button class="btn btn-primary" onclick="gp_adminPanel()" style="background:linear-gradient(135deg,#cc0000,#ff4500);">🏁 Grand Prix</button>
+             <button class="btn btn-primary" onclick="adminShowReportInbox()" style="background:linear-gradient(135deg,#9966ff,#ff66cc);">🚩 Player Reports</button>
+           </div>
+         </div>
+
         <!-- Referral System -->
         <div style="margin-top:40px;padding-top:30px;border-top:2px solid var(--border);">
           <h3 style="text-align:center;color:var(--purple);margin-bottom:15px;">💰 Invite Friends</h3>
@@ -1929,7 +2188,7 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
     <h2 id="modal-title">Adopt this pet?</h2>
     <p id="modal-desc">Give your new pet a nickname!</p>
     <div class="modal-nickname-group">
-      <label>Nickname <span style="color:var(--text-light);font-weight:400">(or leave blank)</span></label>
+      <label>Nickname <span style="color:var(--text-light);font-weight:400">(optional — defaults to pet name)</span></label>
       <input type="text" id="nickname-input" placeholder="e.g. Ember the Brave" maxlength="30" />
     </div>
     <div class="modal-buttons">
@@ -1961,6 +2220,20 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-outline" onclick="closeSuccessModal()">Adopt More</button>
       <button class="btn btn-primary" onclick="closeSuccessModal();showTab('mypets')">My Pets</button>
+    </div>
+  </div>
+</div>
+
+<!-- Battle Rewards Modal -->
+<div class="modal-overlay" id="battle-rewards-modal">
+  <div class="modal">
+    <div style="font-size:3.5rem;margin-bottom:12px;">⚔️</div>
+    <h2 id="rewards-title" style="color:var(--green);">🎉 Victory!</h2>
+    <p id="rewards-exp" style="font-size:1.1rem;font-weight:700;color:var(--purple-dark);margin:8px 0;">+0 EXP</p>
+    <p id="rewards-pp" style="font-size:1.3rem;font-weight:800;color:#e6a800;margin:8px 0;">+0 PP</p>
+    <p id="rewards-item" style="font-size:0.95rem;color:var(--text-light);display:none;margin:8px 0;"></p>
+    <div style="display:flex;gap:10px;margin-top:8px;">
+      <button class="btn btn-primary" onclick="closeBattleRewardsModal()" style="width:100%;">Continue</button>
     </div>
   </div>
 </div>
@@ -2173,9 +2446,9 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       </div>
       
       <!-- Cowbee -->
-      <div class="streamer-item" id="streamer-cowbee">
+      <div class="streamer-item" id="streamer-steve">
         <div class="streamer-avatar">
-          <img src="images/pets/cowbee.png" alt="Cowbee" onerror="this.src='images/pets/cowbee.png'" />
+          <img src="images/pets/cowbee.png" alt="Steve" onerror="this.src='images/pets/cowbee.png'" />
         </div>
         <div class="streamer-info">
           <div class="streamer-name">
@@ -2190,14 +2463,14 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
       </div>
       
       <!-- Kelta -->
-      <div class="streamer-item" id="streamer-kelta">
+      <div class="streamer-item" id="streamer-kleat">
         <div class="streamer-avatar">
-          <img src="images/pets/kelta.png" alt="Kelta" onerror="this.src='images/pets/kelta.png'" />
+          <img src="images/pets/kelta.png" alt="Kleat" onerror="this.src='images/pets/kelta.png'" />
         </div>
         <div class="streamer-info">
           <div class="streamer-name">
             Kelta
-            <span class="live-indicator" id="kelta-live-badge" style="display: none;">🔴 LIVE</span>
+            <span class="live-indicator" id="kleat-live-badge" style="display: none;">🔴 LIVE</span>
           </div>
           <div class="streamer-status" id="kelta-status">OFFLINE</div>
           <a href="https://twitch.tv/keltathepomeranian" target="_blank" class="watch-stream-btn" id="kelta-watch-btn" style="display: none;">
@@ -2263,9 +2536,426 @@ body.night .empty-state{color:rgba(255,245,230,0.7)!important}
 <script src="game.js" defer></script>
 <script>
 // ═══════════════════════════════════════════════════════════
-// TUTORIAL SYSTEM
+// TUTORIAL SYSTEM - Enhanced
 // ═══════════════════════════════════════════════════════════
-var Tutorial={active:false,currentStep:0,overlay:null,waitingForPet:false,steps:[{id:'welcome',tab:'home',dialogue:[{text:"Hi there! I'm Melon, your guide to PawketPets! 🍈",mascot:"happy"},{text:"This is your Home page. You can always come back here to see what's new!",mascot:"explaining"},{text:"Ready to meet your first pet? Let's go!",mascot:"excited"}]},{id:'adoption',tab:'adopt',dialogue:[{text:"Welcome to the Adoption Center! This is where you'll find your new companion.",mascot:"happy"},{text:"Your FIRST pet is completely FREE! But each pet after that costs PawketPoints.",mascot:"explaining"},{text:"Pets have different personalities and looks. Choose one you like!",mascot:"happy"},{text:"Go ahead - click on a pet to adopt them! I'll wait here while you choose! 😊",mascot:"excited",waitForPet:true}]},{id:'mypets',tab:'mypets',requiresPet:true,dialogue:[{text:"Aww, what a cutie! Welcome to your new friend! 💕",mascot:"happy"},{text:"This is your My Pets page. You can see all your pets here!",mascot:"explaining"},{text:"Pets have Hunger and Energy levels. Keep them fed and rested to keep them happy!",mascot:"explaining"},{text:"You can play with them, feed them items, and even equip them with gear!",mascot:"excited"}]},{id:'shop',tab:'shop',dialogue:[{text:"The Shop is where you buy items with PawketPoints (PP).",mascot:"explaining"},{text:"You can buy food, toys, equipment, and more!",mascot:"happy"},{text:"But how do you earn PP? Let me show you!",mascot:"excited"}]},{id:'minigames',tab:'minigames',dialogue:[{text:"The Minigames page is where you earn PP!",mascot:"excited"},{text:"Play games like Memory Match, Dice Roll, and more!",mascot:"happy"},{text:"Each game gives you PP as a reward. You can play most of them once per day!",mascot:"explaining"},{text:"Try them out whenever you like! The more you play, the more you earn!",mascot:"excited"}]},{id:'battle',tab:'battle',dialogue:[{text:"The Battle Arena lets your pets fight opponents and earn rewards!",mascot:"explaining"},{text:"Battles are automatic - just click Battle and watch! Your pet's stats determine who wins.",mascot:"happy"},{text:"Win battles to earn PP, items, and level up your pets!",mascot:"excited"},{text:"That covers the basics! You're all set to play! But... there's one more thing...",mascot:"concerned"}]},{id:'spooky',tab:null,dialogue:[{text:"I've been here a while, and... something feels off about this place.",mascot:"worried"},{text:"Sometimes I see things. Shadows. Glitches in the code. Strange encounters...",mascot:"scared"},{text:"There are rumors of creepy bosses, unsettling events, and hidden secrets.",mascot:"serious"},{text:"Are you okay with things that go bump in the night?",mascot:"serious",showChoice:true}]}],start:function(){console.log('🎓 Starting tutorial...');this.active=true;this.currentStep=0;this.createOverlay();this.runStep()},createOverlay:function(){var overlay=document.createElement('div');overlay.id='tutorial-overlay';overlay.className='tutorial-overlay';overlay.innerHTML='<div class="tutorial-backdrop"></div><div class="tutorial-mascot" id="tutorial-mascot"><div class="tutorial-mascot-image"><img src="images/melon.png" alt="Melon" style="width:100%;height:100%;object-fit:contain;"></div><div class="tutorial-mascot-name">Melon</div></div><div class="tutorial-dialogue-box"><div class="tutorial-dialogue-content"><div class="tutorial-dialogue-text" id="tutorial-text">Welcome to PawketPets!</div><div class="tutorial-progress" id="tutorial-progress"></div><div class="tutorial-buttons" id="tutorial-buttons"><button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button></div></div></div>';document.body.appendChild(overlay);this.overlay=overlay},runStep:function(){var step=this.steps[this.currentStep];if(!step){console.error('Invalid tutorial step:',this.currentStep);return}console.log('📖 Tutorial step:',step.id);if(step.tab&&typeof showTab==='function'){showTab(step.tab)}setTimeout(function(){Tutorial.showDialogue(0)},500)},showDialogue:function(dialogueIndex){var step=this.steps[this.currentStep];if(!step||!step.dialogue[dialogueIndex])return;var dialogue=step.dialogue[dialogueIndex];var textEl=document.getElementById('tutorial-text');var progressEl=document.getElementById('tutorial-progress');var buttonsEl=document.getElementById('tutorial-buttons');if(textEl){textEl.textContent=dialogue.text}var mascotEl=document.getElementById('tutorial-mascot');if(mascotEl){mascotEl.className='tutorial-mascot tutorial-mascot-'+(dialogue.mascot||'happy')}if(progressEl){var dots='';for(var i=0;i<step.dialogue.length;i++){dots+='<span class="tutorial-dot'+(i===dialogueIndex?' active':'')+'"></span>'}progressEl.innerHTML=dots}if(dialogue.showChoice){buttonsEl.innerHTML='<div class="tutorial-choice-buttons"><button class="btn btn-primary btn-lg" onclick="Tutorial.makeChoice(true)">👻 YES - Bring on the spooky!</button><button class="btn btn-outline btn-lg" onclick="Tutorial.makeChoice(false)">🌈 NO - Keep it cozy</button></div>'}else if(dialogue.waitForPet){this.waitingForPet=true;buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" disabled>⏳ Adopt a pet to continue...</button>'}else{this.waitingForPet=false;buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>'}this.currentDialogueIndex=dialogueIndex},next:function(){var step=this.steps[this.currentStep];var nextDialogueIndex=(this.currentDialogueIndex||0)+1;if(nextDialogueIndex<step.dialogue.length){this.showDialogue(nextDialogueIndex)}else{this.currentStep++;if(this.currentStep>=this.steps.length){this.complete(false)}else{this.runStep()}}},onPetAdopted:function(){if(this.active&&this.waitingForPet){console.log('🐾 Pet adopted! Continuing tutorial...');this.waitingForPet=false;var buttonsEl=document.getElementById('tutorial-buttons');if(buttonsEl){buttonsEl.innerHTML='<button class="btn tutorial-skip" onclick="Tutorial.skip()">Skip Tutorial</button><button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>'}setTimeout(function(){Tutorial.next()},1500)}},makeChoice:function(enableSpooky){console.log('👻 Spooky choice:',enableSpooky);this.complete(enableSpooky)},complete:async function(spookyEnabled){console.log('✅ Tutorial complete! Spooky:',spookyEnabled);if(currentUser&&typeof supabaseClient!=='undefined'){try{var ppReward=100;await supabaseClient.from('players').update({tutorial_completed:true,spooky_enabled:spookyEnabled,pawketpoints:currentPoints+ppReward}).eq('id',currentUser.id);currentPoints+=ppReward;if(typeof updatePointsDisplay==='function'){updatePointsDisplay()}if(typeof playerSettings!=='undefined'){playerSettings.tutorial_completed=true;playerSettings.spooky_enabled=spookyEnabled}console.log('💾 Tutorial progress saved!');console.log('🎁 Awarded '+ppReward+' PP!')}catch(err){console.error('Error saving tutorial progress:',err)}}var textEl=document.getElementById('tutorial-text');var buttonsEl=document.getElementById('tutorial-buttons');if(textEl){if(spookyEnabled){textEl.innerHTML="Brave choice! Here's <strong>100 PP</strong> to get you started. Keep your eyes open... you never know what you might find. 👁️✨"}else{textEl.innerHTML="A wise choice! Here's <strong>100 PP</strong> to get you started. Enjoy your cozy adventure with your new pet! 🌈✨"}}if(buttonsEl){buttonsEl.innerHTML='<button class="btn btn-primary btn-lg" onclick="Tutorial.close()">Lets Go! 🚀</button>'}setTimeout(function(){Tutorial.close()},4000)},skip:function(){if(!confirm('Are you sure you want to skip the tutorial? You can replay it later from Settings.')){return}console.log('⏭️ Tutorial skipped');this.complete(false)},close:function(){console.log('🎓 Closing tutorial...');this.active=false;var existingOverlay=document.getElementById('tutorial-overlay');if(existingOverlay&&existingOverlay.parentNode){existingOverlay.parentNode.removeChild(existingOverlay)}if(this.overlay&&this.overlay.parentNode){this.overlay.parentNode.removeChild(this.overlay)}this.overlay=null;document.body.style.overflow='';console.log('✅ Tutorial closed - overlay removed')}};window.Tutorial=Tutorial;console.log('🎓 Tutorial system loaded!');
+var Tutorial = {
+  active: false,
+  isReplay: false,
+  currentStep: 0,
+  currentDialogueIndex: 0,
+  overlay: null,
+  waitingForPet: false,
+  _arrowEl: null,
+  _highlightedTab: null,
+
+  steps: [
+    {id:'welcome', tab:'home', dialogue:[
+      {text:"Hi there! I'm Melon, your guide to PawketPets! 🍈", mascot:"excited"},
+      {text:"This is your Home page. You can always come back here to see what's new!", mascot:"explaining", highlightTab:"home"},
+      {text:"Ready to meet your first pet? Let's go!", mascot:"excited"}
+    ]},
+    {id:'adoption', tab:'adopt', dialogue:[
+      {text:"Welcome to the Adoption Center! This is where you'll find your new companion.", mascot:"happy", highlightTab:"adopt"},
+      {text:"Your FIRST pet is completely FREE! But each pet after that costs PawketPoints.", mascot:"explaining"},
+      {text:"Pets have different personalities and looks. Choose one you like!", mascot:"happy"},
+      {text:"Go ahead - click on a pet to adopt them! I'll wait here while you choose! 😊", mascot:"excited", waitForPet:true}
+    ]},
+    {id:'mypets', tab:'mypets', requiresPet:true, dialogue:[
+      {text:"Aww, what a cutie! Welcome to your new friend! 💕", mascot:"excited"},
+      {text:"This is your My Pets page. You can see all your pets here!", mascot:"explaining", highlightTab:"mypets"},
+      {text:"Pets have Hunger and Energy levels. Keep them fed and rested to keep them happy!", mascot:"explaining"},
+      {text:"Use the Feed and Play buttons to care for them, and equip gear from the Equipment section!", mascot:"excited"}
+    ]},
+    {id:'equipment', tab:'mypets', dialogue:[
+      {text:"Speaking of gear - see that Equipment section on each pet card? ⚔️", mascot:"explaining"},
+      {text:"Click Manage to equip weapons and armor. Better gear means stronger battles!", mascot:"excited"},
+      {text:"You can buy equipment from the Shop. Keep an eye on the rotating stock!", mascot:"happy"}
+    ]},
+    {id:'shop', tab:'shop', dialogue:[
+      {text:"The Shop is where you buy items with PawketPoints (PP).", mascot:"explaining", highlightTab:"shop"},
+      {text:"You can buy food, toys, equipment, and more! Stock rotates so check back often!", mascot:"happy"},
+      {text:"But how do you earn PP? Let me show you!", mascot:"excited"}
+    ]},
+    {id:'minigames', tab:'minigames', dialogue:[
+      {text:"The Minigames page is where you earn PP!", mascot:"excited", highlightTab:"minigames"},
+      {text:"Play games like Memory Match, Dice Roll, and more!", mascot:"happy"},
+      {text:"Each game gives you PP as a reward. You can play most of them once per day!", mascot:"explaining"},
+      {text:"Try them out whenever you like! The more you play, the more you earn!", mascot:"excited"}
+    ]},
+    {id:'battle', tab:'battle', dialogue:[
+      {text:"The Battle Arena lets your pets fight opponents and earn rewards!", mascot:"explaining", highlightTab:"battle"},
+      {text:"Battles are automatic - just click Battle and watch! Your pet's stats determine who wins.", mascot:"happy"},
+      {text:"Win battles to earn PP, items, and level up your pets!", mascot:"excited"}
+    ]},
+    {id:'pass', tab:null, dialogue:[
+      {text:"See that 🎫 Pass button in the top bar? That's the PawketPass!", mascot:"excited"},
+      {text:"Every time you play, feed pets, or battle, you earn Pass XP and level up!", mascot:"explaining"},
+      {text:"Each Pass level unlocks a reward - PP, items, even rare cosmetics! Claim them from the Pass screen.", mascot:"happy"}
+    ]},
+    {id:'bingo', tab:null, dialogue:[
+      {text:"And the 🎯 Bingo button? That's your Daily Bingo card!", mascot:"excited"},
+      {text:"Each day you get a fresh bingo card with tasks like 'Feed a pet' or 'Win a battle'.", mascot:"explaining"},
+      {text:"Complete a full row, column, or diagonal for bonus rewards. Blackout the whole card for a big prize! 🎉", mascot:"happy"}
+    ]},
+    {id:'spooky', tab:null, dialogue:[
+      {text:"Almost done! But... I've been here a while, and something feels off about this place.", mascot:"worried"},
+      {text:"Sometimes I see things. Shadows. Glitches in the code. Strange encounters...", mascot:"scared"},
+      {text:"There are rumors of creepy bosses, unsettling events, and hidden secrets.", mascot:"serious"},
+      {text:"Are you okay with things that go bump in the night?", mascot:"serious", showChoice:true}
+    ]}
+  ],
+
+  // ── helpers ──────────────────────────────────────────────
+  _saveProgress: function() {
+    try { localStorage.setItem('tutorial_step', this.currentStep); } catch(e) {}
+  },
+  _loadProgress: function() {
+    try { return parseInt(localStorage.getItem('tutorial_step') || '0'); } catch(e) { return 0; }
+  },
+  _clearProgress: function() {
+    try { localStorage.removeItem('tutorial_step'); } catch(e) {}
+  },
+
+  _highlightTabBtn: function(tabId) {
+    this._clearTabHighlight();
+    if (!tabId) return;
+    var btn = document.getElementById('sidebar-btn-' + tabId);
+    if (!btn) return;
+    this._highlightedTab = btn;
+    btn.classList.add('tutorial-tab-highlight');
+    // Reduce backdrop so highlighted button is clearly visible
+    var backdrop = document.querySelector('.tutorial-backdrop');
+    if (backdrop) {
+      this._savedBackdropFilter = backdrop.style.backdropFilter;
+      this._savedBackdropBg     = backdrop.style.background;
+      backdrop.style.backdropFilter = 'blur(1px)';
+      backdrop.style.background     = 'rgba(0,0,0,0.3)';
+    }
+    // Position bouncing arrow
+    var rect = btn.getBoundingClientRect();
+    var arrow = document.createElement('div');
+    arrow.className = 'tutorial-tab-arrow';
+    arrow.textContent = '👈';
+    arrow.style.top = (rect.top + rect.height / 2 - 16) + 'px';
+    arrow.style.left = (rect.right + 8) + 'px';
+    document.body.appendChild(arrow);
+    this._arrowEl = arrow;
+  },
+  _clearTabHighlight: function() {
+    if (this._highlightedTab) {
+      this._highlightedTab.classList.remove('tutorial-tab-highlight');
+      this._highlightedTab = null;
+    }
+    if (this._arrowEl && this._arrowEl.parentNode) {
+      this._arrowEl.parentNode.removeChild(this._arrowEl);
+      this._arrowEl = null;
+    }
+    // Restore backdrop to default
+    var backdrop = document.querySelector('.tutorial-backdrop');
+    if (backdrop && this._savedBackdropFilter !== undefined) {
+      backdrop.style.backdropFilter = this._savedBackdropFilter || '';
+      backdrop.style.background     = this._savedBackdropBg     || '';
+      this._savedBackdropFilter = undefined;
+      this._savedBackdropBg     = undefined;
+    }
+  },
+
+  // ── lifecycle ─────────────────────────────────────────────
+  start: function() {
+    this.active = true;
+    this.isReplay = false;
+    this.waitingForPet = false;
+    // ESC key support
+    this._escHandler = function(e) { if (e.key === 'Escape') Tutorial.promptSkip(); };
+    document.addEventListener('keydown', this._escHandler);
+    // Resume from saved progress if available
+    var savedStep = this._loadProgress();
+    if (savedStep && savedStep > 0 && savedStep < this.steps.length) {
+      this.currentStep = savedStep;
+      this.createOverlay();
+      this.runStep();
+      return;
+    }
+    // Otherwise start fresh
+    this.currentStep = 0;
+    this._clearProgress();
+    this.createOverlay();
+    this.runStep();
+  },
+
+  replay: function() {
+    if (this.active) return;
+    this.active = true;
+    this.isReplay = true;
+    this.currentStep = 0;
+    this.waitingForPet = false;
+    this._clearProgress();
+    this.createOverlay();
+    this.runStep();
+    this._escHandler = function(e) { if (e.key === 'Escape') Tutorial.promptSkip(); };
+    document.addEventListener('keydown', this._escHandler);
+  },
+
+  createOverlay: function() {
+    var existing = document.getElementById('tutorial-overlay');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    var overlay = document.createElement('div');
+    overlay.id = 'tutorial-overlay';
+    overlay.className = 'tutorial-overlay';
+    overlay.innerHTML =
+      '<div class="tutorial-backdrop"></div>' +
+      '<div class="tutorial-mascot" id="tutorial-mascot">' +
+        '<div class="tutorial-mascot-image"><img src="images/melon.png" alt="Melon" style="width:100%;height:100%;object-fit:contain;"></div>' +
+        '<div class="tutorial-mascot-name">Melon</div>' +
+      '</div>' +
+      '<div class="tutorial-dialogue-box">' +
+        '<div class="tutorial-dialogue-content">' +
+          '<div class="tutorial-dialogue-text" id="tutorial-text">Welcome to PawketPets!</div>' +
+          '<div class="tutorial-progress" id="tutorial-progress"></div>' +
+          '<div class="tutorial-buttons" id="tutorial-buttons">' +
+            '<button class="btn tutorial-skip" onclick="Tutorial.promptSkip()">Skip Tutorial</button>' +
+            '<button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    this.overlay = overlay;
+  },
+
+  runStep: function() {
+    var step = this.steps[this.currentStep];
+    if (!step) { this.complete(false); return; }
+    this._saveProgress();
+    // Unblur background for steps requiring player interaction
+    var interactiveIds = ['adoption', 'shop', 'mypets', 'equipment', 'battle', 'minigames'];
+    var backdrop = document.querySelector('.tutorial-backdrop');
+    if (backdrop) {
+      if (interactiveIds.indexOf(step.id) !== -1) {
+        backdrop.style.backdropFilter = 'none';
+        backdrop.style.background = 'rgba(0,0,0,0.15)';
+      } else {
+        backdrop.style.backdropFilter = 'blur(2px)';
+        backdrop.style.background = 'rgba(0,0,0,0.5)';
+      }
+    }
+    if (step.tab && typeof showTab === 'function') { showTab(step.tab); }
+    var self = this;
+    setTimeout(function() { self.showDialogue(0); }, 500);
+  },
+
+  showDialogue: function(dialogueIndex) {
+    var step = this.steps[this.currentStep];
+    if (!step || !step.dialogue[dialogueIndex]) return;
+    var dialogue = step.dialogue[dialogueIndex];
+    this.currentDialogueIndex = dialogueIndex;
+
+    var textEl = document.getElementById('tutorial-text');
+    var progressEl = document.getElementById('tutorial-progress');
+    var buttonsEl = document.getElementById('tutorial-buttons');
+    var mascotEl = document.getElementById('tutorial-mascot');
+
+    if (textEl) textEl.textContent = dialogue.text;
+    if (mascotEl) mascotEl.className = 'tutorial-mascot tutorial-mascot-' + (dialogue.mascot || 'happy');
+
+    // Tab highlight + arrow
+    if (dialogue.highlightTab) {
+      this._highlightTabBtn(dialogue.highlightTab);
+    } else {
+      this._clearTabHighlight();
+    }
+
+    // Progress dots
+    if (progressEl) {
+      var dots = '';
+      for (var i = 0; i < step.dialogue.length; i++) {
+        dots += '<span class="tutorial-dot' + (i === dialogueIndex ? ' active' : '') + '"></span>';
+      }
+      progressEl.innerHTML = dots;
+    }
+
+    // Buttons
+    if (dialogue.showChoice) {
+      buttonsEl.innerHTML =
+        '<div class="tutorial-choice-buttons">' +
+          '<button class="btn btn-primary btn-lg" onclick="Tutorial.makeChoice(true)">👻 YES - Bring on the spooky!</button>' +
+          '<button class="btn btn-outline btn-lg" onclick="Tutorial.makeChoice(false)">🌈 NO - Keep it cozy</button>' +
+        '</div>';
+    } else if (dialogue.waitForPet) {
+      this.waitingForPet = true;
+      // Remove backdrop blur so the adoption page is clearly visible and clickable
+      var backdrop = this.overlay ? this.overlay.querySelector('.tutorial-backdrop') : null;
+      if (backdrop) {
+        backdrop.style.backdropFilter = 'none';
+        backdrop.style.background = 'rgba(0,0,0,0.15)';
+      }
+      buttonsEl.innerHTML =
+        '<button class="btn tutorial-skip" onclick="Tutorial.promptSkip()">Skip Tutorial</button>' +
+        '<button class="btn btn-primary tutorial-next" disabled>⏳ Adopt a pet to continue...</button>';
+    } else {
+      this.waitingForPet = false;
+      buttonsEl.innerHTML =
+        '<button class="btn tutorial-skip" onclick="Tutorial.promptSkip()">Skip Tutorial</button>' +
+        '<button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>';
+    }
+  },
+
+  next: function() {
+    var step = this.steps[this.currentStep];
+    var nextIdx = this.currentDialogueIndex + 1;
+    if (nextIdx < step.dialogue.length) {
+      this.showDialogue(nextIdx);
+    } else {
+      this._clearTabHighlight();
+      this.currentStep++;
+      if (this.currentStep >= this.steps.length) {
+        this.complete(false);
+      } else {
+        this.runStep();
+      }
+    }
+  },
+
+  onPetAdopted: function() {
+    if (!this.active || !this.waitingForPet) return;
+    this.waitingForPet = false;
+    // DON'T restore backdrop immediately — success modal is still visible
+    // Wait for success modal to dismiss before re-blurring and advancing
+    var self = this;
+    var checkModal = setInterval(function() {
+      var successModal = document.getElementById('success-modal');
+      if (!successModal || !successModal.classList.contains('show')) {
+        clearInterval(checkModal);
+        // Now restore backdrop and show Continue button
+        var backdrop = self.overlay ? self.overlay.querySelector('.tutorial-backdrop') : null;
+        if (backdrop) {
+          backdrop.style.backdropFilter = 'blur(2px)';
+          backdrop.style.background = 'rgba(0,0,0,0.5)';
+        }
+        var buttonsEl = document.getElementById('tutorial-buttons');
+        if (buttonsEl) {
+          buttonsEl.innerHTML =
+            '<button class="btn tutorial-skip" onclick="Tutorial.promptSkip()">Skip Tutorial</button>' +
+            '<button class="btn btn-primary tutorial-next" onclick="Tutorial.next()">Continue</button>';
+        }
+        setTimeout(function() { Tutorial.next(); }, 500);
+      }
+    }, 150);
+    // Safety: if modal never closes after 10s, advance anyway
+    setTimeout(function() { clearInterval(checkModal); }, 10000);
+  },
+
+  makeChoice: function(enableSpooky) {
+    this.complete(enableSpooky);
+  },
+
+  promptSkip: function() {
+    if (confirm('Skip the tutorial? You can replay it anytime from Settings.\n\nYou\'ll still receive 50 PP for starting.')) {
+      this.complete(false, true);
+    }
+  },
+
+  complete: async function(spookyEnabled, isSkip) {
+    this._clearTabHighlight();
+    if (document.removeEventListener && this._escHandler) {
+      document.removeEventListener('keydown', this._escHandler);
+    }
+
+    if (typeof currentUser !== 'undefined' && currentUser && typeof supabaseClient !== 'undefined') {
+      try {
+        // First-time: award 100 PP. Skip: award 50 PP. Replay: 0 PP.
+        var ppReward = 0;
+        if (!this.isReplay) {
+          ppReward = isSkip ? 50 : 100;
+        }
+
+        var updateData = { tutorial_completed: true, spooky_enabled: spookyEnabled };
+        if (ppReward > 0) updateData.pawketpoints = (typeof currentPoints !== 'undefined' ? currentPoints : 0) + ppReward;
+
+        await supabaseClient.from('players').update(updateData).eq('id', currentUser.id);
+
+        if (ppReward > 0 && typeof currentPoints !== 'undefined') {
+          currentPoints += ppReward;
+          // Use updateAllPoints (the real function) instead of updatePointsDisplay
+          if (typeof updateAllPoints === 'function') updateAllPoints();
+        }
+        if (typeof playerSettings !== 'undefined') {
+          playerSettings.tutorial_completed = true;
+          playerSettings.spooky_enabled = spookyEnabled;
+        }
+        this._clearProgress();
+      } catch(err) {
+        console.error('[Tutorial] Error saving progress:', err);
+      }
+    }
+
+    if (isSkip) {
+      this.close();
+      return;
+    }
+
+    // Show recap modal before closing
+    this._showRecap(spookyEnabled);
+  },
+
+  _showRecap: function(spookyEnabled) {
+    var overlay = this.overlay;
+    // Replace dialogue box content with recap
+    var dialogueBox = overlay ? overlay.querySelector('.tutorial-dialogue-box') : null;
+    if (!dialogueBox) { this.close(); return; }
+
+    var ppText = this.isReplay ? 'Thanks for reviewing!' : "Here's <strong>100 PP</strong> to get you started!";
+    var moodText = spookyEnabled
+      ? "Brave choice! Keep your eyes open... 👁️✨"
+      : "A wise choice! Enjoy your cozy adventure! 🌈✨";
+
+    dialogueBox.innerHTML =
+      '<div class="tutorial-dialogue-content">' +
+        '<div style="text-align:center;margin-bottom:16px;">' +
+          '<div style="font-size:2.5rem;margin-bottom:8px;">🎉</div>' +
+          '<div style="font-family:\'Chewy\',cursive;font-size:1.8rem;color:var(--purple-dark);">You\'re all set!</div>' +
+          '<div style="font-size:1rem;color:var(--text-light);margin-top:8px;">' + moodText + '</div>' +
+          (!this.isReplay ? '<div style="font-size:1rem;color:var(--purple);font-weight:bold;margin-top:8px;">' + ppText + '</div>' : '') +
+        '</div>' +
+        '<ul class="tutorial-recap-list">' +
+          '<li>Home page for daily news & updates</li>' +
+          '<li>Adopt Center to get pets (first one is free!)</li>' +
+          '<li>My Pets to feed, play & equip your companions</li>' +
+          '<li>Equipment from the Shop to boost battle stats</li>' +
+          '<li>Minigames to earn PawketPoints daily</li>' +
+          '<li>Battle Arena to fight and level up pets</li>' +
+          '<li>PawketPass 🎫 for leveling rewards</li>' +
+          '<li>Daily Bingo 🎯 for bonus prizes</li>' +
+        '</ul>' +
+        '<div style="text-align:center;margin-top:20px;">' +
+          '<button class="btn btn-primary btn-lg" onclick="Tutorial.close()">Let\'s Go! 🚀</button>' +
+        '</div>' +
+      '</div>';
+
+    // Also update mascot to excited
+    var mascotEl = document.getElementById('tutorial-mascot');
+    if (mascotEl) mascotEl.className = 'tutorial-mascot tutorial-mascot-excited';
+
+    // Auto-close after 8 seconds
+    var self = this;
+    setTimeout(function() { if (self.active) self.close(); }, 8000);
+  },
+
+  close: function() {
+    this.active = false;
+    this.waitingForPet = false;
+    this._clearTabHighlight();
+    if (document.removeEventListener && this._escHandler) {
+      document.removeEventListener('keydown', this._escHandler);
+    }
+    var existingOverlay = document.getElementById('tutorial-overlay');
+    if (existingOverlay && existingOverlay.parentNode) existingOverlay.parentNode.removeChild(existingOverlay);
+    if (this.overlay && this.overlay.parentNode) this.overlay.parentNode.removeChild(this.overlay);
+    this.overlay = null;
+    document.body.style.overflow = '';
+  }
+};
+window.Tutorial = Tutorial;
+console.log('🎓 Tutorial system loaded!');
 </script>
   <script>
 // Sync sidebar navigation with main tab switching
