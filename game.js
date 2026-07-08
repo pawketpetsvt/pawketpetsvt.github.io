@@ -3998,27 +3998,6 @@ async function expedition_claim(expeditionId) {
   var finalPP = Math.floor((row.reward_pp || 0) * streakMult * perkMult);
   await awardPP(finalPP, 'expedition_' + row.zone);
 
-  // Award item drops (same as battleExp_claim)
-  var expItems = row.reward_items || [];
-  for (var ei = 0; ei < expItems.length; ei++) {
-    if (expItems[ei] && expItems[ei].id) {
-      var existingExpItem = await supabaseClient
-        .from('user_inventory')
-        .select('id, quantity')
-        .eq('user_id', currentUser.id)
-        .eq('item_id', expItems[ei].id)
-        .maybeSingle();
-      if (existingExpItem.data) {
-        await supabaseClient.from('user_inventory')
-          .update({ quantity: existingExpItem.data.quantity + 1 })
-          .eq('id', existingExpItem.data.id);
-      } else {
-        await supabaseClient.from('user_inventory')
-          .insert({ user_id: currentUser.id, item_id: expItems[ei].id, quantity: 1 });
-      }
-    }
-  }
-
   // Check for secrets
   checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
 
@@ -4029,9 +4008,7 @@ async function expedition_claim(expeditionId) {
   community_increment('expeditions_week1', 1);
   checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
 
-  var expItemNames = expItems.map(function(it) { return (it.icon || '📦') + ' ' + (it.name || ''); }).join(', ');
-  var expMsg = '🏴‍☠️ Claimed ' + finalPP + ' PP' + (expItemNames ? ' · ' + expItemNames : '') + '!';
-  showToast(expMsg, 4000);
+  showToast('🏴‍☠️ Claimed ' + (row.reward_pp || 0) + ' PP from your expedition!', 4000);
 
   expeditionState.active = null;
   _expeditionPetId  = null;
@@ -10731,23 +10708,10 @@ async function battleExp_claim(expeditionId) {
   }
   checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(){});
 
-  // Award item drops (check for existing row to avoid duplicates)
+  // Award item drops
   for (var i = 0; i < items.length; i++) {
-    if (items[i] && items[i].id) {
-      var existingBattleExpItem = await supabaseClient
-        .from('user_inventory')
-        .select('id, quantity')
-        .eq('user_id', currentUser.id)
-        .eq('item_id', items[i].id)
-        .maybeSingle();
-      if (existingBattleExpItem.data) {
-        await supabaseClient.from('user_inventory')
-          .update({ quantity: existingBattleExpItem.data.quantity + 1 })
-          .eq('id', existingBattleExpItem.data.id);
-      } else {
-        await supabaseClient.from('user_inventory')
-          .insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 });
-      }
+    if (items[i].id) {
+      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(){});
     }
   }
 
@@ -18011,6 +17975,33 @@ async function checkDailyLogin() {
       scrapbook_addRandomMemory(randomPetId);
     }
     
+    // CALENDAR: Grant login_calendar_rewards extras (skin keys, milestone items)
+    // The base streak PP is already awarded above; this handles bonus rewards from the table
+    try {
+      if (loginCalendar.calendarRewards && loginCalendar.calendarRewards.length > 0) {
+        var calReward = loginCalendar.calendarRewards.find(function(r) { return r.day === streak; });
+        if (calReward) {
+          // Grant skin keys if defined
+          if (calReward.skin_keys && calReward.skin_keys > 0) {
+            await skinkey_grantKeys(calReward.skin_keys, 'login_streak_day_' + streak);
+          }
+          // Grant item reward if defined
+          if (calReward.item_id) {
+            await addItemToInventory(calReward.item_id, 1);
+          }
+          // Award milestone cosmetics if defined
+          if (calReward.is_milestone && calReward.skin_keys && Array.isArray(calReward.skin_keys)) {
+            for (var ski = 0; ski < calReward.skin_keys.length; ski++) {
+              await phase1_unlockCosmetic('badge', calReward.skin_keys[ski]).catch(function(){});
+            }
+          }
+          dbg('[Calendar] Granted day', streak, 'extras:', calReward);
+        }
+      }
+    } catch (calErr) {
+      console.error('[Calendar] Error granting reward:', calErr);
+    }
+
     dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
 
     // Apply furniture room happiness bonuses (non-blocking)
@@ -18423,18 +18414,15 @@ async function processReferral() {
       return;
     }
     
-    // Award referrer via SECURITY DEFINER RPC (award_pp_secure only works for auth.uid())
-    // This path awards only the referrer; new user PP is handled via awardReferralRewards at signup
+    // Award referrer
     var referralLabel = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'a new player';
-    var { error: refRpcErr } = await supabaseClient.rpc('award_referral_pp', {
-      p_referrer_id:     referrer.id,
-      p_new_user_id:     currentUser.id,
-      p_referrer_amount: 250,
-      p_new_user_amount: 0
+    await supabaseClient.rpc('award_pp_secure', {
+      p_user_id: referrer.id,
+      p_amount: 250,
+      p_reason: 'Referral: ' + referralLabel
     });
-    if (refRpcErr) console.error('[Referral] award_referral_pp error:', refRpcErr);
-
-    // Increment referral_count
+    
+    // Increment referral count
     await supabaseClient
       .from('players')
       .update({ referral_count: (referrer.referral_count || 0) + 1 })
@@ -19440,51 +19428,59 @@ async function processReferralOnSignup(newUserId, referralCode) {
  */
 async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
   try {
-    // Use SECURITY DEFINER RPC so we can award PP to both users
-    // regardless of which user is currently auth'd
-    var { data: rpcResult, error: rpcError } = await supabaseClient.rpc('award_referral_pp', {
-      p_referrer_id:     referrerId,
-      p_new_user_id:     newUserId,
-      p_referrer_amount: 200,
-      p_new_user_amount: 100
-    });
-
-    if (rpcError) {
-      console.error('❌ award_referral_pp RPC error:', rpcError);
-      return;
-    }
-
-    dbg('💰 Referral PP awarded via RPC:', rpcResult);
-
-    // Increment referrals_count for referrer
+    // Award referrer 200 PP
     var { data: referrerData } = await supabaseClient
       .from('players')
-      .select('referrals_count')
+      .select('pawketpoints, referrals_count')
       .eq('id', referrerId)
       .single();
+    
+    if (referrerData) {
+      var newCount = (referrerData.referrals_count || 0) + 1;
+      await supabaseClient
+        .from('players')
+        .update({
+          pawketpoints: (referrerData.pawketpoints || 0) + 200,
+          referrals_count: newCount
+        })
+        .eq('id', referrerId);
+      
+      dbg('💰 Awarded 200 PP to referrer');
 
-    var newCount = (referrerData && referrerData.referrals_count || 0) + 1;
-    await supabaseClient
-      .from('players')
-      .update({ referrals_count: newCount })
-      .eq('id', referrerId);
-
-    // Milestone rewards and badges
-    await grantReferralMilestone(referrerId, newCount);
-    await checkReferralBadges(referrerId, newCount);
-
-    // Update local PP display if the new user is the one currently logged in
-    if (currentUser && currentUser.id === newUserId && rpcResult && rpcResult.new_user_new_total) {
-      updateAllPoints(rpcResult.new_user_new_total);
-      showPixelToast('🎁 Welcome! You earned 100 PP from ' + referrerUsername + ''s referral!', 'success');
+      // Check milestone rewards AFTER count is saved
+      await grantReferralMilestone(referrerId, newCount);
     }
-
+    
+    // Award new user 100 PP
+    var { data: newUserData } = await supabaseClient
+      .from('players')
+      .select('pawketpoints')
+      .eq('id', newUserId)
+      .single();
+    
+    if (newUserData) {
+      await supabaseClient
+        .from('players')
+        .update({
+          pawketpoints: (newUserData.pawketpoints || 0) + 100
+        })
+        .eq('id', newUserId);
+      
+      dbg('💰 Awarded 100 PP to new user');
+      
+      // Show welcome message
+      showPixelToast('🎁 Welcome! You earned 100 PP from ' + referrerUsername + '\'s referral!', 'success');
+    }
+    
+    // Check for referral badges
+    await checkReferralBadges(referrerId, (referrerData.referrals_count || 0) + 1);
+    
     // Track in analytics
     gtag('event', 'referral_successful', {
       referrer_id: referrerId,
       new_user_id: newUserId
     });
-
+    
   } catch (err) {
     console.error('❌ Error awarding referral rewards:', err);
   }
@@ -23743,49 +23739,49 @@ var dailyXPCaps = {
 // Pass rewards structure (50 levels)
 var PASS_REWARDS = {
   1: { type: 'points', amount: 100 },
-  2: { type: 'item', itemId: 'basic_food', quantity: 2 },
-  3: { type: 'item', itemId: 'treat', quantity: 3 },
+  2: { type: 'item', itemId: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity: 2 },
+  3: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 3 },
   4: { type: 'points', amount: 150 },
-  5: { type: 'item', itemId: 'rare_toy', quantity: 1 },
+  5: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 1 },
   6: { type: 'title', titleKey: 'pass_rider' },
   7: { type: 'points', amount: 200 },
-  8: { type: 'item', itemId: 'treat', quantity: 2, itemId2: 'basic_food', quantity2: 1 },
+  8: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 2, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 1 },
   9: { type: 'points', amount: 250 },
-  10: { type: 'item', itemId: 'premium_treat', quantity: 1 },
+  10: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 1 },
   11: { type: 'points', amount: 300 },
-  12: { type: 'item', itemId: 'rare_toy', quantity: 2 },
+  12: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 2 },
   13: { type: 'title', titleKey: 'dedicated_trainer' },
   14: { type: 'points', amount: 350 },
-  15: { type: 'item', itemId: 'revive_potion', quantity: 1 },
+  15: { type: 'item', itemId: 'ef0c4ec8-8ae8-4887-abef-98d3524ac9f9', quantity: 1 },
   16: { type: 'points', amount: 400 },
-  17: { type: 'item', itemId: 'treat', quantity: 3, itemId2: 'basic_food', quantity2: 2 },
+  17: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 3, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 2 },
   18: { type: 'points', amount: 450 },
   19: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   20: { type: 'title', titleKey: 'faithful_companion' },
   21: { type: 'points', amount: 500 },
-  22: { type: 'item', itemId: 'premium_treat', quantity: 2 },
+  22: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 2 },
   23: { type: 'points', amount: 550 },
   24: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   25: { type: 'points', amount: 600 },
-  26: { type: 'item', itemId: 'rare_toy', quantity: 3 },
+  26: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 3 },
   27: { type: 'title', titleKey: 'pawket_champion' },
   28: { type: 'points', amount: 700 },
   29: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   30: { type: 'title', titleKey: 'style_master' },
   31: { type: 'points', amount: 800 },
-  32: { type: 'item', itemId: 'treat', quantity: 5, itemId2: 'basic_food', quantity2: 3 },
+  32: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 5, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 3 },
   33: { type: 'points', amount: 900 },
   34: { type: 'title', titleKey: 'legendary_tamer' },
   35: { type: 'points', amount: 1000 },
   36: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
   37: { type: 'points', amount: 1100 },
-  38: { type: 'item', itemId: 'premium_treat', quantity: 3, itemId2: 'revive_potion', quantity2: 2 },
+  38: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 3, itemId2: 'revive_potion', quantity2: 2 },
   39: { type: 'points', amount: 1200 },
   40: { type: 'title', titleKey: 'mythic_breaker' },
   41: { type: 'points', amount: 1300 },
   42: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
   43: { type: 'points', amount: 1400 },
-  44: { type: 'item', itemId: 'mystery_box', quantity: 3 },
+  44: { type: 'item', itemId: '26641868-18fa-4311-9f65-292eacd31a22', quantity: 3 },
   45: { type: 'points', amount: 1500 },
   46: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 3 },
   47: { type: 'title', titleKey: 'pawket_master' },
@@ -23976,9 +23972,9 @@ async function grantPassReward(level, reward) {
       break;
       
     case 'title':
-      await awardTitle(reward.titleKey);
+      await awardPlayerTitle(reward.titleKey, 'PawketPass reward');
       var titleData = await supabaseClient
-        .from('titles')
+        .from('player_titles')
         .select('display_name')
         .eq('title_key', reward.titleKey)
         .single();
@@ -25164,8 +25160,8 @@ async function community_grantReward(goal) {
       return true;
     }
     if (type === 'title') {
-      if (typeof awardPlayerTitle === 'function') {
-        await awardPlayerTitle(reward, 'community_goal');
+      if (typeof unlockTitle === 'function') {
+        await unlockTitle(reward);
       }
       return true;
     }
