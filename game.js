@@ -13184,16 +13184,28 @@ var dailyFortune = {
     ]
   },
   
+  _shownThisSession: false,
+
   init: function() {
-    // Check if user should see fortune
-    var lastFortune = localStorage.getItem('lastFortuneDate');
+    // Guard against double SIGNED_IN event firing init twice in one session
+    if (this._shownThisSession) {
+      dbg('[Fortune] Already shown this session, skipping');
+      return;
+    }
+    // Use user-scoped key so different users on same device each get their fortune
+    var userId = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : 'anon';
+    var lastFortune = localStorage.getItem('lastFortuneDate_' + userId);
     var today = this.getTodayDate();
     
     if (lastFortune !== today) {
+      this._shownThisSession = true;
       // Show fortune popup after a brief delay
       setTimeout(function() {
         dailyFortune.showFortune();
       }, 2000);
+    } else {
+      this._shownThisSession = true; // Already shown today, mark so we don't re-check
+      dbg('[Fortune] Already shown today for this user');
     }
   },
   
@@ -13237,8 +13249,9 @@ var dailyFortune = {
     
     document.body.appendChild(overlay);
     
-    // Save that we showed fortune today
-    localStorage.setItem('lastFortuneDate', this.getTodayDate());
+    // Save that we showed fortune today (user-scoped so different users get their own fortune)
+    var userId = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : 'anon';
+    localStorage.setItem('lastFortuneDate_' + userId, this.getTodayDate());
     
     // Add fade-in animation
     setTimeout(function() {
@@ -17882,8 +17895,16 @@ async function gp_renderHistoricalLeaderboard() {
   } catch(e) { return ''; }
 }
 
+// In-memory guard — prevents the double SIGNED_IN event from showing modal twice
+var _dailyLoginCheckedThisSession = false;
+
 async function checkDailyLogin() {
   if (!currentUser) return;
+  if (_dailyLoginCheckedThisSession) {
+    dbg('[DailyLogin] Already ran this session, skipping');
+    return;
+  }
+  _dailyLoginCheckedThisSession = true;
   
   var today = new Date().toISOString().split('T')[0];
   var lastLogin = localStorage.getItem('lastLoginDate_' + currentUser.id);
@@ -17975,33 +17996,6 @@ async function checkDailyLogin() {
       scrapbook_addRandomMemory(randomPetId);
     }
     
-    // CALENDAR: Grant login_calendar_rewards extras (skin keys, milestone items)
-    // The base streak PP is already awarded above; this handles bonus rewards from the table
-    try {
-      if (loginCalendar.calendarRewards && loginCalendar.calendarRewards.length > 0) {
-        var calReward = loginCalendar.calendarRewards.find(function(r) { return r.day === streak; });
-        if (calReward) {
-          // Grant skin keys if defined
-          if (calReward.skin_keys && calReward.skin_keys > 0) {
-            await skinkey_grantKeys(calReward.skin_keys, 'login_streak_day_' + streak);
-          }
-          // Grant item reward if defined
-          if (calReward.item_id) {
-            await addItemToInventory(calReward.item_id, 1);
-          }
-          // Award milestone cosmetics if defined
-          if (calReward.is_milestone && calReward.skin_keys && Array.isArray(calReward.skin_keys)) {
-            for (var ski = 0; ski < calReward.skin_keys.length; ski++) {
-              await phase1_unlockCosmetic('badge', calReward.skin_keys[ski]).catch(function(){});
-            }
-          }
-          dbg('[Calendar] Granted day', streak, 'extras:', calReward);
-        }
-      }
-    } catch (calErr) {
-      console.error('[Calendar] Error granting reward:', calErr);
-    }
-
     dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
 
     // Apply furniture room happiness bonuses (non-blocking)
@@ -23739,49 +23733,49 @@ var dailyXPCaps = {
 // Pass rewards structure (50 levels)
 var PASS_REWARDS = {
   1: { type: 'points', amount: 100 },
-  2: { type: 'item', itemId: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity: 2 },
-  3: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 3 },
+  2: { type: 'item', itemId: 'basic_food', quantity: 2 },
+  3: { type: 'item', itemId: 'treat', quantity: 3 },
   4: { type: 'points', amount: 150 },
-  5: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 1 },
+  5: { type: 'item', itemId: 'rare_toy', quantity: 1 },
   6: { type: 'title', titleKey: 'pass_rider' },
   7: { type: 'points', amount: 200 },
-  8: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 2, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 1 },
+  8: { type: 'item', itemId: 'treat', quantity: 2, itemId2: 'basic_food', quantity2: 1 },
   9: { type: 'points', amount: 250 },
-  10: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 1 },
+  10: { type: 'item', itemId: 'premium_treat', quantity: 1 },
   11: { type: 'points', amount: 300 },
-  12: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 2 },
+  12: { type: 'item', itemId: 'rare_toy', quantity: 2 },
   13: { type: 'title', titleKey: 'dedicated_trainer' },
   14: { type: 'points', amount: 350 },
-  15: { type: 'item', itemId: 'ef0c4ec8-8ae8-4887-abef-98d3524ac9f9', quantity: 1 },
+  15: { type: 'item', itemId: 'revive_potion', quantity: 1 },
   16: { type: 'points', amount: 400 },
-  17: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 3, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 2 },
+  17: { type: 'item', itemId: 'treat', quantity: 3, itemId2: 'basic_food', quantity2: 2 },
   18: { type: 'points', amount: 450 },
   19: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   20: { type: 'title', titleKey: 'faithful_companion' },
   21: { type: 'points', amount: 500 },
-  22: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 2 },
+  22: { type: 'item', itemId: 'premium_treat', quantity: 2 },
   23: { type: 'points', amount: 550 },
   24: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   25: { type: 'points', amount: 600 },
-  26: { type: 'item', itemId: '3abe2aeb-9c12-4214-a72e-e034f11fef63', quantity: 3 },
+  26: { type: 'item', itemId: 'rare_toy', quantity: 3 },
   27: { type: 'title', titleKey: 'pawket_champion' },
   28: { type: 'points', amount: 700 },
   29: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 1 },
   30: { type: 'title', titleKey: 'style_master' },
   31: { type: 'points', amount: 800 },
-  32: { type: 'item', itemId: '9b5cd1cd-1db7-44b3-975b-93ee8a97b4a3', quantity: 5, itemId2: '93de32e9-24b1-4f41-984c-f19f5cd57566', quantity2: 3 },
+  32: { type: 'item', itemId: 'treat', quantity: 5, itemId2: 'basic_food', quantity2: 3 },
   33: { type: 'points', amount: 900 },
   34: { type: 'title', titleKey: 'legendary_tamer' },
   35: { type: 'points', amount: 1000 },
   36: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
   37: { type: 'points', amount: 1100 },
-  38: { type: 'item', itemId: 'c839f4b3-0b2c-4533-9c5d-7a4a5cc9f829', quantity: 3, itemId2: 'revive_potion', quantity2: 2 },
+  38: { type: 'item', itemId: 'premium_treat', quantity: 3, itemId2: 'revive_potion', quantity2: 2 },
   39: { type: 'points', amount: 1200 },
   40: { type: 'title', titleKey: 'mythic_breaker' },
   41: { type: 'points', amount: 1300 },
   42: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 2 },
   43: { type: 'points', amount: 1400 },
-  44: { type: 'item', itemId: '26641868-18fa-4311-9f65-292eacd31a22', quantity: 3 },
+  44: { type: 'item', itemId: 'mystery_box', quantity: 3 },
   45: { type: 'points', amount: 1500 },
   46: { type: 'item', itemId: '00000000-0000-0000-0000-000000000001', quantity: 3 },
   47: { type: 'title', titleKey: 'pawket_master' },
@@ -23972,9 +23966,9 @@ async function grantPassReward(level, reward) {
       break;
       
     case 'title':
-      await awardPlayerTitle(reward.titleKey, 'PawketPass reward');
+      await awardTitle(reward.titleKey);
       var titleData = await supabaseClient
-        .from('player_titles')
+        .from('titles')
         .select('display_name')
         .eq('title_key', reward.titleKey)
         .single();
