@@ -1771,6 +1771,21 @@ async function showApp(user) {
   
   // Check player title unlocks
   await checkPlayerTitleUnlocks();
+
+  // Catch up on any referral milestone badges the referrer may have missed
+  // (e.g. someone signed up via their link while they were offline)
+  (async function() {
+    try {
+      var { data: refData } = await supabaseClient
+        .from('players')
+        .select('referrals_count')
+        .eq('id', user.id)
+        .single();
+      if (refData && refData.referrals_count > 0) {
+        await checkReferralBadges(user.id, refData.referrals_count);
+      }
+    } catch(e) { dbg('[Referral] Catch-up check error:', e); }
+  })();
   
   // Award welcome badge if new user
   await awardBadge('welcome');
@@ -6091,7 +6106,7 @@ var petFoodPreferences = {
     disliked_item: 'Hot Wings',
     hated_item: 'Curry Feast',
     hobby: 'Being a menace',
-    fun_fact: 'As chill as a fire in hell, controlled like the beasts of Australia!',
+    fun_fact: 'As chill as a summer breeze, controlled like the beasts of Australia!',
     sleep_habit: 'power napper',
     weather_preference: 'hates weather',
     catchphrase: 'Cluck, bawk, buck... you know the rest. 🐔',
@@ -13184,28 +13199,16 @@ var dailyFortune = {
     ]
   },
   
-  _shownThisSession: false,
-
   init: function() {
-    // Guard against double SIGNED_IN event firing init twice in one session
-    if (this._shownThisSession) {
-      dbg('[Fortune] Already shown this session, skipping');
-      return;
-    }
-    // Use user-scoped key so different users on same device each get their fortune
-    var userId = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : 'anon';
-    var lastFortune = localStorage.getItem('lastFortuneDate_' + userId);
+    // Check if user should see fortune
+    var lastFortune = localStorage.getItem('lastFortuneDate');
     var today = this.getTodayDate();
     
     if (lastFortune !== today) {
-      this._shownThisSession = true;
       // Show fortune popup after a brief delay
       setTimeout(function() {
         dailyFortune.showFortune();
       }, 2000);
-    } else {
-      this._shownThisSession = true; // Already shown today, mark so we don't re-check
-      dbg('[Fortune] Already shown today for this user');
     }
   },
   
@@ -13249,9 +13252,8 @@ var dailyFortune = {
     
     document.body.appendChild(overlay);
     
-    // Save that we showed fortune today (user-scoped so different users get their own fortune)
-    var userId = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.id : 'anon';
-    localStorage.setItem('lastFortuneDate_' + userId, this.getTodayDate());
+    // Save that we showed fortune today
+    localStorage.setItem('lastFortuneDate', this.getTodayDate());
     
     // Add fade-in animation
     setTimeout(function() {
@@ -13494,10 +13496,10 @@ var CompanionBuddy = {
       "Wanna see my escape route?"
     ],
     steve: [
-      "Cluck, bawk, buck, FUCK! Cockadoodledoo!",
+      "Cluck, bawk, buck! Cockadoodledoo!",
       "I'm a menace, owo",
       "Don't test me, I'll peck you!",
-      "As chill as a fire in hell!"
+      "As chill as a fire on a summer's day!"
     ],
     aria: [
       "Yummy! Bones are my favorite!",
@@ -17895,16 +17897,8 @@ async function gp_renderHistoricalLeaderboard() {
   } catch(e) { return ''; }
 }
 
-// In-memory guard — prevents the double SIGNED_IN event from showing modal twice
-var _dailyLoginCheckedThisSession = false;
-
 async function checkDailyLogin() {
   if (!currentUser) return;
-  if (_dailyLoginCheckedThisSession) {
-    dbg('[DailyLogin] Already ran this session, skipping');
-    return;
-  }
-  _dailyLoginCheckedThisSession = true;
   
   var today = new Date().toISOString().split('T')[0];
   var lastLogin = localStorage.getItem('lastLoginDate_' + currentUser.id);
@@ -19497,33 +19491,45 @@ async function grantReferralMilestone(userId, newCount) {
   var milestone = REFERRAL_MILESTONES.find(function(m) { return m.count === newCount; });
   if (!milestone) return;
 
-  // Award badge
-  if (milestone.badge) {
-    await awardBadge(milestone.badge).catch(function(){});
+  var bonusPP = newCount * 10;
+  var isCurrentUser = currentUser && currentUser.id === userId;
+
+  // Award PP via SECURITY DEFINER RPC so it correctly targets the referrer
+  // regardless of who is currently auth'd (at signup time, the new user is auth'd)
+  if (bonusPP > 0) {
+    await supabaseClient.rpc('grant_referral_milestone', {
+      p_referrer_id: userId,
+      p_bonus_pp: bonusPP
+    }).catch(function(e) { console.error('[Referral Milestone] PP error:', e); });
   }
 
-  // Award player title
-  if (milestone.title) {
-    await awardPlayerTitle(milestone.title, userId).catch(function(){});
-  }
-
-  // Award skin keys
-  if (milestone.skinKeys > 0) {
-    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
-  }
-
-  // Unlock cosmetic frame
-  if (milestone.frame) {
-    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(){});
-  }
-
-  // Bonus PP for milestone
-  var bonusPP = newCount * 10; // 10 PP per referral as milestone bonus
-  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(){});
-
-  // Show celebration if it's the current user
-  if (currentUser && currentUser.id === userId) {
+  // Cosmetic rewards (badge, title, skin keys, frame) all use auth.uid() internally
+  // so we can only grant them when the referrer is the currently logged-in user.
+  // Otherwise send a notification — they'll receive the cosmetics on next login
+  // via checkReferralBadges which runs at login time.
+  if (isCurrentUser) {
+    if (milestone.badge) {
+      await awardBadge(milestone.badge).catch(function(){});
+    }
+    if (milestone.title) {
+      await awardPlayerTitle(milestone.title, userId).catch(function(){});
+    }
+    if (milestone.skinKeys > 0) {
+      await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
+    }
+    if (milestone.frame) {
+      await phase1_unlockCosmetic('frame', milestone.frame).catch(function(){});
+    }
     referral_showMilestoneCelebration(milestone, bonusPP);
+  } else {
+    // Referrer is offline — notify them so cosmetics are granted at their next login
+    await createNotification(
+      userId,
+      'referral_milestone',
+      '🎉 Referral Milestone: ' + milestone.label + '!',
+      'You reached ' + newCount + ' referrals! Log in to claim your rewards.',
+      'tab:stats'
+    ).catch(function(){});
   }
 }
 
