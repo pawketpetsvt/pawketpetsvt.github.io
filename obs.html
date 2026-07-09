@@ -272,6 +272,8 @@
         return { icon: '🎖️', color: '#c299ff', text: user + ' just earned the ' + (data.badge_name || 'a badge') + ' badge!' };
       case 'achievement_unlocked':
         return { icon: '⭐', color: '#66ddff', text: user + ' unlocked ' + (data.achievement_name || 'an achievement') + '!' };
+      case 'title_unlocked':
+        return { icon: '👑', color: '#ffcc66', text: user + ' unlocked the title "' + (data.title_name || 'a new title') + '"!' };
       default: return null; // unrecognized types don't show in the ticker
     }
   }

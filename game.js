@@ -15141,6 +15141,9 @@ function formatActivityMessage(activity, username) {
     case 'achievement_unlocked':
       return username + ' unlocked: ' + (data.achievement_name || 'Achievement') + '! ⭐';
     
+    case 'title_unlocked':
+      return username + ' unlocked the title "' + (data.title_name || 'a new title') + '"! 👑';
+    
     case 'battle_victory':
       var enemy = data.enemy_name || 'an enemy';
       return username + ' defeated ' + enemy + '! ⚔️';
@@ -22468,6 +22471,9 @@ async function awardPlayerTitle(titleKey, reason) {
     
     // Show notification
     showPlayerTitleUnlockNotification(title, reason);
+    
+    // ACTIVITY FEED: Log so friend feeds + OBS live alerts pick it up
+    logActivity('title_unlocked', { title_name: title.display_name || titleKey });
     
     dbg('👑✨ Player title unlocked:', title.display_name);
     
