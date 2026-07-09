@@ -2214,12 +2214,48 @@ async function handleLogin() {
 
 // ── USERNAME PROFANITY FILTER ─────────────────────────────
 var PROFANITY_LIST = [
-  'fuck', 'shit', 'bitch', 'ass', 'damn', 'hell', 'crap', 'piss',
-  'dick', 'cock', 'pussy', 'cunt', 'fag', 'whore', 'slut', 'bastard',
-  'nigger', 'nigga', 'chink', 'spic', 'kike', 'retard', 'rape',
-  'sex', 'porn', 'nude', 'xxx', 'anal', 'penis', 'vagina', 'testicle',
-  'nazi', 'hitler', 'kkk', 'isis', 'kill', 'death', 'murder', 'suicide'
+  // Profanity
+  'fuck', 'shit', 'bitch', 'ass', 'damn', 'hell', 'crap', 'piss', 'douche', 'twat', 'wanker', 'bollocks',
+  // Sexual anatomy / content
+  'dick', 'cock', 'pussy', 'cunt', 'whore', 'slut', 'sex', 'porn', 'nude', 'xxx', 'anal', 'penis', 'vagina',
+  'testicle', 'boner', 'cum', 'jizz', 'dildo', 'blowjob', 'handjob', 'creampie', 'orgasm', 'fetish', 'incest',
+  'pedo', 'loli', 'rape', 'rapist',
+  // Racial / ethnic slurs
+  'nigger', 'nigga', 'chink', 'spic', 'kike', 'gook', 'wetback', 'coon', 'jap', 'paki', 'raghead',
+  'sandnigger', 'towelhead', 'beaner', 'gypsy',
+  // Homophobic / transphobic slurs
+  'fag', 'faggot', 'dyke', 'tranny', 'shemale',
+  // Ableist slurs
+  'retard', 'retarded', 'spastic', 'cripple', 'mongoloid',
+  // Antisemitic / hate group terms
+  'nazi', 'hitler', 'kkk', 'isis', 'heil',
+  // Misogynistic / general slurs
+  'bastard', 'skank', 'thot', 'whorebag',
+  // Violence / self-harm
+  'kill', 'death', 'murder', 'suicide', 'lynch', 'genocide'
 ];
+
+// Extra letter substitutions frequently used to dodge filters — kept
+// separate from the main word list so it's easy to extend on its own.
+var PROFANITY_SUBSTITUTIONS = {
+  a: 'a@4', e: 'e3', i: 'i1!|', o: 'o0', s: 's5$z', t: 't7',
+  g: 'g69', l: 'l1', b: 'b8', u: 'uv', c: 'ck', z: 'z2'
+};
+
+// Builds a regex pattern for one word that tolerates:
+//  - letter substitutions (n1gga, a55, etc — see PROFANITY_SUBSTITUTIONS above)
+//  - stretched/repeated letters (fuuuck, shiiiit, etc)
+// Word-boundary anchors on the outside keep this from matching inside
+// unrelated words (e.g. "class" should never trip on "ass").
+function buildProfanityPattern(word) {
+  var pattern = '';
+  for (var i = 0; i < word.length; i++) {
+    var ch = word[i];
+    var subs = PROFANITY_SUBSTITUTIONS[ch];
+    pattern += (subs ? '[' + subs + ']' : ch) + '+';
+  }
+  return pattern;
+}
 
 function containsProfanity(text) {
   if (!text) return false;
@@ -2236,16 +2272,12 @@ function containsProfanity(text) {
       return true;
     }
     
-    // Check for leetspeak and common substitutions — with word boundaries to avoid false positives
-    var variations = word
-      .replace(/a/g, '[a@4]')
-      .replace(/e/g, '[e3]')
-      .replace(/i/g, '[i1!]')
-      .replace(/o/g, '[o0]')
-      .replace(/s/g, '[s5$]')
-      .replace(/t/g, '[t7]');
-    
-    var variationRegex = new RegExp('\\b' + variations + '\\b', 'i');
+    // Check for leetspeak, common substitutions, and stretched/repeated
+    // letters (n1gga, fuuuck, a$$, etc). Uses lookaround instead of \b —
+    // \b only works when the match starts/ends on a letter or digit, but
+    // these patterns can start/end on a symbol (like the $ in "a$$"),
+    // which \b silently fails to anchor correctly.
+    var variationRegex = new RegExp('(?<![a-zA-Z0-9])' + buildProfanityPattern(word) + '(?![a-zA-Z0-9])', 'i');
     if (variationRegex.test(lowerText)) {
       return true;
     }
@@ -2255,7 +2287,7 @@ function containsProfanity(text) {
     // word boundaries around the whole match, so "hello" doesn't trip on "hell"
     // and "scrapbook" doesn't trip on "crap"
     var spacedWord = word.split('').join('[^a-z0-9]+');
-    var spacedRegex = new RegExp('\\b' + spacedWord + '\\b', 'i');
+    var spacedRegex = new RegExp('(?<![a-zA-Z0-9])' + spacedWord + '(?![a-zA-Z0-9])', 'i');
     if (spacedRegex.test(lowerText)) {
       return true;
     }
@@ -9067,6 +9099,16 @@ async function saveProfile() {
     return;
   }
   
+  // Check for profanity in bio — this was previously never checked at all
+  if (containsProfanity(newBio)) {
+    errorEl.textContent = 'Bio cannot contain offensive language';
+    errorEl.style.display = 'block';
+    saveBtn.innerHTML = originalBtnText;
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
+    return;
+  }
+  
   try {
     // Check if username is taken (if changed)
     var previousUsername = el('myprofile-username-preview').textContent;
@@ -10701,7 +10743,7 @@ function showBattleUI(playerStats, enemyStats, battleResult) {
     'bird': '🐦', 'bunny': '🐰', 'baby bunny': '🐰', 'rabbit': '🐰',
     'squirrel': '🐿️', 'fox': '🦊', 'boar': '🐗', 'wolf': '🐺',
     'bear': '🐻', 'deer': '🦌', 'mushroom': '🍄', 'slime': '💚',
-    'raccoon': '🦝', 'spider': '🕷️', 'snake': '🐍', 'bat': '🦇',
+    'spider': '🕷️', 'snake': '🐍', 'bat': '🦇',
     'ghost': '👻', 'bee': '🐝', 'cat': '🐱', 'dog': '🐶',
     'frog': '🐸', 'crab': '🦀', 'fish': '🐟', 'owl': '🦉',
     'rat': '🐀', 'mouse': '🐭', 'pig': '🐷', 'sheep': '🐑',
@@ -12018,7 +12060,11 @@ async function getRandomEnemy(zone, playerLevel) {
     var piperRate = Math.max(0.005, GAME_CONSTANTS.BOSS_ENCOUNTER_RATE - (Math.floor(spiritTotal / 10) * 0.003));
     if (bossRoll < piperRate) {
       dbg('🔥 BOSS ENCOUNTER! Shadow of Piper! Spirit:', spiritTotal, 'Rate:', piperRate.toFixed(3));
-      return await getBossEnemy(zone, playerLevel);
+      var bossEnemy = await getBossEnemy(zone, playerLevel);
+      if (bossEnemy) return bossEnemy;
+      // No boss configured for this zone — fall through to a normal enemy
+      // instead of aborting the whole battle attempt.
+      dbg('[Boss] No boss found for zone', zone, '- falling back to a normal enemy');
     }
   }
   
@@ -12058,16 +12104,15 @@ async function getRandomEnemy(zone, playerLevel) {
     return null;
   }
   
-  // CRITICAL: Filter out raccoons completely (guard against null species/name)
+  // Guard against malformed rows with no name (raccoon-specific filtering
+  // removed — that species was fully removed from enemy_pets, this check
+  // was only ever a workaround for it)
   var filteredEnemies = res.data.filter(function(enemy) {
-    if (!enemy.name) return false;
-    var speciesOk = !enemy.species || enemy.species !== 'raccoon';
-    var nameOk = enemy.name.toLowerCase().indexOf('raccoon') === -1;
-    return speciesOk && nameOk;
+    return !!enemy.name;
   });
   
   if (filteredEnemies.length === 0) {
-    console.error('No enemies found after filtering raccoons');
+    console.error('No valid enemies found for zone:', zone);
     return null;
   }
   
@@ -12302,21 +12347,15 @@ async function getRandomEnemy(zone, playerLevel) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function getBossEnemy(zone, playerLevel) {
-  // Convert zone shorthand to full name for database lookup
-  var zoneNameMap = {
-    'outskirts': 'City Outskirts',
-    'glade': 'Forest Glade',
-    'deepwoods': 'Deep Woods'
-  };
-  
-  var fullZoneName = zoneNameMap[zone] || zone;
-  
-  // Fetch the boss from database
+  // Use the same raw zone shorthand ('outskirts', 'glade', etc.) that the
+  // normal-enemy query below uses — forest_zone is stored in that format,
+  // not full names. Translating to "City Outskirts" etc. here was causing
+  // every boss lookup to silently fail to find a match.
   var res = await supabaseClient
     .from('enemy_pets')
     .select('*')
     .eq('is_boss', true)
-    .eq('forest_zone', fullZoneName)
+    .eq('forest_zone', zone || 'outskirts')
     .single();
   
   if (res.error || !res.data) {
@@ -19653,12 +19692,11 @@ async function generateDungeonEnemies(playerStats) {
     return [];
   }
   
-  // CRITICAL: Filter out raccoons completely (guard against null species/name)
+  // Guard against malformed rows with no name (raccoon-specific filtering
+  // removed — that species was fully removed from enemy_pets, this check
+  // was only ever a workaround for it)
   var filteredEnemies = res.data.filter(function(enemy) {
-    if (!enemy.name) return false;
-    var speciesOk = !enemy.species || enemy.species !== 'raccoon';
-    var nameOk = enemy.name.toLowerCase().indexOf('raccoon') === -1;
-    return speciesOk && nameOk;
+    return !!enemy.name;
   });
   
   if (filteredEnemies.length === 0) return [];
