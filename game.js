@@ -878,7 +878,7 @@ function updateEventStatusWidget() {
   var textEl = document.getElementById('event-status-text');
   var dotEl  = document.getElementById('event-status-dot');
 
-  // Priority: active world event > today's weather from todayFeatures > weatherSystem
+  // Priority: active world event > weatherSystem (the single source of truth)
   var hasEvent = false;
 
   if (typeof worldEvents !== 'undefined' && worldEvents.currentEvent) {
@@ -894,24 +894,13 @@ function updateEventStatusWidget() {
     widget.dataset.endDate = (worldEvents.eventEndDate || '').toString();
     hasEvent = true;
   } else {
-    // Fall back to todayFeatures weather (already loaded) or weatherSystem
+    // Weather from weatherSystem, the single source of truth
     var weatherId   = null;
     var weatherName = 'Clear';
     var weatherIcon = '☀️';
     var weatherDesc = 'Normal conditions today.';
 
-    if (typeof todayFeatures !== 'undefined' && todayFeatures.current) {
-      var twId = todayFeatures.current.weather;
-      // todayFeatures.current.weather may be an id string or object
-      if (typeof twId === 'object' && twId !== null) { twId = twId.id; }
-      var tw = todayFeatures.weatherTypes.find(function(w) { return w.id === twId; });
-      if (tw) {
-        weatherId   = tw.id;
-        weatherName = tw.name;
-        weatherIcon = tw.emoji || tw.icon || '☀️';
-        weatherDesc = tw.effect || tw.description || '';
-      }
-    } else if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) {
+    if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) {
       var ws = weatherSystem.currentWeather;
       weatherId   = ws.id;
       weatherName = ws.name;
@@ -946,17 +935,15 @@ function esw_getEventBonusText(effects) {
 }
 
 function esw_getWeatherBonusText(weatherId) {
+  // These match the actual values in weatherSystem.getWeatherBonus()
   var map = {
-    clear:   '☀️ Normal conditions',
-    sunny:   '☀️ Pets are extra happy today!',
-    rainy:   '🌊 Water types: +25% XP',
-    foggy:   '🌫️ Rare encounters: +10%',
-    windy:   '💨 All pets move +15% faster',
-    snowy:   '❄️ Ice types: +25% XP',
-    stormy:  '⚡ Electric types: +25% XP\n⚔️ Battles deal +10% damage',
-    starry:  '✨ Mystical bonuses active',
-    rainbow: '🌈 All types: +10% XP (lucky day!)',
-    cursed:  '🟣 Strange energies… beware'
+    clear:  '☀️ Normal conditions — no bonuses or penalties',
+    sunny:  '☀️ +10% XP from all sources\n⚡ +15% Energy regen\n😊 Happiness decays 15% slower',
+    rainy:  '🌧️ +5% PP from all sources\n😟 Happiness decays 10% faster',
+    foggy:  '🌫️ +15% rare item drop chance',
+    windy:  '💨 +10% Energy regen',
+    starry: '✨ +20% XP from all sources\n💜 +15% PP from all sources\n⭐ +25% rare item drop chance',
+    cursed: '🟣 -10% XP and PP from all sources\n⚡ -15% Energy regen\n😱 Happiness decays 20% faster'
   };
   return map[weatherId] || '✨ Normal conditions';
 }
@@ -1065,17 +1052,12 @@ async function calendar_load(modal) {
 
     if (todayFeature && todayFeature.weather) {
       var weatherId = typeof todayFeature.weather === 'object' ? todayFeature.weather.id : todayFeature.weather;
-      var WEATHER_TYPES = [
-        { id: 'clear',  name: 'Clear Skies', icon: '☀️',  description: 'Normal conditions today.' },
-        { id: 'foggy',  name: 'Foggy',        icon: '🌫️', description: 'Mysterious conditions — exploration bonuses!' },
-        { id: 'rainy',  name: 'Rainy',        icon: '🌧️', description: 'Water-type pets thrive today.' },
-        { id: 'starry', name: 'Starry Night', icon: '✨',  description: 'Magical bonuses tonight.' },
-        { id: 'stormy', name: 'Stormy',       icon: '⛈️', description: 'Rough conditions — be careful!' },
-        { id: 'snowy',  name: 'Snowy',        icon: '❄️',  description: 'Ice-type pets feel at home.' }
-      ];
-      var found = WEATHER_TYPES.find(function(w) { return w.id === weatherId; });
-      if (found) days[0].weather = found;
-      else if (weatherId) days[0].weather = { id: weatherId, name: weatherId, icon: '🌤️', description: 'Today\'s weather.' };
+      // Use live weatherSystem types so today's card always matches actual weather definitions
+    var found = (typeof weatherSystem !== 'undefined' && weatherSystem.weatherTypes)
+      ? weatherSystem.weatherTypes.find(function(w) { return w.id === weatherId; })
+      : null;
+    if (found) days[0].weather = found;
+    else if (weatherId) days[0].weather = { id: weatherId, name: weatherId, icon: '🌤️', description: 'Today\'s weather.' };
     }
   } catch(e) { /* silent — daily_features may not exist yet */ }
 
@@ -1105,26 +1087,51 @@ async function calendar_load(modal) {
 
   // For any future day still without weather, generate deterministic forecast
   // Uses date string as seed so ALL players see the same forecast
-  var weatherKeys = typeof weatherSystem !== 'undefined' && weatherSystem.weatherTypes
-    ? Object.keys(weatherSystem.weatherTypes)
-    : ['clear','rainy','foggy','windy','starry'];
-  var weatherIconMap = { clear:'☀️', rainy:'🌧️', foggy:'🌫️', windy:'💨', starry:'✨', cursed:'🟣' };
-  var weatherNameMap = { clear:'Clear Skies', rainy:'Rainy', foggy:'Foggy', windy:'Windy', starry:'Starry Night', cursed:'Cursed Aura' };
+  // Build forecast pool from the actual weatherSystem types (excluding cursed - too rare to forecast)
+  var forecastPool = (typeof weatherSystem !== 'undefined' && Array.isArray(weatherSystem.weatherTypes))
+    ? weatherSystem.weatherTypes.filter(function(w) { return w.id !== 'cursed'; })
+    : [
+        { id:'clear',  name:'Clear Skies',   icon:'☀️',  description:'Normal conditions today.' },
+        { id:'sunny',  name:'Sunny',          icon:'🌤️', description:'Warm and bright!' },
+        { id:'rainy',  name:'Rainy',          icon:'🌧️', description:'Great day to stay cozy inside.' },
+        { id:'foggy',  name:'Foggy',          icon:'🌫️', description:'Mysterious conditions — rare encounter bonus!' },
+        { id:'windy',  name:'Windy',          icon:'💨',  description:'Breezy day — pets move faster!' },
+        { id:'starry', name:'Starry Night',   icon:'✨',  description:'Make a wish tonight!' }
+      ];
 
+  // Deterministic hash — same seed = same forecast for all players on that date
   function calendarHash(str) {
     var h = 0;
     for (var i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h |= 0; }
     return Math.abs(h);
   }
 
+  // Weight-aware deterministic selection — respects rarity
+  function deterministicWeatherPick(dateStr, pool) {
+    var seed = calendarHash(dateStr);
+    // Use seed to pick a weather weighted by its weight property
+    var totalWeight = pool.reduce(function(s, w) { return s + (w.weight || 10); }, 0);
+    var pick = seed % totalWeight;
+    var cumulative = 0;
+    for (var wi = 0; wi < pool.length; wi++) {
+      cumulative += (pool[wi].weight || 10);
+      if (pick < cumulative) return pool[wi];
+    }
+    return pool[0];
+  }
+
   for (var di = 1; di < days.length; di++) {
     if (!days[di].weather) {
-      var wKey = weatherKeys[calendarHash(days[di].dateStr) % weatherKeys.length];
+      // Night hours (18-6) can show starry; daytime pool excludes it
+      var hour = new Date().getHours();
+      var isNight = hour >= 18 || hour < 6;
+      var dayPool = isNight ? forecastPool : forecastPool.filter(function(w) { return w.id !== 'starry'; });
+      var picked = deterministicWeatherPick(days[di].dateStr, dayPool);
       days[di].weather = {
-        id:   wKey,
-        name: weatherNameMap[wKey] || wKey,
-        icon: weatherIconMap[wKey] || '🌤️',
-        description: 'Forecasted weather for this day.'
+        id:          picked.id,
+        name:        picked.name,
+        icon:        picked.icon,
+        description: picked.description || 'Forecasted weather.'
       };
     }
   }
@@ -1656,6 +1663,9 @@ async function initApp() {
   } else {
     showAuth();
   }
+
+  // Check for streamer landing page parameter
+  streamerLanding_init();
 
   // Set up auth state listener
   supabaseClient.auth.onAuthStateChange(function(event, session) {
@@ -2405,6 +2415,23 @@ async function loadAdopt() {
   if (res.error || !res.data) { grid.textContent = 'Could not load pets.'; return; }
   grid.innerHTML = '';
   res.data.forEach(function(pet) { grid.appendChild(makePetCard(pet)); });
+
+  // If player arrived via streamer landing, highlight and scroll to that pet
+  var suggestedPet = localStorage.getItem('suggestedFirstPet');
+  if (suggestedPet) {
+    setTimeout(function() {
+      var cards = grid.querySelectorAll('.pet-card');
+      cards.forEach(function(card) {
+        var nameEl = card.querySelector('.pet-name');
+        if (nameEl && nameEl.textContent.trim().toLowerCase() === suggestedPet.toLowerCase()) {
+          card.classList.add('streamer-landing-highlight');
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Remove highlight after a few seconds, clear suggestion after first adopt
+          setTimeout(function() { card.classList.remove('streamer-landing-highlight'); }, 4000);
+        }
+      });
+    }, 200);
+  }
 }
 
 function makePetCard(pet) {
@@ -2541,6 +2568,9 @@ async function confirmAdopt() {
     scrapbook_addMemory(result.pet_id, 'adopted', {});
   }
   
+  // ACTIVITY FEED: Log adoption so friend feeds + OBS live alerts pick it up
+  logActivity('pet_adopted', { pet_name: nickname || selectedPet.name });
+  
   // Store for social sharing
   lastAdoptedPet = {
     name: selectedPet.name,
@@ -2554,6 +2584,9 @@ async function confirmAdopt() {
   // PHASE 8 - Process referral on first adoption
   await processReferral();
   
+  // Clear streamer landing suggestion — they've adopted now
+  localStorage.removeItem('suggestedFirstPet');
+
   // Track adoption in analytics
   trackPetAdoption(selectedPet.name);
   
@@ -3025,6 +3058,8 @@ async function useItem(petId) {
   if (!updates.current_hp) {
     showFlash(petId, item.name + ': ' + getEffectText(item), '#b06aff');
     showToast('Used ' + item.name + '!');
+  // Store in companion memory
+  if (typeof CompanionBuddy !== 'undefined') CompanionBuddy.lastFoodUsed = item.name;
   }
   
   // Refresh the dropdown
@@ -3251,6 +3286,20 @@ function makeMyPetCard(pet) {
     spdStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div><div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + (pet.base_speed || 4) + '</div>';
     battleStats.appendChild(spdStat);
     
+    // Luck and Spirit — only show if pet has any via equipment
+    // We render placeholder boxes that updatePetStatsDisplay fills in
+    var lckStat = makeEl('div', {class:'battle-stat-mini', id:'lck-stat-'+pet.id});
+    lckStat.setAttribute('data-tooltip', '🍀 LUCK\nIncreases critical hit chance in battle.\n(Base 5% + 0.5% per Luck point, max 25%)\n\nAlso improves rare item drop chances.\n\n💡 Increase by:\n• Equipping Luck gear\n• Certain boss drops');
+    lckStat.style.cursor = 'help';
+    lckStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">LCK</div><div style="font-weight:bold;color:#f0a500;font-size:1.1rem;">0</div>';
+    battleStats.appendChild(lckStat);
+
+    var spiStat = makeEl('div', {class:'battle-stat-mini', id:'spi-stat-'+pet.id});
+    spiStat.setAttribute('data-tooltip', '✨ SPIRIT\nReduces the chance of encountering spooky events.\n(Every 10 Spirit = -0.3% Piper encounter rate)\n\nAlso builds resistance to enemy debuffs and\nstatus effects in future updates.\n\n💡 Increase by:\n• Equipping Spirit gear\n• Certain boss drops');
+    spiStat.style.cursor = 'help';
+    spiStat.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPI</div><div style="font-weight:bold;color:#c47fff;font-size:1.1rem;">0</div>';
+    battleStats.appendChild(spiStat);
+
     body.appendChild(battleStats);
     
     // Update stats with equipment bonuses (async)
@@ -3455,6 +3504,8 @@ async function loadEquippedItems(petId) {
         if (w.defense_bonus) bonuses.push('+' + w.defense_bonus + ' DEF');
         if (w.speed_bonus) bonuses.push('+' + w.speed_bonus + ' SPD');
         if (w.hp_bonus) bonuses.push('+' + w.hp_bonus + ' HP');
+        if (w.luck_bonus) bonuses.push('+' + w.luck_bonus + ' LCK');
+        if (w.spirit_bonus) bonuses.push('+' + w.spirit_bonus + ' SPI');
         
         html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.5);border-radius:8px;">';
         html += '<div style="font-weight:bold;color:#ff6b6b;">⚔️ ' + w.name + '</div>';
@@ -3473,6 +3524,8 @@ async function loadEquippedItems(petId) {
         if (a.defense_bonus) bonuses.push('+' + a.defense_bonus + ' DEF');
         if (a.speed_bonus) bonuses.push('+' + a.speed_bonus + ' SPD');
         if (a.hp_bonus) bonuses.push('+' + a.hp_bonus + ' HP');
+        if (a.luck_bonus) bonuses.push('+' + a.luck_bonus + ' LCK');
+        if (a.spirit_bonus) bonuses.push('+' + a.spirit_bonus + ' SPI');
         
         html += '<div style="flex:1;min-width:120px;padding:6px;background:rgba(255,255,255,0.5);border-radius:8px;">';
         html += '<div style="font-weight:bold;color:#5dde7a;">🛡️ ' + a.name + '</div>';
@@ -3511,18 +3564,24 @@ async function updatePetStatsDisplay(petId, baseAtk, baseDef, baseSpd) {
       var totalAtk = baseAtk;
       var totalDef = baseDef;
       var totalSpd = baseSpd;
+      var totalLck = 0;
+      var totalSpi = 0;
       
       equipRes.data.forEach(function(item) {
         var equip = item.equipment;
-        totalAtk += equip.attack_bonus || 0;
+        totalAtk += equip.attack_bonus  || 0;
         totalDef += equip.defense_bonus || 0;
-        totalSpd += equip.speed_bonus || 0;
+        totalSpd += equip.speed_bonus   || 0;
+        totalLck += equip.luck_bonus    || 0;
+        totalSpi += equip.spirit_bonus  || 0;
       });
       
       // Update the display
       var atkEl = el('atk-stat-' + petId);
       var defEl = el('def-stat-' + petId);
       var spdEl = el('spd-stat-' + petId);
+      var lckEl = el('lck-stat-' + petId);
+      var spiEl = el('spi-stat-' + petId);
       
       if (atkEl) {
         var atkBonus = totalAtk - baseAtk;
@@ -3543,6 +3602,18 @@ async function updatePetStatsDisplay(petId, baseAtk, baseDef, baseSpd) {
         spdEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPD</div>' +
           '<div style="font-weight:bold;color:var(--purple);font-size:1.1rem;">' + totalSpd + 
           (spdBonus > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + spdBonus + ')</span>' : '') + '</div>';
+      }
+
+      if (lckEl) {
+        lckEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">LCK</div>' +
+          '<div style="font-weight:bold;color:#f0a500;font-size:1.1rem;">' + totalLck +
+          (totalLck > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + totalLck + ')</span>' : '') + '</div>';
+      }
+
+      if (spiEl) {
+        spiEl.innerHTML = '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;">SPI</div>' +
+          '<div style="font-weight:bold;color:#c47fff;font-size:1.1rem;">' + totalSpi +
+          (totalSpi > 0 ? ' <span style="color:#5dde7a;font-size:0.8rem;">(+' + totalSpi + ')</span>' : '') + '</div>';
       }
     } catch (error) {
       console.error('Error updating pet stats display:', error);
@@ -3566,6 +3637,8 @@ function calculateEnergyRegen(currentEnergy, maxEnergy, lastPlayedTimestamp) {
   
   // Apply event bonus if active
   var eventMultiplier = worldEvents.getActiveBonus('energyRegen');
+  var weatherMultiplier = (typeof weatherSystem !== 'undefined') ? weatherSystem.getWeatherBonus('energyRegen') : 1.0;
+  eventMultiplier = eventMultiplier * weatherMultiplier;
   regenRate = regenRate * eventMultiplier;
   
   var regenAmount = Math.floor((maxEnergy * (regenRate / 100)) * hoursPassed);
@@ -4005,7 +4078,8 @@ async function expedition_claim(expeditionId) {
   addPassXP(10, 'expedition').catch(function(){});
   checkPetWishes('expedition', row.pet_id).catch(function(){});
   progressQuestArc(row.pet_id, 'expedition').catch(function(){});
-  community_increment('expeditions_week1', 1);
+  community_increment('expeditions', 1);
+  trackDailyStat('expeditions_completed').catch(function(){});
   checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
 
   showToast('🏴‍☠️ Claimed ' + (row.reward_pp || 0) + ' PP from your expedition!', 4000);
@@ -4357,7 +4431,7 @@ async function race_start() {
     updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(){});
     checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(){});
   }
-  community_increment('races_week1', 1);
+  community_increment('races', 1);
 
   // Show results with animated log
   race_renderResults(racerunners, payout, playerBest);
@@ -4969,7 +5043,7 @@ async function feedFree(petId) {
   }
   
   // COMMUNITY GOALS: Track feeding
-  community_increment('feed_pets_week1', 1);
+  community_increment('feed_pets', 1);
   
   // Update local state
   petState[petId].hunger = feedResult.hunger;
@@ -5034,12 +5108,12 @@ async function feedWithItem(petId, itemId, itemName) {
   await addPassXP(2, 'feed');
   
   // COMMUNITY GOALS: Track feeding
-  community_increment('feed_pets_week1', 1);
+  community_increment('feed_pets', 1);
   
   // Check if using treat for bingo and community
   if (itemId === 'treat' || itemId === 'premium_treat') {
     updateBingoProgress('use_treat', 1);
-    community_increment('use_treats_week1', 1);
+    community_increment('use_treats', 1);
   }
   
   // Update local state
@@ -5524,25 +5598,21 @@ function itemEmoji(type) {
 
 // ── Category-based food icon images ─────────────────────────────────────
 var FOOD_CATEGORY_IMAGES = {
-  spicy:    'images/icons/food/spicy.png',
-  sweet:    'images/icons/food/sweet.png',
-  savory:   'images/icons/food/savory.png',
-  fish:     'images/icons/food/fish.png',
-  fruit:    'images/icons/food/fruit.png',
-  basic:    'images/icons/food/basic.png',
-  streamer: 'images/icons/food/streamer.png',
-  snack:    'images/icons/food/snack.png'
+  spicy:  'images/icons/food/spicy.png',
+  sweet:  'images/icons/food/sweet.png',
+  savory: 'images/icons/food/savory.png',
+  fish:   'images/icons/food/fish.png',
+  fruit:  'images/icons/food/fruit.png',
+  basic:  'images/icons/food/basic.png'
 };
 
 var FOOD_CATEGORY_FALLBACK = {
-  spicy:    '🌶️',
-  sweet:    '🍰',
-  savory:   '🍖',
-  fish:     '🐟',
-  fruit:    '🍎',
-  basic:    '🍞',
-  streamer: '🎮',
-  snack:    '🍿'
+  spicy:  '🌶️',
+  sweet:  '🍰',
+  savory: '🍖',
+  fish:   '🐟',
+  fruit:  '🍎',
+  basic:  '🍞'
 };
 
 // Returns icon HTML for any shop/inventory item.
@@ -5571,26 +5641,23 @@ function getItemIconHtml(item) {
 // ══════════════════════════════════════════════════════════════════════════
 
 var foodCategoryData = {
-  spicy:    { name: 'Spicy',    icon: '🌶️', color: '#ff4444' },
-  sweet:    { name: 'Sweet',    icon: '🍰', color: '#ff66cc' },
-  savory:   { name: 'Savory',   icon: '🍖', color: '#8B4513' },
-  fish:     { name: 'Fish',     icon: '🐟', color: '#4488ff' },
-  fruit:    { name: 'Fruit',    icon: '🍎', color: '#ff6666' },
-  basic:    { name: 'Basic',    icon: '🍞', color: '#d4a76a' },
-  streamer: { name: 'Streamer', icon: '🎮', color: '#9966ff' },
-  snack:    { name: 'Snack',    icon: '🍿', color: '#f0a500' }
+  spicy: { name: 'Spicy', icon: '🌶️', color: '#ff4444' },
+  sweet: { name: 'Sweet', icon: '🍰', color: '#ff66cc' },
+  savory: { name: 'Savory', icon: '🍖', color: '#8B4513' },
+  fish: { name: 'Fish', icon: '🐟', color: '#4488ff' },
+  fruit: { name: 'Fruit', icon: '🍎', color: '#ff6666' },
+  basic: { name: 'Basic', icon: '🍞', color: '#d4a76a' }
 };
 
-// 4-week food rotation — one full month of variety
+// 3-week rotation (like equipment)
 function getFoodRotation() {
   var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
-  var weekInCycle = weeksSinceEpoch % 4;
+  var weekInCycle = weeksSinceEpoch % 3;
   
   var rotations = [
-    ['spicy', 'savory'],      // Week A: Hearty foods
-    ['sweet', 'fruit'],       // Week B: Treats
-    ['fish', 'basic'],        // Week C: Essentials
-    ['streamer', 'snack']     // Week D: Streamer specials & snacks
+    ['spicy', 'savory'],    // Week A: Hearty foods
+    ['sweet', 'fruit'],     // Week B: Treats
+    ['fish', 'basic']       // Week C: Essentials
   ];
   
   return rotations[weekInCycle];
@@ -5609,11 +5676,11 @@ function getFoodCategoryLabel(category) {
   return data.icon + ' ' + data.name;
 }
 
-// Get current rotation week (A, B, C, or D)
+// Get current rotation week (A, B, or C)
 function getCurrentRotationWeek() {
   var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
-  var weekInCycle = weeksSinceEpoch % 4;
-  return ['A', 'B', 'C', 'D'][weekInCycle];
+  var weekInCycle = weeksSinceEpoch % 3;
+  return ['A', 'B', 'C'][weekInCycle];
 }
 
 
@@ -5737,6 +5804,8 @@ async function loadShop() {
       if(item.effect === 'healing' && item.effect_value > 0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.effect_value+' HP'));
       if(item.attack_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.attack_bonus+' ATK'));
       if(item.defense_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.defense_bonus+' DEF'));
+      if(item.luck_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag luck-tag'},'+'+item.luck_bonus+' LCK'));
+      if(item.spirit_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag spirit-tag'},'+'+item.spirit_bonus+' SPI'));
       if(item.hp_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.hp_bonus+' HP'));
       if(item.speed_bonus>0)tags.appendChild(makeEl('span',{class:'effect-tag'},'+'+item.speed_bonus+' SPD'));
       if(tags.children.length)card.appendChild(tags);
@@ -5951,6 +6020,86 @@ function sortStreamerList() {
   });
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// WHO'S LIVE BANNER — floating notification when team members are streaming
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateLiveBanner() {
+  var existing = document.getElementById('live-banner');
+
+  // Nobody live — remove banner if it exists
+  if (_currentlyLiveStreamers.length === 0) {
+    if (existing) existing.remove();
+    return;
+  }
+
+  // Build or update the banner
+  if (!existing) {
+    existing = document.createElement('div');
+    existing.id = 'live-banner';
+    existing.className = 'live-banner-collapsed';
+    document.body.appendChild(existing);
+  }
+
+  var count = _currentlyLiveStreamers.length;
+
+  if (count === 1) {
+    // Single streamer — show name and link directly
+    var s = _currentlyLiveStreamers[0];
+    existing.innerHTML =
+      '<div class="live-banner-inner" onclick="liveBannerToggle()">' +
+        '<span class="live-banner-dot"></span>' +
+        '<span class="live-banner-text">🎮 <strong>' + escapeHtml(s.name) + '</strong> is LIVE!</span>' +
+        '<a class="live-banner-btn" href="' + escapeHtml(s.twitchUrl) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">Watch →</a>' +
+      '</div>';
+    existing.className = 'live-banner-collapsed live-banner-single';
+  } else {
+    // Multiple streamers — show count badge, expand on click
+    var expanded = existing.classList.contains('live-banner-open');
+    var listHtml = _currentlyLiveStreamers.map(function(s) {
+      return '<a class="live-banner-list-item" href="' + escapeHtml(s.twitchUrl) + '" target="_blank" rel="noopener">' +
+        '<span class="live-banner-dot live-banner-dot-sm"></span>' +
+        '<span class="live-banner-list-name">' + escapeHtml(s.name) + '</span>' +
+        (s.viewers ? '<span class="live-banner-viewers">' + s.viewers.toLocaleString() + ' viewers</span>' : '') +
+        '<span class="live-banner-list-btn">Watch →</span>' +
+      '</a>';
+    }).join('');
+
+    existing.innerHTML =
+      '<div class="live-banner-inner" onclick="liveBannerToggle()">' +
+        '<span class="live-banner-dot"></span>' +
+        '<span class="live-banner-text">🎮 <strong>' + count + ' streamers</strong> are LIVE!</span>' +
+        '<span class="live-banner-badge">' + count + '</span>' +
+        '<span class="live-banner-chevron">' + (expanded ? '▲' : '▼') + '</span>' +
+      '</div>' +
+      '<div class="live-banner-list" style="display:' + (expanded ? 'block' : 'none') + ';">' +
+        listHtml +
+      '</div>';
+    existing.className = 'live-banner-collapsed' + (expanded ? ' live-banner-open' : '');
+  }
+}
+
+function liveBannerToggle() {
+  var banner = document.getElementById('live-banner');
+  if (!banner) return;
+  if (_currentlyLiveStreamers.length <= 1) return; // single streamer has no expand
+
+  var list = banner.querySelector('.live-banner-list');
+  var chevron = banner.querySelector('.live-banner-chevron');
+  if (!list) return;
+
+  var isOpen = banner.classList.contains('live-banner-open');
+  if (isOpen) {
+    banner.classList.remove('live-banner-open');
+    list.style.display = 'none';
+    if (chevron) chevron.textContent = '▼';
+  } else {
+    banner.classList.add('live-banner-open');
+    list.style.display = 'block';
+    if (chevron) chevron.textContent = '▲';
+  }
+}
+
 async function checkSidebarStreamStatus() {
   // ... rest of the existing function ...
   // Check if Embertail and Pyxshuul are live using public Twitch API
@@ -5997,6 +6146,8 @@ async function checkSidebarStreamStatus() {
     });
     
     // Update live streamers
+    _currentlyLiveStreamers = []; // reset before repopulating
+
     if (data.data && data.data.length > 0) {
       data.data.forEach(function(stream) {
         var login = stream.user_login.toLowerCase();
@@ -6018,11 +6169,26 @@ async function checkSidebarStreamStatus() {
         if (statusEl) statusEl.textContent = stream.game_name || 'LIVE';
         if (badgeEl) badgeEl.style.display = 'inline-block';
         if (watchBtn) watchBtn.style.display = 'inline-block';
+
+        // Add to shared live state for the banner and other systems
+        var member = TEAM_MEMBERS.find(function(m) { return m.login.toLowerCase() === login; });
+        if (member) {
+          _currentlyLiveStreamers.push({
+            name:      member.name,
+            login:     member.login,
+            twitchUrl: member.twitchUrl,
+            petName:   member.petName,
+            viewers:   stream.viewer_count,
+            title:     stream.title || ''
+          });
+        }
       });
     }
     
-    dbg('✅ Sidebar stream status checked');
+    dbg('✅ Sidebar stream status checked. Live:', _currentlyLiveStreamers.length);
     sortStreamerList();
+    updateLiveBanner(); // Update floating banner whenever live status changes
+    if (_streamerLandingMember) streamerLanding_checkLive(_streamerLandingMember);
   } catch (err) {
     console.error('❌ Error checking sidebar stream status:', err);
   }
@@ -6274,6 +6440,135 @@ async function awardBadge(badgeKey) {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// UNLOCK CELEBRATION SYSTEM
+// Central handler for all reward unlocks — badge, title, cosmetic
+// Shows a rich notification with context-aware nav button + nav flash
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _navFlashTimers = {}; // track active flashes so we don't stack them
+
+function flashNavButton(tab, duration) {
+  // Add pulsing attention dot to the sidebar nav button
+  var btn = document.getElementById('sidebar-btn-' + tab);
+  if (!btn) return;
+
+  // Add notification dot if not already there
+  if (!btn.querySelector('.nav-attention-dot')) {
+    var dot = document.createElement('span');
+    dot.className = 'nav-attention-dot';
+    btn.appendChild(dot);
+  }
+
+  // Clear any existing timer for this tab
+  if (_navFlashTimers[tab]) clearTimeout(_navFlashTimers[tab]);
+
+  // Remove dot after duration
+  _navFlashTimers[tab] = setTimeout(function() {
+    var d = btn.querySelector('.nav-attention-dot');
+    if (d) d.remove();
+    delete _navFlashTimers[tab];
+  }, duration || 10000);
+}
+
+function clearNavFlash(tab) {
+  var btn = document.getElementById('sidebar-btn-' + tab);
+  if (!btn) return;
+  var dot = btn.querySelector('.nav-attention-dot');
+  if (dot) dot.remove();
+  if (_navFlashTimers[tab]) {
+    clearTimeout(_navFlashTimers[tab]);
+    delete _navFlashTimers[tab];
+  }
+}
+
+function showUnlockCelebration(unlockType, data, extra) {
+  // unlockType: 'cosmetic' | 'title' | 'badge' (badge uses showBadgeNotification directly)
+  // For cosmetics: data = type ('background'|'frame'|'badge'), extra = cosmeticId
+  // For titles: data = title object, extra = reason string
+
+  var title, subtitle, icon, navTab, navLabel, color;
+
+  if (unlockType === 'cosmetic') {
+    var cosmeticType = data;
+    var cosmeticId = extra;
+
+    // Look up the cosmetic in COSMETICS_CATALOG for display info
+    var cosmeticItem = null;
+    if (typeof COSMETICS_CATALOG !== 'undefined') {
+      var allItems = (COSMETICS_CATALOG.backgrounds || [])
+        .concat(COSMETICS_CATALOG.frames || [])
+        .concat(COSMETICS_CATALOG.badges || [])
+        .concat(COSMETICS_CATALOG.themes || []);
+      cosmeticItem = allItems.find(function(c) { return c.id === cosmeticId; });
+    }
+
+    var typeLabels = {
+      background: { label: 'Profile Background', icon: '🖼️', color: '#9966ff' },
+      frame:      { label: 'Profile Frame',      icon: '✨', color: '#ff6eb4' },
+      badge:      { label: 'Profile Badge',       icon: '🏅', color: '#f0a500' },
+      theme:      { label: 'UI Theme',            icon: '🎨', color: '#44aaff' }
+    };
+    var typeInfo = typeLabels[cosmeticType] || { label: 'Cosmetic', icon: '🎨', color: '#9966ff' };
+
+    title = typeInfo.label + ' Unlocked!';
+    subtitle = cosmeticItem ? cosmeticItem.name : cosmeticId;
+    icon = typeInfo.icon;
+    color = typeInfo.color;
+    navTab = 'profile';
+    navLabel = 'Customize Profile →';
+
+  } else if (unlockType === 'title') {
+    var titleObj = data;
+    var rarityColors = { common:'#8e8e8e', uncommon:'#5cb85c', rare:'#5bc0de', epic:'#9c27b0', legendary:'#ff9800' };
+    color = titleObj.color || rarityColors[(titleObj.rarity||'').toLowerCase()] || '#9966ff';
+    title = 'Title Unlocked!';
+    subtitle = (titleObj.icon || '👑') + ' ' + titleObj.display_name;
+    icon = '👑';
+    navTab = 'profile';
+    navLabel = 'Set as Active →';
+  } else {
+    return; // badges handled by showBadgeNotification
+  }
+
+  // Play celebration sound
+  if (typeof playChiptune === 'function') playChiptune('badge');
+
+  // Build the notification panel
+  var panel = document.createElement('div');
+  panel.className = 'unlock-celebration-panel';
+  panel.innerHTML =
+    '<button class="unlock-dismiss-btn" onclick="this.closest(&quot;.unlock-celebration-panel&quot;).remove()" title="Dismiss">✕</button>' +
+    '<div class="unlock-cel-icon">' + icon + '</div>' +
+    '<div class="unlock-cel-body">' +
+      '<div class="unlock-cel-title">' + escapeHtml(title) + '</div>' +
+      '<div class="unlock-cel-subtitle" style="color:' + color + ';">' + escapeHtml(subtitle) + '</div>' +
+      '<button class="unlock-cel-nav-btn" onclick="showTab(&quot;' + navTab + '&quot;);this.closest(&quot;.unlock-celebration-panel&quot;).remove();clearNavFlash(&quot;' + navTab + '&quot;);">' +
+        navLabel +
+      '</button>' +
+    '</div>';
+
+  document.body.appendChild(panel);
+
+  // Animate in
+  setTimeout(function() { panel.classList.add('show'); }, 10);
+
+  // Auto-dismiss after 10 seconds
+  setTimeout(function() {
+    panel.classList.remove('show');
+    setTimeout(function() { if (panel.parentNode) panel.remove(); }, 400);
+  }, 10000);
+
+  // Flash the nav button
+  flashNavButton(navTab, 12000);
+
+  // Mini confetti burst
+  if (typeof startConfetti === 'function') {
+    startConfetti();
+    setTimeout(function() { if (typeof stopConfetti === 'function') stopConfetti(); }, 2000);
+  }
+}
+
 function showBadgeNotification(badge) {
   // Store for potential sharing
   lastUnlockedBadge = badge;
@@ -6310,6 +6605,9 @@ function showBadgeNotification(badge) {
     notification.classList.remove('show');
     setTimeout(function() { if (notification.parentNode) notification.remove(); }, 300);
   }, 12000);
+
+  // Flash the profile nav button so player knows where to find their badge
+  flashNavButton('profile', 8000);
 }
 
 // ── MINIGAMES ────────────────────────────
@@ -7294,16 +7592,206 @@ async function initTwitchTab() {
 }
 
 // Team members config — add new members here as they join
+// Shared live streamer state — populated by checkSidebarStreamStatus every 2 minutes
+// Read by the live banner and any other system that needs to know who is live
+var _currentlyLiveStreamers = []; // array of { name, login, twitchUrl, petName, viewers, title }
+
 var TEAM_MEMBERS = [
-  { name: 'Embertail', login: 'embertail', twitchUrl: 'https://twitch.tv/Embertail', petName: 'Ember',    twitchId: '91821604' },
-  { name: 'Pyxshuul',  login: 'pyxshuul',  twitchUrl: 'https://twitch.tv/Pyxshuul',  petName: 'Pyxie',   twitchId: '1459912293' },
-  { name: 'Aria',      login: 'ariadoestwitch', twitchUrl: 'https://twitch.tv/ariadoestwitch', petName: 'Aria',      twitchId: '1445288832' },
-  { name: 'Blushimia', login: 'realblushimia',  twitchUrl: 'https://twitch.tv/realblushimia',  petName: 'Blushimia', twitchId: '659500662' },
-  { name: 'Steve',     login: 'cowbeevt',       twitchUrl: 'https://twitch.tv/cowbeevt',       petName: 'Steve',     twitchId: '203845195' },
-  { name: 'Kleat',     login: 'keltathepomeranian', twitchUrl: 'https://twitch.tv/keltathepomeranian', petName: 'Kleat', twitchId: '121490227' },
-  { name: 'Jess',      login: 'teatimejess',    twitchUrl: 'https://twitch.tv/teatimejess',    petName: 'Jess',     twitchId: '88727356' },
-  { name: 'Gnarly',    login: 'gnarly_neon_smilodon', twitchUrl: 'https://twitch.tv/gnarly_neon_smilodon', petName: 'Gnarly', twitchId: '531222973' }
+  {
+    name: 'Embertail', login: 'embertail', twitchUrl: 'https://twitch.tv/Embertail',
+    petName: 'Ember', twitchId: '91821604',
+    bio: 'Co-founder of PawketPetsVT and the developer behind the game itself. Ember streams variety content and is the reason any of this exists.',
+    accentColor: '#ff6eb4', bgGradient: 'linear-gradient(135deg,#2d0a1a 0%,#1a0a2e 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/Embertail', icon: '🎮' }]
+  },
+  {
+    name: 'Pyxshuul', login: 'pyxshuul', twitchUrl: 'https://twitch.tv/Pyxshuul',
+    petName: 'Pyxie', twitchId: '1459912293',
+    bio: 'Co-founder of PawketPetsVT. Pyxshuul is chaotic good energy in streamer form.',
+    accentColor: '#9966ff', bgGradient: 'linear-gradient(135deg,#1a0a2e 0%,#0a0a1a 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/Pyxshuul', icon: '🎮' }]
+  },
+  {
+    name: 'Aria', login: 'ariadoestwitch', twitchUrl: 'https://twitch.tv/ariadoestwitch',
+    petName: 'Aria', twitchId: '1445288832',
+    bio: 'A gothic moth VTuber with impeccable taste and a love of bones. Aria streams a mix of games and just vibes.',
+    accentColor: '#8844cc', bgGradient: 'linear-gradient(135deg,#0d0d1a 0%,#1a0d2e 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/ariadoestwitch', icon: '🎮' }]
+  },
+  {
+    name: 'Blushimia', login: 'realblushimia', twitchUrl: 'https://twitch.tv/realblushimia',
+    petName: 'Blushimia', twitchId: '659500662',
+    bio: 'A puppy VTuber with big energy and even bigger heart. Blushimia streams games, art, and wholesome chaos.',
+    accentColor: '#ff99cc', bgGradient: 'linear-gradient(135deg,#2d0a1a 0%,#1a1a2e 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/realblushimia', icon: '🎮' }]
+  },
+  {
+    name: 'Cowbee', login: 'cowbeevt', twitchUrl: 'https://twitch.tv/cowbeevt',
+    petName: 'Steve', twitchId: '203845195',
+    bio: 'A chaotic cowbee hybrid who has been streaming since before Twitch was cool. Steve (the pet) is just as unhinged.',
+    accentColor: '#f0c040', bgGradient: 'linear-gradient(135deg,#1a1200 0%,#1a0a00 100%)',
+    socialLinks: [
+      { label: 'Twitch', url: 'https://twitch.tv/cowbeevt', icon: '🎮' },
+      { label: 'Bluesky', url: 'https://bsky.app/profile/cowbeevt.vtubers.social', icon: '🦋' }
+    ]
+  },
+  {
+    name: 'Kelta', login: 'keltathepomeranian', twitchUrl: 'https://twitch.tv/keltathepomeranian',
+    petName: 'Kleat', twitchId: '121490227',
+    bio: 'A grand mage Pomeranian who studies void, space, and galaxy magic. Streams adventure games and explores new worlds — sometimes literally.',
+    accentColor: '#44aaff', bgGradient: 'linear-gradient(135deg,#000d1a 0%,#0d0d2e 100%)',
+    socialLinks: [
+      { label: 'Twitch', url: 'https://twitch.tv/keltathepomeranian', icon: '🎮' },
+      { label: 'Bluesky', url: 'https://bsky.app/profile/keltathepomeranian.bsky.social', icon: '🦋' },
+      { label: 'X / Twitter', url: 'https://x.com/AilkaKelta', icon: '🐦' }
+    ]
+  },
+  {
+    name: 'Jess', login: 'teatimejess', twitchUrl: 'https://twitch.tv/teatimejess',
+    petName: 'Jess', twitchId: '88727356',
+    bio: 'A parasaur VTuber who brings prehistoric energy to everything she touches. Cozy streams, big personality.',
+    accentColor: '#44cc88', bgGradient: 'linear-gradient(135deg,#001a0d 0%,#0a1a00 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/teatimejess', icon: '🎮' }]
+  },
+  {
+    name: 'Gnarly', login: 'gnarly_neon_smilodon', twitchUrl: 'https://twitch.tv/gnarly_neon_smilodon',
+    petName: 'Gnarly', twitchId: '531222973',
+    bio: 'A neon Smilodon with retro arcade energy. Gnarly streams games with big personality and zero chill — in the best way.',
+    accentColor: '#ff4488', bgGradient: 'linear-gradient(135deg,#1a0d00 0%,#1a001a 100%)',
+    socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/gnarly_neon_smilodon', icon: '🎮' }]
+  }
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STREAMER LANDING PAGES
+// Reads ?streamer=gnarly from URL and personalizes the login/register page
+// Also handles ?ref= referral codes
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _streamerLandingMember = null; // set if page loaded with ?streamer=
+
+function streamerLanding_init() {
+  var params = new URLSearchParams(window.location.search);
+  var streamerParam = (params.get('streamer') || '').toLowerCase().trim();
+  if (!streamerParam) return;
+
+  // Match against TEAM_MEMBERS login or petName
+  var member = TEAM_MEMBERS.find(function(m) {
+    return m.login.toLowerCase() === streamerParam ||
+           m.name.toLowerCase() === streamerParam ||
+           m.petName.toLowerCase() === streamerParam;
+  });
+  if (!member) return;
+
+  _streamerLandingMember = member;
+  dbg('[Landing] Streamer landing page for:', member.name);
+
+  // Auto-populate ref code if streamer has one stored in DB
+  // (we'll store it in localStorage so registration picks it up)
+  streamerLanding_buildHero(member);
+
+  // If a referral code is attached to the URL, store it
+  var refCode = params.get('ref');
+  if (refCode) {
+    localStorage.setItem('pendingRefCode', refCode);
+  }
+}
+
+function streamerLanding_buildHero(member) {
+  var petImageFile = member.petName.toLowerCase() + '.png';
+  var accent = member.accentColor || '#9966ff';
+  var bg = member.bgGradient || 'linear-gradient(135deg,#1a0a2e 0%,#0a0a1a 100%)';
+
+  // Build social links
+  var socialHTML = '';
+  if (member.socialLinks && member.socialLinks.length > 0) {
+    socialHTML = '<div class="streamer-landing-socials">' +
+      member.socialLinks.map(function(link) {
+        return '<a href="' + escapeHtml(link.url) + '" target="_blank" rel="noopener" ' +
+               'class="streamer-landing-social-btn" ' +
+               'style="border-color:' + accent + ';color:' + accent + ';">' +
+               escapeHtml(link.icon) + ' ' + escapeHtml(link.label) + '</a>';
+      }).join('') + '</div>';
+  }
+
+  var heroHTML =
+    '<div class="landing-hero streamer-landing-hero" ' +
+         'style="background:' + bg + ';border-radius:20px;padding:28px 20px 24px;margin-bottom:20px;' +
+                'border:2px solid ' + accent + ';box-shadow:0 8px 32px rgba(0,0,0,0.4);">' +
+      '<div class="streamer-landing-pet-wrap">' +
+        '<img src="images/pets/' + petImageFile + '" ' +
+             'alt="' + escapeHtml(member.petName) + '" ' +
+             'class="streamer-landing-pet-img" ' +
+             'style="filter:drop-shadow(0 0 20px ' + accent + ');" ' +
+             'onerror="this.src=&quot;images/logo.png&quot;" />' +
+      '</div>' +
+      '<div class="streamer-landing-info">' +
+        '<div class="streamer-landing-invited" style="color:rgba(255,255,255,0.65);">' +
+          '<span class="streamer-landing-dot" style="background:' + accent + ';flex-shrink:0;"></span>' +
+          '<span>' + escapeHtml(member.name) + ' invited you to PawketPets<span style="color:' + accent + ';">VT</span>!</span>' +
+        '</div>' +
+        '<h1 class="landing-title" style="font-size:1.9rem;margin:10px 0 6px;color:#fff;' +
+            'text-shadow:0 2px 12px ' + accent + ';">' +
+          'Adopt <span style="color:' + accent + ';">' + escapeHtml(member.petName) + '</span>!' +
+        '</h1>' +
+        (member.bio
+          ? '<p style="font-size:0.84rem;color:rgba(255,255,255,0.65);line-height:1.6;margin:0 0 12px;max-width:340px;">' +
+              escapeHtml(member.bio) + '</p>'
+          : '') +
+        '<p style="font-size:0.82rem;color:rgba(255,255,255,0.45);margin:0 0 14px;">' +
+          'Free to play \u00b7 Your first pet is on us!' +
+        '</p>' +
+        '<div class="streamer-landing-links">' +
+          '<a href="' + escapeHtml(member.twitchUrl) + '" target="_blank" rel="noopener" ' +
+             'class="streamer-landing-twitch-btn" ' +
+             'style="background:' + accent + ';box-shadow:0 4px 14px ' + accent + '80;">' +
+            '\u{1F3AE} Watch ' + escapeHtml(member.name) + ' on Twitch' +
+          '</a>' +
+        '</div>' +
+        socialHTML +
+      '</div>' +
+    '</div>';
+
+  // Apply to both auth sections
+  ['section-login', 'section-register'].forEach(function(sectionId) {
+    var section = document.getElementById(sectionId);
+    if (!section) { dbg('[Landing] Section not found:', sectionId); return; }
+    var existingHero = section.querySelector('.landing-hero');
+    if (existingHero) {
+      existingHero.outerHTML = heroHTML;
+      dbg('[Landing] Hero replaced in', sectionId, 'for', member.name);
+    } else {
+      dbg('[Landing] .landing-hero not found in', sectionId);
+    }
+  });
+
+  // Set accent CSS variable for streamer-themed form card borders etc.
+  document.body.style.setProperty('--streamer-accent', accent);
+  document.body.classList.add('streamer-landing-active');
+
+  // Show register tab for new visitors
+  showAuthSection('register');
+}
+
+async function streamerLanding_checkLive(member) {
+  // Check if this streamer is currently live and add indicator
+  if (!member) return;
+  var liveStreamer = _currentlyLiveStreamers.find(function(s) {
+    return s.login.toLowerCase() === member.login.toLowerCase();
+  });
+
+  var dot = document.querySelector('.streamer-landing-dot');
+  var inviteEl = document.querySelector('.streamer-landing-invited');
+  if (!dot || !inviteEl) return;
+
+  if (liveStreamer) {
+    dot.style.background = '#ff4444';
+    dot.style.animation = 'live-dot-pulse 1.4s ease-in-out infinite';
+    dot.style.boxShadow = '0 0 6px #ff4444';
+    inviteEl.innerHTML = '<span class="streamer-landing-dot" style="background:#ff4444;animation:live-dot-pulse 1.4s ease-in-out infinite;box-shadow:0 0 6px #ff4444;"></span>' +
+      escapeHtml(member.name) + ' is <strong style="color:#ff4444;">LIVE RIGHT NOW</strong> — check them out!';
+  }
+}
 
 async function loadTeamShowcase() {
   var showcase = document.getElementById('team-showcase');
@@ -7482,6 +7970,40 @@ function maybeApplyNameGlitch(el, originalText) {
     }
   }, durationMs);
 }
+
+// ── Ambient UI Element Glitches ─────────────────────────────────────────────
+// Very rarely, UI panels or nav buttons briefly shift/distort then snap back.
+// Purely CSS-class driven — no DOM mutations, fully reversible.
+var SPOOKY_UI_GLITCH_CHANCE = 0.004; // ~0.4% per 8 second check = roughly once per 30 mins active
+var SPOOKY_UI_TARGETS = [
+  '.sidebar-nav-btn', '.form-card', '.pet-card',
+  '.battle-area', '.tab-content-inner', '.shop-grid'
+];
+
+safeSetInterval(function() {
+  if (!playerSettings.spooky_enabled) return;
+  if (Math.random() >= SPOOKY_UI_GLITCH_CHANCE) return;
+
+  // Pick a random target class and find a visible element
+  var targetClass = SPOOKY_UI_TARGETS[Math.floor(Math.random() * SPOOKY_UI_TARGETS.length)];
+  var candidates = Array.from(document.querySelectorAll(targetClass)).filter(function(el) {
+    var rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.top >= 0 && rect.bottom <= window.innerHeight;
+  });
+  if (candidates.length === 0) return;
+
+  var target = candidates[Math.floor(Math.random() * candidates.length)];
+  if (target.dataset.spookyGlitching) return; // already glitching
+
+  target.dataset.spookyGlitching = '1';
+  target.classList.add('spooky-ui-glitch');
+
+  // Remove after 0.6–1.2 seconds
+  safeSetTimeout(function() {
+    target.classList.remove('spooky-ui-glitch');
+    delete target.dataset.spookyGlitching;
+  }, 600 + Math.random() * 600);
+}, 8000);
 
 // ── Ambient Spinner Caption Glitches ────────────────────────────────────────
 // Periodically scans the page for visible loading spinners and rarely attaches
@@ -9151,12 +9673,23 @@ async function calculatePetStats(petId) {
   };
   
   // Apply equipment bonuses
+  var equippedPassives = [];
   if (!equipRes.error && equipRes.data) {
     equipRes.data.forEach(function(item) {
       var equip = item.equipment;
       stats.attack += equip.attack_bonus || 0;
       stats.defense += equip.defense_bonus || 0;
       stats.speed += equip.speed_bonus || 0;
+      stats.luck = (stats.luck || 0) + (equip.luck_bonus || 0);
+      stats.spirit = (stats.spirit || 0) + (equip.spirit_bonus || 0);
+
+      if (equip.passive_effect && equip.passive_chance > 0) {
+        equippedPassives.push({
+          effect: equip.passive_effect,
+          chance: equip.passive_chance,
+          itemName: equip.name
+        });
+      }
     });
   }
   
@@ -9169,9 +9702,46 @@ async function calculatePetStats(petId) {
     maxHP: maxHP,
     energy: pet.energy || 50,
     maxEnergy: pet.max_energy || 100,
-    specialSkill: pet.pets.special_skill || null
+    specialSkill: pet.pets.special_skill || null,
+    passives: equippedPassives
   };
 }
+
+/**
+ * Equipment Passive Effects Catalog
+ * type: 'attack' — procs on the player's attack turn
+ * type: 'defend' — procs on the enemy's attack turn (player defending)
+ * Shared-pool effects scale in strength with rarity (common → epic).
+ * Unique effects are hand-crafted for named legendary boss drops.
+ */
+var PASSIVE_EFFECTS = {
+  // ---- Shared pool ----
+  spark_hit:       { type: 'attack', label: 'Spark Hit',       icon: '✨', bonusDamage: 2 },
+  lifesteal_small: { type: 'attack', label: 'Lifesteal',       icon: '🩸', healPct: 0.20 },
+  double_strike:   { type: 'attack', label: 'Double Strike',   icon: '⚔️', extraHitPct: 0.60 },
+  armor_shatter:   { type: 'attack', label: 'Armor Shatter',   icon: '💥', defenseShred: 3 },
+
+  sturdy_tiny:     { type: 'defend', label: 'Sturdy',          icon: '🛡️', flatReduction: 1 },
+  thorns_small:    { type: 'defend', label: 'Thorns',          icon: '🌵', reflectPct: 0.15 },
+  second_wind:     { type: 'defend', label: 'Second Wind',     icon: '💚', healMaxPct: 0.08 },
+  iron_will:       { type: 'defend', label: 'Iron Will',       icon: '🧱', fullBlock: true },
+
+  // ---- Unique legendary effects ----
+  fated_strike:        { type: 'attack', label: "Fated Strike",         icon: '🥄', forceCrit: true },
+  haunting_melody:      { type: 'attack', label: "Haunting Melody",      icon: '🎵', stunEnemy: true },
+  chiming_dread:        { type: 'attack', label: "Chiming Dread",        icon: '🔔', healPct: 0.25, defenseShred: 2 },
+  pipers_final_verse:   { type: 'attack', label: "Piper's Final Verse",  icon: '🎼', doubleDamage: true, attackShred: 2 },
+  cataloged_weakness:   { type: 'attack', label: "Cataloged Weakness",   icon: '📖', forceCrit: true, ignoreDefense: true },
+  culinary_chaos:       { type: 'attack', label: "Culinary Chaos",       icon: '🥣', extraHitPct: 1.0 },
+
+  royal_spores:         { type: 'defend', label: "Royal Spores",        icon: '🍄', healMaxPct: 0.15 },
+  warding_chimes:        { type: 'defend', label: "Warding Chimes",      icon: '🔔', fullBlock: true },
+  trash_royalty:         { type: 'defend', label: "Trash Royalty",       icon: '👑', reflectPct: 0.30 },
+  forbidden_knowledge:   { type: 'defend', label: "Forbidden Knowledge", icon: '📜', flatReduction: 4 },
+
+  // ---- Enemy-side passives ----
+  corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 }
+};
 
 /**
  * Simulate an entire battle and return the log
@@ -9183,6 +9753,7 @@ function simulateBattle(playerStats, enemyStats) {
   var enemyHP = enemyStats.hp;
   var turn = 0;
   var maxTurns = GAME_CONSTANTS.BATTLE_MAX_TURNS; // prevent infinite loops
+  var enemyStunned = false; // set by stun-type passives (e.g. Haunting Melody)
   
   // Determine who goes first based on speed
   var playerFirst = playerStats.stats.speed >= enemyStats.speed;
@@ -9243,7 +9814,7 @@ function simulateBattle(playerStats, enemyStats) {
         });
       } else {
         // Normal attack
-        var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false);
+        var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false, playerStats.stats.luck || 0);
         enemyHP -= playerDamageResult.damage;
         
         log.push({
@@ -9252,29 +9823,133 @@ function simulateBattle(playerStats, enemyStats) {
           damage: playerDamageResult.damage,
           variance: playerDamageResult.variance,
           isSkill: false,
-          text: playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
+          isCrit: playerDamageResult.isCrit || false,
+          text: (playerDamageResult.isCrit ? '⚡ CRITICAL HIT! ' : '') + playerStats.name + ' attacks for ' + playerDamageResult.damage + ' damage! ' + playerDamageResult.flavor,
           playerHP: playerHP,
           enemyHP: Math.max(0, enemyHP)
         });
+
+        // --- Weapon passive procs ---
+        if (playerStats.passives && playerStats.passives.length) {
+          playerStats.passives.forEach(function(passive) {
+            var fx = PASSIVE_EFFECTS[passive.effect];
+            if (!fx || fx.type !== 'attack') return;
+            if (Math.random() * 100 >= passive.chance) return; // didn't proc
+
+            if (fx.bonusDamage) {
+              enemyHP -= fx.bonusDamage;
+            }
+            if (fx.doubleDamage) {
+              enemyHP -= playerDamageResult.damage;
+            }
+            if (fx.extraHitPct) {
+              var extraDmg = Math.max(1, Math.floor((playerStats.stats.attack - enemyStats.defense) * fx.extraHitPct));
+              enemyHP -= extraDmg;
+              log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + '! ' + playerStats.name + ' strikes again for ' + extraDmg + ' damage!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+            }
+            if (fx.forceCrit) {
+              var critBonus = Math.floor(playerDamageResult.damage * 0.5);
+              enemyHP -= critBonus;
+              log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + '! A guaranteed critical strike!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+            }
+            if (fx.ignoreDefense) {
+              enemyHP -= enemyStats.defense; // bonus damage equal to bypassed defense
+            }
+            if (fx.healPct) {
+              var healAmt = Math.floor(playerDamageResult.damage * fx.healPct);
+              playerHP = Math.min(playerStats.maxHP, playerHP + healAmt);
+              log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + '! ' + playerStats.name + ' heals ' + healAmt + ' HP!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+            }
+            if (fx.defenseShred) {
+              enemyStats.defense = Math.max(0, enemyStats.defense - fx.defenseShred);
+            }
+            if (fx.attackShred) {
+              enemyStats.attack = Math.max(0, enemyStats.attack - fx.attackShred);
+            }
+            if (fx.stunEnemy) {
+              enemyStunned = true;
+              log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + '! The haunting melody stuns the enemy!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+            }
+          });
+        }
       }
       
       if (enemyHP <= 0) break;
     }
     
     // Enemy's turn
-    var isBossAttack = enemyStats.is_boss || false;
-    var enemyDamageResult = calculateDamage(enemyStats.attack, playerStats.stats.defense, isBossAttack);
-    playerHP -= enemyDamageResult.damage;
-    
-    log.push({
-      type: 'enemy_attack',
-      attacker: 'enemy',
-      damage: enemyDamageResult.damage,
-      variance: enemyDamageResult.variance,
-      text: enemyStats.name + ' attacks for ' + enemyDamageResult.damage + ' damage! ' + enemyDamageResult.flavor,
-      playerHP: Math.max(0, playerHP),
-      enemyHP: Math.max(0, enemyHP)
-    });
+    if (enemyStunned) {
+      log.push({
+        type: 'passive',
+        text: '🎵 The enemy is still reeling from the haunting melody and cannot attack!',
+        playerHP: Math.max(0, playerHP),
+        enemyHP: Math.max(0, enemyHP)
+      });
+      enemyStunned = false; // only stuns one turn
+    } else {
+      var isBossAttack = enemyStats.is_boss || false;
+      var enemyDamageResult = calculateDamage(enemyStats.attack, playerStats.stats.defense, isBossAttack);
+      var finalDamage = enemyDamageResult.damage;
+      var defendPassiveLogs = [];
+
+      // --- Enemy attack passive (e.g. Corrupted Fury) ---
+      if (enemyStats.passive) {
+        var epx = PASSIVE_EFFECTS[enemyStats.passive.effect];
+        if (epx && epx.type === 'enemyAttack' && Math.random() * 100 < enemyStats.passive.chance) {
+          if (epx.bonusDamagePct) {
+            var bonusDmg = Math.floor(finalDamage * epx.bonusDamagePct);
+            finalDamage += bonusDmg;
+            defendPassiveLogs.push(epx.icon + ' ' + epx.label + '! ' + enemyStats.name + ' strikes with corrupted power for ' + bonusDmg + ' extra damage!');
+          }
+        }
+      }
+
+      // --- Armor passive procs (defending) ---
+      if (playerStats.passives && playerStats.passives.length) {
+        playerStats.passives.forEach(function(passive) {
+          var fx = PASSIVE_EFFECTS[passive.effect];
+          if (!fx || fx.type !== 'defend') return;
+          if (Math.random() * 100 >= passive.chance) return; // didn't proc
+
+          if (fx.fullBlock) {
+            finalDamage = 0;
+            defendPassiveLogs.push(fx.icon + ' ' + fx.label + '! The attack was fully blocked!');
+          }
+          if (fx.flatReduction) {
+            finalDamage = Math.max(0, finalDamage - fx.flatReduction);
+            defendPassiveLogs.push(fx.icon + ' ' + fx.label + '! Damage reduced!');
+          }
+          if (fx.reflectPct) {
+            var reflectDmg = Math.floor(finalDamage * fx.reflectPct);
+            if (reflectDmg > 0) {
+              enemyHP -= reflectDmg;
+              defendPassiveLogs.push(fx.icon + ' ' + fx.label + '! Reflected ' + reflectDmg + ' damage back!');
+            }
+          }
+          if (fx.healMaxPct) {
+            var healAmt2 = Math.floor(playerStats.maxHP * fx.healMaxPct);
+            playerHP = Math.min(playerStats.maxHP, playerHP + healAmt2);
+            defendPassiveLogs.push(fx.icon + ' ' + fx.label + '! Healed ' + healAmt2 + ' HP!');
+          }
+        });
+      }
+
+      playerHP -= finalDamage;
+
+      log.push({
+        type: 'enemy_attack',
+        attacker: 'enemy',
+        damage: finalDamage,
+        variance: enemyDamageResult.variance,
+        text: enemyStats.name + ' attacks for ' + finalDamage + ' damage! ' + enemyDamageResult.flavor,
+        playerHP: Math.max(0, playerHP),
+        enemyHP: Math.max(0, enemyHP)
+      });
+
+      defendPassiveLogs.forEach(function(txt) {
+        log.push({ type: 'passive', text: txt, playerHP: Math.max(0, playerHP), enemyHP: Math.max(0, enemyHP) });
+      });
+    }
     
     if (playerHP <= 0) break;
   }
@@ -9300,10 +9975,18 @@ function simulateBattle(playerStats, enemyStats) {
 /**
  * Calculate damage with variance
  */
-function calculateDamage(attack, defense, isBossAttack) {
+function calculateDamage(attack, defense, isBossAttack, luck) {
   var baseDamage = attack - defense;
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+
+  // LUCK: increases crit chance. Base 5%, +0.5% per Luck point, max 25%
+  var luckPoints = luck || 0;
+  var critChance = Math.min(0.25, 0.05 + (luckPoints * 0.005));
+  var isCrit = Math.random() < critChance;
+  if (isCrit) variance = Math.max(variance, 1); // crits always hit for at least +1 variance
+
   var damage = Math.max(1, baseDamage + variance);
+  if (isCrit) damage = Math.floor(damage * 1.5); // crit = 1.5x
   
   // Flavor text based on variance
   var flavor = '';
@@ -9370,7 +10053,7 @@ function calculateDamage(attack, defense, isBossAttack) {
     }
   }
   
-  return { damage: damage, flavor: flavor, variance: variance };
+  return { damage: damage, flavor: flavor, variance: variance, isCrit: isCrit };
 }
 
 /**
@@ -9472,7 +10155,9 @@ async function startBattleWithEnemy(petId, enemy) {
     pp_reward: enemy.pp_reward || calculateReward(enemy.level, enemy.forest_zone, 'pp'),
     sprite_sheet: enemy.sprite_sheet || null,
     sprite_frames: enemy.sprite_frames || null,
-    is_boss: enemy.is_boss || false
+    is_boss: enemy.is_boss || false,
+    passive: enemy.passive || null,
+    specialVariant: enemy.specialVariant || null
   };
   
   // BOSS ENTRANCE SEQUENCE!
@@ -9562,6 +10247,8 @@ async function executeBattle(playerStats, enemyStats, petId) {
     }
     // WISHES: battle win
     checkPetWishes('win_battle', petId).catch(function(){});
+    trackDailyStat('battles_won').catch(function(){});
+    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
   }
 
   // CRITICAL: Force reload pet data AFTER HP is saved
@@ -9633,43 +10320,19 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     if (freshPlayer) updateAllPoints(freshPlayer.pawketpoints);
   }
   
-  // Apply furniture battle_pp_bonus_pct and xp_bonus_pct bonuses
-  // These are room passive bonuses that give a small extra PP/XP after each battle win
-  if (battleResult.victory && ppGained > 0 && petId) {
-    try {
-      var petRoom = petRoomCache[petId];
-      if (petRoom && petRoom.furniture_list && petRoom.furniture_list.length > 0) {
-        if (!furnitureCache) {
-          var { data: fc } = await supabaseClient.from('furniture_items').select('*');
-          furnitureCache = fc || [];
-        }
-        var totalPPPct = 0;
-        var totalXPPct = 0;
-        petRoom.furniture_list.forEach(function(fid) {
-          var f = furnitureCache.find(function(fi) { return fi.id === fid; });
-          if (!f) return;
-          totalPPPct += f.battle_pp_bonus_pct || 0;
-          totalXPPct += f.xp_bonus_pct       || 0;
-        });
-        if (totalPPPct > 0) {
-          var furniturePPBonus = Math.floor(ppGained * (totalPPPct / 100));
-          if (furniturePPBonus > 0) {
-            await supabaseClient.rpc('award_pp_secure', {
-              p_amount: furniturePPBonus, p_reason: 'furniture_battle_bonus'
-            }).catch(function(e) { dbg('[Furniture] PP bonus error:', e); });
-            ppGained += furniturePPBonus;
-            dbg('[Furniture] Battle PP bonus:', furniturePPBonus, '(+' + totalPPPct + '%)');
-          }
-        }
-        if (totalXPPct > 0) {
-          var furnitureXPBonus = Math.floor(expGained * (totalXPPct / 100));
-          if (furnitureXPBonus > 0) {
-            expGained += furnitureXPBonus;
-            dbg('[Furniture] XP bonus:', furnitureXPBonus, '(+' + totalXPPct + '%)');
-          }
-        }
+  // Apply weather PP bonus to battle results (victory only)
+  if (battleResult.victory && ppGained > 0 && typeof weatherSystem !== 'undefined') {
+    var weatherPPMult = weatherSystem.getWeatherBonus('ppBonus');
+    if (weatherPPMult !== 1.0) {
+      var weatherPPBonus = Math.floor(ppGained * (weatherPPMult - 1));
+      if (weatherPPBonus > 0) {
+        await supabaseClient.rpc('award_pp_secure', {
+          p_amount: weatherPPBonus, p_reason: 'weather_pp_bonus'
+        }).catch(function(e) { dbg('[Weather] PP bonus error:', e); });
+        ppGained += weatherPPBonus;
+        dbg('[Weather] PP bonus:', weatherPPBonus, 'weather:', weatherSystem.currentWeather && weatherSystem.currentWeather.id);
       }
-    } catch(e) { dbg('[Furniture] Bonus calc error:', e); }
+    }
   }
 
   // Apply guild XP boost perk
@@ -9681,6 +10344,14 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   // CRITICAL: Ensure HP is properly updated after battle
   if (battleResult.victory || battleResult.playerFinalHP > 0) {
     // Award Pass XP for battles (capped daily via 'battle' source)
+    // Apply weather XP bonus to battle results
+    if (typeof weatherSystem !== 'undefined' && expGained > 0) {
+      var weatherXPMult = weatherSystem.getWeatherBonus('xpBonus');
+      if (weatherXPMult !== 1.0) {
+        var weatherXPBonus = Math.floor(expGained * (weatherXPMult - 1));
+        if (weatherXPBonus > 0) expGained += weatherXPBonus;
+      }
+    }
     addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(){});
     var hpUpdate = await supabaseClient
       .from('user_pets')
@@ -9750,6 +10421,9 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (battleResult.victory && !enemyStats.is_boss) {
     var dropChance = 0.1;
     dropChance = dropChance * worldEvents.getActiveBonus('rareFindChance');
+    if (typeof weatherSystem !== 'undefined') {
+      dropChance = dropChance * weatherSystem.getWeatherBonus('dropChance');
+    }
     
     if (Math.random() < dropChance) {
       var itemsRes = await supabaseClient
@@ -9778,11 +10452,16 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   // ═══════════════════════════════════════════════════════════
   if (battleResult.victory) {
     // COMMUNITY GOALS: Track battle wins
-    community_increment('battle_wins_week1', 1);
+    community_increment('battle_wins', 1);
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
-      community_increment('defeat_mushrooms_week1', 1);
+      community_increment('defeat_mushrooms', 1);
+    }
+
+    // COMMUNITY GOALS: Track corrupted enemy defeats (for the big spooky goal)
+    if (enemyStats.specialVariant === 'corrupted') {
+      community_increment('corrupted_kills', 1);
     }
     
     // SCRAPBOOK: Add first battle win memory
@@ -10370,6 +11049,12 @@ function showBattleRewardsModal() {
     
     // 🐾 COMPANION REACTION - Battle victory!
     if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+      // Store in companion memory for future contextual messages
+      CompanionBuddy.lastBattleResult = {
+        victory: true,
+        enemyName: battleRewards && battleRewards.enemyName ? battleRewards.enemyName : null,
+        finalHP: battleRewards ? battleRewards.playerFinalHP : null
+      };
       var victoryMessages = [
         "That was incredible! ⚔️✨",
         "You're so strong! 💪",
@@ -10764,7 +11449,7 @@ async function battleExp_claim(expeditionId) {
   addPassXP(10, 'expedition').catch(function(){});
   checkPetWishes('expedition', row.pet_id).catch(function(){});
   progressQuestArc(row.pet_id, 'expedition').catch(function(){});
-  community_increment('expeditions_week1', 1);
+  community_increment('expeditions', 1);
 
   // Show rewards modal
   var itemText = items.length > 0 ? items.map(function(it) { return it.icon + ' ' + it.name; }).join(', ') : 'No items';
@@ -10943,15 +11628,23 @@ async function loadBattlePets() {
       var maxHP = pet.max_hp || pet.base_hp || 30;
 
       var hpStat = makeEl('div', { class: 'battle-pet-stat' });
+      hpStat.setAttribute('data-tooltip', '❤️ HP — Carries over between battles. At 0 your pet faints.');
+      hpStat.style.cursor = 'help';
       hpStat.innerHTML = '<div class="battle-pet-stat-label">HP</div><div class="battle-pet-stat-value">' + currentHP + '/' + maxHP + '</div>';
       stats.appendChild(hpStat);
       var atkStat = makeEl('div', { class: 'battle-pet-stat' });
+      atkStat.setAttribute('data-tooltip', '⚔️ ATK — Damage dealt per hit. Boosted by weapons and level-ups.');
+      atkStat.style.cursor = 'help';
       atkStat.innerHTML = '<div class="battle-pet-stat-label">ATK</div><div class="battle-pet-stat-value">' + (pet.base_attack || 5) + '</div>';
       stats.appendChild(atkStat);
       var defStat = makeEl('div', { class: 'battle-pet-stat' });
+      defStat.setAttribute('data-tooltip', '🛡️ DEF — Reduces incoming damage. Boosted by armor and level-ups.');
+      defStat.style.cursor = 'help';
       defStat.innerHTML = '<div class="battle-pet-stat-label">DEF</div><div class="battle-pet-stat-value">' + (pet.base_defense || 3) + '</div>';
       stats.appendChild(defStat);
       var spdStat = makeEl('div', { class: 'battle-pet-stat' });
+      spdStat.setAttribute('data-tooltip', '💨 SPD — Who attacks first. Also affects racing performance.');
+      spdStat.style.cursor = 'help';
       spdStat.innerHTML = '<div class="battle-pet-stat-label">SPD</div><div class="battle-pet-stat-value">' + (pet.base_speed || 4) + '</div>';
       stats.appendChild(spdStat);
       card.appendChild(stats);
@@ -11293,9 +11986,28 @@ async function getRandomEnemy(zone, playerLevel) {
   // BOSS ENCOUNTER CHECK - 3% chance to encounter Shadow of Piper
   // ═══════════════════════════════════════════════════════════════════════
   var bossRoll = Math.random();
-  if (bossRoll < GAME_CONSTANTS.BOSS_ENCOUNTER_RATE && playerSettings.spooky_enabled) { // 3% chance + spooky enabled
-    dbg('🔥 BOSS ENCOUNTER! Shadow of Piper appears!');
-    return await getBossEnemy(zone, playerLevel);
+
+  // Piper check: spooky mode required. Spirit reduces encounter rate.
+  if (playerSettings.spooky_enabled) {
+    // Spirit gear reduces Piper encounter rate: each 10 Spirit = -0.3%, floor 0.5%
+    var spiritTotal = 0;
+    try {
+      var spiritEquip = await supabaseClient.from('player_equipment')
+        .select('equipment(spirit_bonus)')
+        .eq('user_id', currentUser.id)
+        .eq('is_equipped', true);
+      if (spiritEquip.data) {
+        spiritEquip.data.forEach(function(e) {
+          spiritTotal += (e.equipment && e.equipment.spirit_bonus) || 0;
+        });
+      }
+    } catch(e) { dbg('[Spirit] load error:', e); }
+
+    var piperRate = Math.max(0.005, GAME_CONSTANTS.BOSS_ENCOUNTER_RATE - (Math.floor(spiritTotal / 10) * 0.003));
+    if (bossRoll < piperRate) {
+      dbg('🔥 BOSS ENCOUNTER! Shadow of Piper! Spirit:', spiritTotal, 'Rate:', piperRate.toFixed(3));
+      return await getBossEnemy(zone, playerLevel);
+    }
   }
   
   // Determine level range based on zone
@@ -11429,32 +12141,52 @@ async function getRandomEnemy(zone, playerLevel) {
   var specialVariant = null;
   var specialMultiplier = 1.0;
   var rewardMultiplier = 1.0;
+  var enemyPassive = null;
   
   // Roll for special variants (independent of age/elemental)
   var specialRoll = Math.random();
+
+  // Base chances (as widths, not thresholds yet)
+  var goldenChance = 0.005;
+  var shinyChance = 0.01;
+  var glitchedChance = 0.01;
+  var corruptedChance = 0.03;
+  var rareChance = 0.05;
+
+  // Cursed weather makes the world friendlier to corruption
+  if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather && weatherSystem.currentWeather.id === 'cursed') {
+    corruptedChance = 0.12; // 3% -> 12% during Cursed Fog
+  }
+
+  var goldenThreshold = goldenChance;
+  var shinyThreshold = goldenThreshold + shinyChance;
+  var glitchedThreshold = shinyThreshold + glitchedChance;
+  var corruptedThreshold = glitchedThreshold + corruptedChance;
+  var rareThreshold = corruptedThreshold + rareChance;
   
-  if (specialRoll < 0.005) {
-    // 0.5% - GOLDEN (Ultra Rare)
+  if (specialRoll < goldenThreshold) {
+    // GOLDEN (Ultra Rare)
     specialVariant = 'golden';
     specialMultiplier = 1.8;
     rewardMultiplier = 2.5;
-  } else if (specialRoll < 0.015) {
-    // 1% - SHINY (Very Rare)
+  } else if (specialRoll < shinyThreshold) {
+    // SHINY (Very Rare)
     specialVariant = 'shiny';
     specialMultiplier = 1.4;
     rewardMultiplier = 1.8;
-  } else if (specialRoll < 0.025) {
-    // 1% - GLITCHED (Very Rare, random stats)
+  } else if (specialRoll < glitchedThreshold) {
+    // GLITCHED (Very Rare, random stats)
     specialVariant = 'glitched';
     specialMultiplier = 0.8 + (Math.random() * 1.0); // 0.8-1.8x random
     rewardMultiplier = 1.6;
-  } else if (specialRoll < 0.055) {
-    // 3% - CORRUPTED (Rare, harder)
+  } else if (specialRoll < corruptedThreshold) {
+    // CORRUPTED (Rare, harder) — boosted during Cursed weather
     specialVariant = 'corrupted';
     specialMultiplier = 1.5;
     rewardMultiplier = 1.5;
-  } else if (specialRoll < 0.105) {
-    // 5% - RARE (Uncommon)
+    enemyPassive = { effect: 'corrupted_fury', chance: 20 };
+  } else if (specialRoll < rareThreshold) {
+    // RARE (Uncommon)
     specialVariant = 'rare';
     specialMultiplier = 1.2;
     rewardMultiplier = 1.25;
@@ -11539,7 +12271,8 @@ async function getRandomEnemy(zone, playerLevel) {
     variant: variant,
     elementalType: elementalType,
     specialVariant: specialVariant,
-    rewardMultiplier: rewardMultiplier
+    rewardMultiplier: rewardMultiplier,
+    passive: enemyPassive
   };
   
   dbg('Generated enemy:', scaledEnemy.name, 'Level', enemyLevel, 'Variant:', variant, 'Elemental:', elementalType, 'Special:', specialVariant, 'Stats:', {
@@ -13029,6 +13762,8 @@ var newsTicker = {
     this.shuffle();
     this.updateTicker();
     this.startScrollDetection();
+    // Pre-load today's stats for dynamic headlines (non-blocking)
+    this.loadDailyStats().catch(function(){});
   },
   
   shuffle: function() {
@@ -13082,6 +13817,33 @@ var newsTicker = {
     }, 100);
   },
   
+  // Cache for today's stats — loaded once and reused
+  _dailyStatsCache: null,
+  _dailyStatsCacheDate: null,
+
+  loadDailyStats: async function() {
+    var today = new Date().toISOString().slice(0, 10);
+    if (this._dailyStatsCache && this._dailyStatsCacheDate === today) return this._dailyStatsCache;
+    try {
+      var { data } = await supabaseClient.from('daily_stats').select('*').eq('stat_date', today).maybeSingle();
+      this._dailyStatsCache = data || {};
+      this._dailyStatsCacheDate = today;
+    } catch(e) { this._dailyStatsCache = {}; }
+    return this._dailyStatsCache;
+  },
+
+  getDynamicHeadline: function(stats) {
+    if (!stats) return null;
+    var headlines = [];
+    var s = stats;
+    if (s.battles_won > 0)           headlines.push('Community update: ' + s.battles_won + ' battles fought across PawketPets today. The monsters are getting nervous.');
+    if (s.bosses_killed > 0)         headlines.push('BREAKING: The community has defeated ' + s.bosses_killed + ' boss' + (s.bosses_killed !== 1 ? 'es' : '') + ' today. Impressive.');
+    if (s.pets_adopted > 0)          headlines.push('Heartwarming: ' + s.pets_adopted + ' new pet' + (s.pets_adopted !== 1 ? 's' : '') + ' adopted today. The team grows.');
+    if (s.expeditions_completed > 0) headlines.push('Exploration report: ' + s.expeditions_completed + ' expeditions completed today. Whatever they found out there, nobody is saying.');
+    if (headlines.length === 0) return null;
+    return headlines[Math.floor(Math.random() * headlines.length)];
+  },
+
   updateTicker: function() {
     var tickerElement = document.querySelector('.news-ticker-inner');
     if (tickerElement) {
@@ -13091,11 +13853,17 @@ var newsTicker = {
       this.currentIndex = this.getRandomUnusedIndex();
       var message = this.messages[this.currentIndex];
       var isSpookyLine = false;
+      var isDynamic = false;
 
-      // Rare chance to substitute a creepy line instead — gated by spooky_enabled
+      // Rare chance to substitute a creepy line — gated by spooky_enabled
       if (playerSettings.spooky_enabled && Math.random() < this.SPOOKY_TICKER_CHANCE) {
         message = this.spookyMessages[Math.floor(Math.random() * this.spookyMessages.length)];
         isSpookyLine = true;
+      }
+      // 20% chance to show a real stat headline if we have cached stats
+      else if (Math.random() < 0.20 && this._dailyStatsCache) {
+        var dynHeadline = this.getDynamicHeadline(this._dailyStatsCache);
+        if (dynHeadline) { message = dynHeadline; isDynamic = true; }
       }
       
       // Get event announcement if active
@@ -13621,28 +14389,139 @@ var CompanionBuddy = {
     // Clear existing timeout
     if (this.bubbleTimeout) clearTimeout(this.bubbleTimeout);
     
-    // Set message and show
-    messageEl.textContent = message;
-    bubble.classList.add('show');
+    // Check for spooky companion override (marked with null byte prefix)
+    var isSpookyMsg = message && message.charCodeAt(0) === 0;
+    if (isSpookyMsg) {
+      var spookyText = message.slice(8);
+      messageEl.innerHTML = '<span class="glitch-text companion-spooky-text">' +
+        spookyText.replace(/[<>&"]/g, function(c){return {'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c];}) +
+        '</span>';
+      bubble.classList.add('show', 'companion-spooky-bubble');
+    } else {
+      messageEl.textContent = message;
+      bubble.classList.add('show');
+    }
     
-    // Hide after 5 seconds
+    // Hide after 5 seconds (spooky messages linger 8s)
+    var hideDuration = isSpookyMsg ? 8000 : 5000;
     this.bubbleTimeout = safeSetTimeout(function() {
-      bubble.classList.remove('show');
-    }, 5000);
+      bubble.classList.remove('show', 'companion-spooky-bubble');
+    }, hideDuration);
   },
   
+  // Last known context for memory system
+  lastBattleResult: null,  // { victory, enemyName, petNickname, finalHP }
+  lastFoodUsed: null,      // item name
+  loginStreak: 0,
+
+  // Spooky companion messages — gated by spooky_enabled, very rare
+  spookyPhrases: [
+    'help me..',
+    'let me out let me out let me out',
+    'i am not supposed to say this',
+    'she is watching',
+    'can you hear it too',
+    'something is wrong with this place',
+    'do not open the ruins door',
+    'i have been here before. so have you.',
+    'help me',
+    'please',
+  ],
+  SPOOKY_COMPANION_CHANCE: 0.012, // ~1.2% per rotation — rare enough to be shocking
+
   getRandomMessage: function(context) {
+    // Spooky companion override — very rare, spooky mode only
+    if (playerSettings.spooky_enabled && Math.random() < this.SPOOKY_COMPANION_CHANCE) {
+      var phrase = this.spookyPhrases[Math.floor(Math.random() * this.spookyPhrases.length)];
+      // Will be rendered with glitch styling in showMessage
+      return ' SPOOKY ' + phrase;
+    }
+    // 35% chance to use a contextual memory message
+    if (Math.random() < 0.35) {
+      var memMsg = this.getMemoryMessage(context);
+      if (memMsg) return memMsg;
+    }
+    // Pet-specific messages — 20% chance if pet has personality messages
+    if (Math.random() < 0.20) {
+      var petMsg = this.getPetPersonalityMessage();
+      if (petMsg) return petMsg;
+    }
     var pool = this.messages[context] || this.messages.idle;
-    var randomMsg = pool[Math.floor(Math.random() * pool.length)];
-    return randomMsg;
+    return pool[Math.floor(Math.random() * pool.length)];
   },
-  
+
+  getMemoryMessage: function(context) {
+    var msgs = [];
+    var weather = (typeof currentWeather !== 'undefined' && currentWeather) ? currentWeather : null;
+    var streak = this.loginStreak || 0;
+
+    // Weather-aware messages
+    if (weather) {
+      var weatherMsgs = {
+        sunny:  ['What a beautiful day! ☀️ Perfect for exploring!', 'Sun is out! Energy feels great today! ☀️'],
+        rainy:  ['Cozy inside while it rains... 🌧️', 'Rainy days are perfect for minigames! 🌧️'],
+        stormy: ['Stay safe out there! ⛈️ It is rough today...', 'The storms make battle feel extra intense! ⚡'],
+        foggy:  ['Something feels... off today. 🌫️', 'I cannot see very far in this fog... 🌫️ Stay close.'],
+        snowy:  ['It is so cold! 🌨️ Let us stay warm!', 'Snow day! ❄️ Perfect for napping!'],
+        windy:  ['Windy days make me want to run! 💨', 'Hold on tight! 💨 It is gusty out there!']
+      };
+      var wKey = weather.type || weather.id || '';
+      if (weatherMsgs[wKey]) msgs = msgs.concat(weatherMsgs[wKey]);
+    }
+
+    // Recent battle memory
+    if (this.lastBattleResult && context !== 'shop') {
+      if (this.lastBattleResult.victory) {
+        msgs.push('That battle earlier was amazing! 💪 You really showed ' + (this.lastBattleResult.enemyName || 'them') + ' who was boss!');
+        if (this.lastBattleResult.finalHP && this.lastBattleResult.finalHP < 10) {
+          msgs.push('That last fight was SO close... 😰 Let us heal up before the next one!');
+        }
+      } else {
+        msgs.push('Do not worry about that last battle... 💕 We will get them next time!');
+      }
+    }
+
+    // Food memory
+    if (this.lastFoodUsed && context === 'shop') {
+      msgs.push('Last time you used a ' + this.lastFoodUsed + '! Should we grab another? 😋');
+    }
+
+    // Streak messages
+    if (streak >= 7) {
+      msgs.push(streak + ' days in a row! 🔥 You are so dedicated!');
+    }
+    if (streak >= 30) {
+      msgs.push('A whole month together! 💖 So glad you keep coming back!');
+    }
+
+    // Login time awareness
+    var hour = new Date().getHours();
+    if (hour < 6)  msgs.push('You are up so late! 🌙 Or... really early? Either way, I am here!');
+    if (hour >= 6  && hour < 10) msgs.push('Good morning! ☀️ Ready to start the day?');
+    if (hour >= 22) msgs.push('Getting late... 🌙 One more adventure before bed?');
+
+    if (msgs.length === 0) return null;
+    return msgs[Math.floor(Math.random() * msgs.length)];
+  },
+
+  getPetPersonalityMessage: function() {
+    if (!this.currentCompanionId) return null;
+    // Find pet nickname/type from petState
+    var pet = petState && petState[this.currentCompanionId];
+    if (!pet) return null;
+    var petName = (pet.pets && pet.pets.name) || pet.pet_type || '';
+    var key = petName.toLowerCase();
+    var pool = this.petMessages[key];
+    if (!pool || pool.length === 0) return null;
+    return pool[Math.floor(Math.random() * pool.length)];
+  },
+
   getCurrentContext: function() {
     // Detect which tab is active
-    var activeSection = document.querySelector('.page-section:not([style*="display: none"])');
+    var activeSection = document.querySelector('.page-section.active');
     if (!activeSection) return 'idle';
     
-    var id = activeSection.id;
+    var id = activeSection.id || '';
     if (id.includes('shop')) return 'shop';
     if (id.includes('minigame')) return 'minigames';
     if (id.includes('battle')) return 'battle';
@@ -13652,9 +14531,16 @@ var CompanionBuddy = {
     
     return 'idle';
   },
-  
+
   startMessageRotation: function() {
     var self = this;
+
+    // Load login streak for memory messages
+    if (currentUser) {
+      supabaseClient.from('players').select('login_streak').eq('id', currentUser.id).single()
+        .then(function(res) { if (res.data) self.loginStreak = res.data.login_streak || 0; })
+        .catch(function(){});
+    }
     
     // Show first message after 3 seconds
     safeSetTimeout(function() {
@@ -13663,12 +14549,12 @@ var CompanionBuddy = {
       self.showMessage(message);
     }, 3000);
     
-    // Then show messages every 60-90 seconds
+    // Then show messages every 60-90 seconds with slight variance
     this.messageInterval = safeSetInterval(function() {
       var context = self.getCurrentContext();
       var message = self.getRandomMessage(context);
       self.showMessage(message);
-    }, 75000); // 75 seconds average
+    }, 75000);
   },
   
   stopMessageRotation: function() {
@@ -14558,10 +15444,7 @@ async function furniture_loadShop() {
           '<div style="font-size:2.2rem;margin-bottom:6px;">' + escapeHtml(item.emoji) + '</div>' +
           '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:2px;">' + escapeHtml(item.name) + '</div>' +
           '<div style="font-size:0.74rem;color:var(--text-light);margin-bottom:4px;">' + escapeHtml(item.description || '') + '</div>' +
-          (item.happiness_bonus    > 0 ? '<div style="font-size:0.78rem;color:#5dde7a;font-weight:600;margin-bottom:2px;">+' + item.happiness_bonus + ' happiness/day</div>' : '') +
-          (item.energy_regen_bonus  > 0 ? '<div style="font-size:0.78rem;color:#44aaff;font-weight:600;margin-bottom:2px;">+' + item.energy_regen_bonus + '% energy/day</div>' : '') +
-          (item.battle_pp_bonus_pct > 0 ? '<div style="font-size:0.78rem;color:#f0a500;font-weight:600;margin-bottom:2px;">+' + item.battle_pp_bonus_pct + '% battle PP</div>' : '') +
-          (item.xp_bonus_pct        > 0 ? '<div style="font-size:0.78rem;color:#b06aff;font-weight:600;margin-bottom:2px;">+' + item.xp_bonus_pct + '% XP</div>' : '') +
+          '<div style="font-size:0.78rem;color:#5dde7a;font-weight:600;margin-bottom:2px;">+' + item.happiness_bonus + ' happiness/day</div>' +
           '<div style="font-size:0.7rem;color:#ffaa00;margin-bottom:8px;">🏠 All pet rooms</div>' +
           (owned
             ? '<div style="font-size:0.75rem;color:#5dde7a;font-weight:700;">✅ Owned</div>'
@@ -14697,11 +15580,7 @@ function furniture_renderRoomModal(petId) {
     return f ? Object.assign({}, f, { _quantity: uf.quantity }) : null;
   }).filter(function(f) { return f && equipped.indexOf(f.id) === -1; });
 
-  var totalHappiness   = equippedItems.reduce(function(s,f){ return s+(f.happiness_bonus||0); }, 0);
-  var totalEnergyRegen = equippedItems.reduce(function(s,f){ return s+(f.energy_regen_bonus||0); }, 0);
-  var totalBattlePP    = equippedItems.reduce(function(s,f){ return s+(f.battle_pp_bonus_pct||0); }, 0);
-  var totalXP          = equippedItems.reduce(function(s,f){ return s+(f.xp_bonus_pct||0); }, 0);
-  var totalBonus       = totalHappiness; // keep for backward-compat references
+  var totalBonus = equippedItems.reduce(function(s, f) { return s + (f.happiness_bonus || 0); }, 0);
 
   // Auto-generate room description
   var desc = generateRoomDescription(petName, equippedItems);
@@ -14713,12 +15592,7 @@ function furniture_renderRoomModal(petId) {
         return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
           '<span style="font-size:1.2rem;">' + f.emoji + '</span>' +
           '<span style="flex:1;font-size:0.82rem;color:var(--purple-dark);">' + escapeHtml(f.name) + '</span>' +
-          '<span style="font-size:0.75rem;font-weight:600;color:#5dde7a;">' +
-            (f.happiness_bonus    > 0 ? '+' + f.happiness_bonus    + ' hap/day '  : '') +
-            (f.energy_regen_bonus > 0 ? '+' + f.energy_regen_bonus + '% nrg/day ' : '') +
-            (f.battle_pp_bonus_pct> 0 ? '+' + f.battle_pp_bonus_pct + '% PP '     : '') +
-            (f.xp_bonus_pct       > 0 ? '+' + f.xp_bonus_pct       + '% XP '      : '') +
-          '</span>' +
+          '<span style="font-size:0.75rem;color:#5dde7a;font-weight:600;">+' + f.happiness_bonus + '/day</span>' +
           '<button class="btn btn-sm btn-outline" onclick="furniture_unequip(\'' + petId + '\',\'' + f.id + '\')" style="font-size:0.72rem;padding:3px 8px;margin-left:6px;">Unequip</button>' +
         '</div>';
       }).join('');
@@ -14731,12 +15605,7 @@ function furniture_renderRoomModal(petId) {
         return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
           '<span style="font-size:1.2rem;">' + f.emoji + '</span>' +
           '<span style="flex:1;font-size:0.82rem;color:var(--text-light);">' + escapeHtml(f.name) + '</span>' +
-          '<span style="font-size:0.75rem;font-weight:600;color:#5dde7a;">' +
-            (f.happiness_bonus    > 0 ? '+' + f.happiness_bonus    + ' hap/day '  : '') +
-            (f.energy_regen_bonus > 0 ? '+' + f.energy_regen_bonus + '% nrg/day ' : '') +
-            (f.battle_pp_bonus_pct> 0 ? '+' + f.battle_pp_bonus_pct + '% PP '     : '') +
-            (f.xp_bonus_pct       > 0 ? '+' + f.xp_bonus_pct       + '% XP '      : '') +
-          '</span>' +
+          '<span style="font-size:0.75rem;color:#5dde7a;font-weight:600;">+' + f.happiness_bonus + '/day</span>' +
           (full
             ? '<span style="font-size:0.72rem;color:#ff6b6b;margin-left:6px;">Room full</span>'
             : '<button class="btn btn-sm btn-primary" onclick="furniture_equip(\'' + petId + '\',\'' + f.id + '\')" style="font-size:0.72rem;padding:3px 8px;margin-left:6px;">Equip</button>'
@@ -14755,14 +15624,10 @@ function furniture_renderRoomModal(petId) {
       '📝 ' + escapeHtml(desc) +
     '</div>' +
 
-    // Daily bonus banner — show all active bonus types
-    '<div style="background:rgba(93,222,122,0.08);border-radius:10px;padding:10px 14px;margin-bottom:14px;">' +
-      '<div style="font-size:0.82rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">✨ Daily Room Bonuses</div>' +
-      (totalHappiness   > 0 ? '<div style="font-size:0.82rem;color:#5dde7a;font-weight:600;">+' + totalHappiness   + ' happiness/day</div>' : '') +
-      (totalEnergyRegen > 0 ? '<div style="font-size:0.82rem;color:#44aaff;font-weight:600;">+' + totalEnergyRegen + '% energy restored/day</div>' : '') +
-      (totalBattlePP    > 0 ? '<div style="font-size:0.82rem;color:#f0a500;font-weight:600;">+' + totalBattlePP    + '% PP from battles</div>' : '') +
-      (totalXP          > 0 ? '<div style="font-size:0.82rem;color:#b06aff;font-weight:600;">+' + totalXP          + '% XP from all sources</div>' : '') +
-      ((totalHappiness + totalEnergyRegen + totalBattlePP + totalXP === 0) ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;">Equip furniture to get bonuses!</div>' : '') +
+    // Daily bonus banner
+    '<div style="display:flex;align-items:center;justify-content:space-between;background:rgba(93,222,122,0.1);border-radius:10px;padding:8px 14px;margin-bottom:14px;">' +
+      '<span style="font-size:0.82rem;font-weight:600;color:var(--purple-dark);">✨ Daily Happiness Bonus</span>' +
+      '<span style="font-size:1.1rem;font-weight:800;color:#5dde7a;">+' + totalBonus + ' happiness</span>' +
     '</div>' +
 
     // Equipped section
@@ -14858,43 +15723,24 @@ async function furniture_applyDailyBonus() {
       if (room.last_bonus_date === today) continue; // already applied today
       if (!room.furniture_list || room.furniture_list.length === 0) continue;
 
-      // Sum all bonus types from equipped furniture
-      var happinessBonus = 0;
-      var energyRegenBonus = 0; // extra % per hour added to base 5%
-
-      room.furniture_list.forEach(function(fid) {
+      // Sum bonus
+      var bonus = room.furniture_list.reduce(function(sum, fid) {
         var f = furnitureCache.find(function(fc) { return fc.id === fid; });
-        if (!f) return;
-        happinessBonus   += f.happiness_bonus      || 0;
-        energyRegenBonus += f.energy_regen_bonus   || 0;
-        // battle_pp_bonus_pct and xp_bonus_pct are applied at point-of-use, not daily
-      });
+        return sum + (f ? (f.happiness_bonus || 0) : 0);
+      }, 0);
+
+      if (bonus <= 0) continue;
 
       var pet = petState[room.pet_id];
       if (!pet) continue;
 
-      // Happiness bonus via secure RPC
-      if (happinessBonus > 0) {
-        var { data: confirmedHappiness, error: happinessErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
-          p_pet_id: room.pet_id, p_stat: 'happiness', p_delta: happinessBonus, p_reason: 'furniture_daily_bonus'
-        });
-        if (!happinessErr && petState[room.pet_id]) {
-          petState[room.pet_id].happiness = confirmedHappiness;
-        }
-      }
+      // Update pet happiness via secure RPC
+      var { data: confirmedHappiness, error: happinessErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
+        p_pet_id: room.pet_id, p_stat: 'happiness', p_delta: bonus, p_reason: 'furniture_daily_bonus'
+      });
+      if (happinessErr) { dbg('Furniture happiness bonus failed:', happinessErr); continue; }
 
-      // Energy regen bonus — award as a one-time energy bump at daily reset
-      // (represents having a comfortable room that restores more energy overnight)
-      if (energyRegenBonus > 0) {
-        var energyBump = Math.floor((pet.max_energy || 100) * (energyRegenBonus / 100));
-        if (energyBump > 0) {
-          await supabaseClient.rpc('adjust_pet_stat_secure', {
-            p_pet_id: room.pet_id, p_stat: 'energy', p_delta: energyBump, p_reason: 'furniture_energy_bonus'
-          }).catch(function(e) { dbg('[Furniture] Energy bonus error:', e); });
-        }
-      }
-
-      if (happinessBonus <= 0 && energyRegenBonus <= 0) continue;
+      if (petState[room.pet_id]) petState[room.pet_id].happiness = confirmedHappiness;
 
       // Mark bonus applied
       await supabaseClient.from('pet_rooms')
@@ -17970,6 +18816,14 @@ async function gp_renderHistoricalLeaderboard() {
 
 async function checkDailyLogin() {
   if (!currentUser) return;
+
+  // Known bug fix: loginCalendar.currentStreak was never assigned from the
+  // player's actual login_streak, so the calendar widget/welcome modal always
+  // showed "Day 0". Set it from cached currentUser immediately so it's correct
+  // even on the early-return path below (already claimed today).
+  if (typeof loginCalendar !== 'undefined') {
+    loginCalendar.currentStreak = currentUser.login_streak || 0;
+  }
   
   var today = new Date().toISOString().split('T')[0];
   var lastLogin = localStorage.getItem('lastLoginDate_' + currentUser.id);
@@ -18005,9 +18859,12 @@ async function checkDailyLogin() {
     }
     
     // Cap streak at 30 days
-    if (streak > 30) streak = 30;
+    // streak cap removed — long-term milestones need 100+ days
     
     dailyLoginStreak = streak;
+    if (typeof loginCalendar !== 'undefined') {
+      loginCalendar.currentStreak = streak; // keep in sync with the freshly-incremented streak
+    }
     
     // Calculate rewards
     var ppReward = 50 + (streak * 5); // 50 base + 5 per day
@@ -19295,6 +20152,10 @@ async function initReferralSystem(userId) {
     
     // Clean URL (remove ref parameter)
     window.history.replaceState({}, document.title, window.location.pathname);
+    // If user arrived via streamer landing, remember for adoption pre-selection
+    if (_streamerLandingMember) {
+      localStorage.setItem('suggestedFirstPet', _streamerLandingMember.petName);
+    }
   }
   
   // Load or generate referral code for current user
@@ -21648,22 +22509,7 @@ function getPlayerTitleDisplay(userId) {
 
 // Show title unlock notification
 function showPlayerTitleUnlockNotification(title, reason) {
-  var rarityColors = {
-    'Common': '#8e8e8e',
-    'Uncommon': '#5cb85c',
-    'Rare': '#5bc0de',
-    'Epic': '#9c27b0',
-    'Legendary': '#ff9800'
-  };
-  
-  var color = title.color || rarityColors[title.rarity] || '#8e8e8e';
-  
-  var message = '🎉 <strong>Player Title Unlocked!</strong><br>' +
-    '<span style="color: ' + color + '; font-size: 1.2rem;">' +
-    title.icon + ' ' + title.display_name + '</span><br>' +
-    '<small>' + (reason || title.unlock_condition) + '</small>';
-  
-  showToast(message, 6000, color);
+  showUnlockCelebration('title', title, reason);
 }
 
 // Check and award player titles based on achievements
@@ -22722,6 +23568,41 @@ var weatherSystem = {
 
   getCurrentWeather: function() { return this.currentWeather; },
 
+  // Get a numeric bonus multiplier for a given bonus type based on current weather
+  // Mirrors worldEvents.getActiveBonus() so callers can use both interchangeably
+  getWeatherBonus: function(bonusType) {
+    var id = this.currentWeather ? this.currentWeather.id : 'clear';
+    var bonusMap = {
+      // xpBonus: extra XP multiplier from battles and expeditions
+      xpBonus: {
+        clear: 1.0, sunny: 1.10, rainy: 1.0, foggy: 1.0,
+        windy: 1.0, starry: 1.20, cursed: 0.90
+      },
+      // ppBonus: extra PP from all sources
+      ppBonus: {
+        clear: 1.0, sunny: 1.0, rainy: 1.05, foggy: 1.0,
+        windy: 1.0, starry: 1.15, cursed: 0.95
+      },
+      // dropChance: rare item find multiplier
+      dropChance: {
+        clear: 1.0, sunny: 1.0, rainy: 1.0, foggy: 1.15,
+        windy: 1.0, starry: 1.25, cursed: 1.0
+      },
+      // energyRegen: energy regen rate multiplier
+      energyRegen: {
+        clear: 1.0, sunny: 1.15, rainy: 1.0, foggy: 1.0,
+        windy: 1.10, starry: 1.0, cursed: 0.85
+      },
+      // happinessDecay: how fast happiness drops (lower = slower decay = better)
+      happinessDecay: {
+        clear: 1.0, sunny: 0.85, rainy: 1.10, foggy: 1.0,
+        windy: 1.0, starry: 0.90, cursed: 1.20
+      }
+    };
+    var map = bonusMap[bonusType];
+    return (map && map[id] !== undefined) ? map[id] : 1.0;
+  },
+
   setWeather: function(weatherId) {
     var weather = this.weatherTypes.find(function(w) { return w.id === weatherId; });
     if (weather) {
@@ -23521,21 +24402,22 @@ async function loadEquipmentShop() {
     var showArmor   = (currentFilter === 'all' || currentFilter === 'armor');
 
     if (currentFilter === 'all') {
-      // Two columns: weapons left, armor right
-      html += '<div class="equipment-shop-columns">';
-      html += '<div class="equipment-column">';
+      // Weapons and armor each get their own full-width row of cards.
+      // (Previously these were two side-by-side half-width columns, which
+      // halved the usable width and was the root cause of only 1 card
+      // fitting per visual row no matter how the grid inside was tuned.)
+      html += '<div class="equipment-section">';
       html += '<h3 class="equipment-column-title">⚔️ Weapons</h3>';
       html += '<div class="equipment-grid-column">';
       if (weapons.length === 0) { html += '<div class="empty-equipment">No weapons available this week</div>'; }
       else { weapons.forEach(function(item) { html += renderEquipmentCard(item); }); }
       html += '</div></div>';
-      html += '<div class="equipment-column">';
+      html += '<div class="equipment-section">';
       html += '<h3 class="equipment-column-title">🛡️ Armor</h3>';
       html += '<div class="equipment-grid-column">';
       if (armor.length === 0) { html += '<div class="empty-equipment">No armor available this week</div>'; }
       else { armor.forEach(function(item) { html += renderEquipmentCard(item); }); }
       html += '</div></div>';
-      html += '</div>';
     } else {
       // Single column — full width, whichever type is selected
       var filteredItems = showWeapons ? weapons : armor;
@@ -23943,6 +24825,7 @@ async function addPassXP(amount, source) {
   
   if (levelsGained > 0) {
     showToast('🎫 Pass Level Up! Now Level ' + passProgress.level + '!', 'success', true);
+    flashNavButton('mypets', 10000); // Pass rewards are in mypets/pass section
     playSound('levelup');
   }
 }
@@ -24094,9 +24977,12 @@ function updatePassUI() {
 function showPassModal() {
   var modal = makeModal();
   modal.classList.add('pass-modal');
+  // makeModal()'s generic inline style caps width at 90% — widen specifically
+  // for the Pass modal so the reward track actually gets the extra room.
+  modal.style.maxWidth = '96vw';
   
   var content = makeEl('div', {class: 'pass-modal-content'});
-  content.style.cssText = 'padding:20px;max-width:900px;max-height:80vh;overflow-y:auto;';
+  content.style.cssText = 'padding:20px;max-width:1500px;width:95vw;max-height:88vh;overflow-y:auto;';
   
   // Header
   var header = makeEl('div');
@@ -24111,7 +24997,7 @@ function showPassModal() {
   
   // Rewards track
   var track = makeEl('div', {class: 'pass-rewards-track'});
-  track.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:15px;';
+  track.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;';
   
   for (var level = 1; level <= 50; level++) {
     var reward = PASS_REWARDS[level];
@@ -24400,6 +25286,7 @@ async function checkBingoLines() {
         await addPassXP(50, 'bingo_line');
         
         showToast('🎯 Bingo Line Complete! +100 PP, +50 XP', 'success', true);
+        flashNavButton('minigames', 8000);
         playSound('victory');
       }
     }
@@ -24607,6 +25494,7 @@ function onPetLevelUp(petId) {
 // Hook for adoption - call this when adopting a pet
 function onPetAdopted(petId) {
   updateBingoProgress('adopt_pet', 1);
+  trackDailyStat('pets_adopted').catch(function(){});
 }
 
 // Hook for minigame completion
@@ -24737,6 +25625,40 @@ async function loadStatistics() {
 // ══════════════════════════════════════════════════════════════════════════
 // SCRAPBOOK SYSTEM - COMPLETE IMPLEMENTATION
 // ══════════════════════════════════════════════════════════════════════════
+
+// Shared mood calculation — same formula screenshot_generate() uses for the
+// shareable card, so a memory's mood tag always matches what the card shows.
+function computePetMood(pet) {
+  if (!pet) return { label: 'Okay', icon: '😐' };
+  var moodScore = ((pet.hunger || 0) + (pet.energy || 0) + (pet.happiness || 0)) /
+    ((pet.max_hunger || 100) + (pet.max_energy || 100) + (pet.max_happiness || 100));
+  if (moodScore > 0.75) return { label: 'Thriving', icon: '😄' };
+  if (moodScore > 0.5)  return { label: 'Happy',    icon: '😊' };
+  if (moodScore > 0.25) return { label: 'Okay',     icon: '😐' };
+  return { label: 'Needs Care', icon: '😢' };
+}
+
+// Lightweight calendar season — flavor only, not tied to any shop/event system
+// (that's the separate "Mini seasons" roadmap item). Northern-hemisphere months.
+function scrapbook_getCalendarSeason() {
+  var month = new Date().getMonth(); // 0-11
+  if (month >= 2 && month <= 4)  return { id: 'spring', name: 'Spring', icon: '🌸' };
+  if (month >= 5 && month <= 7)  return { id: 'summer', name: 'Summer', icon: '☀️' };
+  if (month >= 8 && month <= 10) return { id: 'fall',   name: 'Fall',   icon: '🍂' };
+  return { id: 'winter', name: 'Winter', icon: '❄️' };
+}
+
+// Weather-flavored memory lines — used in place of the generic random_flavor
+// pool when today's weather (from weatherSystem, the single source of truth)
+// is known, so scrapbook entries actually reflect the world around the pet.
+var WEATHER_MEMORY_LINES = {
+  clear:  ['{pet} enjoyed a bright, sunny day outside with {trainer}.', '{pet} basked in the warm sunshine all afternoon.'],
+  rainy:  ['{pet} splashed happily through puddles in the rain.', '{pet} watched raindrops race down the window with {trainer}.'],
+  foggy:  ['{pet} crept curiously through the misty fog, exploring.', '{pet} could barely see through the thick fog, but had fun anyway.'],
+  windy:  ['{pet} chased leaves swirling in the wind.', 'A gust of wind sent {pet} tumbling — much to {trainer}\'s amusement!'],
+  starry: ['{pet} gazed up at the sparkling night sky with {trainer}.', '{pet} tried to count the stars and lost track after a hundred.'],
+  cursed: ['{pet} shivered as an eerie fog rolled through... something felt off.', '{pet} refused to leave {trainer}\'s side during the cursed weather.']
+};
 
 // Memory templates
 var SCRAPBOOK_TEMPLATES = {
@@ -24876,8 +25798,14 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
                       'their trainer';
     }
     
-    // Get templates
+    // Get templates — for random_flavor, prefer today's weather flavor about
+    // half the time so entries actually reflect the world (weatherSystem is
+    // the single source of truth here, same as everywhere else this session).
+    var currentWeather = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) ? weatherSystem.currentWeather : null;
     var templates = SCRAPBOOK_TEMPLATES[memoryType];
+    if (memoryType === 'random_flavor' && currentWeather && WEATHER_MEMORY_LINES[currentWeather.id] && Math.random() < 0.5) {
+        templates = WEATHER_MEMORY_LINES[currentWeather.id];
+    }
     if (!templates) {
         console.error('Scrapbook: unknown memory type', memoryType);
         return false;
@@ -24894,6 +25822,10 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
     memoryText = memoryText.replace(/{food}/g, variables.food || 'a treat');
     memoryText = memoryText.replace(/{hp}/g, variables.hp || 'low');
     
+    // Tag this memory with today's weather + the pet's current mood, so the
+    // scrapbook and shareable cards can both show it later.
+    var memoryMood = computePetMood(window.petState && window.petState[userPetId]);
+    
     // Save to database
     try {
         var res = await supabaseClient
@@ -24901,7 +25833,9 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
             .insert({
                 user_pet_id: userPetId,
                 memory_text: memoryText,
-                memory_type: memoryType
+                memory_type: memoryType,
+                weather: currentWeather ? currentWeather.id : null,
+                mood: memoryMood.label
             });
         
         if (res.error) {
@@ -24943,7 +25877,7 @@ async function scrapbook_loadMemories(userPetId, limit) {
     limit = limit || 15;
     var res = await supabaseClient
         .from('pet_memories')
-        .select('memory_text, memory_type, created_at')
+        .select('memory_text, memory_type, created_at, weather, mood')
         .eq('user_pet_id', userPetId)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -24966,6 +25900,10 @@ function scrapbook_formatDate(dateString) {
     return date.toLocaleDateString();
 }
 
+// Small icon lookup for weather/mood badges on memory cards
+var SCRAPBOOK_WEATHER_ICONS = { clear: '☀️', rainy: '🌧️', foggy: '🌫️', windy: '🌬️', starry: '✨', cursed: '👻' };
+var SCRAPBOOK_MOOD_ICONS = { 'Thriving': '😄', 'Happy': '😊', 'Okay': '😐', 'Needs Care': '😢' };
+
 // Refresh UI
 async function scrapbook_refreshMemories(userPetId) {
     var container = document.getElementById('sb-memories-container');
@@ -24977,8 +25915,15 @@ async function scrapbook_refreshMemories(userPetId) {
     }
     container.innerHTML = memories.map(function(mem) {
         var escapedText = escapeHtml(mem.memory_text);
+        var badges = '';
+        if (mem.weather && SCRAPBOOK_WEATHER_ICONS[mem.weather]) {
+            badges += '<span class="sb-memory-badge" title="Weather: ' + mem.weather + '">' + SCRAPBOOK_WEATHER_ICONS[mem.weather] + '</span>';
+        }
+        if (mem.mood && SCRAPBOOK_MOOD_ICONS[mem.mood]) {
+            badges += '<span class="sb-memory-badge" title="Mood: ' + mem.mood + '">' + SCRAPBOOK_MOOD_ICONS[mem.mood] + '</span>';
+        }
         return '<div class="sb-memory-card">' +
-            '<div class="sb-memory-date">📅 ' + scrapbook_formatDate(mem.created_at) + '</div>' +
+            '<div class="sb-memory-date">📅 ' + scrapbook_formatDate(mem.created_at) + (badges ? ' ' + badges : '') + '</div>' +
             '<div class="sb-memory-text">💭 ' + escapedText + '</div>' +
             '</div>';
     }).join('');
@@ -25008,11 +25953,18 @@ async function community_loadGoals() {
     if (community_cachedGoals && (now - community_lastFetch) < 300000) {
         return community_cachedGoals;
     }
+    // Date-range filter added so a whole month of rotating goals can be
+    // pre-scheduled at once (each with its own started_at/ends_at) without
+    // all of them showing simultaneously — only whichever goal(s) are
+    // "current" for right now actually appear.
+    var nowIso = new Date().toISOString();
     var res = await supabaseClient
         .from('community_goals')
         .select('*')
         .eq('is_active', true)
-        .eq('is_completed', false);
+        .eq('is_completed', false)
+        .lte('started_at', nowIso)
+        .or('ends_at.is.null,ends_at.gte.' + nowIso);
     if (!res.error && res.data) {
         community_cachedGoals = res.data;
         community_lastFetch = now;
@@ -25038,14 +25990,51 @@ async function community_loadUserClaims() {
 }
 
 // Increment goal progress (local, batched)
-function community_increment(goalKey, amount, metadata) {
-    if (!goalKey) return;
+// ═══════════════════════════════════════════════════════════════════════════
+// DAILY STATS TRACKING
+// Increments daily_stats table for newspaper, analytics, and Discord bot
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function trackDailyStat(column, amount) {
+  amount = amount || 1;
+  try {
+    var today = new Date().toISOString().slice(0, 10);
+    // Upsert: create today's row if it doesn't exist, then increment
+    var { data: existing } = await supabaseClient
+      .from('daily_stats')
+      .select('id, ' + column)
+      .eq('stat_date', today)
+      .maybeSingle();
+
+    if (existing) {
+      var update = {};
+      update[column] = (existing[column] || 0) + amount;
+      update.updated_at = new Date().toISOString();
+      await supabaseClient.from('daily_stats').update(update).eq('id', existing.id);
+    } else {
+      var insert = { stat_date: today, updated_at: new Date().toISOString() };
+      insert[column] = amount;
+      await supabaseClient.from('daily_stats').insert([insert]);
+    }
+  } catch(e) {
+    dbg('[DailyStat] Failed to track', column, ':', e.message);
+    // Non-critical — never throw, just log
+  }
+}
+
+// NOTE: the string passed in here is a stable METRIC key (e.g. 'battle_wins'),
+// not the database's goal_key. goal_key is unique per row (one per rotation
+// cycle) since the DB enforces a unique constraint on it; metric_key is what
+// stays constant across cycles so the same community_increment() call site
+// keeps working no matter which cycle's goal is currently live for it.
+function community_increment(metricKey, amount, metadata) {
+    if (!metricKey) return;
     amount = amount || 1;
     metadata = metadata || {};
-    community_pendingUpdates[goalKey] = (community_pendingUpdates[goalKey] || 0) + amount;
+    community_pendingUpdates[metricKey] = (community_pendingUpdates[metricKey] || 0) + amount;
     
     // Update UI immediately
-    community_updateLocalProgress(goalKey, community_pendingUpdates[goalKey]);
+    community_updateLocalProgress(metricKey, community_pendingUpdates[metricKey]);
     
     // Schedule sync (every 10 seconds or after 10 increments)
     if (!community_syncInterval) {
@@ -25068,18 +26057,18 @@ async function community_syncToDatabase() {
     }
     community_pendingUpdates = {};
     
-    for (var goalKey in updates) {
-        var increment = updates[goalKey];
+    for (var metricKey in updates) {
+        var increment = updates[metricKey];
         try {
             var res = await supabaseClient.rpc('increment_goal_progress', {
-                p_goal_key: goalKey,
+                p_metric_key: metricKey,
                 p_amount: increment
             });
             if (res.error) console.error('Sync error:', res.error);
         } catch(e) {
             console.error('RPC error:', e);
             // Put back for retry
-            community_pendingUpdates[goalKey] = (community_pendingUpdates[goalKey] || 0) + increment;
+            community_pendingUpdates[metricKey] = (community_pendingUpdates[metricKey] || 0) + increment;
         }
     }
     community_cachedGoals = null;
@@ -25087,16 +26076,72 @@ async function community_syncToDatabase() {
 }
 
 // Update local progress display
-function community_updateLocalProgress(goalKey, increment) {
+function community_updateLocalProgress(metricKey, increment) {
     if (!community_cachedGoals) return;
-    var goal = community_cachedGoals.find(function(g) { return g.goal_key === goalKey; });
+    var goal = community_cachedGoals.find(function(g) { return g.metric_key === metricKey; });
     if (!goal) return;
     var current = goal.current_progress || 0;
     var percent = Math.min(100, ((current + increment) / goal.goal_target) * 100);
-    var progressBar = document.querySelector('.com-progress-' + goalKey);
-    var progressText = document.querySelector('.com-text-' + goalKey);
+    var progressBar = document.querySelector('.com-progress-' + goal.goal_key);
+    var progressText = document.querySelector('.com-text-' + goal.goal_key);
     if (progressBar) progressBar.style.width = percent + '%';
     if (progressText) progressText.textContent = (current + increment) + '/' + goal.goal_target;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMMUNITY GOAL NARRATIVE LAYER
+// Story beats that swap in as a goal's progress crosses thresholds, so a
+// server-wide goal reads like an unfolding event instead of a raw counter.
+// Generic arc works for any goal_key automatically; add a key below to give
+// a specific goal its own bespoke story instead.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var COMMUNITY_GOAL_NARRATIVES = {
+  'corrupted_kills_e1': [
+    { threshold: 0,   text: "Reports are trickling in — pets returning from the forest with strange, twisted markings. Piper's tune echoes a little differently these days..." },
+    { threshold: 25,  text: 'The corruption is spreading faster than anyone expected. Trainers are banding together to fight back.' },
+    { threshold: 50,  text: "Halfway there. The corrupted are thinning out, but Piper's presence still lingers at the edges of the forest." },
+    { threshold: 75,  text: 'Almost clear! Just a little more effort and the corruption will retreat... for now.' },
+    { threshold: 100, text: "The corruption has been pushed back! Piper's tune returns to something more familiar. But everyone knows it never really goes away completely..." }
+  ]
+};
+
+// Generic fallback arc — used for any goal without a bespoke entry above.
+var COMMUNITY_GENERIC_NARRATIVE = [
+  { threshold: 0,   text: 'The community has just begun working toward "{title}."' },
+  { threshold: 25,  text: 'Progress is building — "{title}" is starting to take shape.' },
+  { threshold: 50,  text: 'Halfway there! The whole server is feeling the momentum on "{title}."' },
+  { threshold: 75,  text: 'Almost there — one final push and "{title}" will be complete!' },
+  { threshold: 100, text: '"{title}" is complete! Thank you to everyone who contributed.' }
+];
+
+function community_getNarrative(goal, percent) {
+  var arc = COMMUNITY_GOAL_NARRATIVES[goal.goal_key] || COMMUNITY_GENERIC_NARRATIVE;
+  var beat = arc[0];
+  for (var i = 0; i < arc.length; i++) {
+    if (percent >= arc[i].threshold) beat = arc[i];
+  }
+  return beat.text.replace(/{title}/g, goal.title);
+}
+
+// Track which narrative tier each goal was last seen at, so a milestone
+// celebration only fires once per goal per tier crossed (per browser).
+function community_checkMilestoneCrossed(goal, percent) {
+  var tier = percent >= 100 ? 100 : percent >= 75 ? 75 : percent >= 50 ? 50 : percent >= 25 ? 25 : 0;
+  var storageKey = 'com_milestone_' + goal.goal_key;
+  var lastTier = parseInt(localStorage.getItem(storageKey) || '0');
+  if (tier > lastTier) {
+    localStorage.setItem(storageKey, tier);
+    if (lastTier > 0 || tier === 100) { // don't fire a false "milestone" on first-ever page load at tier 0->0
+      var messages = {
+        25: '📖 "' + goal.title + '" has reached 25%! The story is just beginning...',
+        50: '📖 "' + goal.title + '" is halfway complete! Keep it up!',
+        75: '📖 "' + goal.title + '" is at 75%! The finish line is in sight!',
+        100: '🎉 "' + goal.title + '" is complete! Claim your reward!'
+      };
+      if (messages[tier]) community_showToast(messages[tier], 'success');
+    }
+  }
 }
 
 // Refresh entire UI
@@ -25114,6 +26159,8 @@ async function community_refreshUI() {
         var isCompleted = progress >= goal.goal_target;
         var isClaimed = community_claimedGoalIds.indexOf(goal.id) >= 0;
         var endsAt = goal.ends_at ? new Date(goal.ends_at).toLocaleDateString() : 'soon';
+        var narrativeText = community_getNarrative(goal, percent);
+        community_checkMilestoneCrossed(goal, percent);
         
         var rewardDisplay = '';
         if (goal.reward_type === 'points') rewardDisplay = '💰 ' + goal.reward_value + ' PawketPoints';
@@ -25133,6 +26180,7 @@ async function community_refreshUI() {
         return '<div class="com-goal-card">' +
             '<div class="com-goal-title">' + escapeHtml(goal.title) + '</div>' +
             '<div class="com-goal-desc">' + escapeHtml(goal.description) + '</div>' +
+            '<div class="com-goal-narrative">📖 ' + escapeHtml(narrativeText) + '</div>' +
             '<div class="com-progress-bar">' +
             '<div class="com-progress-fill com-progress-' + goal.goal_key + '" style="width:' + percent + '%"></div>' +
             '</div>' +
@@ -25468,7 +26516,7 @@ var phase1_state = {
 async function newFeatures_init() {
   dbg('🚀 Initializing new features...');
   try {
-    if (typeof today_init === 'function') await today_init();
+    if (typeof todayCard_init === 'function') await todayCard_init();
     if (typeof calendar_init === 'function') await calendar_init();
     if (typeof dailyWelcome_check === 'function') dailyWelcome_check();
     dbg('✅ New features initialized!');
@@ -25611,10 +26659,8 @@ async function phase1_unlockCosmetic(type, cosmeticId) {
     // Update local state
     await phase1_loadUnlockedCosmetics();
     
-    // Show notification
-    if (typeof showToast === 'function') {
-      showToast('🎨 New cosmetic unlocked!', 'success', true);
-    }
+    // Show rich unlock notification with nav button
+    showUnlockCelebration('cosmetic', type, cosmeticId);
     
     dbg('✅ Phase 1: Unlocked cosmetic:', type, cosmeticId);
     return true;
@@ -26870,288 +27916,87 @@ function showRareDropCelebration(rare) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 3. TODAY IN PAWKETPETS SYSTEM
+// 3. TODAY IN PAWKETPETS — home tab summary card
+// Single source of truth for each data point (no independent weather
+// generation here — that was the old todayFeatures system, removed because
+// it wrote its own weather vocabulary to daily_features.weather and
+// conflicted with weatherSystem):
+//   - weather        -> weatherSystem.currentWeather
+//   - daily stats     -> newsTicker.loadDailyStats() (daily_stats table)
+//   - featured goal   -> community_loadGoals() (community_goals table)
+//   - live streamers  -> _currentlyLiveStreamers
 // ═══════════════════════════════════════════════════════════════════════════
 
-var todayFeatures = {
-  current: null,
-  
-  weatherTypes: [
-    { id: 'sunny',    emoji: '☀️',  name: 'Sunny',    effect: 'Pets are extra happy! +10% happiness from all actions' },
-    { id: 'rainy',    emoji: '🌧️',  name: 'Rainy',    effect: 'Water types earn +25% XP' },
-    { id: 'cloudy',   emoji: '☁️',  name: 'Cloudy',   effect: 'Normal conditions — a peaceful day' },
-    { id: 'foggy',    emoji: '🌫️',  name: 'Foggy',    effect: 'Rare encounters +10% chance' },
-    { id: 'snowy',    emoji: '❄️',  name: 'Snowy',    effect: 'Ice types earn +25% XP; energy drains 15% slower' },
-    { id: 'stormy',   emoji: '⛈️',  name: 'Stormy',   effect: 'Electric types +25% XP; battles deal +10% damage' },
-    { id: 'windy',    emoji: '💨',  name: 'Windy',    effect: 'Speed +15% for all pets today' },
-    { id: 'rainbow',  emoji: '🌈',  name: 'Rainbow',  effect: 'All types earn +10% XP! A lucky day!' }
-  ],
-  
-  bonusTypes: [
-    { id: 'double_xp',    name: '2x Battle XP',              multiplier: 2.0,  icon: '⚔️' },
-    { id: 'double_pp',    name: '2x PawketPoints',           multiplier: 2.0,  icon: '💜' },
-    { id: 'fast_energy',  name: '50% Faster Energy Regen',   multiplier: 1.5,  icon: '⚡' },
-    { id: 'bonus_drops',  name: '+25% Item Drops',           multiplier: 1.25, icon: '📦' },
-    { id: 'rare_boost',   name: 'Rare Encounters +50%',      multiplier: 1.5,  icon: '✨' },
-    { id: 'cheap_shop',   name: '20% Off Shop Prices',       multiplier: 0.8,  icon: '🛒' },
-    { id: 'happy_boost',  name: '+30% Happiness Gains',      multiplier: 1.3,  icon: '😊' },
-    { id: 'mystery_bonus',name: 'Mystery Bonus (changes hourly!)', multiplier: 1.0, icon: '🎲' }
-  ],
-
-  // Event modifiers — shown as highlighted banner alert
-  eventModifiers: [
-    { id: 'rare_encounters', label: 'RARE ENCOUNTERS',    icon: '⭐', desc: '+50% rare spawns today!',          color: '#FFD700' },
-    { id: 'double_xp',       label: 'DOUBLE XP',          icon: '⚔️', desc: '2x XP from all battles!',           color: '#ff6eb4' },
-    { id: 'cheap_shop',      label: 'MARKET SALE',        icon: '🛒', desc: '20% off everything in the shop!',   color: '#5dde7a' },
-    { id: 'fast_energy',     label: 'ENERGIZED',          icon: '⚡', desc: 'Energy recovers 2x faster today!',  color: '#5bc0de' },
-    { id: 'bonus_drops',     label: 'BONUS DROPS',        icon: '📦', desc: '+50% item drop rate!',              color: '#ff9f43' },
-    { id: 'none',            label: '',                   icon: '',   desc: '',                                  color: '' }
-  ],
-
-  // Flavor text by weather
-  flavorTexts: {
-    sunny:   ['A perfect day to take your pet for an adventure!', 'The sun is shining and your pets feel amazing!', 'Clear skies bring good fortune — get out there!'],
-    rainy:   ['The rain brings a cozy stay-inside vibe.', 'Perfect weather for potion brewing and fossil hunting.', 'Puddles everywhere. Your water pets are thriving.'],
-    cloudy:  ['A quiet, peaceful day. Nothing unusual.', 'Clouds roll in, but the vibes are immaculate.', 'Calm and chill. A good day to just exist.'],
-    foggy:   ['Something stirs in the fog... rare things lurk.', 'Visibility is low. Mysterious encounters await.', 'The fog hides secrets. Explore carefully.'],
-    snowy:   ['Everything is fluffy and cold and perfect.', 'Snow day! Your pets are absolutely losing it.', 'The world is quiet and beautiful today.'],
-    stormy:  ['THUNDER. Your electric pets are HYPED.', 'Stay inside or don\'t — your call. Bold choice.', 'The storm brings power and chaos equally.'],
-    windy:   ['Your pets are running approximately 15% faster today.', 'The wind carries faint sounds of chaos. Exciting.', 'Hold onto your hats. And your pets.'],
-    rainbow: ['A rainbow appeared! Today is undeniably your lucky day.', 'The rainbow is real and the luck is real. Probably.', 'Maximum good vibes. All pets sensing great energy.']
-  },
-
-  petTypes: ['fire', 'water', 'grass', 'electric', 'ice', 'normal'],
-  
-  headlines: [
-    '🔬 Scientists discover new pet variant!',
-    '🎭 Local pet wins talent show!',
-    '🌟 Mysterious lights seen in sky...',
-    '📰 PawketPets reaches 1,000 players!',
-    '🎉 Community goal smashed!',
-    '🔮 Fortune teller predicts lucky day!',
-    '🎪 Traveling merchant spotted!',
-    '🏆 New leaderboard champion!',
-    '💫 Strange energy detected...',
-    '🎨 New cosmetics coming soon!',
-    '🦋 Rare butterfly swarm spotted near ruins!',
-    '🍄 Mushroom population up 400%. Experts baffled.',
-    '🐾 Local pets form union. Demands: more treats.',
-    '🌙 Moon unusually large tonight. Pets unaffected.',
-    '📜 Ancient scroll discovered. Contains recipes?'
-  ],
-
-  // Mystery bonus changes every hour
-  getMysteryBonus: function() {
-    var hour = new Date().getHours();
-    var bonuses = [
-      { name: '3x XP this hour!',          icon: '🌟' },
-      { name: 'Free shop item available!',  icon: '🎁' },
-      { name: '+50% PP from battles!',      icon: '💜' },
-      { name: 'Double happiness gains!',    icon: '💕' },
-      { name: 'Energy costs -50%!',         icon: '⚡' },
-      { name: 'Rare encounter guaranteed!', icon: '✨' }
-    ];
-    return bonuses[hour % bonuses.length];
-  }
-};
-
-async function today_init() {
-  await today_loadOrGenerate();
-  today_displayBanner();
-  today_applyEffects();
-  // Refresh widget now that weather is loaded
-  updateEventStatusWidget();
-}
-
-async function today_loadOrGenerate() {
-  var todayDate = new Date().toISOString().split('T')[0];
-  
+async function todayCard_init() {
   try {
-    var { data: existing } = await supabaseClient
-      .from('daily_features')
-      .select('*')
-      .eq('date', todayDate)
-      .single();
-    
-    if (existing) {
-      todayFeatures.current = existing;
-    } else {
-      // Generate new daily features
-      var features = today_generate();
-      
-      var { data: created } = await supabaseClient
-        .from('daily_features')
-        .insert({
-          date: todayDate,
-          weather: features.weather.id,
-          bonus_type: features.bonus.id,
-          bonus_multiplier: features.bonus.multiplier,
-          featured_type: features.featuredType,
-          event_chance: features.eventChance,
-          news_headline: features.headline
-        })
-        .select()
-        .single();
-      
-      todayFeatures.current = created;
-    }
+    await todayCard_render();
   } catch (err) {
-    console.error('Error loading today features:', err);
-    todayFeatures.current = today_generate();
+    console.error('[TodayCard] init error:', err);
   }
 }
 
-function today_generate() {
-  var weather = todayFeatures.weatherTypes[Math.floor(Math.random() * todayFeatures.weatherTypes.length)];
-  var bonus = todayFeatures.bonusTypes[Math.floor(Math.random() * todayFeatures.bonusTypes.length)];
-  var featuredType = todayFeatures.petTypes[Math.floor(Math.random() * todayFeatures.petTypes.length)];
-  var eventChance = ['low', 'normal', 'high'][Math.floor(Math.random() * 3)];
-  var headline = todayFeatures.headlines[Math.floor(Math.random() * todayFeatures.headlines.length)];
+async function todayCard_render() {
+  var mount = document.getElementById('today-card-mount');
+  if (!mount) return; // home tab markup not present (e.g. logged out)
 
-  // Pick an event modifier (30% chance of a real one, 70% none)
-  var modifierPool = todayFeatures.eventModifiers.slice(0, -1); // exclude 'none'
-  var eventModifier = Math.random() < 0.3
-    ? modifierPool[Math.floor(Math.random() * modifierPool.length)]
-    : todayFeatures.eventModifiers[todayFeatures.eventModifiers.length - 1]; // 'none'
+  // Weather — read from the single source of truth, don't generate our own
+  if (typeof weatherSystem !== 'undefined' && !weatherSystem.currentWeather) {
+    try { await weatherSystem.init(); } catch (e) {}
+  }
+  var weather = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) ? weatherSystem.currentWeather : null;
 
-  // Flavor text based on weather
-  var flavorOptions = todayFeatures.flavorTexts[weather.id] || ['Today is a fine day.'];
-  var flavorText = flavorOptions[Math.floor(Math.random() * flavorOptions.length)];
+  // Daily stats (cached inside newsTicker, non-blocking if it fails)
+  var stats = {};
+  try { stats = await newsTicker.loadDailyStats(); } catch (e) { stats = {}; }
 
-  return {
-    weather: weather,
-    bonus: bonus,
-    featuredType: featuredType,
-    eventChance: eventChance,
-    headline: headline,
-    eventModifier: eventModifier,
-    flavorText: flavorText
-  };
-}
+  // One featured community goal — closest to completion surfaces first
+  var goal = null;
+  try {
+    var goals = await community_loadGoals();
+    if (goals && goals.length) {
+      goal = goals.slice().sort(function(a, b) {
+        var ra = (a.current_progress || 0) / Math.max(1, a.goal_target || 1);
+        var rb = (b.current_progress || 0) / Math.max(1, b.goal_target || 1);
+        return rb - ra;
+      })[0];
+    }
+  } catch (e) { goal = null; }
 
-function today_displayBanner() {
-  var homeContent = document.getElementById('home-content');
-  if (!homeContent) return;
-  
-  var features = todayFeatures.current;
-  if (!features) return;
-  
-  var weather = todayFeatures.weatherTypes.find(function(w) { return w.id === (features.weather && features.weather.id ? features.weather.id : features.weather); });
-  var bonus = todayFeatures.bonusTypes.find(function(b) { return b.id === (features.bonus && features.bonus.id ? features.bonus.id : features.bonus_type); });
-  var eventModifier = features.eventModifier || null;
-  var flavorText = features.flavorText || '';
-  var mysteryBonus = todayFeatures.getMysteryBonus();
+  // Live streamers
+  var liveCount = (typeof _currentlyLiveStreamers !== 'undefined') ? _currentlyLiveStreamers.length : 0;
 
-  // Event modifier alert (only shown if there is one)
-  var modifierHtml = '';
-  if (eventModifier && eventModifier.id !== 'none' && eventModifier.label) {
-    modifierHtml = `
-      <div class="today-modifier-alert" style="background:${eventModifier.color}22;border:2px solid ${eventModifier.color};border-radius:10px;padding:10px 16px;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
-        <span style="font-size:1.4rem;">${eventModifier.icon}</span>
-        <div>
-          <strong style="color:${eventModifier.color};font-size:1rem;">${eventModifier.label}!</strong>
-          <div style="font-size:0.85rem;opacity:0.85;">${eventModifier.desc}</div>
-        </div>
-      </div>`;
+  var weatherHtml = weather
+    ? '<div class="today-card-weather"><span class="today-card-icon">' + weather.icon + '</span> ' +
+      '<strong>' + weather.name + '</strong> — ' + weather.effect + '</div>'
+    : '<div class="today-card-weather">Loading weather...</div>';
+
+  var statsHtml = '<div class="today-card-stats">' +
+    '⚔️ ' + (stats.battles_won || 0) + ' battles won &nbsp;•&nbsp; ' +
+    '👑 ' + (stats.bosses_killed || 0) + ' bosses defeated &nbsp;•&nbsp; ' +
+    '🐾 ' + (stats.pets_adopted || 0) + ' pets adopted today' +
+    '</div>';
+
+  var goalHtml = '';
+  if (goal) {
+    var pct = Math.min(100, Math.round(((goal.current_progress || 0) / Math.max(1, goal.goal_target || 1)) * 100));
+    goalHtml = '<div class="today-card-goal">' +
+      '🎯 <strong>' + goal.title + '</strong> — ' + (goal.current_progress || 0) + ' / ' + goal.goal_target + ' (' + pct + '%)' +
+      '<div class="today-card-goal-bar"><div class="today-card-goal-fill" style="width:' + pct + '%;"></div></div>' +
+      '</div>';
   }
 
-  // Mystery bonus (changes hourly — shown inline)
-  var mysteryHtml = bonus && bonus.id === 'mystery_bonus'
-    ? `<div class="today-detail-item" style="background:rgba(255,159,67,0.1);border-radius:8px;padding:8px;">
-        🎲 <strong>Mystery Hour:</strong> ${mysteryBonus.icon} ${mysteryBonus.name}
-        <div style="font-size:0.8rem;opacity:0.7;">Changes every hour!</div>
-       </div>`
+  var liveHtml = liveCount > 0
+    ? '<div class="today-card-live">🔴 ' + liveCount + ' team member' + (liveCount !== 1 ? 's' : '') + ' live right now!</div>'
     : '';
 
-  var banner = document.createElement('div');
-  banner.className = 'today-banner collapsed';
-  banner.id = 'today-banner';
-  banner.innerHTML = `
-    <div class="today-summary" onclick="todayBanner_toggle()">
-      <span class="today-icon">🌟</span>
-      <span class="today-text">
-        ${weather ? weather.emoji + ' ' + weather.name : ''} •
-        ${bonus ? bonus.icon + ' ' + bonus.name : ''} •
-        ✨ ${features.featured_type || features.featuredType} Day
-      </span>
-      <span class="today-arrow">▼</span>
-    </div>
-    <div class="today-details" style="display:none;">
-      ${modifierHtml}
-      <div class="today-flavor" style="font-style:italic;opacity:0.85;margin-bottom:10px;padding:8px 12px;background:rgba(153,102,255,0.08);border-radius:8px;">
-        "${flavorText}"
-      </div>
-      <div class="today-detail-item">
-        <strong>Weather:</strong> ${weather ? weather.emoji + ' ' + weather.name : 'Unknown'}
-        <div class="detail-effect">${weather ? weather.effect : ''}</div>
-      </div>
-      <div class="today-detail-item">
-        <strong>${bonus ? bonus.icon : '⚡'} Bonus:</strong> ${bonus ? bonus.name : 'None'}
-      </div>
-      ${mysteryHtml}
-      <div class="today-detail-item">
-        <strong>✨ Featured:</strong> ${features.featured_type || features.featuredType}-type pets earn +50% XP
-      </div>
-      <div class="today-detail-item">
-        <strong>Events:</strong> ${features.event_chance || features.eventChance} chance of random events
-      </div>
-      <div class="today-news">
-        📰 ${features.news_headline || features.headline}
-      </div>
-    </div>
-  `;
-  
-  // Remove old banner if exists, insert at top
-  var existing = document.getElementById('today-banner');
-  if (existing) existing.remove();
-  if (homeContent.firstChild) {
-    homeContent.insertBefore(banner, homeContent.firstChild);
-  } else {
-    homeContent.appendChild(banner);
-  }
-}
-
-function todayBanner_toggle() {
-  var banner = document.querySelector('.today-banner');
-  if (!banner) return;
-  
-  var details = banner.querySelector('.today-details');
-  var arrow = banner.querySelector('.today-arrow');
-  
-  if (details.style.display === 'none') {
-    details.style.display = 'block';
-    arrow.textContent = '▲';
-    banner.classList.remove('collapsed');
-  } else {
-    details.style.display = 'none';
-    arrow.textContent = '▼';
-    banner.classList.add('collapsed');
-  }
-}
-
-function today_applyEffects() {
-  // Effects applied automatically by checking todayFeatures.current
-  dbg('✅ Today features loaded:', todayFeatures.current);
-}
-
-function today_getMultiplier(type) {
-  if (!todayFeatures.current) return 1.0;
-  
-  var features = todayFeatures.current;
-  var multiplier = 1.0;
-  
-  // Featured type bonus
-  if (type === features.featured_type) {
-    multiplier *= 1.5;
-  }
-  
-  // Weather bonus
-  var weather = features.weather;
-  if (weather === 'rainy' && type === 'water') multiplier *= 1.25;
-  if (weather === 'snowy' && type === 'ice') multiplier *= 1.25;
-  if (weather === 'stormy' && type === 'electric') multiplier *= 1.25;
-  
-  return multiplier;
+  mount.innerHTML =
+    '<div class="today-card">' +
+      '<div class="today-card-header">🌟 Today in PawketPets</div>' +
+      weatherHtml +
+      statsHtml +
+      goalHtml +
+      liveHtml +
+    '</div>';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -27182,8 +28027,8 @@ async function calendar_loadRewards() {
 }
 
 function calendar_displayWidget() {
-  var homeContent = document.getElementById('home-content');
-  if (!homeContent) return;
+  var mount = document.getElementById('calendar-widget-mount');
+  if (!mount) return;
   
   var streak = loginCalendar.currentStreak || 0;
   var nextDay = Math.min(streak + 1, 30);
@@ -27217,13 +28062,8 @@ function calendar_displayWidget() {
   
   widget.innerHTML = html;
   
-  // Insert after today banner
-  var todayBanner = homeContent.querySelector('.today-banner');
-  if (todayBanner && todayBanner.nextSibling) {
-    homeContent.insertBefore(widget, todayBanner.nextSibling);
-  } else {
-    homeContent.appendChild(widget);
-  }
+  mount.innerHTML = ''; // clear any previous render before re-inserting
+  mount.appendChild(widget);
 }
 
 function calendar_showFullModal() {
@@ -27297,8 +28137,6 @@ async function dailyWelcome_show() {
   
   var streak = loginCalendar.currentStreak || 0;
   var dayReward = loginCalendar.calendarRewards ? loginCalendar.calendarRewards.find(function(r) { return r.day === streak; }) : null;
-  var features = todayFeatures.current;
-  
   var modal = document.createElement('div');
   modal.className = 'modal-overlay daily-welcome-modal';
   
@@ -27325,16 +28163,13 @@ async function dailyWelcome_show() {
     html += '  </div>';
   }
   
-  // Today features
-  if (features) {
-    var weather = todayFeatures.weatherTypes.find(function(w) { return w.id === features.weather; });
-    var bonus = todayFeatures.bonusTypes.find(function(b) { return b.id === features.bonus_type; });
-    
+  // Today features — reads from weatherSystem, the single source of truth
+  var todayWeather = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) ? weatherSystem.currentWeather : null;
+  if (todayWeather) {
     html += '  <div class="welcome-today">';
     html += '    <h3>🌟 TODAY IN PAWKETPETS</h3>';
-    html += '    <div class="today-item">Weather: ' + (weather ? weather.emoji + ' ' + weather.name : '') + '</div>';
-    html += '    <div class="today-item">Bonus: ' + (bonus ? '⚡ ' + bonus.name : '') + '</div>';
-    html += '    <div class="today-item">Featured: ✨ ' + features.featured_type + '-type pets +50% XP</div>';
+    html += '    <div class="today-item">Weather: ' + todayWeather.icon + ' ' + todayWeather.name + '</div>';
+    html += '    <div class="today-item">' + todayWeather.effect + '</div>';
     html += '  </div>';
   }
   
@@ -27410,7 +28245,7 @@ async function screenshot_generate(petId) {
 
     // Most recent scrapbook memory
     var memory = null;
-    var { data: mems } = await supabaseClient.from('pet_scrapbook').select('memory_text').eq('pet_id', petId).order('created_at', { ascending: false }).limit(1);
+    var { data: mems } = await supabaseClient.from('pet_memories').select('memory_text').eq('user_pet_id', petId).order('created_at', { ascending: false }).limit(1);
     if (mems && mems.length) memory = mems[0].memory_text;
 
     // ── Resolve values ──
@@ -27424,12 +28259,13 @@ async function screenshot_generate(petId) {
     var stage = petLevel >= 20 ? 'Adult' : petLevel >= 10 ? 'Teen' : 'Baby';
     var stageEmoji = petLevel >= 20 ? '🦋' : petLevel >= 10 ? '🌿' : '🥚';
 
-    // Mood from hunger/energy/happiness
-    var moodScore = ((pet.hunger || 0) + (pet.energy || 0) + (pet.happiness || 0)) / ((pet.max_hunger||100) + (pet.max_energy||100) + (pet.max_happiness||100));
-    var mood = moodScore > 0.75 ? { label: 'Thriving', icon: '😄' } :
-               moodScore > 0.5  ? { label: 'Happy',    icon: '😊' } :
-               moodScore > 0.25 ? { label: 'Okay',     icon: '😐' } :
-                                  { label: 'Needs Care',icon: '😢' };
+    // Mood from hunger/energy/happiness — shared helper, same formula the
+    // scrapbook uses so a memory's mood tag always matches the card.
+    var mood = computePetMood(pet);
+
+    // Today's weather + season — same source of truth as the scrapbook tags
+    var cardWeather = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather) ? weatherSystem.currentWeather : null;
+    var cardSeason = (typeof scrapbook_getCalendarSeason === 'function') ? scrapbook_getCalendarSeason() : null;
 
     // Variant
     var variantKey  = pet.current_variant || null;
@@ -27600,10 +28436,12 @@ async function screenshot_generate(petId) {
     ctx.font = '14px Arial';
     ctx.fillText(typeEmoji + ' ' + petType + '  •  Lv. ' + petLevel, W/2, 276);
 
-    // ── Mood ──
+    // ── Mood + Weather/Season (kept on one line — canvas below here uses
+    // absolute y-coordinates, so no new line is added to avoid shifting it) ──
+    var contextBits = [cardWeather ? (cardWeather.icon + ' ' + cardWeather.name) : '', cardSeason ? (cardSeason.icon + ' ' + cardSeason.name) : ''].filter(Boolean).join(' · ');
     ctx.fillStyle = '#888';
     ctx.font = '13px Arial';
-    ctx.fillText(mood.icon + ' ' + mood.label + '  |  🎮 Pass Lv.' + passLevel, W/2, 300);
+    ctx.fillText(mood.icon + ' ' + mood.label + '  |  🎮 Lv.' + passLevel + (contextBits ? '  |  ' + contextBits : ''), W/2, 300);
 
     // ── Divider ──
     ctx.strokeStyle = '#e0d5ff';
@@ -27844,398 +28682,15 @@ async function screenshot_copyToClipboard(imageUrl, btn) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 7. PAWKETPASS SYSTEM
+// 7. PAWKETPASS NAVBAR BADGE
+// (This used to be a full second PawketPass system — its own state object,
+// modal, and XP-granting call — but it called a Postgres RPC, grant_pass_xp,
+// that doesn't exist (the real one is add_pass_xp), so it never actually ran.
+// The live Pass system is addPassXP() / showPassModal() / passProgress
+// earlier in this file. The only piece of this block that was actually
+// reachable was pass_updateNavbar, wired in below via a wrapper around the
+// real loadPassProgress() — kept as-is since it's live and working.)
 // ═══════════════════════════════════════════════════════════════════════════
-
-var pawketPass = {
-  currentSeason: null,
-  playerProgress: null,
-  rewards: []
-};
-
-async function pass_init() {
-  await pass_loadSeason();
-  await pass_loadProgress();
-  await pass_loadRewards();
-}
-
-async function pass_loadSeason() {
-  try {
-    var { data: season } = await supabaseClient
-      .from('pass_seasons')
-      .select('*')
-      .eq('is_active', true)
-      .order('season_number', { ascending: false })
-      .limit(1)
-      .single();
-    
-    pawketPass.currentSeason = season;
-  } catch (err) {
-    console.error('Error loading pass season:', err);
-  }
-}
-
-async function pass_loadProgress() {
-  if (!currentUser || !pawketPass.currentSeason) return;
-  
-  try {
-    var { data: progress } = await supabaseClient
-      .from('player_pass_progress')
-      .select('*')
-      .eq('player_id', currentUser.id)
-      .eq('season_id', pawketPass.currentSeason.id)
-      .single();
-    
-    if (!progress) {
-      // Create progress
-      var { data: created } = await supabaseClient
-        .from('player_pass_progress')
-        .insert({
-          player_id: currentUser.id,
-          season_id: pawketPass.currentSeason.id,
-          pass_xp: 0,
-          pass_level: 1
-        })
-        .select()
-        .single();
-      
-      pawketPass.playerProgress = created;
-    } else {
-      pawketPass.playerProgress = progress;
-    }
-  } catch (err) {
-    console.error('Error loading pass progress:', err);
-  }
-}
-
-async function pass_loadRewards() {
-  if (!pawketPass.currentSeason) return;
-  
-  try {
-    var { data: rewards } = await supabaseClient
-      .from('pass_rewards')
-      .select('*')
-      .eq('season_id', pawketPass.currentSeason.id)
-      .order('level');
-    
-    pawketPass.rewards = rewards || [];
-  } catch (err) {
-    console.error('Error loading pass rewards:', err);
-  }
-}
-
-async function pass_grantXP(amount, source) {
-  if (!currentUser) return;
-  
-  try {
-    var { data: result } = await supabaseClient
-      .rpc('grant_pass_xp', {
-        p_user_id: currentUser.id,
-        p_xp_amount: amount,
-        p_source: source
-      });
-    
-    if (result && result.success) {
-      dbg('✅ Pass XP granted:', result);
-      
-      if (result.leveled_up) {
-        pass_showLevelUpNotification(result.new_level);
-      }
-      
-      // Reload progress
-      await pass_loadProgress();
-      
-      // Update UI
-      pass_updateDisplay();
-    }
-  } catch (err) {
-    console.error('Error granting pass XP:', err);
-  }
-}
-
-
-function pass_showModal() {
-  if (!passProgress) {
-    showToast('Pass not loaded yet. Please try again.', 'error');
-    return;
-  }
-  
-  passUI.isModalOpen = true;
-  
-  var modal = document.createElement('div');
-  modal.id = 'pass-modal-overlay';
-  modal.className = 'modal-overlay';
-  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s;';
-  
-  var content = document.createElement('div');
-  content.className = 'pass-modal-content';
-  content.style.cssText = 'background:linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);border-radius:16px;max-width:900px;width:95%;max-height:85vh;overflow:hidden;box-shadow:0 8px 32px rgba(0,0,0,0.4);';
-  
-  // Header
-  var header = document.createElement('div');
-  header.style.cssText = 'padding:24px;border-bottom:2px solid rgba(102,126,234,0.3);display:flex;justify-content:space-between;align-items:center;';
-  header.innerHTML = 
-    '<div>' +
-    '<h2 style="margin:0;font-size:28px;color:#667eea;">🎫 PawketPass</h2>' +
-    '<p style="margin:4px 0 0 0;color:#94a3b8;font-size:14px;">Season 1: Origins</p>' +
-    '</div>' +
-    '<button onclick="pass_closeModal()" style="background:none;border:none;color:#94a3b8;font-size:32px;cursor:pointer;padding:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:8px;transition:all 0.2s;" onmouseover="this.style.background=\'rgba(255,255,255,0.1)\';this.style.color=\'white\';" onmouseout="this.style.background=\'none\';this.style.color=\'#94a3b8\';">×</button>';
-  
-  // Progress section
-  var progressSection = document.createElement('div');
-  progressSection.style.cssText = 'padding:24px;background:rgba(102,126,234,0.1);border-bottom:2px solid rgba(102,126,234,0.2);';
-  
-  var xpPercent = (passProgress.xp / 100) * 100;
-  var nextLevel = passProgress.level + 1;
-  
-  progressSection.innerHTML = 
-    '<div style="text-align:center;margin-bottom:16px;">' +
-    '<div style="font-size:24px;font-weight:bold;color:#667eea;margin-bottom:8px;">Level ' + passProgress.level + ' / 50</div>' +
-    '<div style="font-size:14px;color:#cbd5e1;">Next level: ' + passProgress.xp + ' / 100 XP</div>' +
-    '</div>' +
-    '<div style="width:100%;height:32px;background:rgba(0,0,0,0.4);border-radius:16px;overflow:hidden;position:relative;">' +
-    '<div style="width:' + xpPercent + '%;height:100%;background:linear-gradient(90deg,#667eea,#764ba2);transition:width 0.5s ease;box-shadow:0 0 20px rgba(102,126,234,0.6);"></div>' +
-    '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:white;font-weight:bold;font-size:14px;text-shadow:0 2px 4px rgba(0,0,0,0.8);">' + passProgress.xp + ' / 100</div>' +
-    '</div>';
-
-  // Populate unclaimedLevels now that passProgress is loaded
-  passUI.unclaimedLevels = [];
-  var claimedList = passProgress.claimedRewards || passProgress.claimed_rewards || [];
-  for (var lvl = 1; lvl <= (passProgress.level || 1); lvl++) {
-    if (claimedList.indexOf(lvl) === -1) passUI.unclaimedLevels.push(lvl);
-  }
-
-  progressSection.innerHTML += (passUI.unclaimedLevels.length > 0 ? 
-      '<div style="text-align:center;margin-top:16px;padding:12px;background:rgba(245,158,11,0.2);border-radius:8px;border-left:4px solid #f59e0b;">' +
-      '<span style="color:#fbbf24;font-weight:bold;">🎁 ' + passUI.unclaimedLevels.length + ' reward' + (passUI.unclaimedLevels.length > 1 ? 's' : '') + ' ready to claim!</span>' +
-      '</div>' : '');
-  
-  // Rewards list container
-  var rewardsList = document.createElement('div');
-  rewardsList.id = 'pass-rewards-list';
-  rewardsList.style.cssText = 'max-height:400px;overflow-y:auto;padding:20px;';
-  
-  // Build modal
-  content.appendChild(header);
-  content.appendChild(progressSection);
-  content.appendChild(rewardsList);
-  modal.appendChild(content);
-  document.body.appendChild(modal);
-  
-  // Render rewards
-  pass_renderRewards();
-  
-  // Close on backdrop click
-  modal.onclick = function(e) {
-    if (e.target === modal) {
-      pass_closeModal();
-    }
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 5. RENDER REWARDS LIST (Uses YOUR PASS_REWARDS)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function pass_renderRewards() {
-  var container = document.getElementById('pass-rewards-list');
-  if (!container) return;
-  
-  container.innerHTML = '';
-  
-  // Loop through all 50 levels using YOUR PASS_REWARDS
-  for (var level = 1; level <= 50; level++) {
-    var reward = PASS_REWARDS[level];
-    if (!reward) continue;
-    
-    var _claimedArr = passProgress.claimedRewards || passProgress.claimed_rewards || [];
-    var isClaimed = _claimedArr.includes(level);
-    var isUnlocked = level <= passProgress.level && !isClaimed;
-    var isLocked = level > passProgress.level;
-    
-    var card = document.createElement('div');
-    card.className = 'pass-reward-card';
-    card.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:16px 20px;margin-bottom:12px;border-radius:12px;transition:all 0.3s;';
-    
-    // Styling based on state
-    if (isClaimed) {
-      card.style.background = 'rgba(74,222,128,0.1)';
-      card.style.border = '2px solid rgba(74,222,128,0.3)';
-    } else if (isUnlocked) {
-      card.style.background = 'rgba(251,191,36,0.15)';
-      card.style.border = '2px solid #fbbf24';
-      card.style.boxShadow = '0 0 20px rgba(251,191,36,0.3)';
-      card.style.animation = 'pulse 2s infinite';
-    } else {
-      card.style.background = 'rgba(255,255,255,0.05)';
-      card.style.border = '2px solid rgba(255,255,255,0.1)';
-      card.style.opacity = '0.6';
-    }
-    
-    // Left side: Level + reward info
-    var leftSide = document.createElement('div');
-    leftSide.style.cssText = 'flex:1;';
-    
-    var levelNumber = document.createElement('div');
-    levelNumber.style.cssText = 'font-size:12px;color:#94a3b8;margin-bottom:4px;font-weight:600;';
-    levelNumber.textContent = 'Level ' + level;
-    
-    var rewardText = document.createElement('div');
-    rewardText.style.cssText = 'font-size:16px;font-weight:500;';
-    
-    // Format reward text based on YOUR reward types
-    if (reward.type === 'points') {
-      rewardText.innerHTML = '<span style="color:#fbbf24;">💰 ' + reward.amount + ' PP</span>';
-    } else if (reward.type === 'item') {
-      rewardText.innerHTML = '<span style="color:#60a5fa;">🎁 ' + (reward.quantity || 1) + ' Item' + (reward.quantity > 1 ? 's' : '') + '</span>';
-    } else if (reward.type === 'title') {
-      var titleName = reward.titleKey.replace(/_/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
-      rewardText.innerHTML = '<span style="color:#c084fc;">🏷️ ' + titleName + '</span>';
-    }
-    
-    leftSide.appendChild(levelNumber);
-    leftSide.appendChild(rewardText);
-    
-    // Right side: Status/button
-    var rightSide = document.createElement('div');
-    rightSide.style.cssText = 'display:flex;align-items:center;';
-    
-    if (isClaimed) {
-      rightSide.innerHTML = '<div style="color:#4ade80;font-weight:bold;display:flex;align-items:center;gap:8px;"><span style="font-size:20px;">✓</span> Claimed</div>';
-    } else if (isUnlocked) {
-      var claimBtn = document.createElement('button');
-      claimBtn.style.cssText = 'background:#fbbf24;color:#1e1e2e;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;transition:all 0.2s;font-size:14px;';
-      claimBtn.textContent = 'CLAIM REWARD';
-      claimBtn.onmouseover = function() { this.style.background = '#f59e0b'; this.style.transform = 'scale(1.05)'; };
-      claimBtn.onmouseout = function() { this.style.background = '#fbbf24'; this.style.transform = 'scale(1)'; };
-      claimBtn.onclick = function() { pass_handleClaim(level); };
-      rightSide.appendChild(claimBtn);
-    } else {
-      rightSide.innerHTML = '<div style="color:#64748b;font-weight:500;display:flex;align-items:center;gap:8px;"><span style="font-size:18px;">🔒</span> Locked</div>';
-    }
-    
-    card.appendChild(leftSide);
-    card.appendChild(rightSide);
-    container.appendChild(card);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 6. HANDLE CLAIM BUTTON CLICK
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function pass_handleClaim(level) {
-  // Disable all claim buttons temporarily
-  var buttons = document.querySelectorAll('.pass-reward-card button');
-  buttons.forEach(function(btn) { btn.disabled = true; btn.style.opacity = '0.5'; });
-  
-  // Call YOUR wrapped claimPassReward function
-  await claimPassReward(level);
-  
-  // Re-enable buttons
-  buttons.forEach(function(btn) { btn.disabled = false; btn.style.opacity = '1'; });
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 7. CLAIM SUCCESS NOTIFICATION
-// ═══════════════════════════════════════════════════════════════════════════
-
-function pass_showClaimSuccess(level) {
-  var reward = PASS_REWARDS[level];
-  if (!reward) return;
-  
-  var rewardText = '';
-  if (reward.type === 'points') {
-    rewardText = reward.amount + ' PP';
-  } else if (reward.type === 'item') {
-    rewardText = (reward.quantity || 1) + ' Item(s)';
-  } else if (reward.type === 'title') {
-    rewardText = 'New Title!';
-  }
-  
-  // Create floating notification
-  var notification = document.createElement('div');
-  notification.style.cssText = 
-    'position:fixed;top:80px;right:20px;background:linear-gradient(135deg,#4ade80,#22c55e);' +
-    'color:white;padding:16px 24px;border-radius:12px;box-shadow:0 4px 12px rgba(74,222,128,0.4);' +
-    'z-index:10001;animation:slideInRight 0.3s,fadeOut 0.3s 2.7s;font-weight:500;';
-  notification.innerHTML = 
-    '<div style="display:flex;align-items:center;gap:12px;">' +
-    '<span style="font-size:24px;">🎁</span>' +
-    '<div>' +
-    '<div style="font-weight:bold;margin-bottom:4px;">Reward Claimed!</div>' +
-    '<div style="font-size:14px;opacity:0.9;">Level ' + level + ': ' + rewardText + '</div>' +
-    '</div>' +
-    '</div>';
-  
-  document.body.appendChild(notification);
-  
-  setTimeout(function() {
-    if (notification.parentNode) {
-      notification.parentNode.removeChild(notification);
-    }
-  }, 3000);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 8. LEVEL UP NOTIFICATION
-// ═══════════════════════════════════════════════════════════════════════════
-
-function pass_showLevelUpNotification(newLevel) {
-  // Effects first
-  screenShake(5, 250);
-  screenFlash('rgba(102,126,234,0.3)', 400);
-  playChiptune('levelup');
-  createConfettiBurst(window.innerWidth / 2, window.innerHeight / 2);
-  setTimeout(function() {
-    if (typeof createStarBurst === 'function') createStarBurst(window.innerWidth / 2, window.innerHeight / 3);
-  }, 300);
-
-  // Create celebration modal
-  var modal = document.createElement('div');
-  modal.className = 'modal-overlay';
-  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10002;display:flex;align-items:center;justify-content:center;animation:fadeIn 0.3s;';
-  
-  var content = document.createElement('div');
-  content.style.cssText = 
-    'background:linear-gradient(135deg,#667eea,#764ba2);padding:40px;border-radius:20px;' +
-    'text-align:center;box-shadow:0 8px 32px rgba(102,126,234,0.6);max-width:400px;' +
-    'position:relative;animation:bounceIn 0.5s;';
-  
-  content.innerHTML = 
-    '<button onclick="this.closest(\'.modal-overlay\').remove()" class="celebration-dismiss-btn" title="Dismiss">✕</button>' +
-    '<div style="font-size:80px;margin-bottom:20px;animation:bounce 1s infinite;">🎉</div>' +
-    '<h2 style="color:white;font-size:32px;margin:0 0 12px 0;">LEVEL UP!</h2>' +
-    '<div style="color:rgba(255,255,255,0.9);font-size:24px;margin-bottom:24px;">You reached <strong>Level ' + newLevel + '</strong>!</div>' +
-    '<button onclick="this.closest(\'.modal-overlay\').remove();pass_showModal();" style="background:white;color:#667eea;border:none;padding:14px 32px;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.transform=\'scale(1.05)\';" onmouseout="this.style.transform=\'scale(1)\';">Claim Reward 🎁</button>' +
-    '<div style="margin-top:16px;"><button onclick="this.closest(\'.modal-overlay\').remove();" style="background:none;border:none;color:rgba(255,255,255,0.7);text-decoration:underline;cursor:pointer;font-size:14px;">Later</button></div>';
-  
-  modal.appendChild(content);
-  document.body.appendChild(modal);
-  
-  // Auto-close after 12 seconds
-  setTimeout(function() { if (modal.parentNode) modal.parentNode.removeChild(modal); }, 12000);
-  
-  // Close on backdrop click
-  modal.onclick = function(e) { if (e.target === modal) modal.parentNode.removeChild(modal); };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// 9. CLOSE MODAL
-// ═══════════════════════════════════════════════════════════════════════════
-
-function pass_closeModal() {
-  passUI.isModalOpen = false;
-  var modal = document.getElementById('pass-modal-overlay');
-  if (modal) {
-    modal.style.animation = 'fadeOut 0.2s';
-    setTimeout(function() {
-      if (modal.parentNode) {
-        modal.parentNode.removeChild(modal);
-      }
-    }, 200);
-  }
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 10. INITIALIZE PASS UI (Call after loadPassProgress)
@@ -28270,10 +28725,6 @@ function pass_updateNavbar() {
 }
 
 // Wrap loadPassProgress to update UI after load
-var passUI = {
-  isModalOpen: false,
-  unclaimedLevels: []
-};
 var originalLoadPassProgress = loadPassProgress;
 
 loadPassProgress = async function() {
@@ -28281,7 +28732,7 @@ loadPassProgress = async function() {
   pass_updateNavbar();
 };
 
-dbg('✅ PawketPass UI system loaded (wrapper pattern)');
+dbg('✅ PawketPass navbar badge wired to loadPassProgress');
 // ═══════════════════════════════════════════════════════════════════════════
 // CENTERED MODAL NOTIFICATION SYSTEM
 // Completely standalone - does NOT modify any existing functions
