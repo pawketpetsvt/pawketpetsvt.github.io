@@ -312,6 +312,7 @@ var STREAMER_IDS = {
 
 // ── GLOBALS ──────────────────────────────
 var currentUser = null;
+var currentUsername = null; // cached players.username — currentUser is the Supabase Auth object and has no username field of its own
 var currentPoints = 0;
 var tabsLoaded = {};
 
@@ -1758,6 +1759,7 @@ async function showApp(user) {
   
   if (pr.data) {
     el('nav-user').textContent = '\u2B50 ' + pr.data.username;
+    currentUsername = pr.data.username;
     updateAllPoints(pr.data.pawketpoints || 0);
   }
   
@@ -9067,8 +9069,8 @@ async function saveProfile() {
   
   try {
     // Check if username is taken (if changed)
-    var currentUsername = el('myprofile-username-preview').textContent;
-    if (newUsername !== currentUsername) {
+    var previousUsername = el('myprofile-username-preview').textContent;
+    if (newUsername !== previousUsername) {
       var checkRes = await supabaseClient
         .from('players')
         .select('id')
@@ -9092,6 +9094,9 @@ async function saveProfile() {
       .eq('id', currentUser.id);
     
     if (updateRes.error) throw updateRes.error;
+    
+    // Keep the cached username in sync (used e.g. by logActivity for OBS/friend feeds)
+    currentUsername = newUsername;
     
     // Update preview
     el('myprofile-username-preview').textContent = newUsername;
@@ -15089,9 +15094,10 @@ async function logActivity(activityType, activityData) {
   // Inject username here once, rather than at every call site — needed
   // since OBS's activity ticker reads raw INSERT payloads (no join
   // available) and wants to say "so-and-so did X", not just "X happened".
-  var username = currentUser.username ||
-                  (currentUser.user_metadata && currentUser.user_metadata.username) ||
-                  'Someone';
+  // currentUser is the raw Supabase Auth object and has no username field
+  // of its own — the real in-game username lives in the players table and
+  // is cached in currentUsername right after login (see showApp()).
+  var username = currentUsername || 'Someone';
   var enrichedData = Object.assign({ username: username }, activityData || {});
   
   try {
@@ -25812,13 +25818,9 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
                   'Your pet';
     }
     
-    // Get trainer name
-    var trainerName = 'their trainer';
-    if (window.currentUser) {
-        trainerName = window.currentUser.username || 
-                      (window.currentUser.user_metadata && window.currentUser.user_metadata.username) ||
-                      'their trainer';
-    }
+    // Get trainer name — currentUser has no username field of its own,
+    // the real one is cached in currentUsername (see showApp())
+    var trainerName = currentUsername || 'their trainer';
     
     // Get templates — for random_flavor, prefer today's weather flavor about
     // half the time so entries actually reflect the world (weatherSystem is

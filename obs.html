@@ -110,7 +110,6 @@
   #activity-ticker {
     padding: 12px 16px;
     border-color: var(--purple);
-    margin-bottom: 14px;
     min-height: 18px;
   }
   .ticker-label { font-size: 0.62rem; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase; color: var(--purple-light); margin-bottom: 5px; }
@@ -164,9 +163,11 @@
       </div>
     </div>
 
-    <div id="activity-ticker" class="obs-card">
-      <div class="ticker-label">🌍 Live Activity</div>
-      <div id="ticker-text" class="ticker-text">👀 Watching for adventures...</div>
+    <div id="ticker-wrap" class="obs-item">
+      <div id="activity-ticker" class="obs-card" style="margin-bottom:0;">
+        <div class="ticker-label">🌍 Live Activity</div>
+        <div id="ticker-text" class="ticker-text">👀 Watching for adventures...</div>
+      </div>
     </div>
 
     <div id="chatpop-wrap" class="obs-item">
@@ -246,9 +247,11 @@
   // popping up and disappearing, so there's always something to read.
   // ══════════════════════════════════════════════════════════════
   var TICKER_QUEUE_MAX = 15;
-  var TICKER_ROTATE_MS = 6000; // how long each message stays up before advancing
+  var TICKER_ROTATE_MS = 6000;  // how long each message stays up before advancing
+  var TICKER_IDLE_MS = 15000;   // revert to the idle message if nothing new happens for this long
   var tickerQueue = [];
   var tickerIndex = 0;
+  var tickerIdleTimer = null;
 
   function buildTickerMessage(row) {
     var data = row.activity_data || {};
@@ -298,6 +301,14 @@
     if (tickerQueue.length > TICKER_QUEUE_MAX) tickerQueue.length = TICKER_QUEUE_MAX;
     tickerIndex = 0; // show the newest item next
     renderTicker();
+
+    // Reset the "gone quiet" timer — if nothing new shows up for a while,
+    // stop cycling through old history and just go back to idle.
+    if (tickerIdleTimer) clearTimeout(tickerIdleTimer);
+    tickerIdleTimer = setTimeout(function() {
+      tickerQueue = [];
+      renderTicker();
+    }, TICKER_IDLE_MS);
   }
 
   renderTicker(); // show the idle message right away on load
@@ -381,9 +392,11 @@
     if (visible) {
       if (statsHasData) expand('stats-wrap');
       if (goalHasData) expand('goal-wrap');
+      expand('ticker-wrap'); // always has something to show (idle message if nothing else)
     } else {
       collapse('stats-wrap');
       collapse('goal-wrap');
+      collapse('ticker-wrap');
     }
     setTimeout(function() { runFoldCycle(!visible); }, visible ? FOLD_VISIBLE_MS : FOLD_HIDDEN_MS);
   }
