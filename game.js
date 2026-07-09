@@ -2569,7 +2569,7 @@ async function confirmAdopt() {
   }
   
   // ACTIVITY FEED: Log adoption so friend feeds + OBS live alerts pick it up
-  logActivity('pet_adopted', { pet_name: nickname || selectedPet.name });
+  logActivity('pet_adopted', { pet_name: nickname || selectedPet.name, species: selectedPet.name, nickname: nickname || null });
   
   // Store for social sharing
   lastAdoptedPet = {
@@ -10543,6 +10543,13 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     if (!hasLossMemory) {
       scrapbook_addMemory(petId, 'first_battle_loss', { enemy: enemyStats.name || 'an enemy' });
     }
+    
+    // ACTIVITY FEED: Pet fainted — only for an actual 0-HP faint, not every
+    // loss, so this stays a meaningful moment rather than spamming the feed.
+    var faintedPetState = window.petState && window.petState[petId];
+    var faintedPetName = (faintedPetState && (faintedPetState.name || faintedPetState.pet_name ||
+      (faintedPetState.pets && faintedPetState.pets.name))) || 'Their pet';
+    logActivity('pet_fainted', { pet_name: faintedPetName, enemy: enemyStats.name || 'an enemy' });
   }
   
   // ═══════════════════════════════════════════════════════════
@@ -15079,17 +15086,25 @@ function updateActivityFeedDisplay() {
 async function logActivity(activityType, activityData) {
   if (!currentUser) return;
   
+  // Inject username here once, rather than at every call site — needed
+  // since OBS's activity ticker reads raw INSERT payloads (no join
+  // available) and wants to say "so-and-so did X", not just "X happened".
+  var username = currentUser.username ||
+                  (currentUser.user_metadata && currentUser.user_metadata.username) ||
+                  'Someone';
+  var enrichedData = Object.assign({ username: username }, activityData || {});
+  
   try {
     await supabaseClient
       .from('activity_feed')
       .insert([{
         user_id: currentUser.id,
         activity_type: activityType,
-        activity_data: activityData,
+        activity_data: enrichedData,
         is_public: true
       }]);
     
-    dbg('📢 Activity logged:', activityType, activityData);
+    dbg('📢 Activity logged:', activityType, enrichedData);
   } catch (err) {
     console.error('Error logging activity:', err);
   }
@@ -15112,6 +15127,10 @@ function formatActivityMessage(activity, username) {
     case 'pet_adopted':
       var petName = data.pet_name || 'a new pet';
       return username + ' just adopted ' + petName + '! 🐾';
+    
+    case 'pet_fainted':
+      var faintedName = data.pet_name || 'Their pet';
+      return faintedName + ' fainted in battle against ' + (data.enemy || 'an enemy') + '... 😢';
     
     case 'achievement_unlocked':
       return username + ' unlocked: ' + (data.achievement_name || 'Achievement') + '! ⭐';
@@ -17668,6 +17687,9 @@ async function checkAchievementTierProgress(achievementKey, petId, currentValue)
       // Show notification
       showToast('🏆 ' + escapeHtml(achievement.name || achievementKey) + ' reached Tier ' + newTier + '!', 4000);
       addPassXP(10 * newTier, 'tier_unlock').catch(function(){});
+
+      // ACTIVITY FEED: Log so friend feeds + OBS live alerts pick it up
+      logActivity('achievement_unlocked', { achievement_name: (achievement.name || achievementKey) + ' (Tier ' + newTier + ')' });
     }
   } catch(e) { dbg('checkAchievementTierProgress error:', e); }
 }
