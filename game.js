@@ -5717,6 +5717,50 @@ function getCurrentRotationWeek() {
   return ['A', 'B', 'C'][weekInCycle];
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// MINI SEASONS SYSTEM
+// A themed ~3-month (or shorter, for custom events) period that layers
+// seasonal shop items into the existing weekly rotation, can carry its own
+// themed community goals (via the existing community_goals date-range
+// system — no new mechanism needed there), and has its own cosmetic
+// reward track separate from the main PawketPass.
+// ══════════════════════════════════════════════════════════════════════════
+
+var _activeMiniSeasonsCache = null;
+var _activeMiniSeasonsFetchedAt = 0;
+
+// Multiple seasons can be active at once on purpose (e.g. a short custom
+// event layered over a longer calendar season), so this returns an array.
+async function getActiveMiniSeasons() {
+  var now = Date.now();
+  if (_activeMiniSeasonsCache && (now - _activeMiniSeasonsFetchedAt) < 300000) {
+    return _activeMiniSeasonsCache;
+  }
+  try {
+    var nowIso = new Date().toISOString();
+    var res = await supabaseClient
+      .from('mini_seasons')
+      .select('*')
+      .eq('is_active', true)
+      .lte('started_at', nowIso)
+      .gte('ends_at', nowIso);
+    _activeMiniSeasonsCache = res.data || [];
+    _activeMiniSeasonsFetchedAt = now;
+  } catch (e) {
+    dbg('[MiniSeasons] load error:', e);
+    _activeMiniSeasonsCache = [];
+  }
+  return _activeMiniSeasonsCache;
+}
+
+// Independent weekly counter for seasonal item rotation (1-4), deliberately
+// separate from getCurrentRotationWeek()'s A/B/C engine above so seasonal
+// items rotating in doesn't touch or risk the existing rotation logic.
+function getSeasonalWeekSlot() {
+  var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+  return (weeksSinceEpoch % 4) + 1; // 1-4
+}
+
 
 async function loadShop() {
   var grid = el('shop-grid');
@@ -5742,6 +5786,17 @@ async function loadShop() {
   var seen={}, deduped=[];
   res.data.forEach(function(item){ var k=item.name.toLowerCase().trim(); if(!seen[k]||item.price<seen[k].price)seen[k]=item; });
   Object.values(seen).forEach(function(i){deduped.push(i);});
+  
+  // MINI SEASONS: filter out seasonal items unless their season is
+  // currently active AND it's their week to appear (separate 1-4 rotation
+  // from the regular A/B/C weekly rotation below, see getSeasonalWeekSlot())
+  var activeSeasons = await getActiveMiniSeasons();
+  var activeSeasonKeys = activeSeasons.map(function(s) { return s.season_key; });
+  var currentSeasonalSlot = getSeasonalWeekSlot();
+  deduped = deduped.filter(function(item) {
+    if (!item.season_key) return true; // not a seasonal item, always eligible
+    return activeSeasonKeys.indexOf(item.season_key) !== -1 && item.season_week_slot === currentSeasonalSlot;
+  });
   
   // Categorize items
   var categories = {
@@ -24359,10 +24414,20 @@ async function loadEquipmentShop() {
   try {
     var currentWeek = getCurrentRotationWeek();
     
+    // MINI SEASONS: layer in seasonal equipment (separate 1-4 rotation from
+    // the regular A/B/C weekly rotation above, see getSeasonalWeekSlot())
+    var activeSeasons = await getActiveMiniSeasons();
+    var activeSeasonKeys = activeSeasons.map(function(s) { return s.season_key; });
+    var currentSeasonalSlot = getSeasonalWeekSlot();
+    var orClause = 'rotation_week.eq.' + currentWeek + ',is_boss_drop.eq.true';
+    if (activeSeasonKeys.length > 0) {
+      orClause += ',and(season_key.in.(' + activeSeasonKeys.join(',') + '),season_week_slot.eq.' + currentSeasonalSlot + ')';
+    }
+    
     var res = await supabaseClient
       .from('equipment')
       .select('*')
-      .or('rotation_week.eq.' + currentWeek + ',is_boss_drop.eq.true')
+      .or(orClause)
       .order('tier', { ascending: true })
       .order('weight_class', { ascending: true });
     
@@ -24900,6 +24965,25 @@ async function addPassXP(amount, source) {
     flashNavButton('mypets', 10000); // Pass rewards are in mypets/pass section
     playSound('levelup');
   }
+  
+  // MINI SEASONS: feed the same XP into any currently active season
+  // pass(es) too — fire-and-forget, shouldn't block or fail the main pass
+  // update above if something goes wrong here.
+  try {
+    var activeSeasonsForXP = await getActiveMiniSeasons();
+    for (var i = 0; i < activeSeasonsForXP.length; i++) {
+      supabaseClient.rpc('add_season_pass_xp', {
+        p_season_key: activeSeasonsForXP[i].season_key,
+        p_amount: amount
+      }).then(function(res) {
+        if (res.data && res.data.leveled_up) {
+          dbg('[SeasonPass] Leveled up:', res.data);
+        }
+      });
+    }
+  } catch (e) {
+    dbg('[SeasonPass] XP feed error:', e);
+  }
 }
 
 // Save daily XP caps to localStorage
@@ -24986,7 +25070,7 @@ async function grantPassReward(level, reward) {
       break;
       
     case 'title':
-      await awardTitle(reward.titleKey);
+      await awardPlayerTitle(reward.titleKey, 'PawketPass reward');
       var titleData = await supabaseClient
         .from('titles')
         .select('display_name')
@@ -25043,6 +25127,163 @@ function updatePassUI() {
     var percent = (passProgress.xp / passProgress.xpToNextLevel) * 100;
     xpFill.style.width = Math.min(percent, 100) + '%';
   }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// MINI SEASONS — seasonal cosmetic reward track ("mini pass")
+// Separate from the main PawketPass above: content (reward ladder) and
+// progress are both scoped per season_key, so they naturally reset each
+// new season rather than needing manual resetting.
+// ══════════════════════════════════════════════════════════════════════════
+
+async function claimSeasonPassReward(seasonKey, level) {
+  if (!currentUser) return false;
+  try {
+    var res = await supabaseClient.rpc('claim_season_pass_reward', {
+      p_season_key: seasonKey,
+      p_level: level
+    });
+    if (res.error || !res.data || res.data.error) {
+      showToast(res.data && res.data.error ? res.data.error : 'Could not claim reward', 'error');
+      return false;
+    }
+    var reward = res.data;
+    if (reward.reward_type === 'points') {
+      var amount = parseInt(reward.reward_value) || 0;
+      updateAllPoints(currentPoints + amount);
+      await supabaseClient.rpc('award_pp_secure', { p_user_id: currentUser.id, p_amount: amount, p_reason: 'Season Pass Level ' + level });
+      showToast('✨ +' + amount + ' PawketPoints!', 'success');
+    } else if (reward.reward_type === 'item') {
+      await addItemToInventory(reward.reward_value, 1);
+      showToast('📦 +1x ' + reward.reward_value, 'success');
+    } else if (reward.reward_type === 'skin_key') {
+      var qty = parseInt(reward.reward_value) || 1;
+      await addItemToInventory('00000000-0000-0000-0000-000000000001', qty);
+      showToast('🔑 +' + qty + ' Skin Key' + (qty > 1 ? 's' : '') + '!', 'success');
+    } else if (reward.reward_type === 'title') {
+      await awardPlayerTitle(reward.reward_value, 'Season Pass reward');
+      showToast('🏆 Title unlocked!', 'success', true);
+    } else if (reward.reward_type === 'frame') {
+      // NOTE: profile frame ownership doesn't have a confirmed table/RPC
+      // wired up on the client yet (there's a phase1_frames table but no
+      // client-side granting code found for it) — this shows the reward
+      // but doesn't yet persist frame ownership. Flag for follow-up.
+      dbg('[SeasonPass] Frame reward claimed but not yet wired to a frame-ownership table:', reward.reward_value);
+      showToast('🖼️ Frame reward claimed! (frame system integration pending)', 'success');
+    }
+    return true;
+  } catch (e) {
+    console.error('[SeasonPass] Claim error:', e);
+    showToast('Could not claim reward', 'error');
+    return false;
+  }
+}
+
+async function showSeasonPassModal(seasonKey) {
+  var activeSeasons = await getActiveMiniSeasons();
+  var season = seasonKey ? activeSeasons.find(function(s) { return s.season_key === seasonKey; }) : activeSeasons[0];
+  if (!season) {
+    showToast('No active season right now', 'warning');
+    return;
+  }
+  
+  var rewardsRes = await supabaseClient
+    .from('season_pass_rewards')
+    .select('*')
+    .eq('season_key', season.season_key)
+    .order('level', { ascending: true });
+  var rewards = rewardsRes.data || [];
+  
+  var progressRes = await supabaseClient
+    .from('user_season_pass_progress')
+    .select('*')
+    .eq('user_id', currentUser.id)
+    .eq('season_key', season.season_key)
+    .maybeSingle();
+  var progress = progressRes.data || { level: 1, xp: 0, claimed_levels: [] };
+  
+  var modal = makeModal();
+  modal.classList.add('pass-modal');
+  modal.style.maxWidth = '96vw';
+  
+  var content = makeEl('div', {class: 'pass-modal-content'});
+  content.style.cssText = 'padding:20px;max-width:1500px;width:95vw;max-height:88vh;overflow-y:auto;';
+  
+  var header = makeEl('div');
+  header.style.cssText = 'text-align:center;margin-bottom:30px;';
+  header.innerHTML = '<h2 style="color:var(--purple);margin-bottom:6px;">' + (season.icon || '🎫') + ' ' + escapeHtml(season.name) + '</h2>' +
+    (season.theme_description ? '<div style="font-size:0.9rem;color:var(--text-light);margin-bottom:10px;">' + escapeHtml(season.theme_description) + '</div>' : '') +
+    '<div style="font-size:1.2rem;color:var(--text);">Level ' + progress.level + ' / 30</div>';
+  content.appendChild(header);
+  
+  var track = makeEl('div', {class: 'pass-rewards-track'});
+  track.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px;';
+  
+  var rewardIcons = { points: '💰', item: '📦', skin_key: '🔑', title: '🏆', frame: '🖼️' };
+  
+  rewards.forEach(function(reward) {
+    var level = reward.level;
+    var unlocked = progress.level >= level;
+    var claimed = (progress.claimed_levels || []).indexOf(level) !== -1;
+    
+    var card = makeEl('div', {class: 'pass-reward-card'});
+    card.style.cssText = 'background:' + (unlocked ? '#fff' : '#f5f5f5') + ';border:2px solid ' + (claimed ? '#4CAF50' : unlocked ? 'var(--purple)' : '#ddd') + ';border-radius:12px;padding:15px;text-align:center;position:relative;' + (unlocked ? '' : 'opacity:0.6;');
+    
+    var badge = makeEl('div');
+    badge.textContent = 'Lv.' + level;
+    badge.style.cssText = 'position:absolute;top:5px;right:5px;background:var(--purple);color:white;padding:2px 8px;border-radius:8px;font-size:0.8rem;font-weight:bold;';
+    card.appendChild(badge);
+    
+    var icon = makeEl('div');
+    icon.style.cssText = 'font-size:2rem;margin:10px 0;';
+    icon.textContent = rewardIcons[reward.reward_type] || '🎁';
+    card.appendChild(icon);
+    
+    var desc = makeEl('div');
+    desc.style.cssText = 'font-size:0.9rem;color:var(--text);margin-bottom:10px;';
+    if (reward.reward_type === 'points') desc.textContent = reward.reward_value + ' PP';
+    else if (reward.reward_type === 'skin_key') desc.textContent = reward.reward_value + ' Skin Key' + (reward.reward_value > 1 ? 's' : '');
+    else desc.textContent = reward.reward_value;
+    card.appendChild(desc);
+    
+    if (unlocked && !claimed) {
+      var claimBtn = makeEl('button', {class: 'btn btn-primary btn-sm'});
+      claimBtn.textContent = 'Claim';
+      claimBtn.onclick = function(lvl) {
+        return async function() {
+          this.disabled = true;
+          this.textContent = '...';
+          await claimSeasonPassReward(season.season_key, lvl);
+          closeModal();
+          showSeasonPassModal(season.season_key);
+        };
+      }(level);
+      card.appendChild(claimBtn);
+    } else if (claimed) {
+      var claimedText = makeEl('div');
+      claimedText.textContent = '✓ Claimed';
+      claimedText.style.cssText = 'color:#4CAF50;font-weight:bold;';
+      card.appendChild(claimedText);
+    } else {
+      var lockedText = makeEl('div');
+      lockedText.textContent = '🔒 Locked';
+      lockedText.style.cssText = 'color:#999;';
+      card.appendChild(lockedText);
+    }
+    
+    track.appendChild(card);
+  });
+  
+  content.appendChild(track);
+  
+  var closeBtn = makeEl('button', {class: 'btn btn-outline'});
+  closeBtn.textContent = '✕ Close';
+  closeBtn.style.cssText = 'display:block;margin:20px auto 0;';
+  closeBtn.onclick = closeModal;
+  content.appendChild(closeBtn);
+  
+  modal.appendChild(content);
+  document.body.appendChild(modal);
 }
 
 // Show Pass modal
@@ -28033,6 +28274,18 @@ async function todayCard_render() {
   // Live streamers
   var liveCount = (typeof _currentlyLiveStreamers !== 'undefined') ? _currentlyLiveStreamers.length : 0;
 
+  // MINI SEASONS: banner for whatever's currently active (can be more than
+  // one at once — a custom event layered over a calendar season, etc)
+  var seasonHtml = '';
+  try {
+    var activeSeasons = await getActiveMiniSeasons();
+    seasonHtml = activeSeasons.map(function(s) {
+      return '<div class="today-card-season" onclick="showSeasonPassModal(\'' + s.season_key + '\')">' +
+        (s.icon || '🎫') + ' <strong>' + escapeHtml(s.name) + '</strong> is here! Tap for seasonal rewards →' +
+      '</div>';
+    }).join('');
+  } catch (e) { seasonHtml = ''; }
+
   var weatherHtml = weather
     ? '<div class="today-card-weather"><span class="today-card-icon">' + weather.icon + '</span> ' +
       '<strong>' + weather.name + '</strong>: ' + weather.effect + '</div>'
@@ -28060,6 +28313,7 @@ async function todayCard_render() {
   mount.innerHTML =
     '<div class="today-card">' +
       '<div class="today-card-header">🌟 Today in PawketPets</div>' +
+      seasonHtml +
       weatherHtml +
       statsHtml +
       goalHtml +
