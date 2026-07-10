@@ -5761,6 +5761,68 @@ function getSeasonalWeekSlot() {
   return (weeksSinceEpoch % 4) + 1; // 1-4
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// WORLD STATE FLAGS
+// Persistent, genuinely-shared values (unlike the old localStorage-only
+// worldEvents below) that boss kills nudge a little each time. Currently
+// one flag exists — corruption_level (0-100) — but the table is key-value
+// so more can be added later without a schema change.
+// ══════════════════════════════════════════════════════════════════════════
+
+var _worldStateCache = null;
+var _worldStateFetchedAt = 0;
+
+async function getWorldStateFlags() {
+  var now = Date.now();
+  if (_worldStateCache && (now - _worldStateFetchedAt) < 60000) {
+    return _worldStateCache;
+  }
+  try {
+    var res = await supabaseClient.from('world_state_flags').select('*');
+    var flags = {};
+    (res.data || []).forEach(function(row) {
+      // Skip expired temporary-buff-style flags (e.g. celebration_buff)
+      if (row.expires_at && new Date(row.expires_at) < new Date()) return;
+      flags[row.flag_key] = row;
+    });
+    _worldStateCache = flags;
+    _worldStateFetchedAt = now;
+  } catch (e) {
+    dbg('[WorldState] load error:', e);
+    _worldStateCache = _worldStateCache || {};
+  }
+  return _worldStateCache;
+}
+
+async function getWorldStateValue(flagKey, fallback) {
+  var flags = await getWorldStateFlags();
+  return (flags[flagKey] && typeof flags[flagKey].value === 'number') ? flags[flagKey].value : fallback;
+}
+
+// Synchronous, cache-only read (no network call) — for spots that can't
+// await, like weatherSystem.generateWeather() below. A slightly-stale
+// value here is fine; this never blocks weather from being set.
+function getWorldStateValueSync(flagKey, fallback) {
+  if (_worldStateCache && _worldStateCache[flagKey] && typeof _worldStateCache[flagKey].value === 'number') {
+    return _worldStateCache[flagKey].value;
+  }
+  return fallback;
+}
+
+// Called on every boss kill — nudges corruption down a little (the
+// community is pushing back) and triggers a short community-wide XP/PP
+// bonus as a "big kill" celebration. Both fire-and-forget; a failure here
+// shouldn't block the battle result from being processed normally.
+async function nudgeWorldStateForBossKill() {
+  try {
+    await supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: -2 });
+    await supabaseClient.rpc('trigger_celebration_buff', { p_duration_minutes: 60, p_bonus: 1.15 });
+    _worldStateCache = null; // force a fresh read next time something checks
+  } catch (e) {
+    dbg('[WorldState] boss-kill nudge error:', e);
+  }
+}
+
 
 async function loadShop() {
   var grid = el('shop-grid');
@@ -5796,6 +5858,16 @@ async function loadShop() {
   deduped = deduped.filter(function(item) {
     if (!item.season_key) return true; // not a seasonal item, always eligible
     return activeSeasonKeys.indexOf(item.season_key) !== -1 && item.season_week_slot === currentSeasonalSlot;
+  });
+  
+  // WORLD STATE: some items only appear once corruption crosses a
+  // threshold in either direction (unlock_min_corruption / unlock_max_corruption,
+  // both nullable — leave unset for items that should always be visible)
+  var corruptionLevelForShop = await getWorldStateValue('corruption_level', 50);
+  deduped = deduped.filter(function(item) {
+    if (item.unlock_min_corruption != null && corruptionLevelForShop < item.unlock_min_corruption) return false;
+    if (item.unlock_max_corruption != null && corruptionLevelForShop > item.unlock_max_corruption) return false;
+    return true;
   });
   
   // Categorize items
@@ -10481,6 +10553,10 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       boss_name: enemyStats.name
     });
     
+    // WORLD STATE: every boss kill nudges the world a little (corruption
+    // ticks down) and triggers a short community-wide "big kill" buff
+    nudgeWorldStateForBossKill();
+    
     // Get boss drops for this specific boss zone
     var bossDropRes = await supabaseClient
       .from('items')
@@ -12265,9 +12341,18 @@ async function getRandomEnemy(zone, playerLevel) {
   var corruptedChance = 0.03;
   var rareChance = 0.05;
 
-  // Cursed weather makes the world friendlier to corruption
+  // WORLD STATE: corruption_level (0-100, nudged down a little by every
+  // boss kill, drifts back up slowly if nobody's fighting it) raises the
+  // baseline corrupted spawn rate — up to +6% at full corruption (100)
+  try {
+    var corruptionLevel = await getWorldStateValue('corruption_level', 50);
+    corruptedChance += (corruptionLevel / 100) * 0.06;
+  } catch (e) { /* fall through with base chance if this fails */ }
+
+  // Cursed weather makes the world friendlier to corruption — takes
+  // whichever is higher between its flat boost and the world-state value
   if (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather && weatherSystem.currentWeather.id === 'cursed') {
-    corruptedChance = 0.12; // 3% -> 12% during Cursed Fog
+    corruptedChance = Math.max(corruptedChance, 0.12); // 3% -> 12% during Cursed Fog
   }
 
   var goldenThreshold = goldenChance;
@@ -14245,13 +14330,13 @@ if (document.readyState === 'loading') {
     newsTicker.init();
     dayNightCycle.init();
     if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-    if (typeof worldEvents !== 'undefined') worldEvents.init();
+    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
   });
 } else {
   newsTicker.init();
   dayNightCycle.init();
   if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-  if (typeof worldEvents !== 'undefined') worldEvents.init();
+  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -23548,6 +23633,9 @@ var weatherSystem = {
 
   init: async function() {
     this.currentDate = new Date().toISOString().slice(0, 10);
+    // Fire-and-forget warm-up so getWorldStateValueSync() below has a
+    // better chance of a fresh value by the time generateWeather() runs
+    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(){});
     // Try DB first, fall back to localStorage, then generate
     var loaded = await this.loadFromDailyFeatures();
     if (!loaded) {
@@ -23595,6 +23683,16 @@ var weatherSystem = {
     var isNight = hour >= 18 || hour < 6;
     // Starry only available at night — exclude it during the day so it doesn't waste its weight
     var pool = isNight ? this.weatherTypes : this.weatherTypes.filter(function(w) { return w.id !== 'starry'; });
+
+    // WORLD STATE: cursed weather grows more likely as corruption_level
+    // rises (nudged down by boss kills, drifts back up otherwise) — clone
+    // the pool so we don't mutate the shared weatherTypes weights directly
+    var corruptionLevel = getWorldStateValueSync('corruption_level', 50);
+    pool = pool.map(function(w) {
+      if (w.id !== 'cursed') return w;
+      // weight 2 at corruption 0, up to weight 20 at corruption 100
+      return Object.assign({}, w, { weight: 2 + (corruptionLevel / 100) * 18 });
+    });
 
     var totalWeight = pool.reduce(function(s, w) { return s + w.weight; }, 0);
     var random = Math.random() * totalWeight;
@@ -23727,7 +23825,17 @@ var weatherSystem = {
       }
     };
     var map = bonusMap[bonusType];
-    return (map && map[id] !== undefined) ? map[id] : 1.0;
+    var bonus = (map && map[id] !== undefined) ? map[id] : 1.0;
+    
+    // WORLD STATE: a defeated boss triggers a short community-wide
+    // celebration buff (see nudgeWorldStateForBossKill()) — layers on
+    // top of the weather bonus for XP/PP specifically
+    if (bonusType === 'xpBonus' || bonusType === 'ppBonus') {
+      var celebrationBonus = (typeof getWorldStateValueSync === 'function') ? getWorldStateValueSync('celebration_buff', null) : null;
+      if (celebrationBonus) bonus *= celebrationBonus;
+    }
+    
+    return bonus;
   },
 
   setWeather: function(weatherId) {
@@ -23950,53 +24058,42 @@ var worldEvents = {
   currentEvent: null,
   eventEndDate: null,
   
-  init: function() {
-    var saved = localStorage.getItem('currentEvent');
-    var savedEnd = localStorage.getItem('eventEndDate');
-    
-    if (saved && savedEnd) {
-      this.currentEvent = JSON.parse(saved);
-      this.eventEndDate = new Date(savedEnd);
-      
-      if (new Date() > this.eventEndDate) {
-        this.generateEvent();
-      }
-    } else {
-      this.generateEvent();
-    }
-    
+  // Made genuinely shared via active_world_event + roll_world_event() —
+  // previously this only ever touched localStorage, meaning every player's
+  // browser independently rolled its own random event rather than everyone
+  // actually experiencing the same "world" event together.
+  init: async function() {
+    await this.rollEvent();
     this.displayEvent();
     
     safeSetInterval(function() {
-      if (worldEvents.eventEndDate && new Date() > worldEvents.eventEndDate) {
-        worldEvents.generateEvent();
-      }
+      worldEvents.rollEvent().then(function() { worldEvents.displayEvent(); });
     }, 3600000);
   },
   
-  generateEvent: function() {
-    if (Math.random() < 0.3) {
-      this.currentEvent = null;
-      this.eventEndDate = null;
-      localStorage.removeItem('currentEvent');
-      localStorage.removeItem('eventEndDate');
-      this.displayEvent();
-      return;
+  // Asks the server whether the current event has expired and, if so,
+  // atomically rolls a new one (or "no event", same 30% chance as before)
+  // — row-locked server-side so simultaneous page loads across different
+  // players can't cause two different events to get picked.
+  rollEvent: async function() {
+    try {
+      var candidates = this.events.map(function(e) { return { id: e.id, duration: e.duration }; });
+      var res = await supabaseClient.rpc('roll_world_event', { p_candidates: candidates });
+      if (res.error || !res.data) return;
+      
+      var data = res.data;
+      if (!data.event_id) {
+        this.currentEvent = null;
+        this.eventEndDate = null;
+        return;
+      }
+      var matched = this.events.find(function(e) { return e.id === data.event_id; });
+      this.currentEvent = matched || null;
+      this.eventEndDate = data.ends_at ? new Date(data.ends_at) : null;
+      if (matched) dbg('🎪 Current event:', matched.name, '| Effects:', matched.effects);
+    } catch (e) {
+      dbg('[WorldEvents] roll error:', e);
     }
-    
-    var event = this.events[Math.floor(Math.random() * this.events.length)];
-    this.currentEvent = event;
-    
-    var endDate = new Date();
-    endDate.setDate(endDate.getDate() + event.duration);
-    this.eventEndDate = endDate;
-    
-    localStorage.setItem('currentEvent', JSON.stringify(event));
-    localStorage.setItem('eventEndDate', endDate.toISOString());
-    
-    this.displayEvent();
-    
-    dbg('🎪 New event:', event.name, '| Effects:', event.effects);
   },
   
   displayEvent: function() {
@@ -24434,6 +24531,14 @@ async function loadEquipmentShop() {
     if (res.error) throw res.error;
     
     var equipment = res.data || [];
+    
+    // WORLD STATE: same threshold gating as the item shop
+    var corruptionLevelForEquip = await getWorldStateValue('corruption_level', 50);
+    equipment = equipment.filter(function(item) {
+      if (item.unlock_min_corruption != null && corruptionLevelForEquip < item.unlock_min_corruption) return false;
+      if (item.unlock_max_corruption != null && corruptionLevelForEquip > item.unlock_max_corruption) return false;
+      return true;
+    });
 
     // Apply active filter
     if (typeof currentEquipmentFilter !== 'undefined' && currentEquipmentFilter !== 'all' && currentEquipmentFilter !== '') {
@@ -28286,6 +28391,18 @@ async function todayCard_render() {
     }).join('');
   } catch (e) { seasonHtml = ''; }
 
+  // WORLD STATE: show the current corruption level with a short
+  // narrative line, tying boss kills to something visibly persistent
+  var worldStateHtml = '';
+  try {
+    var corruptionLevel = await getWorldStateValue('corruption_level', 50);
+    var corruptionDesc = corruptionLevel >= 75 ? 'The corruption is spreading fast. The forest needs heroes.'
+      : corruptionLevel >= 50 ? 'The corruption lingers, held at bay by every trainer\'s effort.'
+      : corruptionLevel >= 25 ? 'The world feels a little safer today, thanks to recent boss kills.'
+      : 'The corruption has been pushed back significantly. Well done, everyone.';
+    worldStateHtml = '<div class="today-card-worldstate">🌍 World Corruption: ' + Math.round(corruptionLevel) + '% — ' + corruptionDesc + '</div>';
+  } catch (e) { worldStateHtml = ''; }
+
   var weatherHtml = weather
     ? '<div class="today-card-weather"><span class="today-card-icon">' + weather.icon + '</span> ' +
       '<strong>' + weather.name + '</strong>: ' + weather.effect + '</div>'
@@ -28314,6 +28431,7 @@ async function todayCard_render() {
     '<div class="today-card">' +
       '<div class="today-card-header">🌟 Today in PawketPets</div>' +
       seasonHtml +
+      worldStateHtml +
       weatherHtml +
       statsHtml +
       goalHtml +

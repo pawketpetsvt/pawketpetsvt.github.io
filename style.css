@@ -5809,6 +5809,17 @@ body.boss-ui-glitch header {
   transform: scale(1.01);
 }
 
+.today-card-worldstate {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #b899ff;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: rgba(153, 102, 255, 0.06);
+  border-left: 3px solid #9966ff;
+  border-radius: 8px;
+}
+
 .today-card-icon {
   font-size: 1.1rem;
 }
