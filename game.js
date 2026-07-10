@@ -9940,9 +9940,16 @@ var PASSIVE_EFFECTS = {
   corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 },
 
   // ---- World-state-gated signature items (Light / Darkness) ----
-  radiant_purge:  { type: 'attack', label: 'Radiant Purge', icon: '✨', bonusDamage: 4, healPct: 0.15 },
-  shadow_drain:   { type: 'attack', label: 'Shadow Drain',  icon: '🌑', healPct: 0.35 },
-  void_embrace:   { type: 'defend', label: 'Void Embrace',  icon: '🕳️', reflectPct: 0.25 }
+  // Light: reliable protection/healing, deliberately modest so it stays
+  // supportive rather than overpowered.
+  // Darkness: notably stronger effects, but each comes with a real cost
+  // (selfDamage — the power isn't free) plus a negative stat elsewhere on
+  // the item itself (see the SQL), so it's a genuine risk/reward choice
+  // rather than a strictly-better upgrade.
+  radiant_purge:  { type: 'attack', label: 'Radiant Purge',  icon: '✨', bonusDamage: 3, healPct: 0.12 },
+  sunlight_aegis: { type: 'defend', label: 'Sunlight Aegis', icon: '☀️', fullBlock: true, healMaxPct: 0.08 },
+  shadow_drain:   { type: 'attack', label: 'Shadow Drain',   icon: '🌑', healPct: 0.40, selfDamage: 4 },
+  void_embrace:   { type: 'defend', label: 'Void Embrace',   icon: '🕳️', reflectPct: 0.30, selfDamage: 3 }
 };
 
 /**
@@ -10062,6 +10069,12 @@ function simulateBattle(playerStats, enemyStats) {
               playerHP = Math.min(playerStats.maxHP, playerHP + healAmt);
               log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + '! ' + playerStats.name + ' heals ' + healAmt + ' HP!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
             }
+            if (fx.selfDamage) {
+              // Drawback effects (e.g. corrupted/dark gear) — the power
+              // comes at a real cost, not just a smaller number elsewhere
+              playerHP = Math.max(0, playerHP - fx.selfDamage);
+              log.push({ type: 'passive', text: fx.icon + ' ' + fx.label + ' takes its toll... ' + playerStats.name + ' loses ' + fx.selfDamage + ' HP!', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+            }
             if (fx.defenseShred) {
               enemyStats.defense = Math.max(0, enemyStats.defense - fx.defenseShred);
             }
@@ -10132,6 +10145,13 @@ function simulateBattle(playerStats, enemyStats) {
             var healAmt2 = Math.floor(playerStats.maxHP * fx.healMaxPct);
             playerHP = Math.min(playerStats.maxHP, playerHP + healAmt2);
             defendPassiveLogs.push(fx.icon + ' ' + fx.label + '! Healed ' + healAmt2 + ' HP!');
+          }
+          if (fx.selfDamage) {
+            // Drawback effects (e.g. corrupted/dark gear) — applied after
+            // the reflect/heal above so the net effect of the proc is
+            // visible in the log as a real cost, not hidden
+            playerHP = Math.max(0, playerHP - fx.selfDamage);
+            defendPassiveLogs.push(fx.icon + ' ' + fx.label + ' takes its toll... lost ' + fx.selfDamage + ' HP!');
           }
         });
       }
