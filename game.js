@@ -9871,6 +9871,7 @@ async function calculatePetStats(petId) {
   
   // Apply equipment bonuses
   var equippedPassives = [];
+  var totalHpPenaltyPct = 0;
   if (!equipRes.error && equipRes.data) {
     equipRes.data.forEach(function(item) {
       var equip = item.equipment;
@@ -9879,6 +9880,7 @@ async function calculatePetStats(petId) {
       stats.speed += equip.speed_bonus || 0;
       stats.luck = (stats.luck || 0) + (equip.luck_bonus || 0);
       stats.spirit = (stats.spirit || 0) + (equip.spirit_bonus || 0);
+      totalHpPenaltyPct += equip.hp_penalty_pct || 0;
 
       if (equip.passive_effect && equip.passive_chance > 0) {
         equippedPassives.push({
@@ -9888,6 +9890,20 @@ async function calculatePetStats(petId) {
         });
       }
     });
+  }
+  
+  // WORLD STATE: dark/corrupted gear's drawback — a permanent max-HP
+  // reduction while equipped (e.g. -10% from Shadowfang Dagger or Void
+  // Cloak), rather than a per-turn HP cost that would fight against
+  // their own lifesteal passives. Only affects battle-time stats here,
+  // not the pet's true stored max_hp in the database. Capped at 50% so
+  // stacking multiple such items can't be absurd.
+  if (totalHpPenaltyPct > 0) {
+    var hpMultiplier = 1 - Math.min(0.5, totalHpPenaltyPct);
+    stats.maxHP = Math.max(1, Math.floor(stats.maxHP * hpMultiplier));
+    stats.hp = Math.min(stats.hp, stats.maxHP);
+    maxHP = stats.maxHP;
+    currentHP = stats.hp;
   }
   
   return {
@@ -9941,15 +9957,17 @@ var PASSIVE_EFFECTS = {
 
   // ---- World-state-gated signature items (Light / Darkness) ----
   // Light: reliable protection/healing, deliberately modest so it stays
-  // supportive rather than overpowered.
-  // Darkness: notably stronger effects, but each comes with a real cost
-  // (selfDamage — the power isn't free) plus a negative stat elsewhere on
-  // the item itself (see the SQL), so it's a genuine risk/reward choice
-  // rather than a strictly-better upgrade.
+  // supportive rather than overpowered. No drawback.
+  // Darkness: notably stronger passive effect than Light's equivalent,
+  // but the item itself carries a permanent max-HP penalty while equipped
+  // (see hp_penalty_pct in calculatePetStats) — a genuine risk/reward
+  // trade rather than a strictly-better upgrade. Deliberately NOT a
+  // per-turn HP cost here, since that would fight against these same
+  // passives' own lifesteal/reflect effects.
   radiant_purge:  { type: 'attack', label: 'Radiant Purge',  icon: '✨', bonusDamage: 3, healPct: 0.12 },
   sunlight_aegis: { type: 'defend', label: 'Sunlight Aegis', icon: '☀️', fullBlock: true, healMaxPct: 0.08 },
-  shadow_drain:   { type: 'attack', label: 'Shadow Drain',   icon: '🌑', healPct: 0.40, selfDamage: 4 },
-  void_embrace:   { type: 'defend', label: 'Void Embrace',   icon: '🕳️', reflectPct: 0.30, selfDamage: 3 }
+  shadow_drain:   { type: 'attack', label: 'Shadow Drain',   icon: '🌑', healPct: 0.40 },
+  void_embrace:   { type: 'defend', label: 'Void Embrace',   icon: '🕳️', reflectPct: 0.30 }
 };
 
 /**
@@ -24632,12 +24650,14 @@ async function loadEquipmentShop() {
         (item.defense_bonus > 0 ? ' | +' + item.defense_bonus + ' DEF' : '') +
         (item.speed_bonus   > 0 ? ' | +' + item.speed_bonus   + ' SPD' : '') +
         (item.hp_bonus      > 0 ? ' | +' + item.hp_bonus      + ' HP'  : '') +
+        (item.hp_penalty_pct > 0 ? ' | -' + Math.round(item.hp_penalty_pct * 100) + '% Max HP' : '') +
         ' | Tier ' + item.tier + ' (hover to compare stats)"' +
         ' data-tooltip="' + (item.equipment_type === 'weapon' ? '⚔️ Weapon Stats' : '🛡️ Armor Stats') +
         (item.attack_bonus  > 0 ? '\n+' + item.attack_bonus  + ' Attack'  : '') +
         (item.defense_bonus > 0 ? '\n+' + item.defense_bonus + ' Defense' : '') +
         (item.speed_bonus   > 0 ? '\n+' + item.speed_bonus   + ' Speed'   : '') +
         (item.hp_bonus      > 0 ? '\n+' + item.hp_bonus      + ' HP'      : '') +
+        (item.hp_penalty_pct > 0 ? '\n-' + Math.round(item.hp_penalty_pct * 100) + '% Max HP (drawback)' : '') +
         '\nTier ' + item.tier + ' · ' + item.weight_class +
         '">';
       
@@ -24663,6 +24683,9 @@ async function loadEquipmentShop() {
       }
       if (item.hp_bonus > 0) {
         cardHtml += '<div class="stat">❤️ HP: +' + item.hp_bonus + '</div>';
+      }
+      if (item.hp_penalty_pct > 0) {
+        cardHtml += '<div class="stat" style="color:#ff6666;">⚠️ Max HP: -' + Math.round(item.hp_penalty_pct * 100) + '% (drawback)</div>';
       }
       
       cardHtml += '</div>';
