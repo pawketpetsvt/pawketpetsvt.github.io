@@ -5810,17 +5810,40 @@ function getWorldStateValueSync(flagKey, fallback) {
 }
 
 // Called on every boss kill — nudges corruption down a little (the
-// community is pushing back) and triggers a short community-wide XP/PP
-// bonus as a "big kill" celebration. Both fire-and-forget; a failure here
-// shouldn't block the battle result from being processed normally.
+// community is pushing back) always, but the celebration buff only
+// triggers every 10th community-wide boss kill (not every single one —
+// with even a small player base, boss kills happen constantly, so this
+// keeps the buff feeling earned rather than automatic).
 async function nudgeWorldStateForBossKill() {
   try {
     await supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: -2 });
-    await supabaseClient.rpc('trigger_celebration_buff', { p_duration_minutes: 60, p_bonus: 1.15 });
+    var killRes = await supabaseClient.rpc('record_boss_kill');
     _worldStateCache = null; // force a fresh read next time something checks
+    if (killRes.data && killRes.data.triggered) {
+      showToast('🎉 10 bosses defeated by the community! Everyone gets a 1-hour +15% XP/PP bonus!', 'success', true);
+      _lastAnnouncedCelebrationCheck = Date.now(); // this browser already saw it, skip the poll-based announce below
+    }
   } catch (e) {
     dbg('[WorldState] boss-kill nudge error:', e);
   }
+}
+
+// Broader announcement: since only the specific player whose kill landed
+// on the 10th gets the toast above, this periodic check lets anyone else
+// who's currently using the app find out too, within about a minute of
+// it triggering — without needing full realtime infrastructure for it.
+var _lastAnnouncedCelebrationCheck = 0;
+async function checkForNewCelebrationBuff() {
+  try {
+    var flags = await getWorldStateFlags();
+    var buff = flags.celebration_buff;
+    if (!buff || !buff.expires_at) return;
+    var startedAt = new Date(buff.updated_at || buff.expires_at).getTime();
+    if (startedAt > _lastAnnouncedCelebrationCheck) {
+      _lastAnnouncedCelebrationCheck = Date.now();
+      showToast('🎉 The community just earned a 1-hour +15% XP/PP bonus from boss kills!', 'success', true);
+    }
+  } catch (e) { /* silent — this is just a periodic nicety, not critical */ }
 }
 
 
@@ -9914,7 +9937,12 @@ var PASSIVE_EFFECTS = {
   forbidden_knowledge:   { type: 'defend', label: "Forbidden Knowledge", icon: '📜', flatReduction: 4 },
 
   // ---- Enemy-side passives ----
-  corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 }
+  corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 },
+
+  // ---- World-state-gated signature items (Light / Darkness) ----
+  radiant_purge:  { type: 'attack', label: 'Radiant Purge', icon: '✨', bonusDamage: 4, healPct: 0.15 },
+  shadow_drain:   { type: 'attack', label: 'Shadow Drain',  icon: '🌑', healPct: 0.35 },
+  void_embrace:   { type: 'defend', label: 'Void Embrace',  icon: '🕳️', reflectPct: 0.25 }
 };
 
 /**
@@ -14338,6 +14366,13 @@ if (document.readyState === 'loading') {
   if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
   if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
 }
+
+// WORLD STATE: periodically check for a newly-triggered celebration buff
+// so players already using the app find out even if they weren't the one
+// whose boss kill happened to land on the 10th
+safeSetInterval(function() {
+  if (typeof checkForNewCelebrationBuff === 'function') checkForNewCelebrationBuff();
+}, 60000);
 
 document.addEventListener('DOMContentLoaded', function() {
   var guestbookInput = document.getElementById('guestbook-message-input');
