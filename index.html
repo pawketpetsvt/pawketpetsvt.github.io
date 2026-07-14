@@ -2206,6 +2206,18 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
           <div id="player-title-selector-container"></div>
         </div>
 
+        <!-- Discord Linking -->
+        <div class="form-group">
+          <label>🔗 Discord Account</label>
+          <div id="discord-link-status" style="font-size:0.9rem;color:var(--text-light);margin-bottom:8px;">Checking link status...</div>
+          <button class="btn btn-outline btn-sm" id="discord-link-btn" onclick="generateDiscordLinkCode()" style="display:none;">Generate Link Code</button>
+          <div id="discord-link-code-display" style="display:none;margin-top:10px;padding:12px;background:rgba(88,101,242,0.1);border:1px solid #5865F2;border-radius:8px;">
+            <div style="font-size:0.85rem;color:var(--text-light);">In Discord, type:</div>
+            <div style="font-family:monospace;font-size:1.1rem;font-weight:bold;color:#5865F2;margin:4px 0;">/link code:<span id="discord-link-code-value"></span></div>
+            <div style="font-size:0.78rem;color:var(--text-light);">This code expires in 10 minutes.</div>
+          </div>
+        </div>
+
         <div id="profile-edit-error" class="alert alert-error" style="display:none;"></div>
         <div id="profile-edit-success" class="alert alert-success" style="display:none;"></div>
 

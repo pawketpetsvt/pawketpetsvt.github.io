@@ -5816,7 +5816,10 @@ function getWorldStateValueSync(flagKey, fallback) {
 // keeps the buff feeling earned rather than automatic).
 async function nudgeWorldStateForBossKill() {
   try {
-    await supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: -2 });
+    // Reduced from -2: boss kills are now an ambient nudge, not the
+    // dominant force — the corruption ritual (see performCorruptionRitual)
+    // is the real, deliberate lever players can use in either direction.
+    await supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: -1 });
     var killRes = await supabaseClient.rpc('record_boss_kill');
     _worldStateCache = null; // force a fresh read next time something checks
     if (killRes.data && killRes.data.triggered) {
@@ -5844,6 +5847,55 @@ async function checkForNewCelebrationBuff() {
       showToast('🎉 The community just earned a 1-hour +15% XP/PP bonus from boss kills!', 'success', true);
     }
   } catch (e) { /* silent — this is just a periodic nicety, not critical */ }
+}
+
+// Generates a short-lived code the player types into `/link` on Discord
+// to connect their account. Invalidates any previous unused code first
+// (handled server-side in the RPC).
+async function generateDiscordLinkCode() {
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient.rpc('generate_discord_link_code');
+    if (res.error || !res.data || res.data.error) {
+      showToast(res.data && res.data.error ? res.data.error : 'Could not generate a code', 'error');
+      return;
+    }
+    var codeDisplay = el('discord-link-code-display');
+    var codeValue = el('discord-link-code-value');
+    if (codeDisplay && codeValue) {
+      codeValue.textContent = res.data.code;
+      codeDisplay.style.display = 'block';
+    }
+  } catch (e) {
+    console.error('[Discord] link code error:', e);
+    showToast('Could not generate a code', 'error');
+  }
+}
+
+// Deliberate player-driven lever on corruption — unlike boss kills (an
+// ambient side-effect), this is a real choice: spend 100 PP, once per
+// day, to push the world 5 points toward Light ('purify') or Darkness
+// ('corrupt'). Exists specifically so players who want Dark gear (or
+// Light gear) have a way to actually make that happen, rather than
+// waiting on random boss-kill timing they can't control.
+async function performCorruptionRitual(direction) {
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient.rpc('perform_corruption_ritual', { p_direction: direction });
+    if (res.error || !res.data || res.data.error) {
+      showToast(res.data && res.data.error ? res.data.error : 'The ritual failed', 'error');
+      return;
+    }
+    var data = res.data;
+    updateAllPoints(data.new_pp);
+    _worldStateCache = null; // force a fresh read so the UI reflects the new value
+    var directionText = direction === 'purify' ? '🕯️ You purified the forest a little!' : '🌑 You fed the corruption a little!';
+    showToast(directionText + ' World corruption is now ' + Math.round(data.new_value) + '%.', 'success', true);
+    if (typeof todayCard_render === 'function') todayCard_render();
+  } catch (e) {
+    console.error('[CorruptionRitual] error:', e);
+    showToast('The ritual failed', 'error');
+  }
 }
 
 
@@ -9068,6 +9120,19 @@ async function loadMyProfile() {
     // Update form
     el('edit-username').value = username;
     el('edit-bio').value = player.bio || '';
+    
+    // Discord link status
+    var discordStatusEl = el('discord-link-status');
+    var discordBtnEl = el('discord-link-btn');
+    if (discordStatusEl && discordBtnEl) {
+      if (player.discord_id) {
+        discordStatusEl.textContent = '✅ Linked';
+        discordBtnEl.style.display = 'none';
+      } else {
+        discordStatusEl.textContent = 'Not linked yet — generate a code below and use /link in Discord.';
+        discordBtnEl.style.display = 'inline-block';
+      }
+    }
     
     // Render player title selector
     renderPlayerTitleSelector('player-title-selector-container');
@@ -28470,7 +28535,9 @@ async function todayCard_render() {
   } catch (e) { seasonHtml = ''; }
 
   // WORLD STATE: show the current corruption level with a short
-  // narrative line, tying boss kills to something visibly persistent
+  // narrative line, tying boss kills to something visibly persistent,
+  // plus two deliberate buttons so players actually have a say in which
+  // direction it moves (not just an automatic side-effect of boss kills)
   var worldStateHtml = '';
   try {
     var corruptionLevel = await getWorldStateValue('corruption_level', 50);
@@ -28478,7 +28545,13 @@ async function todayCard_render() {
       : corruptionLevel >= 50 ? 'The corruption lingers, held at bay by every trainer\'s effort.'
       : corruptionLevel >= 25 ? 'The world feels a little safer today, thanks to recent boss kills.'
       : 'The corruption has been pushed back significantly. Well done, everyone.';
-    worldStateHtml = '<div class="today-card-worldstate">🌍 World Corruption: ' + Math.round(corruptionLevel) + '% — ' + corruptionDesc + '</div>';
+    worldStateHtml = '<div class="today-card-worldstate">' +
+      '🌍 World Corruption: ' + Math.round(corruptionLevel) + '%. ' + corruptionDesc +
+      '<div class="today-card-ritual-buttons">' +
+        '<button class="today-card-ritual-btn purify" onclick="performCorruptionRitual(\'purify\')">🕯️ Purify (100 PP)</button>' +
+        '<button class="today-card-ritual-btn corrupt" onclick="performCorruptionRitual(\'corrupt\')">🌑 Feed Corruption (100 PP)</button>' +
+      '</div>' +
+    '</div>';
   } catch (e) { worldStateHtml = ''; }
 
   var weatherHtml = weather
