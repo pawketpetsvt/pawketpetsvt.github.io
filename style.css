@@ -6934,6 +6934,14 @@ body.boss-ui-glitch header {
   background: linear-gradient(135deg, #0085ff 0%, #0066cc 100%);
 }
 
+.team-social-btn.tiktok {
+  background: linear-gradient(135deg, #25f4ee 0%, #fe2c55 100%);
+}
+
+.team-social-btn.instagram {
+  background: linear-gradient(135deg, #f58529 0%, #dd2a7b 50%, #8134af 100%);
+}
+
 .social-icon {
   font-size: 1.2rem;
 }

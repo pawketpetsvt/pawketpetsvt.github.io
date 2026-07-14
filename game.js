@@ -7483,6 +7483,13 @@ function spinSlots() {
           // Award the gross prize
           awardPP(grossPrize, 'slot_machine');
           
+          // WORLD STATE: a real win (not just breaking even) nudges
+          // corruption up a little — small, frequent lever ("gambling
+          // feeds the dark"), not a dominant one on its own
+          if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
+            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(){});
+          }
+          
           if (netProfit > 0) {
             result.textContent = '🎉 Triple Match! Won ' + netProfit + ' PP profit! (Paid ' + grossPrize + ' PP total)';
             result.style.color = '#5dde7a';
