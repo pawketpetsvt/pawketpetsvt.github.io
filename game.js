@@ -1543,6 +1543,7 @@ function showTab(tab) {
     Object.keys(petMoodCache).forEach(function(pid) {
       checkPetWishes('visit_shop', pid).catch(function(){});
     });
+    updateBingoProgress('visit_shop', 1);
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
@@ -2614,6 +2615,7 @@ async function confirmAdopt() {
   
   // Award first pet badge
   await awardBadge('first_pet');
+  onPetAdopted(result.pet_id);
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -6909,7 +6911,7 @@ async function rollDice() {
     var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
     var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
-    await awardPP(earned, 'dice_roll'); setCD('dice');
+    await awardPP(earned, 'dice_roll'); setCD('dice'); onMinigameComplete();
     
     // Award badges
     await awardBadge('dice_first_play'); // First time playing
@@ -6947,7 +6949,7 @@ async function makeGuess() {
   guessAttempts++;
   
   if(guess===secretNumber){
-    await awardPP(25, 'guess_game'); setCD('guess');
+    await awardPP(25, 'guess_game'); setCD('guess'); onMinigameComplete();
     
     // Award badges
     await awardBadge('guess_first_play'); // First time playing
@@ -7013,7 +7015,7 @@ function flipCard(btn) {
       
       if(matchedPairs===6){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match');setCD('memory');
+        awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -7033,7 +7035,7 @@ function flipCard(btn) {
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
         if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned, 'memory_match');setCD('memory');
+          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
           awardBadge('memory_first_play'); // Award badge even if lost
           var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
         }
@@ -7134,7 +7136,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel');
+      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete();
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -7204,7 +7206,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = Math.min(whackScore * 5, 50);
-  awardPP(earned, 'whack_a_mole');
+  awardPP(earned, 'whack_a_mole'); onMinigameComplete();
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! +' + earned + ' PP!';
@@ -7344,7 +7346,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30, 'shell_game');
+        awardPP(30, 'shell_game'); onMinigameComplete();
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -7581,7 +7583,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge');
+  awardPP(earned, 'typing_challenge'); onMinigameComplete();
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -7636,7 +7638,7 @@ function castLine() {
     document.querySelector('.pond-text').textContent = caught.emoji + ' Caught: ' + caught.name + ' (+' + caught.pp + ' PP)';
     
     if (fishingCasts <= 0) {
-      awardPP(fishingTotal, 'fishing');
+      awardPP(fishingTotal, 'fishing'); onMinigameComplete();
       setCD('fishing');
       setTimeout(function() {
         var r = el('fishing-result');
@@ -10769,6 +10771,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (battleResult.victory) {
     // COMMUNITY GOALS: Track battle wins
     community_increment('battle_wins', 1);
+    updateBingoProgress('win_battle', 1);
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -10837,6 +10840,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           pet_name: petName,
           level: lu.level
         });
+        onPetLevelUp(petId);
         
         // SCRAPBOOK: Level milestones at 5, 10, 15, 20
         if (lu.level === 5 || lu.level === 10 || lu.level === 15 || lu.level === 20) {
@@ -14743,6 +14747,7 @@ var CompanionBuddy = {
     this.bubbleTimeout = safeSetTimeout(function() {
       bubble.classList.remove('show', 'companion-spooky-bubble');
     }, hideDuration);
+    if (typeof onCompanionMessage === 'function') onCompanionMessage();
   },
   
   // Last known context for memory system
