@@ -30842,7 +30842,7 @@ async function showAdminPollModal() {
   if (!await isAdmin()) { showToast('Admin access required', 3000); return; }
 
   var { data: polls } = await supabaseClient
-    .from('polls').select('*').order('created_at', { ascending: false });
+    .from('polls').select('*').order('starts_at', { ascending: false });
 
   var modal = makeModal();
   var pollListHtml = '';
