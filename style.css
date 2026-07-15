@@ -9118,6 +9118,13 @@ body.night-mode .stat-item.global .stat-value {
   width: 100%;
 }
 
+.equipment-grid-single {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+  width: 100%;
+}
+
 @media (max-width: 500px) {
   .equipment-grid-column {
     grid-template-columns: 1fr;

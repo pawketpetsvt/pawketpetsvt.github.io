@@ -1543,7 +1543,6 @@ function showTab(tab) {
     Object.keys(petMoodCache).forEach(function(pid) {
       checkPetWishes('visit_shop', pid).catch(function(){});
     });
-    updateBingoProgress('visit_shop', 1);
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
@@ -2615,7 +2614,6 @@ async function confirmAdopt() {
   
   // Award first pet badge
   await awardBadge('first_pet');
-  onPetAdopted(result.pet_id);
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -6451,10 +6449,24 @@ async function useOnPet(petId,petNickname) {
   if(ef.happiness_effect>0)updates.happiness=Math.min(pet.happiness+ef.happiness_effect,pet.max_happiness);
   if(ef.xp_effect>0)updates.xp=pet.xp+ef.xp_effect;
   if(!Object.keys(updates).length){showToast('No effects configured.');return;}
+  // Also update last_fed if this is a food item, so decay calculates correctly
+  if(ef.hunger_effect>0) updates.last_fed = new Date().toISOString();
   await supabaseClient.from('user_pets').update(updates).eq('id',petId);
   var qty=invRow.data.quantity;
   if(qty<=1)await supabaseClient.from('user_inventory').delete().eq('id',invId);
   else await supabaseClient.from('user_inventory').update({quantity:qty-1}).eq('id',invId);
+  // Track bingo + PassXP the same way feedWithItem does
+  if(ef.hunger_effect>0){
+    updateBingoProgress('feed_pet',1);
+    addPassXP(2,'feed').catch(function(){});
+    community_increment('feed_pets',1);
+  }
+  if(ef.happiness_effect>0 && ef.hunger_effect<=0){
+    // Toy/happiness-only item counts as play
+    updateBingoProgress('use_toy',1);
+    updateBingoProgress('play_pet',1);
+    addPassXP(2,'play').catch(function(){});
+  }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
 }
@@ -6911,7 +6923,7 @@ async function rollDice() {
     var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
     var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
-    await awardPP(earned, 'dice_roll'); setCD('dice'); onMinigameComplete();
+    await awardPP(earned, 'dice_roll'); setCD('dice');
     
     // Award badges
     await awardBadge('dice_first_play'); // First time playing
@@ -6949,7 +6961,7 @@ async function makeGuess() {
   guessAttempts++;
   
   if(guess===secretNumber){
-    await awardPP(25, 'guess_game'); setCD('guess'); onMinigameComplete();
+    await awardPP(25, 'guess_game'); setCD('guess');
     
     // Award badges
     await awardBadge('guess_first_play'); // First time playing
@@ -7015,7 +7027,7 @@ function flipCard(btn) {
       
       if(matchedPairs===6){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
+        awardPP(memoryEarned, 'memory_match');setCD('memory');
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -7035,7 +7047,7 @@ function flipCard(btn) {
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
         if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
+          awardPP(memoryEarned, 'memory_match');setCD('memory');
           awardBadge('memory_first_play'); // Award badge even if lost
           var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
         }
@@ -7136,7 +7148,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete();
+      awardPP(winningPrize, 'treasure_wheel');
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -7206,7 +7218,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = Math.min(whackScore * 5, 50);
-  awardPP(earned, 'whack_a_mole'); onMinigameComplete();
+  awardPP(earned, 'whack_a_mole');
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! +' + earned + ' PP!';
@@ -7346,7 +7358,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30, 'shell_game'); onMinigameComplete();
+        awardPP(30, 'shell_game');
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -7583,7 +7595,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge'); onMinigameComplete();
+  awardPP(earned, 'typing_challenge');
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -7638,7 +7650,7 @@ function castLine() {
     document.querySelector('.pond-text').textContent = caught.emoji + ' Caught: ' + caught.name + ' (+' + caught.pp + ' PP)';
     
     if (fishingCasts <= 0) {
-      awardPP(fishingTotal, 'fishing'); onMinigameComplete();
+      awardPP(fishingTotal, 'fishing');
       setCD('fishing');
       setTimeout(function() {
         var r = el('fishing-result');
@@ -10771,7 +10783,6 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (battleResult.victory) {
     // COMMUNITY GOALS: Track battle wins
     community_increment('battle_wins', 1);
-    updateBingoProgress('win_battle', 1);
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -10840,7 +10851,6 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           pet_name: petName,
           level: lu.level
         });
-        onPetLevelUp(petId);
         
         // SCRAPBOOK: Level milestones at 5, 10, 15, 20
         if (lu.level === 5 || lu.level === 10 || lu.level === 15 || lu.level === 20) {
@@ -14132,15 +14142,20 @@ var newsTicker = {
   },
   
   startScrollDetection: function() {
-    var tickerElement = document.querySelector('.news-ticker-inner');
-    if (!tickerElement) return;
+    if (!document.querySelector('.news-ticker-inner')) return;
     
-    // Check every 100ms if message has scrolled off-screen
+    // Re-query the element each tick — updateTicker() cloneNodes it so the
+    // original reference goes stale and rect coords become 0, breaking rotation.
     this.rotationInterval = setInterval(function() {
       if (newsTicker.isScrolling) return;
       
+      var tickerElement = document.querySelector('.news-ticker-inner');
+      if (!tickerElement) return;
+      
       var rect = tickerElement.getBoundingClientRect();
-      var parent = tickerElement.parentElement.getBoundingClientRect();
+      var parentEl = tickerElement.parentElement;
+      if (!parentEl) return;
+      var parent = parentEl.getBoundingClientRect();
       
       // If the right edge of the message is past the left edge of the container
       // (fully scrolled off screen to the left)
@@ -14747,7 +14762,6 @@ var CompanionBuddy = {
     this.bubbleTimeout = safeSetTimeout(function() {
       bubble.classList.remove('show', 'companion-spooky-bubble');
     }, hideDuration);
-    if (typeof onCompanionMessage === 'function') onCompanionMessage();
   },
   
   // Last known context for memory system
@@ -18454,7 +18468,7 @@ async function gp_load() {
       dbg('get_current_grand_prix RPC unavailable, using direct query:', rpcFail.message);
       var { data: directData } = await supabaseClient
         .from('grand_prix_events')
-        .select('id, week_number, year, status, prize_pool, total_entries, registration_end, start_time, end_time')
+        .select('id, week_number, year, status, prize_pool, registration_close, start_time, end_time')
         .in('status', ['registration', 'racing', 'reward_claim'])
         .order('week_number', { ascending: false })
         .limit(1);
@@ -18532,7 +18546,7 @@ async function gp_renderRegistration(mount) {
   var ev = gpState.event;
 
   // Calculate next Sunday 23:59 UTC
-  var regClose = ev.registration_end ? new Date(ev.registration_end) : (function(){
+  var regClose = ev.registration_close ? new Date(ev.registration_close) : (function(){
     var d = new Date(); d.setUTCDate(d.getUTCDate() + (7 - d.getUTCDay()) % 7 || 7); d.setUTCHours(23,59,59,0); return d;
   })();
   var minsLeft = Math.max(0, Math.floor((regClose - new Date()) / 60000));
@@ -24666,7 +24680,7 @@ async function loadEquipmentShop() {
     var activeSeasons = await getActiveMiniSeasons();
     var activeSeasonKeys = activeSeasons.map(function(s) { return s.season_key; });
     var currentSeasonalSlot = getSeasonalWeekSlot();
-    var orClause = 'rotation_week.eq.' + currentWeek + ',is_boss_drop.eq.true';
+    var orClause = 'rotation_week.eq.' + currentWeek;
     if (activeSeasonKeys.length > 0) {
       orClause += ',and(season_key.in.(' + activeSeasonKeys.join(',') + '),season_week_slot.eq.' + currentSeasonalSlot + ')';
     }
@@ -25060,18 +25074,21 @@ var passProgress = {
   season: 1,
   level: 1,
   xp: 0,
-  xpToNextLevel: 100,
+  xpToNextLevel: 110, // calculateXPForLevel(2) = floor(100 * 1.1^1) = 110
   claimedRewards: []
 };
 
 var dailyXPCaps = {
-  login: { earned: 0, max: 10 },
-  feed: { earned: 0, max: 20 },
-  play: { earned: 0, max: 20 },
-  battle: { earned: 0, max: 50 },
-  bingo_square: { earned: 0, max: 135 },
-  bingo_line: { earned: 0, max: 400 },
-  bingo_blackout: { earned: 0, max: 200 }
+  login:         { earned: 0, max: 10 },
+  feed:          { earned: 0, max: 20 },
+  play:          { earned: 0, max: 20 },
+  battle:        { earned: 0, max: 50 },
+  expedition:    { earned: 0, max: 30 },
+  race:          { earned: 0, max: 20 },
+  level_up:      { earned: 0, max: 30 },
+  bingo_square:  { earned: 0, max: 135 },
+  bingo_line:    { earned: 0, max: 400 },
+  bingo_blackout:{ earned: 0, max: 200 }
 };
 
 // Pass rewards structure (50 levels)
@@ -25255,13 +25272,16 @@ function saveDailyXPCaps() {
 // Reset daily XP caps (called at midnight)
 function resetDailyXPCaps() {
   dailyXPCaps = {
-    login: { earned: 0, max: 10 },
-    feed: { earned: 0, max: 20 },
-    play: { earned: 0, max: 20 },
-    battle: { earned: 0, max: 50 },
-    bingo_square: { earned: 0, max: 135 },
-    bingo_line: { earned: 0, max: 400 },
-    bingo_blackout: { earned: 0, max: 200 }
+    login:         { earned: 0, max: 10 },
+    feed:          { earned: 0, max: 20 },
+    play:          { earned: 0, max: 20 },
+    battle:        { earned: 0, max: 50 },
+    expedition:    { earned: 0, max: 30 },
+    race:          { earned: 0, max: 20 },
+    level_up:      { earned: 0, max: 30 },
+    bingo_square:  { earned: 0, max: 135 },
+    bingo_line:    { earned: 0, max: 400 },
+    bingo_blackout:{ earned: 0, max: 200 }
   };
   saveDailyXPCaps();
 }
@@ -26059,9 +26079,7 @@ updateAllPoints = function(pts) {
 // Hook for pet level up - call this when a pet levels up
 function onPetLevelUp(petId) {
   updateBingoProgress('level_up_pet', 1);
-  
-  // Award Pass XP bonus for leveling up
-  addPassXP(10, 'feed'); // Counts toward feed cap
+  addPassXP(10, 'level_up');
 }
 
 // Hook for adoption - call this when adopting a pet
@@ -30543,7 +30561,7 @@ async function gp_adminRender(modal) {
       // Fallback: direct query
       var { data: fallbackEvts } = await supabaseClient
         .from('grand_prix_events')
-        .select('id, week_number, year, status, prize_pool, total_entries, registration_end, start_time, end_time')
+        .select('id, week_number, year, status, prize_pool, registration_close, start_time, end_time')
         .in('status', ['registration', 'racing', 'reward_claim'])
         .order('week_number', { ascending: false })
         .limit(1);
@@ -30570,7 +30588,7 @@ async function gp_adminRender(modal) {
     ? '<div style="background:rgba(0,0,0,0.15);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:0.82rem;">' +
         '<div style="font-weight:700;color:#fff;margin-bottom:6px;">📊 Week ' + ev.week_number + ' · ' + ev.year + '</div>' +
         '<div style="color:' + statusColor + ';font-weight:600;margin-bottom:4px;">Status: ' + ev.status.toUpperCase() + '</div>' +
-        '<div style="color:#ccc;">🪙 Prize Pool: ' + (ev.prize_pool||0).toLocaleString() + ' PP · 👥 ' + (ev.total_entries||0) + ' entries</div>' +
+        '<div style="color:#ccc;">🪙 Prize Pool: ' + (ev.prize_pool||0).toLocaleString() + ' PP · 👥 ' + 'entries</div>' +
       '</div>'
     : '<div style="color:#ff6b6b;font-size:0.82rem;margin-bottom:14px;">No active event found.</div>';
 
@@ -30681,17 +30699,24 @@ async function gp_adminForceStatus(status) {
   var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Updating…');
 
   // Get the event ID from DB directly
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
-  var evId = events && events.length > 0 ? events[0].id : null;
+  var evId = null;
+  try {
+    var evRes = await supabaseClient.rpc('get_current_grand_prix');
+    if (evRes.data && evRes.data.length > 0) evId = evRes.data[0].id;
+  } catch(e) {}
   if (!evId) {
     // Fall back: most recent non-complete event
-    var { data: any } = await supabaseClient.from('grand_prix_events').select('id').neq('status','complete').order('week_number',{ascending:false}).limit(1).single().catch(function(){ return { data: null }; });
-    evId = any ? any.id : null;
+    try {
+      var anyRes = await supabaseClient.from('grand_prix_events').select('id').neq('status','complete').order('week_number',{ascending:false}).limit(1).single();
+      if (anyRes.data) evId = anyRes.data.id;
+    } catch(e) {}
   }
-  if (!evId) { showToast('No event found to update', 3000); return; }
+  if (!evId) { restore(); showToast('No event found to update', 3000); return; }
 
-  await supabaseClient.from('grand_prix_events').update({ status: status }).eq('id', evId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_status_' + status, details: { event_id: evId } }).catch(function(){});
+  try {
+    await supabaseClient.from('grand_prix_events').update({ status: status }).eq('id', evId);
+    await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_status_' + status, details: { event_id: evId } });
+  } catch(e) { console.error('gp_adminForceStatus error:', e); }
   restore();
   showToast('Status set to ' + status, 2500);
   await gp_adminRefresh();
@@ -30797,8 +30822,8 @@ async function gp_adminCreateEvent() {
   var { error } = await supabaseClient.from('grand_prix_events').insert({
     week_number: getWeekNumber(now), year: now.getFullYear(),
     start_time: saturday.toISOString(), end_time: monday.toISOString(),
-    registration_end: saturday.toISOString(), status: 'registration',
-    prize_pool: 0, total_entries: 0
+    registration_close: saturday.toISOString(), status: 'registration',
+    prize_pool: 0
   });
 
   if (error) { showToast('Error: ' + error.message, 3500); return; }
