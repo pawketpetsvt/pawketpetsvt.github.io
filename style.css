@@ -5882,6 +5882,12 @@ body.boss-ui-glitch header {
   font-weight: 600;
 }
 
+.today-card-online {
+  color: #5dde7a;
+  font-size: 0.82rem;
+  margin-bottom: 4px;
+}
+
 .daily-tip-header {
   font-family: 'Fredoka One', cursive;
   font-size: 1.2rem;

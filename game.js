@@ -4253,7 +4253,13 @@ async function race_renderSetup() {
     ? '<div style="color:#ff6b6b;font-size:0.85rem;text-align:center;">No pets found. Adopt one first! 🐾</div>'
     : myPets.map(function(p) {
         var spd = p.base_speed || 4;
-        var spdColor = spd >= 7 ? '#4ade80' : spd >= 5 ? '#fbbf24' : '#ff9966';
+        var spdColor = spd >= 8 ? '#4ade80' : spd >= 5 ? '#fbbf24' : '#ff9966';
+        // Approximate win odds using the same weighted-lottery model as race_start
+        // tickets = 6 + speed^0.65; win% ≈ tickets / (3*avg_cpu_tickets + tickets)
+        // Match FLOOR_TICKETS=8, SPEED_EXPONENT=1.4 from race_start
+        var myTickets = 8 + Math.pow(spd, 1.4);
+        var avgCpuTickets = 8 + Math.pow(5.25, 1.4); // CPU pool avg ~5.25
+        var approxWinPct = Math.round((myTickets / (myTickets + 3 * avgCpuTickets)) * 100);
         var selected = raceState.selectedPets.some(function(s) { return s && s.id === p.id; });
         return '<div class="race-pet-option ' + (selected ? 'race-pet-selected' : '') + '" ' +
           'onclick="race_togglePet(\'' + p.id + '\')" ' +
@@ -4264,7 +4270,7 @@ async function race_renderSetup() {
           '<div style="font-size:1.4rem;">' + race_petAvatar(p) + '</div>' +
           '<div style="font-size:0.78rem;font-weight:700;color:var(--purple-dark);">' + escapeHtml(p.nickname || p.pet_type || 'Pet') + '</div>' +
           '<div style="font-size:0.72rem;color:var(--text-light);">Lv.' + (p.level||1) + ' · ⚡' + Math.floor(p.energy||0) + '</div>' +
-          '<div style="font-size:0.72rem;font-weight:700;color:' + spdColor + ';">💨 Speed: ' + spd + '</div>' +
+          '<div style="font-size:0.72rem;font-weight:700;color:' + spdColor + ';">💨 SPD ' + spd + ' · ~' + approxWinPct + '% win</div>' +
         '</div>';
       }).join('');
 
@@ -4293,8 +4299,8 @@ async function race_renderSetup() {
       '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Select up to 2 pets to race (CPU fills the rest):</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px;">' + petsHtml + '</div>' +
       '<div style="background:rgba(153,102,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:0.7rem;color:var(--text-light);line-height:1.7;">' +
-        '<strong style="color:var(--purple-dark);">🏎️ What makes a pet fast?</strong> ' +
-        'Speed (💨) = pet\'s base stat. Increases by leveling up, equipping speed gear, or certain variants. Higher speed → better win odds and bigger payouts!' +
+        '\'<strong style="color:var(--purple-dark);">🏎️ How does Speed work?</strong> \' +
+        \'Every pet has a base chance to win — even slow ones can upset! Higher Speed (💨) gives more tickets in the draw so faster pets win more often, but returns shrink as you stack gear. Rough win odds vs 3 opponents: Speed 4 ≈14%, Speed 8 ≈48%, Speed 12 ≈66%, Speed 20 ≈82%. Boost speed by leveling, equipping speed gear, or unlocking variants!\' +
       '</div>' +
       '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Your Bet:</div>' +
       '<div style="display:flex;gap:8px;margin-bottom:16px;">' + betBtns + '</div>' +
@@ -4369,12 +4375,25 @@ async function race_start() {
   var cpuPool = CPU_PETS.slice().sort(function() { return Math.random() - 0.5; });
   while (lanes.length < 4) { lanes.push(cpuPool[lanes.length - raceState.selectedPets.length] || CPU_PETS[0]); }
 
-  // Compute race speeds with RNG + track modifier
+  // Compute race scores using a weighted-lottery model:
+  //   tickets = FLOOR_TICKETS + (speed * trackMod) ^ SPEED_EXPONENT
+  //   score   = tickets * random()
+  //
+  // FLOOR_TICKETS: every pet starts with these so even Speed-4 starters
+  //   have a real underdog chance (~14% vs 3 average-speed opponents).
+  // SPEED_EXPONENT > 1: super-linear scaling so high-speed endgame pets
+  //   feel genuinely dominant (Speed 12 ≈65%, Speed 20 ≈82%, Speed 28 ≈88%)
+  //   while still occasionally losing — no pet is unbeatable.
+  // This scales naturally to any speed ceiling without needing retuning.
+  var FLOOR_TICKETS  = 8;   // baseline tickets for all pets
+  var SPEED_EXPONENT = 1.4; // >1 = increasing returns (Speed 12 ≈65%, Speed 28 ≈88%)
   var racerunners = lanes.map(function(pet) {
     var base = pet.base_speed || 4;
     var trackMod = pet.isCpu ? 1 : race_getTrackSpeedModifier(pet.current_variant || null);
-    var speed = base * trackMod * (0.7 + Math.random() * 0.6);
-    return { pet: pet, speed: speed, progress: 0, finished: false, finishOrder: null };
+    var effectiveSpeed = base * trackMod;
+    var tickets = FLOOR_TICKETS + Math.pow(effectiveSpeed, SPEED_EXPONENT);
+    var speed = tickets * Math.random(); // "speed" here is the final race score
+    return { pet: pet, speed: speed, effectiveSpeed: Math.round(effectiveSpeed * 10) / 10, tickets: Math.round(tickets * 10) / 10, progress: 0, finished: false, finishOrder: null };
   });
 
   // Render track
@@ -24584,14 +24603,15 @@ async function loadStatsPage() {
     html += '<div class="stats-list">';
     
     var globalStatLabels = {
-      'total_enemies_defeated': '🎯 Total Enemies Defeated',
-      'total_pets_adopted': '🐾 Total Pets Adopted',
-      'total_battles_won': '⚔️ Total Battles Won',
-      'total_pp_earned': '🪙 Total PP Earned',
+      'total_pets_adopted':    '🐾 Total Pets Adopted',
+      'total_battles_won':     '⚔️ Total Battles Won',
+      'total_bosses_slain':    '👑 Total Bosses Slain',
+      'total_enemies_defeated':'🎯 Total Enemies Defeated',
+      'total_pp_earned':       '🪙 Total PP Earned',
       'total_items_purchased': '🛒 Total Items Purchased',
-      'total_minigames_played': '🎮 Total Minigames Played',
-      'mushrooms_defeated': '🍄 Mushrooms Defeated',
-      'spoon_weapon_equips': '🥄 Spoon Weapons Equipped'
+      'total_minigames_played':'🎮 Total Minigames Played',
+      'mushrooms_defeated':    '🍄 Mushrooms Defeated',
+      'spoon_weapon_equips':   '🥄 Spoon Weapons Equipped'
     };
     
     Object.keys(globalStatLabels).forEach(function(key) {
@@ -28514,6 +28534,21 @@ function showRareDropCelebration(rare) {
 //   - live streamers  -> _currentlyLiveStreamers
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Returns count of players active in the last hour (last_login within 60 min)
+async function getOnlinePlayerCount() {
+  try {
+    var since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    var { count, error } = await supabaseClient
+      .from('players')
+      .select('id', { count: 'exact', head: true })
+      .gte('last_login', since);
+    if (error) throw error;
+    return count || 0;
+  } catch (e) {
+    return null; // silently fail — non-critical
+  }
+}
+
 async function todayCard_init() {
   try {
     await todayCard_render();
@@ -28552,6 +28587,10 @@ async function todayCard_render() {
   // Live streamers
   var liveCount = (typeof _currentlyLiveStreamers !== 'undefined') ? _currentlyLiveStreamers.length : 0;
 
+  // Online players (last 60 min) — non-blocking
+  var onlineCount = null;
+  try { onlineCount = await getOnlinePlayerCount(); } catch (e) {}
+
   // MINI SEASONS: banner for whatever's currently active (can be more than
   // one at once — a custom event layered over a calendar season, etc)
   var seasonHtml = '';
@@ -28589,6 +28628,10 @@ async function todayCard_render() {
       '<strong>' + weather.name + '</strong>: ' + weather.effect + '</div>'
     : '<div class="today-card-weather">Loading weather...</div>';
 
+  var onlineHtml = onlineCount !== null
+    ? '<div class="today-card-online">🟢 <strong>' + onlineCount + '</strong> player' + (onlineCount !== 1 ? 's' : '') + ' online in the last hour</div>'
+    : '';
+
   var statsHtml = '<div class="today-card-stats">' +
     '⚔️ ' + (stats.battles_won || 0) + ' battles won &nbsp;•&nbsp; ' +
     '👑 ' + (stats.bosses_killed || 0) + ' bosses defeated &nbsp;•&nbsp; ' +
@@ -28612,6 +28655,7 @@ async function todayCard_render() {
     '<div class="today-card">' +
       '<div class="today-card-header">🌟 Today in PawketPets</div>' +
       seasonHtml +
+      onlineHtml +
       worldStateHtml +
       weatherHtml +
       statsHtml +
