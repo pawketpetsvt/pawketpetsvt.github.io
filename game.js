@@ -26118,6 +26118,49 @@ function onCompanionMessage() {
   updateBingoProgress('pet_companion', 1);
 }
 
+// ── PAT / PET GIMMICK ────────────────────────────────────────────────────────
+// Click the floating companion sprite to spawn stacking *PAT* / *PET* text.
+// Pure visual — no game mechanics, just fun.
+var _patMessages = ['*PAT*', '*PET*', '*BOOP*', '*SCRITCH*', '*PAT PAT*', '♥', '(^・ω・^)'];
+var _patIndex = 0;
+
+function companionPat(evt) {
+  var sprite = document.getElementById('companion-sprite');
+  if (!sprite) return;
+
+  // Pick next message in sequence (cycles through the list)
+  var msg = _patMessages[_patIndex % _patMessages.length];
+  _patIndex++;
+
+  // Spawn the floating text near where the click happened
+  var el = document.createElement('div');
+  el.className = 'companion-pat-text';
+  el.textContent = msg;
+
+  // Randomise horizontal offset slightly so stacked pats don't overlap exactly
+  var rect = sprite.getBoundingClientRect();
+  var x = rect.left + rect.width / 2 + (Math.random() * 40 - 20);
+  var y = rect.top - 8;
+  el.style.left = x + 'px';
+  el.style.top  = y + 'px';
+
+  document.body.appendChild(el);
+
+  // Remove after animation completes
+  safeSetTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1300);
+
+  // Wobble the sprite
+  sprite.style.transition = 'transform 0.1s';
+  sprite.style.transform  = 'scale(1.25) rotate(-8deg)';
+  safeSetTimeout(function() {
+    sprite.style.transform = 'scale(1.1) rotate(6deg)';
+    safeSetTimeout(function() {
+      sprite.style.transform = '';
+      sprite.style.transition = '';
+    }, 100);
+  }, 100);
+}
+
 
 // ══════════════════════════════════════════════════════════════════════════
 // STATISTICS PAGE LOADER (BUG FIX #3)

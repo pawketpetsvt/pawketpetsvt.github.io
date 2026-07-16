@@ -9932,6 +9932,28 @@ body.night-mode .btn-outline:hover {
   background-position: center;
   filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
   animation: companionFloat 3s ease-in-out infinite;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Pat/pet floating text — spawned by companionPat() */
+.companion-pat-text {
+  position: fixed;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #ff66cc;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  pointer-events: none;
+  z-index: 9999;
+  animation: companionPatFloat 1.2s ease-out forwards;
+  white-space: nowrap;
+  font-family: 'Fredoka One', cursive;
+}
+
+@keyframes companionPatFloat {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-28px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-52px) scale(0.9); }
 }
 
 @keyframes companionFloat {
