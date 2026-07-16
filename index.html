@@ -4187,14 +4187,14 @@ function triggerSpookyEffect() {
   // ── Install sequence steps ─────────────────────────────────────────────
   // errorAt: which step shows the red bar segment (0-indexed)
   var steps = [
-    { pct: 8,  status: 'Initializing setup wizard...',              sub: 'Loading PAWKET.EXE...' },
+    { pct: 8,  status: 'Initializing setup wizard...',              sub: 'Loading PAWKET.EXE — please do not close this window.' },
     { pct: 22, status: 'Checking system requirements...',            sub: 'OK — 640KB ought to be enough for anybody' },
-    { pct: 35, status: 'Unpacking pet data...',                      sub: 'pawket_core.dat ... pawket_pets.dat ... menus.dat ...' },
+    { pct: 35, status: 'Unpacking pet data...',                      sub: 'Installing 8 VTubers... installing happiness... installing questionable safety standards...' },
     { pct: 51, status: 'Restoring previous session data...',         sub: '⚠ 1 previous user data conflict detected — skipping', errorBar: true },
     { pct: 67, status: 'Connecting to Melon Interactive servers...', sub: 'Connection established. Welcome back.' },
-    { pct: 80, status: 'Configuring companion AI...',                sub: 'They have been waiting.' },
-    { pct: 93, status: 'Almost ready...',                            sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing' },
-    { pct: 99, status: 'Finalizing installation...',                 sub: '' },
+    { pct: 80, status: 'Configuring companion AI...',                sub: 'Loading pet personalities... WARNING: do not feed corrupted pets after midnight.' },
+    { pct: 93, status: 'Installing weather engine...',               sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing. 100% Piper-free since yesterday.' },
+    { pct: 99, status: 'Finalizing installation...',                 sub: 'Your pets definitely won’t unionize. Probably.' },
   ];
 
   var discWrap    = document.getElementById('install-disc-wrap');
@@ -4262,6 +4262,29 @@ function triggerSpookyEffect() {
     if (i >= steps.length) {
       setTimeout(function() {
         if (fade) { fade.classList.add('fading'); }
+
+        // ── SUBLIMINAL FLICKER — fires ~0.7s into the 1.2s fade ─────────
+        // Appears for ~220ms during the blackout. Extremely easy to miss.
+        // Curious players who catch it will go looking.
+        setTimeout(function() {
+          var flicker = document.createElement('div');
+          flicker.id = 'install-flicker';
+          flicker.style.cssText = [
+            'position:fixed','inset:0','z-index:9999999',
+            'display:flex','align-items:center','justify-content:center',
+            'background:#000','pointer-events:none',
+            'font-family:"Courier New",monospace','color:#ff0000',
+            'font-size:clamp(1rem,3vw,1.6rem)','font-weight:bold',
+            'letter-spacing:0.15em','opacity:1'
+          ].join(';');
+          flicker.textContent = 'YOU SHOULDN’T BE HERE';
+          document.body.appendChild(flicker);
+          // Remove after 220ms — gone before most people register it
+          setTimeout(function() {
+            if (flicker.parentNode) flicker.parentNode.removeChild(flicker);
+          }, 220);
+        }, 700);
+
         setTimeout(function() {
           // Dismiss any lingering popups
           ['install-popup-1','install-popup-2','install-popup-3'].forEach(function(id) {

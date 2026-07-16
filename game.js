@@ -2010,6 +2010,78 @@ async function updateSidebarStats() {
   }
 }
 
+// ══════════════════════════════════════════════════════════════════════════
+// MELON MILESTONE MESSAGES
+// Melon sends contextual notifications at key moments post-tutorial.
+// Turns her from a tutorial NPC into a recurring character.
+// Each fires once per player (tracked in localStorage).
+// ══════════════════════════════════════════════════════════════════════════
+
+function checkMelonMilestones() {
+  if (!currentUser) return;
+  var streak = (typeof dailyLoginStreak !== 'undefined' && dailyLoginStreak) || 0;
+  var sent = JSON.parse(localStorage.getItem('melon_milestones') || '{}');
+
+  var milestones = [
+    {
+      key: 'day3',
+      check: function() { return streak >= 3; },
+      title: 'Melon says hi! 🍉',
+      message: "Hey! You've been around for a few days now. That makes you one of our more dedicated testers. I hope the pets are treating you well. ...They are, right?"
+    },
+    {
+      key: 'day7',
+      check: function() { return streak >= 7; },
+      title: 'Melon checks in 🍉',
+      message: "One week! Have you noticed the news ticker yet? Sometimes it says... unusual things. I'm sure it's nothing. Probably just a display bug. Anyway — keep feeding your pets!"
+    },
+    {
+      key: 'first_boss',
+      check: function() {
+        var stats = JSON.parse(localStorage.getItem('player_local_stats') || '{}');
+        return (stats.bosses_killed || 0) >= 1;
+      },
+      title: 'Melon has a question 🍉',
+      message: "...That wasn't supposed to happen. The boss, I mean. I didn't think anyone would actually get that far this quickly. Are you doing okay? The pets seem unsettled."
+    },
+    {
+      key: 'corruption_50',
+      check: function() {
+        return (typeof getWorldStateValueSync === 'function') && getWorldStateValueSync('corruption_level', 0) >= 50;
+      },
+      title: 'Melon sounds different 🍉',
+      message: "The world integrity is getting lower. I notice things like that. I notice a lot of things. Don't tell anyone I said this, but... you might want to keep your pets close tonight."
+    },
+    {
+      key: 'level10',
+      check: function() {
+        return Object.values(petState || {}).some(function(p) { return p && (p.level || 0) >= 10; });
+      },
+      title: 'Melon is impressed 🍉',
+      message: "Level 10! That's real dedication. I've seen a lot of testers come through here. Not many make it this far. ...Well. Most of them don't. But you're doing great!"
+    }
+  ];
+
+  milestones.forEach(function(m) {
+    if (sent[m.key]) return;
+    try {
+      if (m.check()) {
+        sent[m.key] = Date.now();
+        localStorage.setItem('melon_milestones', JSON.stringify(sent));
+        safeSetTimeout(function() {
+          createNotification(
+            currentUser.id,
+            'melon_message',
+            m.title,
+            m.message,
+            'tab:shop'
+          ).catch(function(){});
+        }, 3000); // small delay so it doesn't fire immediately on load
+      }
+    } catch(e) {}
+  });
+}
+
 // Calculate day streak from localStorage
 function calculateDayStreak() {
   try {
@@ -28062,6 +28134,8 @@ async function newFeatures_init() {
   try {
     if (typeof todayCard_init === 'function') await todayCard_init();
     if (typeof corruptionVisuals_init === 'function') corruptionVisuals_init();
+    // Check Melon milestone messages (fires once per milestone per player)
+    safeSetTimeout(function() { checkMelonMilestones(); }, 5000);
 
     // Show "missed you" messages for any pets the player hasn't seen in 12+ hours
     safeSetTimeout(function() {
