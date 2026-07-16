@@ -583,16 +583,190 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   #install-disc-hint { font-size: 0.72rem; color: #555; font-family: Tahoma, Arial, sans-serif; }
   #install-progress-area { margin-bottom: 16px; }
   #install-status-text { font-size: 0.82rem; color: #000; font-family: Tahoma, Arial, sans-serif; margin-bottom: 6px; text-align: left; min-height: 1.2em; }
-  #install-bar-wrap { width: 100%; height: 20px; background: #fff; border: 2px inset #888; overflow: hidden; }
+  #install-bar-wrap { width: 100%; height: 20px; background: #fff; border: 2px inset #888; overflow: hidden; display: flex; }
   #install-bar {
     height: 100%; width: 0%;
     background: repeating-linear-gradient(90deg, #000080 0px, #000080 14px, #5588cc 14px, #5588cc 18px);
     transition: width 0.4s ease;
+    flex-shrink: 0;
   }
   #install-sub-status { font-size: 0.72rem; color: #555; font-family: 'Courier New', monospace; text-align: left; margin-top: 4px; min-height: 1.2em; }
   #install-fine-print { font-size: 0.65rem; color: #666; font-family: Tahoma, Arial, sans-serif; border-top: 1px solid #aaa; padding-top: 10px; margin-top: 6px; text-align: left; line-height: 1.7; }
   #install-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 999999; transition: opacity 1.2s ease; }
   #install-fade.fading { opacity: 1; pointer-events: all; }
+
+  /* ── Popup ads ── */
+  .install-popup {
+    position: fixed;
+    z-index: 100001;
+    background: #d4d0c8;
+    border: 2px solid #fff;
+    border-right-color: #404040;
+    border-bottom-color: #404040;
+    box-shadow: 2px 2px 0 #000;
+    width: 260px;
+    font-family: Tahoma, Arial, sans-serif;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+  }
+  .install-popup.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+  .install-popup-titlebar {
+    background: linear-gradient(90deg, #000080, #1084d0);
+    padding: 3px 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+  }
+  .install-popup-titlebar span {
+    color: #fff;
+    font-size: 10px;
+    font-weight: bold;
+  }
+  .install-popup-close {
+    background: #d4d0c8;
+    border: 1px solid #888;
+    border-bottom-color: #fff;
+    border-right-color: #fff;
+    color: #000;
+    font-size: 10px;
+    width: 16px;
+    height: 14px;
+    line-height: 12px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: bold;
+    padding: 0;
+    flex-shrink: 0;
+  }
+  .install-popup-close:hover { background: #ff6b6b; color: #fff; }
+  .install-popup-body {
+    padding: 10px 12px 12px;
+    text-align: center;
+  }
+  .install-popup-body .popup-headline {
+    font-size: 13px;
+    font-weight: bold;
+    color: #cc0000;
+    margin-bottom: 6px;
+    line-height: 1.3;
+  }
+  .install-popup-body .popup-sub {
+    font-size: 10px;
+    color: #333;
+    margin-bottom: 8px;
+    line-height: 1.4;
+  }
+  .install-popup-body .popup-btn {
+    display: inline-block;
+    background: linear-gradient(180deg, #ffff00, #ffcc00);
+    border: 2px outset #888;
+    color: #000;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 4px 14px;
+    cursor: pointer;
+    font-family: Tahoma, Arial, sans-serif;
+    text-decoration: none;
+  }
+  .install-popup-body .popup-btn:hover { background: linear-gradient(180deg, #ffcc00, #ff9900); }
+  .install-popup-body .popup-fine {
+    font-size: 8px;
+    color: #888;
+    margin-top: 6px;
+    line-height: 1.3;
+  }
+  .install-popup-body .popup-counter {
+    font-size: 22px;
+    font-weight: bold;
+    color: #008000;
+    font-family: Impact, Arial, sans-serif;
+    margin: 4px 0;
+    animation: counterFlash 0.5s ease infinite alternate;
+  }
+  @keyframes counterFlash {
+    from { color: #008000; }
+    to   { color: #cc0000; }
+  }
+
+  /* ── Creepy popup special styles ── */
+  .install-popup.creepy {
+    border-color: #333 #000 #000 #333;
+    box-shadow: 2px 2px 0 #000, 0 0 12px rgba(80,0,100,0.6);
+  }
+  .install-popup.creepy .install-popup-titlebar {
+    background: linear-gradient(90deg, #1a001a, #3d0050);
+  }
+  .install-popup.creepy .popup-headline {
+    color: #6600aa;
+    font-family: 'Courier New', monospace;
+  }
+  .install-popup.creepy .popup-sub {
+    font-family: 'Courier New', monospace;
+    font-size: 9px;
+    color: #444;
+  }
+  .install-popup.creepy .popup-img {
+    width: 80px;
+    height: 60px;
+    background: #111;
+    margin: 6px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 28px;
+    border: 1px solid #333;
+    filter: grayscale(1) brightness(0.6);
+    position: relative;
+    overflow: hidden;
+  }
+  .install-popup.creepy .popup-img::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,200,0,0.04) 2px, rgba(0,200,0,0.04) 4px
+    );
+  }
+  @keyframes creepyGlitch {
+    0%   { transform: translate(0,0) skewX(0deg); filter: none; }
+    85%  { transform: translate(0,0) skewX(0deg); filter: none; }
+    87%  { transform: translate(-3px,1px) skewX(-4deg); filter: hue-rotate(90deg) brightness(1.5); }
+    89%  { transform: translate(3px,-1px) skewX(2deg); filter: hue-rotate(200deg); }
+    91%  { transform: translate(-2px,2px) skewX(-2deg); filter: none; }
+    93%  { transform: translate(0,0) skewX(0deg); filter: none; }
+    96%  { transform: translate(2px,0); filter: brightness(0.4); }
+    98%  { transform: translate(0,0); filter: none; }
+    100% { transform: translate(0,0) skewX(0deg); filter: none; }
+  }
+  .install-popup.creepy.show {
+    animation: creepyGlitch 6s ease-in-out infinite;
+  }
+
+  /* ── Red error bar segment ── */
+  .install-bar-error {
+    display: inline-block;
+    height: 100%;
+    background: repeating-linear-gradient(
+      90deg, #cc0000 0px, #cc0000 14px, #880000 14px, #880000 18px
+    );
+    transition: width 0.4s ease;
+  }
+  #install-error-msg {
+    font-size: 0.7rem;
+    color: #cc0000;
+    font-family: 'Courier New', monospace;
+    text-align: left;
+    margin-top: 3px;
+    min-height: 1em;
+    font-weight: bold;
+    display: none;
+  }
 
   /* Hide all game chrome while install screen is showing */
   body.installing .navbar,
@@ -886,7 +1060,9 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <div id="install-status-text">Initializing setup wizard...</div>
         <div id="install-bar-wrap">
           <div id="install-bar"></div>
+          <div id="install-bar-error" class="install-bar-error" style="width:0%;"></div>
         </div>
+        <div id="install-error-msg"></div>
         <div id="install-sub-status">&nbsp;</div>
       </div>
 
@@ -897,6 +1073,58 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- POPUP ADS — shown during install sequence -->
+
+<!-- Popup 1: Prize winner (normal, cheesy) -->
+<div class="install-popup" id="install-popup-1" style="top:12%;right:4%;">
+  <div class="install-popup-titlebar">
+    <span>🎉 Congratulations!!</span>
+    <button class="install-popup-close" onclick="document.getElementById('install-popup-1').classList.remove('show')">✕</button>
+  </div>
+  <div class="install-popup-body">
+    <div class="popup-counter" id="popup-counter">1,000,000</div>
+    <div class="popup-headline">YOU ARE OUR ONE MILLIONTH<br>VISITOR TODAY!!!</div>
+    <div class="popup-sub">You have been selected to receive a<br><strong>FREE Virtual Pet Bundle</strong><br>valued at $49.99!! Act NOW!!</div>
+    <div class="popup-btn" onclick="document.getElementById('install-popup-1').classList.remove('show')">CLAIM FREE GIFT!!</div>
+    <div class="popup-fine">* Offer valid for new PawketPets beta testers only. Previous offer recipients not eligible. We cannot be held responsible for what your pet does next.</div>
+  </div>
+</div>
+
+<!-- Popup 2: Product ad (normal, cheesy) -->
+<div class="install-popup" id="install-popup-2" style="top:8%;left:2%;">
+  <div class="install-popup-titlebar">
+    <span>PetCare Pro™ — Special Offer!</span>
+    <button class="install-popup-close" onclick="document.getElementById('install-popup-2').classList.remove('show')">✕</button>
+  </div>
+  <div class="install-popup-body">
+    <div style="font-size:28px;margin-bottom:4px;">🐾💊</div>
+    <div class="popup-headline" style="color:#006600;">IS YOUR PET FEELING SAD??</div>
+    <div class="popup-sub">
+      Try <strong>PetCare Pro™</strong> — the #1 virtual pet<br>
+      wellness supplement trusted by<br>
+      <strong>MILLIONS</strong> of beta testers worldwide!!<br><br>
+      <span style="color:#cc0000;font-weight:bold;">LIMITED TIME: BUY 1 GET 1 FREE!!</span>
+    </div>
+    <div class="popup-btn" onclick="document.getElementById('install-popup-2').classList.remove('show')">ORDER NOW — $9.99</div>
+    <div class="popup-fine">* PetCare Pro™ not responsible for side effects including but not limited to: increased pet sentience, unexplained attachment, or sessions that do not end.</div>
+  </div>
+</div>
+
+<!-- Popup 3: Creepy one -->
+<div class="install-popup creepy" id="install-popup-3" style="bottom:10%;right:3%;">
+  <div class="install-popup-titlebar">
+    <span id="creepy-popup-title">MISSING — please read</span>
+    <button class="install-popup-close" onclick="closeCreepyPopup()">✕</button>
+  </div>
+  <div class="install-popup-body">
+    <div class="popup-img" id="creepy-popup-img">❓</div>
+    <div class="popup-headline" id="creepy-popup-headline">Have you seen this pet?</div>
+    <div class="popup-sub" id="creepy-popup-sub">Last seen: <span id="creepy-date">Session 7</span><br>If located, do <strong>NOT</strong> attempt to feed it.<br>Do <strong>NOT</strong> make eye contact.<br>Contact Melon Interactive immediately.</div>
+    <div class="popup-btn" onclick="closeCreepyPopup()">I HAVE NOT SEEN IT</div>
+    <div class="popup-fine" id="creepy-fine">This message will not appear again.</div>
   </div>
 </div>
 
@@ -3896,40 +4124,96 @@ function triggerSpookyEffect() {
   }
 
   // ── Install sequence steps ─────────────────────────────────────────────
+  // errorAt: which step shows the red bar segment (0-indexed)
   var steps = [
-    { pct: 8,  status: 'Initializing setup wizard...',         sub: 'Loading PAWKET.EXE...' },
-    { pct: 22, status: 'Checking system requirements...',       sub: 'OK — 640KB ought to be enough for anybody' },
-    { pct: 35, status: 'Unpacking pet data...',                 sub: 'pawket_core.dat ... pawket_pets.dat ... menus.dat ...' },
-    { pct: 51, status: 'Restoring previous session data...',    sub: '⚠ 1 previous user data conflict detected — skipping' },
+    { pct: 8,  status: 'Initializing setup wizard...',              sub: 'Loading PAWKET.EXE...' },
+    { pct: 22, status: 'Checking system requirements...',            sub: 'OK — 640KB ought to be enough for anybody' },
+    { pct: 35, status: 'Unpacking pet data...',                      sub: 'pawket_core.dat ... pawket_pets.dat ... menus.dat ...' },
+    { pct: 51, status: 'Restoring previous session data...',         sub: '⚠ 1 previous user data conflict detected — skipping', errorBar: true },
     { pct: 67, status: 'Connecting to Melon Interactive servers...', sub: 'Connection established. Welcome back.' },
-    { pct: 80, status: 'Configuring companion AI...',           sub: 'They have been waiting.' },
-    { pct: 93, status: 'Almost ready...',                       sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing' },
-    { pct: 99, status: 'Finalizing installation...',            sub: '' },
+    { pct: 80, status: 'Configuring companion AI...',                sub: 'They have been waiting.' },
+    { pct: 93, status: 'Almost ready...',                            sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing' },
+    { pct: 99, status: 'Finalizing installation...',                 sub: '' },
   ];
 
-  var discWrap = document.getElementById('install-disc-wrap');
-  var progressArea = document.getElementById('install-progress-area');
-  var statusText = document.getElementById('install-status-text');
-  var bar = document.getElementById('install-bar');
-  var subStatus = document.getElementById('install-sub-status');
-  var fade = document.getElementById('install-fade');
+  var discWrap    = document.getElementById('install-disc-wrap');
+  var progressArea= document.getElementById('install-progress-area');
+  var statusText  = document.getElementById('install-status-text');
+  var bar         = document.getElementById('install-bar');
+  var barError    = document.getElementById('install-bar-error');
+  var errorMsg    = document.getElementById('install-error-msg');
+  var subStatus   = document.getElementById('install-sub-status');
+  var fade        = document.getElementById('install-fade');
+
+  // Popup counter animation
+  var counterEl = document.getElementById('popup-counter');
+  if (counterEl) {
+    var counterVal = 1000000;
+    setInterval(function() {
+      counterVal += Math.floor(Math.random() * 7) + 1;
+      counterEl.textContent = counterVal.toLocaleString();
+    }, 800);
+  }
+
+  // Creepy popup close handler — text glitches before closing
+  window.closeCreepyPopup = function() {
+    var p = document.getElementById('install-popup-3');
+    if (!p) return;
+    var h = document.getElementById('creepy-popup-headline');
+    var orig = h ? h.textContent : '';
+    var glitchChars = '█▉▊▓ ■ ▪';
+    var gi = 0;
+    var glitch = setInterval(function() {
+      if (h) h.textContent = Array.from(orig).map(function(c) {
+        return Math.random() > 0.5 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
+      }).join('');
+      gi++;
+      if (gi > 6) {
+        clearInterval(glitch);
+        p.classList.remove('show');
+        if (h) h.textContent = orig;
+      }
+    }, 80);
+  };
+
+  // Red bar: split the bar-wrap into two segments (green + red)
+  // We do this by having the main bar stop short and the error bar fill a chunk
+  function showErrorBar(greenPct) {
+    var errorPct = 7; // width of the red segment
+    if (bar) bar.style.width = (greenPct - errorPct) + '%';
+    if (barError) {
+      barError.style.width = errorPct + '%';
+      barError.style.display = 'inline-block';
+    }
+    if (errorMsg) {
+      errorMsg.style.display = 'block';
+      errorMsg.textContent = '⚠ ERR: user_data_conflict [0x4F] — previous session unresolved';
+    }
+  }
+
+  function clearErrorBar(fullPct) {
+    if (barError) { barError.style.width = '0%'; barError.style.display = 'none'; }
+    if (errorMsg) { errorMsg.style.display = 'none'; errorMsg.textContent = ''; }
+    if (bar) bar.style.width = fullPct + '%';
+  }
 
   function runStep(i) {
     if (i >= steps.length) {
-      // Final pause then fade to black
       setTimeout(function() {
         if (fade) { fade.classList.add('fading'); }
         setTimeout(function() {
-          // Show auth gate
+          // Dismiss any lingering popups
+          ['install-popup-1','install-popup-2','install-popup-3'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.classList.remove('show');
+          });
           screen.style.display = 'none';
           document.body.classList.remove('installing');
           authGate.style.display = '';
-          // Restore ref param to URL without reload
           if (urlRef) {
             try { history.replaceState(null, '', '?ref=' + urlRef); } catch(e) {}
           }
           localStorage.setItem(INSTALL_KEY, '1');
-          // Fade back in
           setTimeout(function() {
             if (fade) { fade.classList.remove('fading'); }
           }, 100);
@@ -3937,12 +4221,42 @@ function triggerSpookyEffect() {
       }, 600);
       return;
     }
+
     var step = steps[i];
     if (statusText) statusText.textContent = step.status;
     if (subStatus) subStatus.textContent = step.sub || ' ';
-    if (bar) bar.style.width = step.pct + '%';
 
-    // Vary timing — some steps are quick, some linger
+    // Red error bar on the conflict step
+    if (step.errorBar) {
+      showErrorBar(step.pct);
+    } else {
+      // Clear the error bar and resume green on next step
+      clearErrorBar(step.pct);
+    }
+
+    // Show popups at specific steps
+    if (i === 1) {
+      // Step 2: prize popup appears top-right
+      setTimeout(function() {
+        var p = document.getElementById('install-popup-1');
+        if (p) p.classList.add('show');
+      }, 600);
+    }
+    if (i === 3) {
+      // Step 4 (the conflict step): creepy popup appears bottom-right
+      setTimeout(function() {
+        var p = document.getElementById('install-popup-3');
+        if (p) p.classList.add('show');
+      }, 1200);
+    }
+    if (i === 5) {
+      // Step 6: product ad appears top-left
+      setTimeout(function() {
+        var p = document.getElementById('install-popup-2');
+        if (p) p.classList.add('show');
+      }, 400);
+    }
+
     var delays = [900, 1300, 1600, 2400, 1800, 2200, 2000, 2800];
     setTimeout(function() { runStep(i + 1); }, delays[i] || 700);
   }
