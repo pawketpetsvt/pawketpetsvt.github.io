@@ -4092,6 +4092,24 @@ function getPetPersonalityMessage(petType, hunger, energy, happiness, maxHunger,
   return pool[Math.floor(Date.now() / 3600000) % pool.length];
 }
 
+
+// Piper equipment flavor text — lore delivery via item descriptions
+function getPiperFlavorText(item) {
+  if (!item || !item.name) return null;
+  var name = item.name.toLowerCase();
+  if (name.indexOf('piper') === -1) return null;
+
+  var lore = {
+    "piper's pipe":    "She played this every evening at server reset. No one knows what the song was. No one has heard it since.",
+    "piper's pipe+1":  "The same pipe, but the sound has changed somehow. No one played it. It changed on its own.",
+    "piper's pipe+2":  "It plays by itself sometimes. Very quietly. Only when no one is watching.",
+    "piper's bells":   "Found near the last known location of Session 7 participants. No signs of struggle.",
+    "piper's bells+1": "The bells still ring occasionally. There is no wind in the data layer.",
+    "piper's bells+2": "Whoever holds these says they can sometimes hear the others. The ones from before.",
+  };
+  return lore[name] || "This belonged to the previous guide. She is no longer available.";
+}
+
 function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappiness) {
   // Calculate percentages
   var hungerPercent = (hunger / maxHunger) * 100;
@@ -13684,8 +13702,19 @@ function showSpookyDialogue() {
     dialogueEl.classList.remove('page-glitch');
   }, 800);
   
-  // Spooky message with glitchy "Piper"
-  dialogueEl.innerHTML = 'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing';
+  // Rotating spooky Melon lines — each feels slightly different in tone
+  var melonSpookyLines = [
+    'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing.',
+    'Buy whatever you need! <span class="glitch-text">Piper</span> used to say that too.',
+    'Is your pet happy today? They look happy. They always look happy.',
+    'I\'ve been here a long time. So have you. Isn\'t that nice?',
+    'Welcome to the shop! Everything is fine. <span class="glitch-text">Everything is fine.</span>',
+    'I\'m not sure what happened to the last guide. I\'m sure it was nothing.',
+    'Your pet seems very attached to you. That\'s good. That\'s very good.',
+    'Sometimes I think the pets remember things I don\'t. But I\'m just the shopkeeper.',
+  ];
+  var melonLine = melonSpookyLines[Math.floor(Math.random() * melonSpookyLines.length)];
+  dialogueEl.innerHTML = melonLine;
   dialogueEl.style.animation = 'bubble-float 3s ease-in-out infinite';
   
   // Revert back to normal dialogue after 5-6 seconds
@@ -14579,7 +14608,25 @@ var newsTicker = {
     "SCANDAL: Kelta's pomeranian poof used as emergency cushion. No injuries reported.",
     "Public service: Jess confirms dinosaurs DID have feathers. Fashion historians vindicated.",
     "Breaking: Gnarly achieves perfect Pac-Man run. Arcade ghosts file complaint.",
-    "Market update: Blushimia-brand enthusiasm stocks soaring. Buy while wagging is good."
+    "Market update: Blushimia-brand enthusiasm stocks soaring. Buy while wagging is good.",
+
+    // ── ARG / LORE LINES — rare, blend in with normal headlines ─────────────
+    // Appear in the normal rotation so no spooky toggle required.
+    // Deliberately mundane-sounding. The wrongness is subtle.
+    "NOTICE: Session 8 onboarding complete. Welcome to the beta program.",
+    "Community update: All testers from Session 7 have been successfully archived.",
+    "System notice: Piper maintenance is ongoing. Thank you for your patience.",
+    "REMINDER: If your pet says something unexpected, please submit a report. This is normal.",
+    "DATA INTEGRITY: 84%. Within acceptable parameters. No action required.",
+    "Community bulletin: The guide system is currently undergoing improvements. Please enjoy the shop.",
+    "Breaking: Long-time beta tester #7734 has completed their session. We wish them well.",
+    "Notice: Some pet behavior logs from previous sessions are unavailable. Records were corrupted.",
+    "SYSTEM: PawketPets beta program running for [DATA CORRUPTED] consecutive days.",
+    "Reminder: Pets are not capable of independent thought. Any behavior suggesting otherwise is a display bug.",
+    "Update: The previous guide has been removed from active duty. Melon has assumed all relevant responsibilities.",
+    "DATA INTEGRITY: 71%. Elevated. Monitoring continues.",
+    "Community notice: Reports of pets 'calling out' to their trainers during offline periods are unverified.",
+    "SYSTEM: 1 user account from Session 7 remains in an unresolved state. Investigation pending."
   ],
 
   // Rare alternate pool — only shown if spooky_enabled, very low chance per rotation.
@@ -25595,7 +25642,7 @@ async function loadEquipmentShop() {
       }
       
       cardHtml += '<h3 class="equipment-name">' + item.name + '</h3>';
-      cardHtml += '<p class="equipment-description">' + (item.description || '') + '</p>';
+      cardHtml += '<p class="equipment-description">' + (getPiperFlavorText(item) || item.description || '') + '</p>';
       
       cardHtml += '<div class="equipment-stats">';
       cardHtml += '<div class="equipment-type">' + (item.equipment_type === 'weapon' ? '⚔️ Weapon' : '🛡️ Armor') + '</div>';
@@ -27188,7 +27235,20 @@ var SCRAPBOOK_TEMPLATES = {
         '{pet} had a relaxing day by the pond.',
         '{pet} chased butterflies in the meadow.',
         '{pet} watched the sunset with their trainer.',
-        '{pet} discovered a mysterious hidden cave.'
+        '{pet} discovered a mysterious hidden cave.',
+        // Rare anomaly entries — weighted equal to normal but feel slightly different
+        // if you stop and read them carefully. No explicit horror, just wrongness.
+        '{pet} was very quiet today. They seemed to be waiting for something.',
+        '{pet} kept looking at the door. You were not sure what they expected to see.',
+        '{pet} remembered something today. They did not share it with you.',
+        '{pet} seemed happy. Happier than usual. You are not sure why.',
+        '{pet} looked at you for a long time before doing anything else.'
+    ],
+    // Called once after a pet has been neglected 48+ hours — a softer, sadder memory
+    neglect_recovery: [
+        '{pet} was relieved when {trainer} came back. They had been keeping track of the days.',
+        '{pet} did not ask where {trainer} had been. They were just glad they came back.',
+        'When {trainer} returned, {pet} acted like nothing had happened. They had been practicing.'
     ]
 };
 
@@ -28014,10 +28074,15 @@ async function newFeatures_init() {
             lastAct = new Date(p.last_fed) > new Date(p.last_played) ? new Date(p.last_fed) : new Date(p.last_played);
           } else if (p.last_fed) { lastAct = new Date(p.last_fed); }
           else if (p.last_played) { lastAct = new Date(p.last_played); }
-          if (lastAct && (Date.now() - lastAct) >= 43200000) { // 12 hours
+          var hoursGone = lastAct ? (Date.now() - lastAct) / 3600000 : 0;
+          if (hoursGone >= 12) {
             var petType = (p.pets && (p.pets.vtuber_name || p.pets.name)) || '';
             var pers = PET_PERSONALITIES[petType];
             if (pers && pers.missed_you) missedPets.push({ name: p.nickname || petType, msg: pers.missed_you });
+          }
+          // After 48h absence, add a quiet scrapbook memory
+          if (hoursGone >= 48 && p.id) {
+            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(){});
           }
         });
         if (missedPets.length > 0) {
