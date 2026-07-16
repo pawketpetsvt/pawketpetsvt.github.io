@@ -380,6 +380,55 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
   #install-fine-print { font-size: 0.65rem; color: #666; font-family: Tahoma, Arial, sans-serif; border-top: 1px solid #aaa; padding-top: 10px; margin-top: 6px; text-align: left; line-height: 1.7; }
   #install-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 999999; transition: opacity 1.2s ease; }
   #install-fade.fading { opacity: 1; pointer-events: all; }
+
+  /* Hide all game chrome while install screen is showing */
+  body.installing .navbar,
+  body.installing .news-ticker,
+  body.installing .left-sidebar,
+  body.installing .right-sidebar,
+  body.installing #auth-gate,
+  body.installing .toast { display: none !important; }
+
+  /* Guest (logged-out) layout: hide sidebar chrome, center the auth content */
+  body.guest .left-sidebar,
+  body.guest .right-sidebar,
+  body.guest .notification-bell,
+  body.guest .pass-button,
+  body.guest .bingo-button,
+  body.guest .event-status-widget,
+  body.guest #nav-skin-key-display,
+  body.guest .news-ticker { display: none !important; }
+
+  body.guest .navbar {
+    background: rgba(10, 5, 20, 0.95) !important;
+    border-bottom: 1px solid rgba(153,102,255,0.2) !important;
+  }
+  body.guest .app-container {
+    grid-template-columns: 1fr !important;
+    max-width: 860px !important;
+    margin: 0 auto !important;
+  }
+  body.guest #auth-gate .page-wrap {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+  }
+  body.guest .landing-hero {
+    padding: 30px 0 20px;
+  }
+  body.guest .landing-title {
+    font-size: clamp(2rem, 6vw, 3rem);
+  }
+  body.guest .landing-features {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 20px 0;
+  }
+  body.guest .landing-form-section {
+    max-width: 440px;
+    margin: 0 auto;
+  }
+
   @media (max-width: 480px) {
     #install-inner { width: 96vw; }
     #install-body { padding: 16px 14px 12px; }
@@ -3569,11 +3618,12 @@ function triggerSpookyEffect() {
   var testerEl = document.getElementById('install-tester-id');
   if (testerEl) testerEl.textContent = 'Tester ID: ' + testerId;
 
-  // Show the install screen
+  // Show the install screen — add class to body to hide all game chrome
   var screen = document.getElementById('install-screen');
   var authGate = document.getElementById('auth-gate');
   if (!screen || !authGate) return;
 
+  document.body.classList.add('installing');
   screen.style.display = 'flex';
   authGate.style.display = 'none';
 
@@ -3624,6 +3674,7 @@ function triggerSpookyEffect() {
         setTimeout(function() {
           // Show auth gate
           screen.style.display = 'none';
+          document.body.classList.remove('installing');
           authGate.style.display = '';
           // Restore ref param to URL without reload
           if (urlRef) {
@@ -3644,7 +3695,7 @@ function triggerSpookyEffect() {
     if (bar) bar.style.width = step.pct + '%';
 
     // Vary timing — some steps are quick, some linger
-    var delays = [400, 600, 700, 1100, 800, 1000, 900, 1400];
+    var delays = [900, 1300, 1600, 2400, 1800, 2200, 2000, 2800];
     setTimeout(function() { runStep(i + 1); }, delays[i] || 700);
   }
 

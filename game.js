@@ -1686,6 +1686,7 @@ async function initApp() {
 }
 
 async function showApp(user) {
+  document.body.classList.remove('guest');
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding
@@ -1921,7 +1922,7 @@ function showAuth() {
   if (rightSidebar) rightSidebar.style.display   = 'none';
   if (navCenter)    navCenter.style.visibility   = 'hidden';
   if (navRight)     navRight.style.visibility    = 'hidden';
-  document.body.classList.add('logged-out');
+  document.body.classList.add('guest');
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2078,6 +2079,7 @@ async function awardStreakReward(streak) {
 }
 
 async function handleLogout() {
+  document.body.classList.add('guest');
   cleanupAllTimers();
   if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.destroy) {
     CompanionBuddy.destroy();
@@ -3301,6 +3303,22 @@ function makeMyPetCard(pet) {
   moodDisplay.innerHTML = mood.emoji + ' Mood: ' + mood.mood;
   body.appendChild(moodDisplay);
 
+  // Personality message — character-specific flavor text based on mood state
+  var petType = info.vtuber_name || info.name || '';
+  var personalityMsg = getPetPersonalityMessage(
+    petType,
+    pet.hunger, pet.energy, pet.happiness,
+    pet.max_hunger, pet.max_energy, pet.max_happiness,
+    pet.last_fed, pet.last_played
+  );
+  if (personalityMsg) {
+    var personalityDiv = makeEl('div', {class:'pet-personality-msg'});
+    personalityDiv.style.cssText = 'font-size:0.82rem;color:var(--text-light);font-style:italic;text-align:center;' +
+      'padding:8px 12px;margin:0 0 8px 0;background:rgba(153,102,255,0.06);border-radius:10px;line-height:1.5;';
+    personalityDiv.textContent = '"' + personalityMsg + '"';
+    body.appendChild(personalityDiv);
+  }
+
   // Battle Stats (if they exist)
   if (pet.base_hp || pet.base_attack || pet.base_defense || pet.base_speed) {
     var battleStats = makeEl('div', {class:'pet-battle-stats'});
@@ -3752,6 +3770,324 @@ function calculateHappinessDecay(currentHappiness, lastFedTimestamp, lastPlayedT
   
   var newHappiness = Math.max(currentHappiness - decayAmount, 0);
   return newHappiness;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PET PERSONALITY MOOD MESSAGES
+// Each member has messages for 5 states: thriving, happy, meh, sad, neglected
+// Plus a special "missed you" message for 24h+ absence
+// ══════════════════════════════════════════════════════════════════════════
+
+var PET_PERSONALITIES = {
+  'Ember': {
+    thriving: [
+      "Running at full power. You know how it is. 🔥",
+      "Honestly? Never better. Don't tell anyone, it ruins my reputation.",
+      "Fed, rested, happy. Fire is fully charged. Let's go.",
+      "This is the grind. I love the grind. 🔥",
+    ],
+    happy: [
+      "Doing pretty good. Could be spicier but I'll manage.",
+      "Feeling solid. Maybe we go fight something?",
+      "Good energy today. Been thinking about Abiotic Factor...",
+      "Yeah, this is nice. Thanks for checking in. 🧡",
+    ],
+    meh: [
+      "I've been better. I've also been worse. This is fine.",
+      "Could use a snack tbh. The spicy kind.",
+      "Just vibing. Kind of. Not really.",
+      "Eleven years of this and I still get hungry. Annoying.",
+    ],
+    sad: [
+      "Hey. Hey. I need food. This is not a drill.",
+      "Running low over here. Not great, not great at all.",
+      "I'm tired and hungry and I need you to fix that. Please.",
+      "This is the bad grind. I don't love the bad grind. 😢",
+    ],
+    neglected: [
+      "...I know you've been busy. I know. But also. FOOD.",
+      "Hello? It's me. Your pet. Remember? Fire? Protogen? Hungry?",
+      "I've started talking to myself. It's fine. Everything is fine. 🔥",
+      "I didn't survive 11 years on Twitch to be forgotten by MY OWN OWNER.",
+    ],
+    missed_you: "Ember perks up! You were gone for a while... she pretends not to care. She cares a little. 🧡",
+  },
+
+  'Pyxie': {
+    thriving: [
+      "I had a plan and it worked. The plan was: eat, be happy, nap. ✨",
+      "Peak condition. Do not disturb. Thriving. Napping. Both simultaneously.",
+      "Mama's Sleeping Angels could NEVER. (I am winning at life right now)",
+      "Everything is perfect. Spooky and Momo would be proud. ✨",
+    ],
+    happy: [
+      "Pretty good! I have a plan for later. It involves a nap.",
+      "Happy chaos, controlled chaos. Perfectly balanced.",
+      "Feeling good in a chaotic sort of way. Very on brand.",
+      "Could be weirder. Has been weirder. This is nice. 💜",
+    ],
+    meh: [
+      "Existing. Successfully. Mostly.",
+      "I had a plan but it got derailed. New plan: sit here.",
+      "Somewhere between fine and a little bit feral. Normal.",
+      "The fog is calling but I have snacks. Dilemma.",
+    ],
+    sad: [
+      "The plan has failed. All plans have failed. Need food.",
+      "Current status: chaotic, but in the bad way.",
+      "Pizza the dog would not allow this. I am speaking up for Pizza.",
+      "A little sad. A lot hungry. Please help. 💜",
+    ],
+    neglected: [
+      "I have been forgotten. I am becoming one with the void. Voluntarily.",
+      "Spooky and Momo get fed every day. Just saying. Just saying.",
+      "The chaos has consumed me. This is your fault. Come back.",
+      "...I started a new plan. The plan is 'survive without you.' It's not going well.",
+    ],
+    missed_you: "Pyxie looks up from an elaborate scheme and pretends they weren't worried. They were a little worried. ✨",
+  },
+
+  'Aria': {
+    thriving: [
+      "I am thriving. The bones are plentiful. Life is good. 🦋",
+      "Humans are so silly but you're doing wonderfully. So am I.",
+      "Shiny things! Good food! Bones everywhere! What a day!",
+      "Feeling very powerful today. In a gentle, moth-adjacent way. 🌸",
+    ],
+    happy: [
+      "Today is a good day for collecting things. I feel it.",
+      "Happy and well-fed. The bones can wait. Mostly.",
+      "Something is very pretty today and I want to look at it. 🦋",
+      "Content. Warm. Slightly distracted by something shiny.",
+    ],
+    meh: [
+      "Humans are strange and I am a little hungry. Curious combination.",
+      "Doing okay! The cheesecake situation could be better.",
+      "I'm fine. I'm always fine. The Crane Wives are playing in my head.",
+      "Could use a little something. Bones or food, either works.",
+    ],
+    sad: [
+      "Oh. Oh no. I am sad AND hungry. This is suboptimal.",
+      "The fae do not suffer like this. And yet. Here I am.",
+      "I would like some blackberries please. And maybe a bone. Just a small one.",
+      "Not thriving right now. Please come say hello. 💀",
+    ],
+    neglected: [
+      "I have been very patient. The fae are KNOWN for patience. It is running out.",
+      "You can keep your bones for now. But you owe me so much food.",
+      "Humans are so strange and silly and I miss you. Please come back. 🦋",
+      "I started writing a story about being forgotten. It's quite good actually. Very sad.",
+    ],
+    missed_you: "Aria glances up from her bone collection, then looks away quickly. 'I wasn't waiting,' she says softly. She was waiting. 🦋",
+  },
+
+  'Kleat': {
+    thriving: [
+      "Yip yap! All systems go! Portal efficiency: maximum! ✨",
+      "Fed, happy, and I found a new world today. INCREDIBLE world. 10/10.",
+      "Grand mage status: fully operational. The void says hi.",
+      "Everything is perfect and I opened three portals just for fun! 🌀",
+    ],
+    happy: [
+      "Pretty good! The portal situation is very manageable right now.",
+      "Yip! Good vibes, good magic, good food. The pom life.",
+      "Happy and studying some galaxy magic. Don't mind me. ✨",
+      "Feeling adventurous. In a good way. Probably won't get lost.",
+    ],
+    meh: [
+      "I'm fine but the void seems quieter than usual. Suspicious.",
+      "Okay I guess. Would be better with more snacks and/or portals.",
+      "Yap. That's it. Just yap. Energy is low.",
+      "Studying. Being a gremlin. Could be fed more often just saying.",
+    ],
+    sad: [
+      "Kleat is not yipping. This is how you know something is wrong.",
+      "The portal to the snack dimension is closed. This is a crisis.",
+      "Unhappy pom noises. Feed me and I'll open you a portal. Deal.",
+      "Low energy. Even for a grand mage this is concerning. 💜",
+    ],
+    neglected: [
+      "I OPENED A PORTAL AND YOU WEREN'T EVEN HERE TO SEE IT.",
+      "Fine. I'll just go adventure alone. Through the void. By myself. This is fine.",
+      "The void is kind of lonely actually. Come back please. Yip.",
+      "No yaps. No yips. Just... quiet. You should fix that. 🌀",
+    ],
+    missed_you: "Kleat zooms in from somewhere that is definitely another dimension. 'I WASN'T LOST. I was adventuring.' ✨",
+  },
+
+  'Blushimia': {
+    thriving: [
+      "WHAT THE GLOB I AM SO HAPPY RIGHT NOW!!! 👑",
+      "Best day EVER. Escaped a video game AND got fed. Living the dream.",
+      "I am THRIVING and ALIVE and this is the GREATEST!!!",
+      "Full happiness! Full tummy! Wagging at maximum velocity! 🐾",
+    ],
+    happy: [
+      "What the glob, today is pretty good!!",
+      "Happy puppy princess reporting in! All good here! 🐾",
+      "Feeling great! What should we do?? I have ideas. So many ideas.",
+      "Good! Really good! Have you played Tomodachi Life? I'm thinking about it.",
+    ],
+    meh: [
+      "What the... glob? I think I need a snack.",
+      "Okay but could be better. Could be SO MUCH BETTER.",
+      "Princess energy is a little low today. Feed me and it comes back. 👑",
+      "Hmm. Hmmmm. Something is missing. Oh. It's food.",
+    ],
+    sad: [
+      "what the glob :(((( i am SAD and HUNGRY",
+      "This isn't what escaping a video game was supposed to be like!!",
+      "Princess status: depleted. Please help immediately. 🐾",
+      "I escaped my game for THIS?? (please feed me i love you)",
+    ],
+    neglected: [
+      "HELLO?? I AM RIGHT HERE?? WHAT THE GLOB????",
+      "I gained sentience and escaped a video game to be FORGOTTEN??",
+      "The tail has stopped wagging. You did this. Come back. 👑",
+      "what the glob what the glob what the glob please come back please",
+    ],
+    missed_you: "Blushimia's tail wags so hard she nearly falls over. 'YOU'RE BACK!! WHAT THE GLOB!! HI!!' 🐾",
+  },
+
+  'Steve': {
+    thriving: [
+      "Cluck. I am thriving. Do not question the cluck. 🐔",
+      "Fed. Happy. Still a menace. Everything is as it should be.",
+      "As chill as a fire in hell, and currently: extremely chill.",
+      "Bawk. Cockadoodledoo. That means I'm doing great. Trust.",
+    ],
+    happy: [
+      "Pretty good. Considering. You know. Everything.",
+      "Cluck bawk. Happy noises. The menace is content. 🐄",
+      "Good day. Found some bread. Caused some problems. Classic.",
+      "Doing well. Your cozy little horror is cozy today.",
+    ],
+    meh: [
+      "Cluck. Could be worse. Has been worse. Is fine.",
+      "The chaos is... manageable right now. Suspicious.",
+      "Neutral menace energy. Feed me and I'll escalate appropriately.",
+      "Existing. Causing minor problems. Living the dream I guess.",
+    ],
+    sad: [
+      "Bawk. Sad bawk. Please note the difference. It's important.",
+      "Not great. The chill is a fire in hell and the hell is empty.",
+      "I need bread. I need it now. Do not make me ask twice. 🐔",
+      "Your cozy little horror is not feeling very cozy right now.",
+    ],
+    neglected: [
+      "I have been a menace to myself out of pure boredom. This is your fault.",
+      "CLUCK. BAWK. BUCK. The good words. You know what they mean.",
+      "I started streaming for fun back in 2016 and I refuse to starve in 2026.",
+      "Fine. I'll just be unhinged alone. I'm good at it. But come back. 🐄",
+    ],
+    missed_you: "Steve eyes you with deep suspicion, then headbutts you anyway. That's cowbee love. Don't question it. 🐔",
+  },
+
+  'Gnarly': {
+    thriving: [
+      "HIGH SCORE. Life score. Both are maxed right now. 🎮",
+      "Fed, happy, and I just beat my personal best at three different games.",
+      "Radical. Absolutely radical. This is the good stuff.",
+      "Full stats, full tummy, full arcade energy. Let's GO. 🕹️",
+    ],
+    happy: [
+      "Pretty sick actually! Prize counter is ready to go.",
+      "Good vibes at the PaleoPlex today. Come hang out sometime.",
+      "Feeling radical! The Furbies are watching and they approve.",
+      "Happy and ready to absolutely dominate something. 🎮",
+    ],
+    meh: [
+      "Could be more radical. The nachos situation needs addressing.",
+      "Medium energy. The arcade awaits but I need fuel first.",
+      "Furbies are giving me a look. I think they're judging my stats.",
+      "Eh. Not my best run. Feed me, let's try again. 🕹️",
+    ],
+    sad: [
+      "Low score. Real low. This is NOT the high score life.",
+      "Even the Furbies look concerned. That's how you know it's bad.",
+      "Need nachos. Need energy. Need to be fed. In that order.",
+      "The PaleoPlex doesn't run on empty. Neither do I. 😢",
+    ],
+    neglected: [
+      "I have NEVER gotten a game over in my LIFE and this is what it feels like.",
+      "The Furbies are handling this better than I am. That's humbling.",
+      "INSERT COIN. INSERT COIN. That's you. You're the coin. Please.",
+      "Neopets The Darkest Faerie taught me resilience. It didn't prepare me for THIS. 🎮",
+    ],
+    missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
+  },
+
+  'Jess': {
+    thriving: [
+      "Thriving! The potions are working and the fossils are beautiful today. 🦕",
+      "Full energy, full tummy, and I found a really nice bone. Good day.",
+      "This fossil is 65 million years cuter than you. But you're doing great too.",
+      "Happy and warm and maybe a little adventurous today. 🌿",
+    ],
+    happy: [
+      "Doing well! The potion came out right on the first try today.",
+      "Good! Quiet and good. Found some interesting things in the dirt.",
+      "Content. Whimsical. Slightly covered in fossil dust. 🦕",
+      "Happy! It's a good day for small adventures.",
+    ],
+    meh: [
+      "Okay. The potion needs one more ingredient and I can't find it.",
+      "Existing quietly. Could use a snack and maybe a hug.",
+      "A little low today. Nothing a mango delight wouldn't fix.",
+      "The adventure is paused. Fuel required. 🌿",
+    ],
+    sad: [
+      "Sad and hungry and the potion definitely didn't work that time.",
+      "65 million years of dinosaur history and none of them thought to leave snacks.",
+      "I need something sweet please. And some company. 🦕",
+      "Quiet critter is being very quiet right now. In the sad way.",
+    ],
+    neglected: [
+      "I've been very patient. Parasaurs are known for patience. But still.",
+      "The fossils are keeping me company. They're good listeners. Unlike some people.",
+      "I started a new potion. It's called 'please remember I exist.' It's almost done.",
+      "Small adventures are less fun alone. Just so you know. 🌿",
+    ],
+    missed_you: "Jess looks up from her fossil collection and gives you a shy little wave. 'Oh! You're back. I made a potion for you.' 🦕",
+  }
+};
+
+// Returns a personality-driven mood message for the pet card
+// Falls back to generic if pet type not found
+function getPetPersonalityMessage(petType, hunger, energy, happiness, maxHunger, maxEnergy, maxHappiness, lastFed, lastPlayed) {
+  var p = PET_PERSONALITIES[petType];
+  if (!p) return null;
+
+  // Check for neglect (24h+ since last interaction)
+  var lastActivity = null;
+  if (lastFed && lastPlayed) {
+    lastActivity = new Date(lastFed) > new Date(lastPlayed) ? new Date(lastFed) : new Date(lastPlayed);
+  } else if (lastFed) { lastActivity = new Date(lastFed); }
+  else if (lastPlayed) { lastActivity = new Date(lastPlayed); }
+
+  if (lastActivity) {
+    var hoursAgo = (Date.now() - lastActivity) / 3600000;
+    if (hoursAgo >= 24) {
+      var msgs = p.neglected;
+      return msgs[Math.floor(Date.now() / 3600000) % msgs.length]; // rotates hourly
+    }
+  }
+
+  // Determine mood bucket
+  var hungerPct    = maxHunger    > 0 ? hunger    / maxHunger    : 1;
+  var energyPct    = maxEnergy    > 0 ? energy    / maxEnergy    : 1;
+  var happinessPct = maxHappiness > 0 ? happiness / maxHappiness : 1;
+  var overall = (hungerPct + energyPct + happinessPct) / 3;
+
+  var pool;
+  if (overall >= 0.85)      pool = p.thriving;
+  else if (overall >= 0.65) pool = p.happy;
+  else if (overall >= 0.40) pool = p.meh;
+  else if (overall >= 0.20) pool = p.sad;
+  else                      pool = p.neglected;
+
+  // Rotate through messages based on hour of day so it changes but doesn't flicker
+  return pool[Math.floor(Date.now() / 3600000) % pool.length];
 }
 
 function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappiness) {
@@ -19446,15 +19782,82 @@ async function checkDailyLogin() {
       p_reason: 'Daily login day ' + streak
     });
     
+    // Milestone item rewards
+    var streakBonusItem = null;
+    var streakBonusSkinKeys = 0;
+
+    if (streak === 3) {
+      // Day 3: give a Honey Cookies
+      var cookieRes = await supabaseClient.from('items').select('id').eq('name','Honey Cookies').maybeSingle();
+      if (cookieRes.data) {
+        await supabaseClient.from('user_inventory').upsert(
+          { user_id: currentUser.id, item_id: cookieRes.data.id, quantity: 3 },
+          { onConflict: 'user_id,item_id' }
+        ).catch(function(){});
+        streakBonusItem = '3x Honey Cookies';
+      }
+    } else if (streak === 5) {
+      // Day 5: 1 skin key
+      await supabaseClient.from('players').update({ skin_keys: supabaseClient.rpc ? undefined : 0 }).eq('id', currentUser.id);
+      await supabaseClient.rpc('increment_player_skin_keys', { p_user_id: currentUser.id, p_amount: 1 }).catch(async function() {
+        // Fallback: direct update
+        var kr = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
+        if (kr.data) await supabaseClient.from('players').update({ skin_keys: (kr.data.skin_keys || 0) + 1 }).eq('id', currentUser.id);
+      });
+      streakBonusSkinKeys = 1;
+    } else if (streak === 7) {
+      // Day 7: Faerie Dust Delight + 1 skin key
+      var faerieRes = await supabaseClient.from('items').select('id').eq('name','Faerie Dust Delight').maybeSingle();
+      if (faerieRes.data) {
+        await supabaseClient.from('user_inventory').upsert(
+          { user_id: currentUser.id, item_id: faerieRes.data.id, quantity: 1 },
+          { onConflict: 'user_id,item_id' }
+        ).catch(function(){});
+        streakBonusItem = '1x Faerie Dust Delight';
+      }
+      var kr2 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
+      if (kr2.data) await supabaseClient.from('players').update({ skin_keys: (kr2.data.skin_keys || 0) + 1 }).eq('id', currentUser.id);
+      streakBonusSkinKeys = 1;
+    } else if (streak === 14) {
+      // Day 14: Squeaky Toy + 2 skin keys
+      var toyRes = await supabaseClient.from('items').select('id').eq('name','Squeaky Toy').maybeSingle();
+      if (toyRes.data) {
+        await supabaseClient.from('user_inventory').upsert(
+          { user_id: currentUser.id, item_id: toyRes.data.id, quantity: 1 },
+          { onConflict: 'user_id,item_id' }
+        ).catch(function(){});
+        streakBonusItem = '1x Squeaky Toy';
+      }
+      var kr3 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
+      if (kr3.data) await supabaseClient.from('players').update({ skin_keys: (kr3.data.skin_keys || 0) + 2 }).eq('id', currentUser.id);
+      streakBonusSkinKeys = 2;
+    } else if (streak === 30) {
+      // Day 30: Golden Crown Roast + 3 skin keys
+      var crownRes = await supabaseClient.from('items').select('id').eq('name','Golden Crown Roast').maybeSingle();
+      if (crownRes.data) {
+        await supabaseClient.from('user_inventory').upsert(
+          { user_id: currentUser.id, item_id: crownRes.data.id, quantity: 1 },
+          { onConflict: 'user_id,item_id' }
+        ).catch(function(){});
+        streakBonusItem = '1x Golden Crown Roast';
+      }
+      var kr4 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
+      if (kr4.data) await supabaseClient.from('players').update({ skin_keys: (kr4.data.skin_keys || 0) + 3 }).eq('id', currentUser.id);
+      streakBonusSkinKeys = 3;
+    }
+
     // Show reward notification
-    showDailyLoginReward(streak, ppReward);
+    showDailyLoginReward(streak, ppReward, streakBonusItem, streakBonusSkinKeys);
     
     // Create notification
+    var notifMsg = 'Day ' + streak + ' streak! Earned ' + ppReward + ' PP';
+    if (streakBonusItem) notifMsg += ' + ' + streakBonusItem;
+    if (streakBonusSkinKeys) notifMsg += ' + ' + streakBonusSkinKeys + ' Skin Key' + (streakBonusSkinKeys > 1 ? 's' : '') + '!';
     await createNotification(
       currentUser.id,
       'daily_reward',
       '🎁 Daily Login Reward!',
-      'Day ' + streak + ' streak! Earned ' + ppReward + ' PP',
+      notifMsg,
       'tab:home'
     );
     
@@ -19485,7 +19888,7 @@ async function checkDailyLogin() {
 }
 
 // Show daily login reward modal
-function showDailyLoginReward(streak, ppReward) {
+function showDailyLoginReward(streak, ppReward, bonusItem, bonusSkinKeys) {
   var modal = makeModal();
   var content = makeEl('div');
   content.style.cssText = 'text-align:center;padding:20px;';
@@ -19507,23 +19910,49 @@ function showDailyLoginReward(streak, ppReward) {
   
   var reward = makeEl('p');
   reward.innerHTML = '🪙 <strong>+' + ppReward + ' PawketPoints</strong>';
-  reward.style.cssText = 'font-size:1.2rem;margin-bottom:15px;color:var(--purple);';
+  reward.style.cssText = 'font-size:1.2rem;margin-bottom:8px;color:var(--purple);';
   content.appendChild(reward);
-  
+
+  // Bonus item reward
+  if (bonusItem) {
+    var itemReward = makeEl('p');
+    itemReward.innerHTML = '🎒 <strong>' + bonusItem + '</strong> added to your inventory!';
+    itemReward.style.cssText = 'font-size:1rem;margin-bottom:8px;color:#5dde7a;';
+    content.appendChild(itemReward);
+  }
+
+  // Skin key reward
+  if (bonusSkinKeys) {
+    var keyReward = makeEl('p');
+    keyReward.innerHTML = '🗝️ <strong>' + bonusSkinKeys + ' Skin Key' + (bonusSkinKeys > 1 ? 's' : '') + '</strong> added to your account!';
+    keyReward.style.cssText = 'font-size:1rem;margin-bottom:8px;color:#f0a500;';
+    content.appendChild(keyReward);
+  }
+
   // Milestone bonuses
-  if (streak === 7) {
+  if (streak === 3) {
     var bonus = makeEl('p');
-    bonus.innerHTML = '⭐ <strong>Week Milestone Bonus!</strong>';
+    bonus.innerHTML = '🍪 <strong>3 Day Milestone!</strong> Keep it up!';
+    bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
+    content.appendChild(bonus);
+  } else if (streak === 5) {
+    var bonus = makeEl('p');
+    bonus.innerHTML = '🗝️ <strong>5 Day Milestone!</strong> Your first Skin Key!';
+    bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
+    content.appendChild(bonus);
+  } else if (streak === 7) {
+    var bonus = makeEl('p');
+    bonus.innerHTML = '⭐ <strong>Week Milestone!</strong> You earned a Skin Key + rare item!';
     bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
     content.appendChild(bonus);
   } else if (streak === 14) {
     var bonus = makeEl('p');
-    bonus.innerHTML = '🌟 <strong>2 Week Milestone Bonus!</strong>';
+    bonus.innerHTML = '🌟 <strong>2 Week Milestone!</strong> Two Skin Keys + a toy!';
     bonus.style.cssText = 'color:var(--gold);font-size:1.1rem;';
     content.appendChild(bonus);
   } else if (streak === 30) {
     var bonus = makeEl('p');
-    bonus.innerHTML = '💫 <strong>MONTH MILESTONE BONUS!</strong>';
+    bonus.innerHTML = '💫 <strong>MONTH MILESTONE!</strong> Three Skin Keys + legendary food!';
     bonus.style.cssText = 'color:var(--gold);font-size:1.3rem;font-weight:bold;';
     content.appendChild(bonus);
   }
@@ -27345,6 +27774,34 @@ async function newFeatures_init() {
   try {
     if (typeof todayCard_init === 'function') await todayCard_init();
     if (typeof corruptionVisuals_init === 'function') corruptionVisuals_init();
+
+    // Show "missed you" messages for any pets the player hasn't seen in 12+ hours
+    safeSetTimeout(function() {
+      try {
+        var missedPets = [];
+        Object.keys(petState).forEach(function(pid) {
+          var p = petState[pid];
+          var lastAct = null;
+          if (p.last_fed && p.last_played) {
+            lastAct = new Date(p.last_fed) > new Date(p.last_played) ? new Date(p.last_fed) : new Date(p.last_played);
+          } else if (p.last_fed) { lastAct = new Date(p.last_fed); }
+          else if (p.last_played) { lastAct = new Date(p.last_played); }
+          if (lastAct && (Date.now() - lastAct) >= 43200000) { // 12 hours
+            var petType = (p.pets && (p.pets.vtuber_name || p.pets.name)) || '';
+            var pers = PET_PERSONALITIES[petType];
+            if (pers && pers.missed_you) missedPets.push({ name: p.nickname || petType, msg: pers.missed_you });
+          }
+        });
+        if (missedPets.length > 0) {
+          // Show one toast per missed pet, staggered
+          missedPets.forEach(function(mp, i) {
+            safeSetTimeout(function() {
+              showToast(mp.name + ': ' + mp.msg, 5000);
+            }, i * 1200);
+          });
+        }
+      } catch(e) {}
+    }, 2500); // slight delay so pets are loaded first
     if (typeof calendar_init === 'function') await calendar_init();
     if (typeof dailyWelcome_check === 'function') dailyWelcome_check();
     dbg('✅ New features initialized!');
@@ -28853,6 +29310,15 @@ async function todayCard_render() {
     ? '<div class="today-card-online">🟢 <strong>' + onlineCount + '</strong> player' + (onlineCount !== 1 ? 's' : '') + ' online in the last hour</div>'
     : '';
 
+  // Streak display — read from cached player data
+  var currentStreak = (typeof dailyLoginStreak !== 'undefined' && dailyLoginStreak) || 0;
+  var nextMilestone = currentStreak < 3 ? 3 : currentStreak < 5 ? 5 : currentStreak < 7 ? 7 : currentStreak < 14 ? 14 : currentStreak < 30 ? 30 : null;
+  var streakHtml = '<div class="today-card-streak">' +
+    '🔥 <strong>' + currentStreak + ' day streak</strong>' +
+    (nextMilestone ? ' &nbsp;·&nbsp; next milestone: <strong>Day ' + nextMilestone + '</strong>' +
+      (nextMilestone === 5 || nextMilestone === 7 ? ' 🗝️' : nextMilestone === 3 ? ' 🍪' : ' 🌟') : ' 🏆 Max streak legend!') +
+    '</div>';
+
   var statsHtml = '<div class="today-card-stats">' +
     '⚔️ ' + (stats.battles_won || 0) + ' battles won &nbsp;•&nbsp; ' +
     '👑 ' + (stats.bosses_killed || 0) + ' bosses defeated &nbsp;•&nbsp; ' +
@@ -28877,6 +29343,7 @@ async function todayCard_render() {
       '<div class="today-card-header">🌟 Today in PawketPets</div>' +
       seasonHtml +
       onlineHtml +
+      streakHtml +
       worldStateHtml +
       weatherHtml +
       statsHtml +
