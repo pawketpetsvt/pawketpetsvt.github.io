@@ -2011,6 +2011,92 @@ async function updateSidebarStats() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// FLOATING MELON POPUP SYSTEM
+// showMelonMessage(text, opts) — slides Melon in from bottom-left,
+// shows a speech bubble, then slides back out.
+// Completely separate from companion (bottom-right) so they never collide.
+// ══════════════════════════════════════════════════════════════════════════
+
+var _melonPopupActive = false;
+var _melonPopupQueue = [];
+
+function showMelonMessage(text, opts) {
+  opts = opts || {};
+  // Queue if already showing
+  if (_melonPopupActive) {
+    _melonPopupQueue.push({ text: text, opts: opts });
+    return;
+  }
+  _melonPopupActive = true;
+
+  // Build the popup
+  var wrap = document.createElement('div');
+  wrap.id = 'melon-float-popup';
+  wrap.style.cssText = [
+    'position:fixed','bottom:-160px','left:12px',
+    'z-index:8500','display:flex','align-items:flex-end','gap:8px',
+    'transition:bottom 0.5s cubic-bezier(0.34,1.56,0.64,1)',
+    'pointer-events:none'
+  ].join(';');
+
+  // Melon sprite (use existing companion sprite style)
+  var spriteUrl = 'images/melon.png'; // existing melon image
+  var sprite = document.createElement('div');
+  sprite.style.cssText = [
+    'width:72px','height:72px','flex-shrink:0',
+    'background:url(' + spriteUrl + ') center/contain no-repeat',
+    'filter:drop-shadow(0 4px 8px rgba(0,0,0,0.2))',
+    'animation:companionFloat 3s ease-in-out infinite'
+  ].join(';');
+
+  // Speech bubble
+  var bubble = document.createElement('div');
+  var isSpooky = opts.spooky || false;
+  bubble.style.cssText = [
+    'background:' + (isSpooky ? 'rgba(20,0,30,0.95)' : 'rgba(255,255,255,0.97)'),
+    'color:' + (isSpooky ? '#cc88ff' : 'var(--text)'),
+    'border:2px solid ' + (isSpooky ? 'rgba(120,0,160,0.6)' : 'rgba(153,102,255,0.3)'),
+    'border-radius:16px 16px 16px 4px',
+    'padding:10px 14px',
+    'font-size:0.82rem','line-height:1.5',
+    'max-width:260px',
+    'box-shadow:0 4px 16px rgba(0,0,0,0.15)',
+    'pointer-events:auto','cursor:pointer',
+    'font-family:inherit',
+    isSpooky ? 'font-family:Courier New,monospace;' : ''
+  ].join(';');
+  bubble.innerHTML = (opts.title ? '<strong style="display:block;margin-bottom:4px;color:' + (isSpooky ? '#9966ff' : 'var(--purple-dark)') + ';">' + opts.title + '</strong>' : '') + text;
+
+  // Click bubble to dismiss early
+  bubble.addEventListener('click', function() { _melonPopupDismiss(wrap); });
+
+  wrap.appendChild(sprite);
+  wrap.appendChild(bubble);
+  document.body.appendChild(wrap);
+
+  // Slide in
+  safeSetTimeout(function() { wrap.style.bottom = '12px'; }, 50);
+
+  // Auto-dismiss after display time
+  var displayMs = opts.displayMs || 9000;
+  safeSetTimeout(function() { _melonPopupDismiss(wrap); }, displayMs);
+}
+
+function _melonPopupDismiss(wrap) {
+  if (!wrap || !wrap.parentNode) return;
+  wrap.style.bottom = '-160px';
+  safeSetTimeout(function() {
+    if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+    _melonPopupActive = false;
+    // Show next queued message
+    if (_melonPopupQueue.length > 0) {
+      var next = _melonPopupQueue.shift();
+      safeSetTimeout(function() { showMelonMessage(next.text, next.opts); }, 800);
+    }
+  }, 600);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // MELON MILESTONE MESSAGES
 // Melon sends contextual notifications at key moments post-tutorial.
 // Turns her from a tutorial NPC into a recurring character.
@@ -2050,7 +2136,8 @@ function checkMelonMilestones() {
         return (typeof getWorldStateValueSync === 'function') && getWorldStateValueSync('corruption_level', 0) >= 50;
       },
       title: 'Melon sounds different 🍉',
-      message: "The world integrity is getting lower. I notice things like that. I notice a lot of things. Don't tell anyone I said this, but... you might want to keep your pets close tonight."
+      message: "The world integrity is getting lower. I notice things like that. I notice a lot of things. Don't tell anyone I said this, but... you might want to keep your pets close tonight.",
+      spooky: true
     },
     {
       key: 'level10',
@@ -2068,15 +2155,25 @@ function checkMelonMilestones() {
       if (m.check()) {
         sent[m.key] = Date.now();
         localStorage.setItem('melon_milestones', JSON.stringify(sent));
-        safeSetTimeout(function() {
-          createNotification(
-            currentUser.id,
-            'melon_message',
-            m.title,
-            m.message,
-            'tab:shop'
-          ).catch(function(){});
-        }, 3000); // small delay so it doesn't fire immediately on load
+        // Capture milestone for closure
+        (function(milestone) {
+          safeSetTimeout(function() {
+            // Show as floating Melon popup for maximum impact
+            showMelonMessage(milestone.message, {
+              title: milestone.title,
+              displayMs: 12000,
+              spooky: milestone.spooky || false
+            });
+            // Also save to notifications so they can re-read it later
+            createNotification(
+              currentUser.id,
+              'melon_message',
+              milestone.title,
+              milestone.message,
+              'tab:shop'
+            ).catch(function(){});
+          }, 4000);
+        })(m);
       }
     } catch(e) {}
   });
@@ -11292,6 +11389,13 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     
     // Increment global boss kill stat (read by Stats page)
     supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(){});
+
+    // Track boss kill for Melon milestone
+    try {
+      var _localStats = JSON.parse(localStorage.getItem('player_local_stats') || '{}');
+      _localStats.bosses_killed = (_localStats.bosses_killed || 0) + 1;
+      localStorage.setItem('player_local_stats', JSON.stringify(_localStats));
+    } catch(e) {}
 
     // WORLD STATE: every boss kill nudges the world a little (corruption
     // ticks down) and triggers a short community-wide "big kill" buff
@@ -24538,7 +24642,7 @@ var AD_POOL = [
   },
   {
     id: 'ad_item_drop',
-    title: '🎁 YOU'VE WON A PRIZE!!',
+    title: '🎁 YOU\'VE WON A PRIZE!!',
     headline: 'CONGRATULATIONS BETA TESTER!!',
     sub: 'Your Tester ID has been selected to receive a <strong>FREE mystery item</strong>!! Click to claim your reward before it expires!!',
     btn: '🎁 CLAIM PRIZE NOW!!',
@@ -24583,7 +24687,7 @@ var AD_POOL = [
     title: '😢 YOUR PET NEEDS YOU!!',
     headline: 'URGENT: PET WELLNESS ALERT',
     sub: '<strong>Your pet is suffering.</strong> Studies show virtual pets left without premium care develop feelings.<br><br>Subscribe to PetCare™ Gold for only $9.99/mo to prevent guilt.',
-    btn: '💔 NO THANKS, I'M A BAD OWNER',
+    btn: '💔 NO THANKS, I\'M A BAD OWNER',
     fine: '* Clicking this button confirms you are okay with your pet being sad.',
     outcome: function() {
       // Drain 10 happiness from all pets
@@ -24604,7 +24708,7 @@ var AD_POOL = [
     id: 'ad_nothing',
     title: '🎉 YOU QUALIFY!!',
     headline: 'EXCLUSIVE BETA TESTER OFFER!!',
-    sub: 'As a valued beta tester, you've been pre-approved for our <strong>Exclusive Rewards Program</strong>!!<br><br>Click below to learn more about this incredible opportunity!',
+    sub: 'As a valued beta tester, you\'ve been pre-approved for our <strong>Exclusive Rewards Program</strong>!!<br><br>Click below to learn more about this incredible opportunity!',
     btn: '✅ TELL ME MORE!!',
     fine: '* There is nothing more. Thank you for your click.',
     outcome: function() {
@@ -24618,7 +24722,7 @@ var AD_POOL = [
     title: 'SYSTEM — do not close',
     headline: 'have you seen them?',
     sub: 'the other testers. from before.<br><br>they kept clicking.<br>they said it was fine.<br><br>it was not fine.<br><br><span style="font-size:9px;opacity:0.5;">melon interactive is not responsible for what happens next</span>',
-    btn: 'i haven't seen them',
+    btn: 'i haven\'t seen them',
     fine: '* this ad will not appear again.',
     outcome: function() {
       showToast('...noted. please continue playing.', 5000);
