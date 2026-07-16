@@ -287,6 +287,219 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
 }
 /* ── END LANDING PAGE STYLES ── */
 
+/* ══════════════════════════════════════════════════════════════
+   LANDING V2 — two-column above-the-fold layout
+══════════════════════════════════════════════════════════════ */
+.landing-v2 {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  min-height: calc(100vh - 48px); /* fill the viewport below navbar */
+  max-width: 1100px;
+  margin: 0 auto;
+  gap: 0;
+}
+
+/* Left column — form */
+.landing-v2-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 32px 36px 32px 24px;
+  border-right: 1px solid rgba(153,102,255,0.15);
+  justify-content: center;
+}
+
+.landing-v2-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.landing-v2-logo img {
+  width: 56px;
+  height: 56px;
+  filter: drop-shadow(0 3px 8px rgba(153,102,255,0.4));
+  animation: float 3s ease-in-out infinite;
+}
+.landing-v2-title {
+  font-family: 'Chewy', cursive;
+  font-size: 1.9rem;
+  color: var(--purple-dark);
+  text-shadow: 2px 2px 0 var(--pink-light);
+  line-height: 1;
+}
+.landing-v2-title span { color: var(--pink); }
+.landing-v2-beta {
+  font-size: 0.72rem;
+  color: var(--text-light);
+  margin-top: 3px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.landing-v2-card {
+  margin: 0 !important;
+  box-shadow: 0 4px 24px rgba(153,102,255,0.12) !important;
+}
+
+.landing-v2-discord {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  font-size: 0.88rem;
+  padding: 10px 20px;
+}
+
+/* Right column — info */
+.landing-v2-info {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 40px 32px 32px 40px;
+  justify-content: center;
+}
+
+.landing-v2-tagline {
+  font-size: clamp(1.05rem, 2.2vw, 1.25rem);
+  line-height: 1.55;
+  color: var(--text);
+}
+.landing-v2-tagline strong {
+  display: block;
+  font-family: 'Chewy', cursive;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  color: var(--purple-dark);
+  margin: 4px 0 8px;
+  text-shadow: 1px 1px 0 var(--pink-light);
+}
+.landing-v2-tagline span {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+/* Feature list */
+.landing-v2-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.landing-v2-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 8px rgba(153,102,255,0.07);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.landing-v2-feature:hover {
+  border-color: rgba(153,102,255,0.4);
+  box-shadow: 0 4px 14px rgba(153,102,255,0.12);
+}
+.landing-v2-feature-icon { font-size: 1.4rem; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.landing-v2-feature div { display: flex; flex-direction: column; gap: 3px; }
+.landing-v2-feature strong { font-size: 0.82rem; color: var(--purple-dark); }
+.landing-v2-feature span { font-size: 0.75rem; color: var(--text-light); line-height: 1.4; }
+
+/* Perks list (register page) */
+.landing-v2-perks {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.landing-v2-perk {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9rem;
+  color: var(--text);
+  padding: 8px 14px;
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 10px;
+}
+.landing-v2-perk strong { color: var(--purple-dark); }
+
+/* Lore box */
+.landing-v2-lore {
+  background: rgba(153,102,255,0.05);
+  border: 1px solid rgba(153,102,255,0.2);
+  border-left: 3px solid rgba(153,102,255,0.5);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 0.8rem;
+  color: var(--text-light);
+  line-height: 1.65;
+}
+.landing-v2-lore-label {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--purple);
+  font-weight: bold;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+.landing-v2-lore p { margin: 0 0 6px; }
+.landing-v2-lore-fine {
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 0.74rem;
+}
+
+/* Badge strip */
+.landing-v2-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.landing-v2-badges span {
+  background: linear-gradient(135deg,rgba(153,102,255,0.1),rgba(255,102,204,0.07));
+  border: 1px solid rgba(153,102,255,0.25);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--purple-dark);
+}
+
+/* Mobile: stack vertically */
+@media (max-width: 760px) {
+  .landing-v2 {
+    grid-template-columns: 1fr;
+    min-height: unset;
+  }
+  .landing-v2-form {
+    padding: 24px 16px 16px;
+    border-right: none;
+    border-bottom: 1px solid rgba(153,102,255,0.15);
+  }
+  .landing-v2-info {
+    padding: 24px 16px 32px;
+    gap: 18px;
+  }
+  .landing-v2-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dark mode adjustments */
+body.night-mode .landing-v2-feature,
+body.night-mode .landing-v2-perk {
+  background: rgba(153,102,255,0.08);
+  border-color: rgba(153,102,255,0.22);
+}
+body.night-mode .landing-v2-feature strong { color: #e8d5ff; }
+body.night-mode .landing-v2-feature span,
+body.night-mode .landing-v2-perk { color: #c4a8e8; }
+body.night-mode .landing-v2-tagline { color: #e8d5ff; }
+body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); background: rgba(153,102,255,0.08); }
+
 /* Leaderboard - Darker Numbers for Better Legibility */
 .leaderboard-rank{color:#6b4ba8!important;font-weight:bold}
 .leaderboard-points,.leaderboard-count,.leaderboard-stat{color:#7c5caa!important;font-weight:600}
@@ -690,76 +903,87 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
 <!-- AUTH GATE -->
 <div id="auth-gate">
   <div class="page-section active" id="section-login">
-    <div class="page-wrap">
+    <div class="landing-v2">
 
-      <!-- LANDING HERO -->
-      <div class="landing-hero">
-        <img src="images/logo.png" alt="PawketPetsVT" class="landing-logo" />
-        <h1 class="landing-title">PawketPets<span style="color:var(--pink);">VT</span></h1>
-        <p class="landing-tagline">A free browser pet game built around the <strong>PawketPetsVT</strong> Twitch streaming team.<br>Adopt your favourite streamer's pet, care for them, battle, race, and grow your collection!</p>
-        <div class="landing-badges">
-          <span class="landing-badge">&#128062; 8 Adoptable Pets</span>
-          <span class="landing-badge">&#9876;&#65039; Battles &amp; Dungeons</span>
-          <span class="landing-badge">&#127950;&#65039; Pet Racing</span>
-          <span class="landing-badge">&#127963;&#65039; Guilds</span>
-          <span class="landing-badge">&#127918; Daily Minigames</span>
-          <span class="landing-badge">&#127916; Twitch Rewards</span>
-          <span class="landing-badge">&#10024; 100% Free</span>
+      <!-- LEFT: FORM -->
+      <div class="landing-v2-form">
+        <div class="landing-v2-logo">
+          <img src="images/logo.png" alt="PawketPetsVT" />
+          <div>
+            <div class="landing-v2-title">PawketPets<span>VT</span></div>
+            <div class="landing-v2-beta">Beta v0.9.2 &nbsp;·&nbsp; 100% Free</div>
+          </div>
         </div>
-      </div>
 
-      <!-- FEATURE HIGHLIGHTS -->
-      <div class="landing-features">
-        <div class="landing-feature">
-          <div class="landing-feature-icon">&#128062;</div>
-          <div class="landing-feature-text">
-            <strong>Adopt a Streamer's Pet</strong>
-            <span>Each member of the PawketPetsVT team has their own adoptable species with unique stats, personality, and lore. Your first pet is always free!</span>
-          </div>
-        </div>
-        <div class="landing-feature">
-          <div class="landing-feature-icon">&#127916;</div>
-          <div class="landing-feature-text">
-            <strong>Earn by Watching Streams</strong>
-            <span>Link your Twitch account and earn PawketPoints just by watching and chatting in our streams. The more you engage, the more you earn.</span>
-          </div>
-        </div>
-        <div class="landing-feature">
-          <div class="landing-feature-icon">&#9876;&#65039;</div>
-          <div class="landing-feature-text">
-            <strong>Battle, Race &amp; Explore</strong>
-            <span>Take on enemies in turn-based battles, enter your pet in weekly Grand Prix races, and send them on timed expeditions for loot and PP.</span>
-          </div>
-        </div>
-        <div class="landing-feature">
-          <div class="landing-feature-icon">&#127963;&#65039;</div>
-          <div class="landing-feature-text">
-            <strong>Join a Guild</strong>
-            <span>Team up with other players, tackle guild dungeons together, vote on how to spend your treasury, and climb the leaderboards as a crew.</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- LOGIN FORM -->
-      <div class="landing-form-section">
-        <div class="form-card">
-          <h2>Login</h2>
-          <p class="form-subtitle">No account? <a href="#" onclick="showAuthSection('register');return false;">Register here, it's free!</a></p>
+        <div class="form-card landing-v2-card">
+          <h2 style="margin-bottom:4px;">Welcome back, Tester</h2>
+          <p class="form-subtitle">No account? <a href="#" onclick="showAuthSection('register');return false;">Join the beta — it's free!</a></p>
           <div class="alert alert-error" id="login-error"></div>
           <div class="alert alert-success" id="login-success"></div>
           <div class="form-group"><label>Email</label><input type="email" id="login-email" placeholder="your@email.com" /></div>
           <div class="form-group"><label>Password</label><input type="password" id="login-password" placeholder="Password" /></div>
           <button class="btn btn-primary btn-lg form-submit" id="login-btn" onclick="handleLogin()">Login</button>
-          <div style="text-align:center;margin:10px 0 0;"><a href="#" onclick="showForgotPassword();return false;" style="font-size:0.85rem;color:var(--text-light);">Forgot your password?</a></div>
-          <div class="form-footer">New here? <a href="#" onclick="showAuthSection('register');return false;">Create a free account!</a></div>
+          <div style="text-align:center;margin:10px 0 0;">
+            <a href="#" onclick="showForgotPassword();return false;" style="font-size:0.85rem;color:var(--text-light);">Forgot your password?</a>
+          </div>
         </div>
 
-        <div class="landing-discord">
-          <a href="https://discord.gg/9TbRZkSJpU" target="_blank" rel="noopener noreferrer" class="btn-discord">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
-            Join our Discord
-          </a>
-          <p style="font-size:0.78rem;color:var(--text-light);margin-top:8px;text-align:center;">Chat with the community, get updates, and share your pets!</p>
+        <a href="https://discord.gg/9TbRZkSJpU" target="_blank" rel="noopener noreferrer" class="btn-discord landing-v2-discord">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+          Join our Discord community
+        </a>
+      </div>
+
+      <!-- RIGHT: FEATURES + LORE -->
+      <div class="landing-v2-info">
+        <div class="landing-v2-tagline">
+          A virtual pet game built around the<br>
+          <strong>PawketPetsVT Twitch streaming team.</strong><br>
+          <span>Adopt. Care. Battle. Explore. Something is watching.</span>
+        </div>
+
+        <div class="landing-v2-features">
+          <div class="landing-v2-feature">
+            <span class="landing-v2-feature-icon">🐾</span>
+            <div>
+              <strong>8 Adoptable Pets</strong>
+              <span>Each streamer has their own unique companion with personality, stats, and lore. Your first is always free.</span>
+            </div>
+          </div>
+          <div class="landing-v2-feature">
+            <span class="landing-v2-feature-icon">⚔️</span>
+            <div>
+              <strong>Battle, Race &amp; Explore</strong>
+              <span>Turn-based battles, weekly Grand Prix racing, timed expeditions, and guild dungeons with friends.</span>
+            </div>
+          </div>
+          <div class="landing-v2-feature">
+            <span class="landing-v2-feature-icon">📺</span>
+            <div>
+              <strong>Earn by Watching</strong>
+              <span>Link your Twitch account and earn PawketPoints just by watching and chatting during streams.</span>
+            </div>
+          </div>
+          <div class="landing-v2-feature">
+            <span class="landing-v2-feature-icon">🎯</span>
+            <div>
+              <strong>Daily Goals &amp; Bingo</strong>
+              <span>Log in every day for streak rewards, complete bingo cards, and level up your PawketPass.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="landing-v2-lore">
+          <span class="landing-v2-lore-label">// BETA TESTER NOTE //</span>
+          <p>Welcome to the PawketPets beta program. You are one of a limited number of testers selected to participate in this session. Previous test groups have provided valuable data. We appreciate your continued involvement.</p>
+          <p class="landing-v2-lore-fine">Session is being logged. Your companion is waiting.</p>
+        </div>
+
+        <div class="landing-v2-badges">
+          <span>🏁 Weekly Grand Prix</span>
+          <span>🏛️ Guild System</span>
+          <span>🎮 Daily Minigames</span>
+          <span>✨ 100% Free</span>
         </div>
       </div>
 
@@ -767,33 +991,57 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
   </div>
 
   <div class="page-section" id="section-register">
-    <div class="page-wrap">
+    <div class="landing-v2">
 
-      <div class="landing-hero" style="padding-bottom:20px;">
-        <img src="images/logo.png" alt="PawketPetsVT" class="landing-logo" style="width:70px;height:70px;" />
-        <h1 class="landing-title" style="font-size:2rem;">Join PawketPets<span style="color:var(--pink);">VT</span></h1>
-        <p class="landing-tagline" style="font-size:0.95rem;">Free to play &middot; No download &middot; Your first pet is free!</p>
-      </div>
+      <!-- LEFT: FORM -->
+      <div class="landing-v2-form">
+        <div class="landing-v2-logo">
+          <img src="images/logo.png" alt="PawketPetsVT" />
+          <div>
+            <div class="landing-v2-title">PawketPets<span>VT</span></div>
+            <div class="landing-v2-beta">Join the Beta &nbsp;·&nbsp; 100% Free</div>
+          </div>
+        </div>
 
-      <div class="landing-form-section">
-        <div class="form-card">
-          <h2>Create Account</h2>
-          <p class="form-subtitle">Have an account? <a href="#" onclick="showAuthSection('login');return false;">Login here!</a></p>
+        <div class="form-card landing-v2-card">
+          <h2 style="margin-bottom:4px;">Create Your Account</h2>
+          <p class="form-subtitle">Already a tester? <a href="#" onclick="showAuthSection('login');return false;">Login here!</a></p>
           <div class="alert alert-error" id="reg-error"></div>
           <div class="alert alert-success" id="reg-success"></div>
           <div class="form-group"><label>Username</label><input type="text" id="reg-username" placeholder="CoolTrainer123" maxlength="30" /></div>
           <div class="form-group"><label>Email</label><input type="email" id="reg-email" placeholder="your@email.com" /></div>
           <div class="form-group"><label>Password</label><input type="password" id="reg-password" placeholder="At least 6 characters" /></div>
           <div class="form-group"><label>Confirm Password</label><input type="password" id="reg-confirm" placeholder="Confirm password" /></div>
-          <button class="btn btn-primary btn-lg form-submit" id="reg-btn" onclick="handleRegister()">Create Account &mdash; It's Free!</button>
-          <div class="form-footer">Have an account? <a href="#" onclick="showAuthSection('login');return false;">Login!</a></div>
+          <button class="btn btn-primary btn-lg form-submit" id="reg-btn" onclick="handleRegister()">Join the Beta — It's Free!</button>
         </div>
 
-        <div class="landing-discord">
-          <a href="https://discord.gg/9TbRZkSJpU" target="_blank" rel="noopener noreferrer" class="btn-discord">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
-            Join our Discord
-          </a>
+        <a href="https://discord.gg/9TbRZkSJpU" target="_blank" rel="noopener noreferrer" class="btn-discord landing-v2-discord">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/></svg>
+          Join our Discord community
+        </a>
+      </div>
+
+      <!-- RIGHT: FEATURES + LORE -->
+      <div class="landing-v2-info">
+        <div class="landing-v2-tagline">
+          Your companion is already waiting.<br>
+          <strong>What will you name them?</strong>
+          <span>Choose from 8 unique pets, each based on a real member of the PawketPetsVT streaming team.</span>
+        </div>
+
+        <div class="landing-v2-perks">
+          <div class="landing-v2-perk">🐣 <strong>First pet is always free</strong></div>
+          <div class="landing-v2-perk">📺 <strong>Earn PP by watching Twitch streams</strong></div>
+          <div class="landing-v2-perk">🔥 <strong>Daily login streak rewards + Skin Keys</strong></div>
+          <div class="landing-v2-perk">⚔️ <strong>Battle, race, explore &amp; join guilds</strong></div>
+          <div class="landing-v2-perk">🎮 <strong>Daily minigames &amp; bingo cards</strong></div>
+          <div class="landing-v2-perk">✨ <strong>100% free, no download needed</strong></div>
+        </div>
+
+        <div class="landing-v2-lore">
+          <span class="landing-v2-lore-label">// BETA TESTER NOTE //</span>
+          <p>Installation complete. Your tester profile has been initialized. A companion has been assigned to your session and is ready for adoption.</p>
+          <p class="landing-v2-lore-fine">We ask that you report any anomalies during your session. Previous testers did not always do so.</p>
         </div>
       </div>
 
