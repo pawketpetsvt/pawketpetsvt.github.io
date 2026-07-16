@@ -2614,6 +2614,8 @@ async function confirmAdopt() {
   
   // Award first pet badge
   await awardBadge('first_pet');
+  onPetAdopted(result.pet_id);
+  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(){});
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -2721,12 +2723,14 @@ async function loadMyPets() {
     var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
     
     // HP regenerates over time (3 HP per hour) - BUT respect 0 HP (fainted)!
-    // Use updated_at as the "last activity" timestamp for HP regen
+    // user_pets has no updated_at column — use last_played as the regen reference
+    // (battle sets current_hp directly; last_played is the closest proxy for "last activity")
     var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 25);
     var maxHP = pet.max_hp || pet.base_hp || 25;
+    var hpRegenRef = pet.last_played || pet.last_fed || null;
     
     // Only regenerate if HP > 0 (don't auto-revive fainted pets!)
-    var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, pet.updated_at) : 0;
+    var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, hpRegenRef) : 0;
     
     petState[pet.id] = Object.assign({}, pet, {
       energy: decayedEnergy,
@@ -3046,6 +3050,9 @@ async function useItem(petId) {
     return; 
   }
   
+  // FIX: update last_fed if this is a food item so decay calculates correctly
+  if (item.h > 0) updates.last_fed = new Date().toISOString();
+
   // Apply the updates
   var res = await supabaseClient.from('user_pets').update(updates).eq('id', petId);
   if (res.error) { 
@@ -3062,6 +3069,18 @@ async function useItem(petId) {
   } else { 
     await supabaseClient.from('user_inventory').update({quantity: item.qty - 1}).eq('id', item.invId); 
     inventoryItems[idx].qty = item.qty - 1; 
+  }
+
+  // FIX: track bingo + passXP (was missing from this path)
+  if (item.h > 0) {
+    updateBingoProgress('feed_pet', 1);
+    addPassXP(2, 'feed').catch(function(){});
+    community_increment('feed_pets', 1);
+  }
+  if (item.hap > 0 && !(item.h > 0)) {
+    updateBingoProgress('use_toy', 1);
+    updateBingoProgress('play_pet', 1);
+    addPassXP(2, 'play').catch(function(){});
   }
   
   // Update UI for non-healing effects
@@ -4105,22 +4124,73 @@ async function expedition_claim(expeditionId) {
   var finalPP = Math.floor((row.reward_pp || 0) * streakMult * perkMult);
   await awardPP(finalPP, 'expedition_' + row.zone);
 
+  // FIX: Grant item drops (were being silently skipped in this path)
+  var rewardItems = row.reward_items || [];
+  var itemNames = [];
+  for (var ri = 0; ri < rewardItems.length; ri++) {
+    if (rewardItems[ri].id) {
+      await supabaseClient.from('user_inventory').insert({
+        user_id: currentUser.id, item_id: rewardItems[ri].id, quantity: 1
+      }).catch(function(){});
+      itemNames.push(rewardItems[ri].name || '📦');
+    }
+  }
+
+  // FIX: Award zone XP and check for level-up (was missing entirely)
+  var EXPEDITION_ZONES_MAP = {};
+  if (typeof EXPEDITION_ZONES !== 'undefined') {
+    EXPEDITION_ZONES.forEach(function(z) { EXPEDITION_ZONES_MAP[z.key] = z; });
+  }
+  var zoneData = EXPEDITION_ZONES_MAP[row.zone] || {};
+  var zoneXP = zoneData.xpReward || 0;
+  if (zoneXP > 0) {
+    var petXPRes = await supabaseClient.from('user_pets')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed')
+      .eq('id', row.pet_id).single();
+    if (petXPRes.data) {
+      var pd = petXPRes.data;
+      var newXP = (pd.xp || 0) + zoneXP;
+      var lu = calculateLevelUp(newXP, pd.level, pd.max_hunger, pd.max_energy, pd.max_happiness,
+        pd.base_hp || 25, pd.base_attack || 4, pd.base_defense || 2, pd.base_speed || 3);
+      var xpUpdates = { xp: lu.leveled ? lu.xp : newXP };
+      if (lu.leveled) {
+        xpUpdates.level = lu.level;
+        xpUpdates.max_hunger = lu.maxHunger;
+        xpUpdates.max_energy = lu.maxEnergy;
+        xpUpdates.max_happiness = lu.maxHappiness;
+        xpUpdates.base_hp = lu.base_hp;
+        xpUpdates.base_attack = lu.base_attack;
+        xpUpdates.base_defense = lu.base_defense;
+        xpUpdates.base_speed = lu.base_speed;
+        onPetLevelUp(row.pet_id);
+        showToast('⭐ ' + (petState[row.pet_id] && petState[row.pet_id].nickname || 'Pet') + ' leveled up to Lv.' + lu.level + '!', 4000);
+      }
+      await supabaseClient.from('user_pets').update(xpUpdates).eq('id', row.pet_id);
+      if (petState[row.pet_id]) Object.assign(petState[row.pet_id], xpUpdates);
+    }
+  }
+
   // Check for secrets
   checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
 
   // Integrations
   addPassXP(10, 'expedition').catch(function(){});
+  updateBingoProgress('complete_expedition', 1);
   checkPetWishes('expedition', row.pet_id).catch(function(){});
   progressQuestArc(row.pet_id, 'expedition').catch(function(){});
   community_increment('expeditions', 1);
   trackDailyStat('expeditions_completed').catch(function(){});
   checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
 
-  showToast('🏴‍☠️ Claimed ' + (row.reward_pp || 0) + ' PP from your expedition!', 4000);
+  var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
+  showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
 
   expeditionState.active = null;
   _expeditionPetId  = null;
   _expeditionZoneKey = null;
+
+  // Reload pets to reflect any XP/level changes
+  tabsLoaded['mypets'] = false;
 
   // Show history then selector
   await expedition_renderHistory();
@@ -6942,7 +7012,7 @@ async function rollDice() {
     var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
     var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
-    await awardPP(earned, 'dice_roll'); setCD('dice');
+    await awardPP(earned, 'dice_roll'); setCD('dice'); onMinigameComplete();
     
     // Award badges
     await awardBadge('dice_first_play'); // First time playing
@@ -6980,7 +7050,7 @@ async function makeGuess() {
   guessAttempts++;
   
   if(guess===secretNumber){
-    await awardPP(25, 'guess_game'); setCD('guess');
+    await awardPP(25, 'guess_game'); setCD('guess'); onMinigameComplete();
     
     // Award badges
     await awardBadge('guess_first_play'); // First time playing
@@ -7046,7 +7116,7 @@ function flipCard(btn) {
       
       if(matchedPairs===6){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match');setCD('memory');
+        awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -7066,7 +7136,7 @@ function flipCard(btn) {
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
         if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned, 'memory_match');setCD('memory');
+          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
           awardBadge('memory_first_play'); // Award badge even if lost
           var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
         }
@@ -7167,7 +7237,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel');
+      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete();
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -7237,7 +7307,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = Math.min(whackScore * 5, 50);
-  awardPP(earned, 'whack_a_mole');
+  awardPP(earned, 'whack_a_mole'); onMinigameComplete();
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! +' + earned + ' PP!';
@@ -7377,7 +7447,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30, 'shell_game');
+        awardPP(30, 'shell_game'); onMinigameComplete();
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -7614,7 +7684,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge');
+  awardPP(earned, 'typing_challenge'); onMinigameComplete();
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -7669,7 +7739,7 @@ function castLine() {
     document.querySelector('.pond-text').textContent = caught.emoji + ' Caught: ' + caught.name + ' (+' + caught.pp + ' PP)';
     
     if (fishingCasts <= 0) {
-      awardPP(fishingTotal, 'fishing');
+      awardPP(fishingTotal, 'fishing'); onMinigameComplete();
       setCD('fishing');
       setTimeout(function() {
         var r = el('fishing-result');
@@ -10791,6 +10861,9 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       boss_name: enemyStats.name
     });
     
+    // Increment global boss kill stat (read by Stats page)
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(){});
+
     // WORLD STATE: every boss kill nudges the world a little (corruption
     // ticks down) and triggers a short community-wide "big kill" buff
     nudgeWorldStateForBossKill();
@@ -10869,6 +10942,9 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   if (battleResult.victory) {
     // COMMUNITY GOALS: Track battle wins
     community_increment('battle_wins', 1);
+    updateBingoProgress('win_battle', 1);
+    // Increment global community stat (read by the Stats page)
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(){});
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -10937,6 +11013,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           pet_name: petName,
           level: lu.level
         });
+        onPetLevelUp(petId);
         
         // SCRAPBOOK: Level milestones at 5, 10, 15, 20
         if (lu.level === 5 || lu.level === 10 || lu.level === 15 || lu.level === 20) {
@@ -14848,6 +14925,7 @@ var CompanionBuddy = {
     this.bubbleTimeout = safeSetTimeout(function() {
       bubble.classList.remove('show', 'companion-spooky-bubble');
     }, hideDuration);
+    if (typeof onCompanionMessage === 'function') onCompanionMessage();
   },
   
   // Last known context for memory system
@@ -18603,32 +18681,25 @@ async function gp_render(mount) {
 }
 
 async function gp_renderNoEvent(mount) {
-  // Calculate time until next Monday 00:00 UTC (when registration opens)
-  var now = new Date();
-  var nextMonday = new Date(now);
-  var dayOfWeek = nextMonday.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
-  var daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7 || 7;
-  nextMonday.setUTCDate(nextMonday.getUTCDate() + daysUntilMonday);
-  nextMonday.setUTCHours(0, 0, 0, 0);
-
-  var msUntil = nextMonday - now;
-  var daysLeft  = Math.floor(msUntil / 86400000);
-  var hoursLeft = Math.floor((msUntil % 86400000) / 3600000);
-  var minsLeft  = Math.floor((msUntil % 3600000) / 60000);
-
-  var countdownStr = daysLeft > 0
-    ? daysLeft + 'd ' + hoursLeft + 'h ' + minsLeft + 'm'
-    : hoursLeft > 0 ? hoursLeft + 'h ' + minsLeft + 'm'
-    : minsLeft + 'm';
+  // Countdown to next Monday 00:00 UTC (registration opens)
+  var _now = new Date();
+  var _utcDay = _now.getUTCDay(); // 0=Sun, 1=Mon
+  var _daysUntil = _utcDay === 1 ? 7 : (8 - _utcDay) % 7 || 7;
+  var _nextMon = new Date(Date.UTC(_now.getUTCFullYear(), _now.getUTCMonth(), _now.getUTCDate() + _daysUntil, 0, 0, 0));
+  var _msLeft = _nextMon - _now;
+  var _dL = Math.floor(_msLeft / 86400000);
+  var _hL = Math.floor((_msLeft % 86400000) / 3600000);
+  var _mL = Math.floor((_msLeft % 3600000) / 60000);
+  var _cStr = _dL > 0 ? _dL + 'd ' + _hL + 'h ' + _mL + 'm' : _hL > 0 ? _hL + 'h ' + _mL + 'm' : _mL + 'm';
 
   mount.innerHTML =
     '<div style="text-align:center;padding:40px 20px;">' +
       '<div style="font-size:3rem;margin-bottom:12px;">🏆</div>' +
       '<div style="font-weight:700;font-size:1.1rem;color:var(--purple-dark);margin-bottom:6px;">No Active Grand Prix</div>' +
-      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:6px;">Grand Prix runs Monday–Friday registration, Saturday race.</div>' +
-      '<div style="background:rgba(153,102,255,0.12);border-radius:12px;padding:12px 20px;display:inline-block;margin-bottom:20px;">' +
-        '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:2px;">Next registration opens in</div>' +
-        '<div style="font-size:1.4rem;font-weight:800;color:var(--purple);">' + countdownStr + '</div>' +
+      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:8px;">Registration opens Monday, race runs Saturday.</div>' +
+      '<div style="background:rgba(153,102,255,0.12);border-radius:12px;padding:10px 20px;display:inline-block;margin-bottom:16px;">' +
+        '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">Next registration opens in</div>' +
+        '<div style="font-size:1.4rem;font-weight:800;color:var(--purple);">' + _cStr + '</div>' +
       '</div>' +
       '<div style="background:rgba(153,102,255,0.08);border-radius:14px;padding:16px;max-width:400px;margin:0 auto;">' +
         '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:10px;">🏆 Prize Structure</div>' +
@@ -18680,11 +18751,12 @@ async function gp_renderRegistration(mount) {
         '</div>' +
         '<div style="flex:1;background:rgba(255,215,0,0.1);border-radius:10px;padding:12px;text-align:center;">' +
           '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">PRIZE POOL</div>' +
-          '<div style="font-weight:700;color:#e6a800;">🪙 ' + (ev.prize_pool||0).toLocaleString() + ' PP</div>' +
+          '<div style="font-weight:700;color:#e6a800;font-size:1.1rem;">🪙 ' + (ev.prize_pool||0).toLocaleString() + ' PP</div>' +
+          '<div style="font-size:0.65rem;color:var(--text-light);">+50 PP per entrant</div>' +
         '</div>' +
         '<div style="flex:1;background:rgba(153,102,255,0.08);border-radius:10px;padding:12px;text-align:center;">' +
           '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:2px;">ENTRIES</div>' +
-          '<div style="font-weight:700;color:var(--purple);">👥 ' + (ev.total_entries||0) + '</div>' +
+          '<div style="font-weight:700;color:var(--purple);">👥 ' + Math.round((ev.prize_pool||0)/50) + '</div>' +
         '</div>' +
       '</div>' +
       entrySection +
@@ -25788,18 +25860,34 @@ function showPassModal() {
 // ══════════════════════════════════════════════════════════════════════════
 
 var BINGO_TASKS = [
-  { id: 'feed_pet', name: '🍖 Feed Pet', target: 5, taskType: 'feed_pet', rewardPoints: 50 },
-  { id: 'play_pet', name: '🎾 Play with Pet', target: 5, taskType: 'play_pet', rewardPoints: 50 },
-  { id: 'win_battle', name: '⚔️ Win Battle', target: 3, taskType: 'win_battle', rewardPoints: 100 },
-  { id: 'login', name: '📅 Daily Login', target: 1, taskType: 'login', rewardPoints: 20 },
-  { id: 'visit_shop', name: '🛒 Visit Shop', target: 1, taskType: 'visit_shop', rewardPoints: 20 },
-  { id: 'use_treat', name: '🍬 Feed Treat', target: 3, taskType: 'use_treat', rewardPoints: 50 },
-  { id: 'pet_companion', name: '💬 Pet Companion', target: 5, taskType: 'pet_companion', rewardPoints: 50 },
-  { id: 'earn_points', name: '💰 Earn 500 PP', target: 500, taskType: 'earn_points', rewardPoints: 100 },
-  { id: 'level_up_pet', name: '⬆️ Level Up Pet', target: 1, taskType: 'level_up_pet', rewardPoints: 100 },
-  { id: 'adopt_pet', name: '🐣 Adopt a Pet', target: 1, taskType: 'adopt_pet', rewardPoints: 150 },
-  { id: 'use_toy', name: '🎾 Use a Toy', target: 3, taskType: 'use_toy', rewardPoints: 50 },
-  { id: 'complete_minigame', name: '🎮 Play Minigame', target: 1, taskType: 'complete_minigame', rewardPoints: 75 }
+  // ── Core daily tasks ──────────────────────────────────────────────────────
+  { id: 'feed_pet',         name: '🍖 Feed a Pet',         target: 5,   taskType: 'feed_pet',         rewardPoints: 50  },
+  { id: 'play_pet',         name: '🎾 Play with Pet',       target: 5,   taskType: 'play_pet',         rewardPoints: 50  },
+  { id: 'use_treat',        name: '🍬 Feed a Treat',        target: 3,   taskType: 'use_treat',        rewardPoints: 50  },
+  { id: 'use_toy',          name: '🧸 Use a Toy',           target: 3,   taskType: 'use_toy',          rewardPoints: 50  },
+  { id: 'login',            name: '📅 Daily Login',         target: 1,   taskType: 'login',            rewardPoints: 20  },
+  { id: 'visit_shop',       name: '🛒 Visit Shop',          target: 1,   taskType: 'visit_shop',       rewardPoints: 20  },
+  { id: 'pet_companion',    name: '💬 Chat with Companion', target: 5,   taskType: 'pet_companion',    rewardPoints: 50  },
+  { id: 'earn_points',      name: '💰 Earn 500 PP',         target: 500, taskType: 'earn_points',      rewardPoints: 100 },
+  // ── Progression tasks ─────────────────────────────────────────────────────
+  { id: 'win_battle',       name: '⚔️ Win a Battle',        target: 3,   taskType: 'win_battle',       rewardPoints: 100 },
+  { id: 'level_up_pet',     name: '⬆️ Level Up a Pet',      target: 1,   taskType: 'level_up_pet',     rewardPoints: 100 },
+  { id: 'adopt_pet',        name: '🐣 Adopt a Pet',          target: 1,   taskType: 'adopt_pet',        rewardPoints: 150 },
+  { id: 'complete_minigame',name: '🎮 Play a Minigame',      target: 1,   taskType: 'complete_minigame',rewardPoints: 75  },
+  { id: 'complete_expedition',name:'🗺️ Complete Expedition',  target: 1,   taskType: 'complete_expedition',rewardPoints: 75},
+  // ── Social/community tasks ─────────────────────────────────────────────────
+  { id: 'send_gift',        name: '🎁 Send a Gift',         target: 1,   taskType: 'send_gift',        rewardPoints: 75  },
+  { id: 'vote_poll',        name: '🗳️ Vote in a Poll',      target: 1,   taskType: 'vote_poll',        rewardPoints: 30  },
+  { id: 'donate_guild',     name: '🏛️ Donate to Guild',     target: 1,   taskType: 'donate_guild',     rewardPoints: 75  },
+  { id: 'vote_in_guild',    name: '🗳️ Cast Guild Vote',      target: 1,   taskType: 'vote_in_guild',    rewardPoints: 50  },
+  { id: 'guild_dungeon',    name: '⚔️ Guild Dungeon Run',    target: 1,   taskType: 'guild_dungeon',    rewardPoints: 100 },
+  // ── Grand Prix tasks ──────────────────────────────────────────────────────
+  { id: 'enter_grand_prix', name: '🏁 Enter Grand Prix',    target: 1,   taskType: 'enter_grand_prix', rewardPoints: 50  },
+  { id: 'train_grand_prix', name: '🏋️ Train for Grand Prix',target: 3,   taskType: 'train_grand_prix', rewardPoints: 75  },
+  { id: 'grand_prix_top_10',name: '🏅 Grand Prix Top 10',   target: 1,   taskType: 'grand_prix_top_10',rewardPoints: 150 },
+  { id: 'grand_prix_winner',name: '🏆 Win Grand Prix',       target: 1,   taskType: 'grand_prix_winner',rewardPoints: 300 },
+  // ── Quest tasks ───────────────────────────────────────────────────────────
+  { id: 'complete_quest',   name: '📜 Complete a Quest',    target: 1,   taskType: 'complete_quest',   rewardPoints: 100 },
 ];
 
 var dailyBingo = {
