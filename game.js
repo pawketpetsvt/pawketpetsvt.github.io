@@ -19940,7 +19940,7 @@ sendFriendRequest = async function() {
     
     // Create notification for the other user
     var username = document.getElementById('profile-username').textContent;
-    var senderName = username || currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'Someone';
+    var senderName = currentUsername || 'Someone';
     await createNotification(
       currentProfileUserId,
       'friend_request',
@@ -30263,7 +30263,7 @@ async function gift_sendGift(toUserId, toUsername) {
     // Notification to recipient
     await createNotification(
       toUserId, 'gift_received', '🎁 You got a gift!',
-      (currentUser.email ? currentUser.email.split('@')[0] : 'Someone') + ' sent you a gift! Open your inbox to claim it.',
+      (currentUsername || 'Someone') + ' sent you a gift! Open your inbox to claim it.',
       '/gifts', currentUser.id
     );
 
@@ -30275,7 +30275,6 @@ async function gift_sendGift(toUserId, toUsername) {
     var { count: totalSent } = await supabaseClient
       .from('gifts').select('id', { count: 'exact', head: true }).eq('from_user_id', currentUser.id);
     if (totalSent === 1)  await awardBadge('gift_giver');
-    if (totalSent === 1)  await awardBadge('badge_gift_giver');
     if (totalSent >= 10)  await awardBadge('badge_generous');
     if (totalSent >= 50)  await awardBadge('badge_philanthropist');
 
@@ -30380,7 +30379,7 @@ async function gift_decline(giftId) {
 
 async function gift_addFriendshipPoints(userId, points) {
   try {
-    var { data: existing } = await supabaseClient.from('friendship_points').select('*').eq('user_id', userId).single();
+    var { data: existing } = await supabaseClient.from('friendship_points').select('*').eq('user_id', userId).maybeSingle();
     if (existing) {
       await supabaseClient.from('friendship_points').update({
         total_points: existing.total_points + points,
@@ -30469,13 +30468,10 @@ var pollSystem = {
         '<div class="poll-widget-timer">⏰ ' + timeLeft + '</div>';
 
       options.forEach(function(opt, idx) {
-        var voteCount = Math.floor(Math.random() * total * 0.6); // estimate; real counts need a view
-        var pct = Math.round((voteCount / Math.max(total, 1)) * 100);
         var isChosen = hasVoted && userVote === idx;
         html += '<div class="poll-option' + (isChosen ? ' poll-option-chosen' : '') + '" ' +
           (hasVoted ? '' : 'onclick="pollSystem.castVote(\'' + poll.id + '\',' + idx + ')"') + '>' +
-          '<div class="poll-option-label">' + escapeHtml(opt.icon || '') + ' ' + escapeHtml(opt.text) + (isChosen ? ' ✓' : '') + '</div>' +
-          (hasVoted ? '<div class="poll-option-bar"><div class="poll-option-fill" style="width:' + pct + '%"></div></div>' : '') +
+          '<div class="poll-option-label">' + escapeHtml(opt.icon || '') + ' ' + escapeHtml(opt.text) + (isChosen ? ' ✓ Your vote' : '') + '</div>' +
           '</div>';
       });
 
@@ -30585,7 +30581,9 @@ var pollSystem = {
     var self = this;
     poll.options.forEach(function(opt, idx) {
       var isChosen = hasVoted && userVote === idx;
-      var pct = hasVoted ? Math.round(((poll.vote_counts && poll.vote_counts[idx]) || Math.floor(Math.random() * Math.max(total,1) * 0.5)) / Math.max(total,1) * 100) : 0;
+      // Use real vote_counts if available, otherwise don't show fake percentages
+      var optVotes = (poll.vote_counts && poll.vote_counts[idx]) || 0;
+      var pct = (hasVoted && total > 0) ? Math.round((optVotes / total) * 100) : 0;
 
       html += '<div class="poll-option-card' + (isChosen ? ' poll-option-card-chosen' : '') + '">' +
         '<div class="poll-option-card-header">' +
