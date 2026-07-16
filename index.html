@@ -301,6 +301,92 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
 }    
   </style>
 
+  <style id="install-styles">
+  /* ══════════════════════════════════════════════════════════════
+     INSTALL SCREEN
+  ══════════════════════════════════════════════════════════════ */
+  #install-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: #008080;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Tahoma', 'Arial', sans-serif;
+    overflow: hidden;
+  }
+  #install-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
+    z-index: 1;
+  }
+  #install-inner {
+    position: relative;
+    z-index: 2;
+    width: min(520px, 92vw);
+    background: #d4d0c8;
+    border: 2px solid #ffffff;
+    border-right-color: #404040;
+    border-bottom-color: #404040;
+    box-shadow: 2px 2px 0 #000, inset 1px 1px 0 #fff;
+  }
+  #install-header {
+    background: linear-gradient(90deg, #000080, #1084d0);
+    padding: 4px 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    user-select: none;
+  }
+  #install-header-dots { display: flex; gap: 3px; }
+  #install-header-dots span {
+    display: block; width: 13px; height: 13px;
+    background: #d4d0c8; border: 1px solid #888;
+    border-bottom-color: #fff; border-right-color: #fff;
+    font-size: 8px; line-height: 13px; text-align: center; cursor: default;
+  }
+  #install-header-title { flex: 1; color: #fff; font-size: 11px; font-weight: bold; font-family: Tahoma, Arial, sans-serif; }
+  #install-header-x { color: #fff; font-size: 11px; cursor: default; opacity: 0.7; }
+  #install-body { padding: 24px 28px 18px; text-align: center; }
+  #install-congrats { font-size: clamp(1.1rem, 4vw, 1.5rem); font-weight: bold; color: #000080; margin-bottom: 10px; font-family: Tahoma, Arial, sans-serif; }
+  #install-sub { font-size: clamp(0.72rem, 2.5vw, 0.85rem); color: #333; margin-bottom: 22px; line-height: 1.6; font-family: Tahoma, Arial, sans-serif; }
+  #install-disc-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-bottom: 22px; cursor: pointer; }
+  #install-disc {
+    width: clamp(90px, 22vw, 130px); height: clamp(90px, 22vw, 130px);
+    object-fit: contain; transition: transform 0.15s;
+    filter: drop-shadow(2px 4px 8px rgba(0,0,0,0.25));
+    animation: discIdle 4s ease-in-out infinite;
+  }
+  @keyframes discIdle {
+    0%, 100% { transform: rotate(-2deg) scale(1); }
+    50%       { transform: rotate(2deg) scale(1.02); }
+  }
+  #install-disc-wrap:hover #install-disc { animation: none; transform: scale(1.08) rotate(-4deg); filter: drop-shadow(3px 6px 12px rgba(0,0,80,0.35)); }
+  #install-disc-label { font-size: clamp(1rem, 3.5vw, 1.3rem); font-weight: bold; font-family: 'Courier New', monospace; color: #000; letter-spacing: 1px; }
+  #install-disc-label span { color: #000080; }
+  #install-disc-hint { font-size: 0.72rem; color: #555; font-family: Tahoma, Arial, sans-serif; }
+  #install-progress-area { margin-bottom: 16px; }
+  #install-status-text { font-size: 0.82rem; color: #000; font-family: Tahoma, Arial, sans-serif; margin-bottom: 6px; text-align: left; min-height: 1.2em; }
+  #install-bar-wrap { width: 100%; height: 20px; background: #fff; border: 2px inset #888; overflow: hidden; }
+  #install-bar {
+    height: 100%; width: 0%;
+    background: repeating-linear-gradient(90deg, #000080 0px, #000080 14px, #5588cc 14px, #5588cc 18px);
+    transition: width 0.4s ease;
+  }
+  #install-sub-status { font-size: 0.72rem; color: #555; font-family: 'Courier New', monospace; text-align: left; margin-top: 4px; min-height: 1.2em; }
+  #install-fine-print { font-size: 0.65rem; color: #666; font-family: Tahoma, Arial, sans-serif; border-top: 1px solid #aaa; padding-top: 10px; margin-top: 6px; text-align: left; line-height: 1.7; }
+  #install-fade { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 999999; transition: opacity 1.2s ease; }
+  #install-fade.fading { opacity: 1; pointer-events: all; }
+  @media (max-width: 480px) {
+    #install-inner { width: 96vw; }
+    #install-body { padding: 16px 14px 12px; }
+    #install-fine-print { font-size: 0.6rem; }
+  }
+  </style>
+
 </head>
 <body class="three-column-layout">
 
@@ -506,6 +592,51 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
     <!-- ALL YOUR EXISTING PAGE SECTIONS GO HERE -->
     <!-- Keep everything from <div id="auth-gate"> through the footer -->
 
+
+<!-- INSTALL SCREEN — shown once to new visitors, skipped for return visitors -->
+<div id="install-screen" style="display:none;">
+  <div id="install-scanlines"></div>
+  <div id="install-inner">
+
+    <div id="install-header">
+      <span id="install-header-dots"><span></span><span></span><span></span></span>
+      <span id="install-header-title">PawketPets Setup — v0.9.2 BETA</span>
+      <span id="install-header-x">✕</span>
+    </div>
+
+    <div id="install-body">
+      <div id="install-congrats">
+        🎉 Congratulations, Beta Tester!
+      </div>
+      <div id="install-sub">
+        You have been selected by <strong>Melon Interactive</strong> to participate<br>
+        in the exclusive pre-release testing program for<br>
+        <strong>PawketPets Virtual Pet System™</strong>
+      </div>
+
+      <div id="install-disc-wrap">
+        <img id="install-disc" src="images/disc.png" alt="PAWKET.EXE" draggable="false" />
+        <div id="install-disc-label">PAWKET<span>.EXE</span></div>
+        <div id="install-disc-hint">Double-click to install</div>
+      </div>
+
+      <div id="install-progress-area" style="display:none;">
+        <div id="install-status-text">Initializing setup wizard...</div>
+        <div id="install-bar-wrap">
+          <div id="install-bar"></div>
+        </div>
+        <div id="install-sub-status">&nbsp;</div>
+      </div>
+
+      <div id="install-fine-print">
+        * By installing you agree to participate in beta testing.<br>
+        * Your experience data will be recorded for quality assurance purposes.<br>
+        * <span id="install-tester-id">Tester ID: loading...</span>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- AUTH GATE -->
 <div id="auth-gate">
@@ -3416,11 +3547,137 @@ function triggerSpookyEffect() {
      COMPANION BUDDY - Pet in Corner
      ═══════════════════════════════════════════════════════════════════════ -->
 <div id="companion-buddy" style="display:none;">
-  <div class="companion-sprite" id="companion-sprite" onclick="companionPat(event)" title="Click me!"></div>
+  <div class="companion-sprite" id="companion-sprite"></div>
   <div class="companion-bubble" id="companion-bubble">
     <div class="companion-message" id="companion-message">Hello! 🐾</div>
   </div>
 </div>
+
+<!-- INSTALL SEQUENCE SCRIPT -->
+<div id="install-fade"></div>
+<script>
+(function() {
+  // Skip if already visited or if user is logged in (Supabase sets a key)
+  var INSTALL_KEY = 'pawketpets_installed_v1';
+  if (localStorage.getItem(INSTALL_KEY)) return;
+
+  // Preserve ?ref= param through the sequence
+  var urlRef = (location.search.match(/[?&]ref=([^&]+)/) || [])[1] || null;
+
+  // Assign a fake tester ID
+  var testerId = 'PT-' + Math.floor(10000 + Math.random() * 89999) + '-' + String.fromCharCode(65 + Math.floor(Math.random()*26));
+  var testerEl = document.getElementById('install-tester-id');
+  if (testerEl) testerEl.textContent = 'Tester ID: ' + testerId;
+
+  // Show the install screen
+  var screen = document.getElementById('install-screen');
+  var authGate = document.getElementById('auth-gate');
+  if (!screen || !authGate) return;
+
+  screen.style.display = 'flex';
+  authGate.style.display = 'none';
+
+  // ── Web Audio click sound (XP-style) ──────────────────────────────────
+  function playClickSound() {
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      // Short crisp click: brief noise burst with quick decay
+      var buf = ctx.createBuffer(1, ctx.sampleRate * 0.08, ctx.sampleRate);
+      var data = buf.getChannelData(0);
+      for (var i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 6);
+      }
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      var gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.18, ctx.currentTime);
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+    } catch(e) {}
+  }
+
+  // ── Install sequence steps ─────────────────────────────────────────────
+  var steps = [
+    { pct: 8,  status: 'Initializing setup wizard...',         sub: 'Loading PAWKET.EXE...' },
+    { pct: 22, status: 'Checking system requirements...',       sub: 'OK — 640KB ought to be enough for anybody' },
+    { pct: 35, status: 'Unpacking pet data...',                 sub: 'pawket_core.dat ... pawket_pets.dat ... menus.dat ...' },
+    { pct: 51, status: 'Restoring previous session data...',    sub: '⚠ 1 previous user data conflict detected — skipping' },
+    { pct: 67, status: 'Connecting to Melon Interactive servers...', sub: 'Connection established. Welcome back.' },
+    { pct: 80, status: 'Configuring companion AI...',           sub: 'They have been waiting.' },
+    { pct: 93, status: 'Almost ready...',                       sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing' },
+    { pct: 99, status: 'Finalizing installation...',            sub: '' },
+  ];
+
+  var discWrap = document.getElementById('install-disc-wrap');
+  var progressArea = document.getElementById('install-progress-area');
+  var statusText = document.getElementById('install-status-text');
+  var bar = document.getElementById('install-bar');
+  var subStatus = document.getElementById('install-sub-status');
+  var fade = document.getElementById('install-fade');
+
+  function runStep(i) {
+    if (i >= steps.length) {
+      // Final pause then fade to black
+      setTimeout(function() {
+        if (fade) { fade.classList.add('fading'); }
+        setTimeout(function() {
+          // Show auth gate
+          screen.style.display = 'none';
+          authGate.style.display = '';
+          // Restore ref param to URL without reload
+          if (urlRef) {
+            try { history.replaceState(null, '', '?ref=' + urlRef); } catch(e) {}
+          }
+          localStorage.setItem(INSTALL_KEY, '1');
+          // Fade back in
+          setTimeout(function() {
+            if (fade) { fade.classList.remove('fading'); }
+          }, 100);
+        }, 1200);
+      }, 600);
+      return;
+    }
+    var step = steps[i];
+    if (statusText) statusText.textContent = step.status;
+    if (subStatus) subStatus.textContent = step.sub || ' ';
+    if (bar) bar.style.width = step.pct + '%';
+
+    // Vary timing — some steps are quick, some linger
+    var delays = [400, 600, 700, 1100, 800, 1000, 900, 1400];
+    setTimeout(function() { runStep(i + 1); }, delays[i] || 700);
+  }
+
+  // Click the disc to begin
+  function startInstall() {
+    playClickSound();
+
+    // Spin and shrink the disc away
+    var disc = document.getElementById('install-disc');
+    var discLabel = document.getElementById('install-disc-label');
+    var discHint = document.getElementById('install-disc-hint');
+    if (disc) {
+      disc.style.transition = 'transform 0.5s ease, opacity 0.4s ease';
+      disc.style.transform = 'scale(0.6) rotate(720deg)';
+      disc.style.opacity = '0.2';
+    }
+    if (discLabel) { discLabel.style.opacity = '0'; discLabel.style.transition = 'opacity 0.3s'; }
+    if (discHint)  { discHint.style.opacity  = '0'; discHint.style.transition  = 'opacity 0.3s'; }
+
+    setTimeout(function() {
+      if (discWrap) discWrap.style.display = 'none';
+      if (progressArea) progressArea.style.display = 'block';
+      runStep(0);
+    }, 500);
+  }
+
+  if (discWrap) {
+    discWrap.addEventListener('click', startInstall);
+    discWrap.addEventListener('dblclick', startInstall); // for authenticity
+  }
+
+})();
+</script>
 
 </body>
 </html>
