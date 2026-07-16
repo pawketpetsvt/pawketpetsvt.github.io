@@ -292,11 +292,46 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
 ══════════════════════════════════════════════════════════════ */
 .landing-v2 {
   display: grid;
-  grid-template-columns: 420px 1fr;
-  min-height: calc(100vh - 48px); /* fill the viewport below navbar */
-  max-width: 1100px;
+  grid-template-columns: 190px 400px 1fr;
+  min-height: calc(100vh - 48px);
+  max-width: 1240px;
   margin: 0 auto;
   gap: 0;
+}
+
+.landing-v2-screenshots {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 10px 16px 12px;
+  border-right: 1px solid rgba(153,102,255,0.1);
+  justify-content: center;
+  overflow: hidden;
+}
+.landing-v2-screenshots img {
+  width: 100%;
+  border-radius: 6px;
+  border: 2px solid rgba(153,102,255,0.2);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  object-fit: cover;
+  object-position: top;
+  max-height: 110px;
+}
+.landing-v2-screenshots img:hover {
+  transform: scale(1.04);
+  box-shadow: 0 6px 18px rgba(153,102,255,0.3);
+  border-color: rgba(153,102,255,0.5);
+  position: relative;
+  z-index: 2;
+}
+.landing-v2-ss-label {
+  font-size: 0.58rem;
+  color: var(--text-light);
+  text-align: center;
+  margin-top: -2px;
+  font-style: italic;
+  line-height: 1.3;
 }
 
 /* Left column — form */
@@ -469,7 +504,11 @@ body.night-mode .landing-feature-text span { color: #b399dd; }
 }
 
 /* Mobile: stack vertically */
-@media (max-width: 760px) {
+@media (max-width: 900px) {
+  .landing-v2-screenshots { display: none; }
+  .landing-v2 { grid-template-columns: 400px 1fr; }
+}
+@media (max-width: 640px) {
   .landing-v2 {
     grid-template-columns: 1fr;
     min-height: unset;
@@ -863,11 +902,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <div class="navbar-right">
     <span id="nav-user"></span>
     <span id="nav-points"></span>
-    <button onclick="showHelpModal()" title="Help & Guide" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
-    <button onclick="showReportModal()" title="Report an Issue" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
+    <button onclick="showHelpModal()" title="Game Information" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
+    <button onclick="showReportModal()" title="Report a player or bug" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
 
     <!-- Skin Key counter — hidden until logged in -->
-    <div id="nav-skin-key-display" style="display:none;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,165,0,0.15));border-radius:20px;padding:4px 10px;border:1px solid rgba(255,215,0,0.35);cursor:help;" title="Skin Keys: use to unlock pet variants">
+    <div id="nav-skin-key-display" style="display:none;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,165,0,0.15));border-radius:20px;padding:4px 10px;border:1px solid rgba(255,215,0,0.35);cursor:help;" title="Skin Keys — use to unlock pet variants and cosmetics">
       <span style="font-size:0.95rem;">🔑</span>
       <span id="nav-skin-key-count" class="skin-key-count" style="font-weight:bold;color:#FFD700;font-size:0.88rem;">0</span>
     </div>
@@ -1133,7 +1172,17 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <div class="page-section active" id="section-login">
     <div class="landing-v2">
 
-      <!-- LEFT: FORM -->
+      <!-- SCREENSHOTS -->
+      <div class="landing-v2-screenshots">
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" />
+        <div class="landing-v2-ss-label">8 unique VTuber pets</div>
+        <img src="images/screenshot-shop.png" alt="Item Shop" />
+        <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
+        <img src="images/screenshot-battle.png" alt="Battle Arena" />
+        <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
+      </div>
+
+      <!-- CENTER: FORM -->
       <div class="landing-v2-form">
         <div class="landing-v2-logo">
           <img src="images/logo.png" alt="PawketPetsVT" />
@@ -1221,7 +1270,17 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <div class="page-section" id="section-register">
     <div class="landing-v2">
 
-      <!-- LEFT: FORM -->
+      <!-- SCREENSHOTS -->
+      <div class="landing-v2-screenshots">
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" />
+        <div class="landing-v2-ss-label">8 unique VTuber pets</div>
+        <img src="images/screenshot-shop.png" alt="Item Shop" />
+        <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
+        <img src="images/screenshot-battle.png" alt="Battle Arena" />
+        <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
+      </div>
+
+      <!-- CENTER: FORM -->
       <div class="landing-v2-form">
         <div class="landing-v2-logo">
           <img src="images/logo.png" alt="PawketPetsVT" />
@@ -1327,11 +1386,13 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <!-- HOME -->
   <div class="page-section active" id="section-home">
     <div class="page-wrap">
-      <div class="welcome-panel">
-        <img src="images/logo.png" alt="PawketPetsVT" class="logo-hero" />
-        <h1>Welcome to PawketPetsVT!</h1>
-        <p>Adopt virtual pets based on your favourite VTubers, play games, and earn rewards &#10024;</p>
-        <div id="home-cta" style="margin-top:16px;"></div>
+      <div class="welcome-panel" style="padding:10px 16px 8px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:10px;justify-content:center;">
+          <img src="images/logo.png" alt="PawketPetsVT" class="logo-hero" style="width:36px;height:36px;margin:0;" />
+          <h1 style="font-size:1.2rem;margin:0;">Welcome to PawketPetsVT!</h1>
+        </div>
+        <p style="font-size:0.8rem;margin:4px 0 6px;color:var(--text-light);">Adopt virtual pets based on your favourite VTubers, play games, and earn rewards ✨</p>
+        <div id="home-cta" style="margin-top:6px;"></div>
       </div>
 
       <!-- Today in PawketPets — weather, daily stats, featured goal, live streamers -->
@@ -1349,7 +1410,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
 
       <!-- Gift Inbox Button -->
-      <div id="gift-inbox-bar" style="display:none;background:linear-gradient(135deg,#9966ff,#ff66cc);border-radius:14px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="gift_showInboxModal()">
+      <div id="gift-inbox-bar" style="display:none!important;background:linear-gradient(135deg,#9966ff,#ff66cc);border-radius:14px;padding:12px 18px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;" onclick="gift_showInboxModal()">
         <span style="color:white;font-weight:700;">📬 Gift Inbox</span>
         <span id="gift-inbox-badge" style="background:white;color:#9966ff;border-radius:20px;padding:2px 10px;font-weight:700;font-size:0.9rem;display:none;">0</span>
       </div>
@@ -2251,8 +2312,8 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           
           <div class="team-profile-body">
             <p class="team-profile-bio">
-              Creator of PawketPetsVT! A fiery fox VTuber who loves building community-driven projects and cozy games. 
-              Passionate about bringing VTubers together through fun, interactive experiences!
+              Creator of PawketPetsVT! A brokenhearted Protogen VTuber who loves horror games, MOBAs, and building wild community projects.
+              Twitch Partner for 11 years and counting. She/her. Probably playing something scary right now. 🔥
             </p>
             
             <div class="team-profile-stats">

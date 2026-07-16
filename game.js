@@ -74,8 +74,8 @@ var battleSounds = {
   defeat: '/sounds/defeat.mp3'
 };
 
-// ─── Set to true when sound files are added to /sounds/ ───────────────────
-var SOUNDS_ENABLED = false;
+// ─── Sound files exist in /sounds/ directory ──────────────────────────────
+var SOUNDS_ENABLED = true;
 // ─────────────────────────────────────────────────────────────────────────
 
 // ── CHIPTUNE CELEBRATION SOUNDS (Web Audio API — no files needed) ──────────
@@ -298,7 +298,7 @@ if (!initSupabase()) {
 
 // ── CONFIG ──────────────────────────────
 var TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u';
-var TWITCH_REDIRECT_URI = 'https://pawketpetsvt.github.io/';
+var TWITCH_REDIRECT_URI = 'https://pawketpets.net/';
 var STREAMER_IDS = {
   embertail: '91821604',
   pyxshuul:  '1459912293',
@@ -1971,8 +1971,10 @@ async function updateSidebarStats() {
       });
     }
     
-    // Calculate day streak
-    var streak = calculateDayStreak();
+    // Calculate day streak — prefer DB value (dailyLoginStreak) for consistency with Today card
+    var streak = (typeof dailyLoginStreak !== 'undefined' && dailyLoginStreak > 0)
+      ? dailyLoginStreak
+      : calculateDayStreak();
     
     // Update sidebar display
     var petCountEl = document.getElementById('sidebar-pet-count');
@@ -5497,7 +5499,7 @@ async function feedFree(petId) {
     var feedPet = petState[petId] || {};
     var feedPetType = feedPet.pet_type || (feedPet.pets && feedPet.pets.name) || null;
     if (feedPetType) {
-      logJournalDiscovery(feedPetType, 'loved', itemName || '').catch(function(){});
+      logJournalDiscovery(feedPetType, 'loved', '').catch(function(){});  // free feed, no item name
     }
   }
   
@@ -5833,7 +5835,8 @@ async function playFree(petId) {
       if (result.new_level === 10) await awardBadge('level_10');
       if (result.new_level === 20) await awardBadge('level_20');
     } else {
-      showFlash(petId, '🎾 -10 Energy +15 Happiness +15 XP', '#5dde7a');
+      var hapGained = result.happiness_gained !== undefined ? result.happiness_gained : 15;
+    showFlash(petId, '🎾 -10 Energy +' + hapGained + ' Happiness +' + (result.xp_gained || 15) + ' XP', '#5dde7a');
     }
 
   } catch (err) {
@@ -8783,7 +8786,7 @@ function corruptionVisuals_init() {
 // Only fires during corruption-mid, at a low rate (~once per ~45s avg)
 safeSetInterval(function() {
   if (!document.body.classList.contains('corruption-mid')) return;
-  if (Math.random() > 0.25) return; // 25% chance each 8s tick
+  if (Math.random() > 0.50) return; // 50% chance each 5s tick
 
   var candidates = Array.from(document.querySelectorAll(
     '.pet-card, .sidebar-nav-btn, .form-card, .shop-card, .today-card'
@@ -8801,7 +8804,7 @@ safeSetInterval(function() {
     target.classList.remove('corruption-glitch-flash');
     delete target.dataset.corruptGlitching;
   }, 400 + Math.random() * 300);
-}, 8000);
+}, 5000);
 
 // Spooky effect for THEYWENTMISSING code
 function triggerSpookyEffect() {
@@ -8945,23 +8948,23 @@ async function redeemCode() {
       return;
     }
 
-    // 3. Check if THIS player already redeemed it — always check, regardless of
-    // whether the code has a total max_uses cap. Previously this check was only
-    // applied when max_uses was set, meaning any "unlimited use" code could be
-    // redeemed infinitely by the same account for repeated PP rewards.
-    var alreadyRes = await supabaseClient
-      .from('redeemed_codes')
-      .select('id')
-      .eq('player_id', currentUser.id)
-      .eq('code_id', promo.id)
-      .maybeSingle();
+    // 3. Check if THIS player already redeemed it.
+    // THEYWENTMISSING is a lore discovery code — skip so players can re-trigger the effect.
+    if (code !== 'THEYWENTMISSING') {
+      var alreadyRes = await supabaseClient
+        .from('redeemed_codes')
+        .select('id')
+        .eq('player_id', currentUser.id)
+        .eq('code_id', promo.id)
+        .maybeSingle();
 
-    if (alreadyRes.data) {
-      errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
-      errEl.classList.add('show');
-      btn.textContent = '✨ Redeem!';
-      btn.disabled = false;
-      return;
+      if (alreadyRes.data) {
+        errEl.textContent = 'You\'ve already redeemed this code! Each code is one per account.';
+        errEl.classList.add('show');
+        btn.textContent = '\u2728 Redeem!';
+        btn.disabled = false;
+        return;
+      }
     }
 
     // 4. All good — award the PP
@@ -13653,7 +13656,7 @@ function initMelonDialogue() {
   if (!dialogueEl) return;
   
   // 3% chance for spooky dialogue (was 10%, now much rarer!)
-  var isSpooky = Math.random() < 0.03;
+  var isSpooky = Math.random() < 0.12;
   
   if (isSpooky && playerSettings.spooky_enabled) {
     showSpookyDialogue();
@@ -14593,7 +14596,7 @@ var newsTicker = {
     "don't trust the flute",
     "there is no exit tab"
   ],
-  SPOOKY_TICKER_CHANCE: 0.025, // ~2.5% chance per rotation
+  SPOOKY_TICKER_CHANCE: 0.12, // ~12% chance per rotation
   
   currentIndex: 0,
   rotationInterval: null,
@@ -15282,7 +15285,7 @@ var CompanionBuddy = {
     'help me',
     'please',
   ],
-  SPOOKY_COMPANION_CHANCE: 0.012, // ~1.2% per rotation — rare enough to be shocking
+  SPOOKY_COMPANION_CHANCE: 0.08, // ~8% per rotation — noticeable without being constant
 
   getRandomMessage: function(context) {
     // Spooky companion override — very rare, spooky mode only
@@ -26803,16 +26806,16 @@ async function loadStatistics() {
     
     if (petsError) throw petsError;
     
-    // Fetch battle stats — only need winner_id for the win-rate count, not full rows
+    // Fetch battle stats — use victory boolean (no winner_id column in schema)
     var { data: battlesData, error: battlesError } = await supabaseClient
       .from('battle_history')
-      .select('winner_id')
+      .select('victory')
       .eq('user_id', currentUser.id);
     
     // Calculate stats
     var totalPets = petsData ? petsData.length : 0;
     var totalBattles = battlesData ? battlesData.length : 0;
-    var battlesWon = battlesData ? battlesData.filter(function(b) { return b.winner_id === currentUser.id; }).length : 0;
+    var battlesWon = battlesData ? battlesData.filter(function(b) { return b.victory === true; }).length : 0;
     var winRate = totalBattles > 0 ? Math.round((battlesWon / totalBattles) * 100) : 0;
     
     var totalPoints = playerData ? (playerData.pawketpoints || 0) : 0;
@@ -29338,17 +29341,27 @@ async function todayCard_render() {
     ? '<div class="today-card-live">🔴 ' + liveCount + ' team member' + (liveCount !== 1 ? 's' : '') + ' live right now!</div>'
     : '';
 
+  // Build a cleaner, sectioned Today card layout
+  var liveAndOnlineHtml = '';
+  if (liveHtml || onlineHtml) {
+    liveAndOnlineHtml = '<div class="today-card-row today-card-row-meta">' + liveHtml + onlineHtml + '</div>';
+  }
+
+  var weatherAndStreakHtml =
+    '<div class="today-card-row today-card-row-split">' +
+      '<div class="today-card-col">' + weatherHtml + '</div>' +
+      '<div class="today-card-col">' + streakHtml + '</div>' +
+    '</div>';
+
   mount.innerHTML =
     '<div class="today-card">' +
       '<div class="today-card-header">🌟 Today in PawketPets</div>' +
-      seasonHtml +
-      onlineHtml +
-      streakHtml +
-      worldStateHtml +
-      weatherHtml +
-      statsHtml +
-      goalHtml +
-      liveHtml +
+      (seasonHtml ? '<div class="today-card-section">' + seasonHtml + '</div>' : '') +
+      (liveAndOnlineHtml ? '<div class="today-card-section today-card-section-live">' + liveAndOnlineHtml + '</div>' : '') +
+      '<div class="today-card-section">' + weatherAndStreakHtml + '</div>' +
+      (worldStateHtml ? '<div class="today-card-section today-card-section-world">' + worldStateHtml + '</div>' : '') +
+      '<div class="today-card-section today-card-section-stats">' + statsHtml + '</div>' +
+      (goalHtml ? '<div class="today-card-section">' + goalHtml + '</div>' : '') +
     '</div>';
 }
 
