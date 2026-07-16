@@ -8330,6 +8330,73 @@ function cleanupSpookyEffects() {
   dbg('✨ Cleaned up spooky effects');
 }
 
+// ── CORRUPTION VISUAL EFFECTS ───────────────────────────────────────────────
+// Three tiers, driven by world_state_flags.corruption_level (0-100):
+//   ≤ 25 : no effect — world looks pristine
+//   25-75: occasional glitchy pixel flashes (rare, not constant)
+//   ≥ 75 : dark purple overlay + heavier glitch aesthetic site-wide
+//
+// Reads _worldStateCache (sync, no extra DB calls).
+// Applies body classes: corruption-mid | corruption-high.
+// Safe to add/remove at any time — fully CSS-driven, no DOM mutations.
+// ────────────────────────────────────────────────────────────────────────────
+
+var _corruptionVisualsLastLevel = -1;
+
+function corruptionVisuals_apply(level) {
+  var body = document.body;
+  if (!body) return;
+
+  if (level >= 75) {
+    body.classList.remove('corruption-mid');
+    body.classList.add('corruption-high');
+  } else if (level >= 25) {
+    body.classList.remove('corruption-high');
+    body.classList.add('corruption-mid');
+  } else {
+    body.classList.remove('corruption-mid', 'corruption-high');
+  }
+}
+
+// Poll the sync cache every 30s — only re-applies if level has changed
+safeSetInterval(function() {
+  var level = getWorldStateValueSync('corruption_level', 50);
+  if (level === _corruptionVisualsLastLevel) return;
+  _corruptionVisualsLastLevel = level;
+  corruptionVisuals_apply(level);
+}, 30000);
+
+// Also apply immediately after world state loads (called from showApp)
+function corruptionVisuals_init() {
+  var level = getWorldStateValueSync('corruption_level', 50);
+  _corruptionVisualsLastLevel = level;
+  corruptionVisuals_apply(level);
+}
+
+// Mid-tier: occasional random pixel flash on a random element (25-75%)
+// Only fires during corruption-mid, at a low rate (~once per ~45s avg)
+safeSetInterval(function() {
+  if (!document.body.classList.contains('corruption-mid')) return;
+  if (Math.random() > 0.25) return; // 25% chance each 8s tick
+
+  var candidates = Array.from(document.querySelectorAll(
+    '.pet-card, .sidebar-nav-btn, .form-card, .shop-card, .today-card'
+  )).filter(function(el) {
+    var r = el.getBoundingClientRect();
+    return r.width > 0 && r.top >= 0 && r.bottom <= window.innerHeight;
+  });
+  if (!candidates.length) return;
+
+  var target = candidates[Math.floor(Math.random() * candidates.length)];
+  if (target.dataset.corruptGlitching) return;
+  target.dataset.corruptGlitching = '1';
+  target.classList.add('corruption-glitch-flash');
+  safeSetTimeout(function() {
+    target.classList.remove('corruption-glitch-flash');
+    delete target.dataset.corruptGlitching;
+  }, 400 + Math.random() * 300);
+}, 8000);
+
 // Spooky effect for THEYWENTMISSING code
 function triggerSpookyEffect() {
   // Add dark overlay with CRT effect
@@ -27167,6 +27234,7 @@ async function newFeatures_init() {
   dbg('🚀 Initializing new features...');
   try {
     if (typeof todayCard_init === 'function') await todayCard_init();
+    if (typeof corruptionVisuals_init === 'function') corruptionVisuals_init();
     if (typeof calendar_init === 'function') await calendar_init();
     if (typeof dailyWelcome_check === 'function') dailyWelcome_check();
     dbg('✅ New features initialized!');
