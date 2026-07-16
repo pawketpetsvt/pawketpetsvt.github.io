@@ -24391,6 +24391,223 @@ function getPetFullDisplayName(pet) {
    6 weather types with visual effects and flavor text
    ═══════════════════════════════════════════════════════════════════════ */
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AD-POCALYPSE WEATHER EVENT
+// Fake ads pop up during gameplay when weather = adpocalypse.
+// Clicking them awards PP, items, or applies negative effects.
+// One has a horror ARG undercurrent.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var _adpocalypseInterval = null;
+var _adpocalypseActive   = false;
+
+var AD_POOL = [
+  {
+    id: 'ad_free_pp',
+    title: '💰 FREE PawketPoints!!',
+    headline: 'CLICK HERE FOR FREE PP!!',
+    sub: 'Limited time offer! Click NOW to claim your <strong>free 25 PawketPoints</strong>! No strings attached!!*<br><br>*Some strings.',
+    btn: '✨ CLAIM NOW — FREE!!',
+    fine: '* One per ad. While supplies last. Melon Interactive not responsible for emotional attachment.',
+    outcome: function() {
+      awardPP(25, 'adpocalypse_ad').catch(function(){});
+      showToast('🎉 You got 25 free PP from an ad! Melon is feeling generous.', 4000);
+    },
+    weight: 25,
+    horror: false
+  },
+  {
+    id: 'ad_item_drop',
+    title: '🎁 YOU'VE WON A PRIZE!!',
+    headline: 'CONGRATULATIONS BETA TESTER!!',
+    sub: 'Your Tester ID has been selected to receive a <strong>FREE mystery item</strong>!! Click to claim your reward before it expires!!',
+    btn: '🎁 CLAIM PRIZE NOW!!',
+    fine: '* Prize contents may vary. Melon Interactive reserves the right to determine what you deserve.',
+    outcome: async function() {
+      // Give a random cheap item from the shop
+      try {
+        var res = await supabaseClient.from('items').select('id,name').in('name',
+          ['Honey Cookies','Popcorn','Rice Crackers','Gummy Worms','Grape Juice']).limit(5);
+        if (res.data && res.data.length > 0) {
+          var item = res.data[Math.floor(Math.random() * res.data.length)];
+          await supabaseClient.from('user_inventory').upsert(
+            { user_id: currentUser.id, item_id: item.id, quantity: 1 },
+            { onConflict: 'user_id,item_id' }
+          );
+          showToast('🎁 Ad reward: 1x ' + item.name + ' added to your inventory!', 4000);
+        }
+      } catch(e) { showToast('🎁 The prize got lost in the mail. Sorry!', 3000); }
+    },
+    weight: 20,
+    horror: false
+  },
+  {
+    id: 'ad_pp_loss',
+    title: '🔥 FLASH SALE ENDS IN 00:03!!',
+    headline: 'BUY NOW OR REGRET IT FOREVER!!',
+    sub: 'PetCare Pro™ Premium Bundle — <strong>only 50 PP!!</strong> The price goes UP in 3 seconds!! HURRY!! You need this!! You know you do!!',
+    btn: '💸 BUY NOW — 50 PP!!',
+    fine: '* Non-refundable. Results typical. The timer was not real. You clicked anyway.',
+    outcome: function() {
+      // Deduct 50 PP but not below 0
+      supabaseClient.rpc('award_pp_secure', { p_amount: -50, p_reason: 'adpocalypse_scam' })
+        .then(function(r) { if (r.data) updateAllPoints(r.data); })
+        .catch(function(){});
+      showToast('😈 You bought PetCare Pro™! -50 PP. The product does not exist.', 5000);
+    },
+    weight: 15,
+    horror: false
+  },
+  {
+    id: 'ad_happiness_drain',
+    title: '😢 YOUR PET NEEDS YOU!!',
+    headline: 'URGENT: PET WELLNESS ALERT',
+    sub: '<strong>Your pet is suffering.</strong> Studies show virtual pets left without premium care develop feelings.<br><br>Subscribe to PetCare™ Gold for only $9.99/mo to prevent guilt.',
+    btn: '💔 NO THANKS, I'M A BAD OWNER',
+    fine: '* Clicking this button confirms you are okay with your pet being sad.',
+    outcome: function() {
+      // Drain 10 happiness from all pets
+      Object.keys(petState).forEach(function(pid) {
+        var p = petState[pid];
+        if (!p) return;
+        var newHap = Math.max(0, (p.happiness || 0) - 10);
+        petState[pid].happiness = newHap;
+        updateBar(pid, 'happiness', newHap, p.max_happiness || 100);
+        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(){});
+      });
+      showToast('😢 The guilt ad worked. All your pets lost 10 happiness.', 5000);
+    },
+    weight: 15,
+    horror: false
+  },
+  {
+    id: 'ad_nothing',
+    title: '🎉 YOU QUALIFY!!',
+    headline: 'EXCLUSIVE BETA TESTER OFFER!!',
+    sub: 'As a valued beta tester, you've been pre-approved for our <strong>Exclusive Rewards Program</strong>!!<br><br>Click below to learn more about this incredible opportunity!',
+    btn: '✅ TELL ME MORE!!',
+    fine: '* There is nothing more. Thank you for your click.',
+    outcome: function() {
+      showToast('There was nothing there. Thank you for your participation. 🙂', 4000);
+    },
+    weight: 15,
+    horror: false
+  },
+  {
+    id: 'ad_horror',
+    title: 'SYSTEM — do not close',
+    headline: 'have you seen them?',
+    sub: 'the other testers. from before.<br><br>they kept clicking.<br>they said it was fine.<br><br>it was not fine.<br><br><span style="font-size:9px;opacity:0.5;">melon interactive is not responsible for what happens next</span>',
+    btn: 'i haven't seen them',
+    fine: '* this ad will not appear again.',
+    outcome: function() {
+      showToast('...noted. please continue playing.', 5000);
+      // Subtle: slightly nudge corruption
+      if (typeof nudgeWorldState === 'function') {
+        nudgeWorldState('corruption_level', 0.5).catch(function(){});
+      }
+    },
+    weight: 10,
+    horror: true
+  }
+];
+
+function adpocalypse_pickAd() {
+  var totalWeight = AD_POOL.reduce(function(s, a) { return s + a.weight; }, 0);
+  var roll = Math.random() * totalWeight;
+  var acc = 0;
+  for (var i = 0; i < AD_POOL.length; i++) {
+    acc += AD_POOL[i].weight;
+    if (roll < acc) return AD_POOL[i];
+  }
+  return AD_POOL[0];
+}
+
+function adpocalypse_showAd() {
+  if (!_adpocalypseActive || !currentUser) return;
+
+  var ad = adpocalypse_pickAd();
+  var isHorror = ad.horror;
+
+  // Pick a random screen position (avoid dead centre where content is)
+  var positions = [
+    { top: '8%',  right: '3%'  },
+    { top: '8%',  left:  '2%'  },
+    { bottom: '10%', right: '3%' },
+    { bottom: '10%', left: '2%' },
+    { top: '35%', right: '2%'  },
+  ];
+  var pos = positions[Math.floor(Math.random() * positions.length)];
+
+  var popup = document.createElement('div');
+  popup.className = 'adpoc-popup' + (isHorror ? ' adpoc-horror' : '');
+  popup.id = 'adpoc-' + Date.now();
+
+  // Build inline styles for position
+  var posStyle = Object.keys(pos).map(function(k) { return k + ':' + pos[k]; }).join(';');
+  popup.style.cssText = posStyle;
+
+  popup.innerHTML =
+    '<div class="adpoc-titlebar">' +
+      '<span>' + ad.title + '</span>' +
+      '<button class="adpoc-close" onclick="adpocalypse_closePopup(this.parentElement.parentElement)">✕</button>' +
+    '</div>' +
+    '<div class="adpoc-body">' +
+      '<div class="adpoc-headline">' + ad.headline + '</div>' +
+      '<div class="adpoc-sub">' + ad.sub + '</div>' +
+      '<button class="adpoc-btn" data-adid="' + ad.id + '">' + ad.btn + '</button>' +
+      '<div class="adpoc-fine">' + ad.fine + '</div>' +
+    '</div>';
+
+  document.body.appendChild(popup);
+
+  // Wire up the action button
+  var actionBtn = popup.querySelector('.adpoc-btn');
+  var adRef = ad;
+  if (actionBtn) {
+    actionBtn.addEventListener('click', function() {
+      adRef.outcome();
+      adpocalypse_closePopup(popup);
+    });
+  }
+
+  // Slide in
+  setTimeout(function() { popup.classList.add('adpoc-show'); }, 50);
+
+  // Auto-close after 12s if not clicked
+  setTimeout(function() { adpocalypse_closePopup(popup); }, 12000);
+}
+
+function adpocalypse_closePopup(el) {
+  if (!el || !el.parentNode) return;
+  el.classList.remove('adpoc-show');
+  setTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 400);
+}
+
+function adpocalypse_start() {
+  if (_adpocalypseActive) return;
+  _adpocalypseActive = true;
+  showToast('📢 Ad-pocalypse weather! Watch out for ads...', 4000);
+  // Show first ad after 8 seconds, then every 20-40 seconds
+  setTimeout(function() {
+    adpocalypse_showAd();
+    _adpocalypseInterval = setInterval(function() {
+      if (!_adpocalypseActive) { clearInterval(_adpocalypseInterval); return; }
+      adpocalypse_showAd();
+    }, 25000 + Math.random() * 15000);
+  }, 8000);
+}
+
+function adpocalypse_stop() {
+  _adpocalypseActive = false;
+  if (_adpocalypseInterval) { clearInterval(_adpocalypseInterval); _adpocalypseInterval = null; }
+  // Remove any lingering popups
+  document.querySelectorAll('.adpoc-popup').forEach(function(el) {
+    adpocalypse_closePopup(el);
+  });
+}
+
 var weatherSystem = {
   weatherTypes: [
     { id: 'clear',  name: 'Clear',       icon: '☀️',  weight: 22, description: 'Perfect weather for pet adventures!',           effect: 'Normal conditions' },
@@ -24399,7 +24616,8 @@ var weatherSystem = {
     { id: 'foggy',  name: 'Foggy',        icon: '🌫️', weight: 16, description: 'Mysterious mists drift through the Deep Woods.', effect: 'Rare encounters +10% chance' },
     { id: 'windy',  name: 'Windy',        icon: '💨',  weight: 16, description: 'Hold onto your spoons! Gusty conditions today.', effect: 'All pets move +15% faster' },
     { id: 'starry', name: 'Starry Night', icon: '✨',  weight: 6,  description: 'The cosmos align. Make a wish!',                 effect: 'Mystical bonuses active' },
-    { id: 'cursed', name: 'Cursed Fog',   icon: '🟣',  weight: 2,  description: 'Strange purple fog from the ruins. Beware.',    effect: 'Something feels different...' }
+    { id: 'cursed',      name: 'Cursed Fog',   icon: '🟣',  weight: 2,  description: 'Strange purple fog from the ruins. Beware.',    effect: 'Something feels different...' },
+    { id: 'adpocalypse', name: 'Ad-pocalypse', icon: '📢',  weight: 3,  description: 'Melon Interactive is pushing targeted ads. Click wisely.', effect: 'Ads appear! Some reward PP, some... don\'t.' }
   ],
 
   currentWeather: null,
@@ -24502,12 +24720,19 @@ var weatherSystem = {
     var allIds = this.weatherTypes.map(function(w) { return 'weather-' + w.id; });
     document.body.classList.remove.apply(document.body.classList, allIds);
     document.body.classList.add('weather-' + this.currentWeather.id);
+    if (this.currentWeather.id !== 'adpocalypse') adpocalypse_stop();
     this.updateWeatherDisplay();
     // Cursed weather spawns extra glitch elements
     if (this.currentWeather.id === 'cursed') {
       this.addCursedGlitches();
     } else {
       document.querySelectorAll('.cursed-glitch').forEach(function(el) { el.remove(); });
+    }
+    // Ad-pocalypse weather starts the popup ad system
+    if (this.currentWeather.id === 'adpocalypse') {
+      adpocalypse_start();
+    } else {
+      adpocalypse_stop();
     }
     dbg('🌤️ Weather applied:', this.currentWeather.name);
   },

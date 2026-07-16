@@ -17372,3 +17372,122 @@ body.streamer-landing-active .form-card {
   border-color: var(--streamer-accent, var(--purple));
   box-shadow: 0 4px 24px color-mix(in srgb, var(--streamer-accent, var(--purple)) 20%, transparent);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   AD-POCALYPSE WEATHER — in-game fake popup ads
+═══════════════════════════════════════════════════════════════════════════ */
+.adpoc-popup {
+  position: fixed;
+  z-index: 88888;
+  width: 300px;
+  background: #d4d0c8;
+  border: 2px solid #fff;
+  border-right-color: #404040;
+  border-bottom-color: #404040;
+  box-shadow: 3px 3px 0 #000;
+  font-family: Tahoma, Arial, sans-serif;
+  opacity: 0;
+  transform: translateY(-12px) scale(0.95);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: none;
+}
+.adpoc-popup.adpoc-show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: all;
+}
+
+.adpoc-titlebar {
+  background: linear-gradient(90deg, #000080, #1084d0);
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.adpoc-titlebar span {
+  color: #fff;
+  font-size: 11px;
+  font-weight: bold;
+  font-family: Tahoma, Arial, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.adpoc-close {
+  background: #d4d0c8;
+  border: 1px solid #888;
+  border-bottom-color: #fff;
+  border-right-color: #fff;
+  color: #000;
+  font-size: 10px;
+  width: 16px;
+  height: 14px;
+  line-height: 12px;
+  text-align: center;
+  cursor: pointer;
+  font-weight: bold;
+  padding: 0;
+  flex-shrink: 0;
+  margin-left: 6px;
+}
+.adpoc-close:hover { background: #ff4444; color: #fff; }
+
+.adpoc-body { padding: 12px 14px 14px; text-align: center; }
+.adpoc-headline {
+  font-size: 14px;
+  font-weight: bold;
+  color: #cc0000;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.adpoc-sub {
+  font-size: 11px;
+  color: #333;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.adpoc-btn {
+  display: inline-block;
+  background: linear-gradient(180deg, #ffff00, #ffcc00);
+  border: 2px outset #888;
+  color: #000;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 5px 16px;
+  cursor: pointer;
+  font-family: Tahoma, Arial, sans-serif;
+  margin-bottom: 8px;
+  transition: background 0.1s;
+}
+.adpoc-btn:hover { background: linear-gradient(180deg, #ffcc00, #ff9900); }
+.adpoc-fine {
+  font-size: 9px;
+  color: #777;
+  line-height: 1.3;
+}
+
+/* Horror variant */
+.adpoc-horror { box-shadow: 3px 3px 0 #000, 0 0 16px rgba(80,0,100,0.5); }
+.adpoc-horror .adpoc-titlebar { background: linear-gradient(90deg, #1a001a, #3d0050); }
+.adpoc-horror .adpoc-headline { color: #6600aa; font-family: 'Courier New', monospace; font-size: 13px; }
+.adpoc-horror .adpoc-sub { font-family: 'Courier New', monospace; font-size: 10px; color: #444; }
+.adpoc-horror .adpoc-btn {
+  background: #2a002a;
+  color: #cc88ff;
+  border-color: #660088;
+  font-family: 'Courier New', monospace;
+  font-weight: normal;
+  font-size: 11px;
+}
+.adpoc-horror .adpoc-btn:hover { background: #1a001a; }
+
+/* Ad-pocalypse weather body effect */
+body.weather-adpocalypse .navbar { animation: adpocNavGlitch 8s ease-in-out infinite; }
+@keyframes adpocNavGlitch {
+  0%, 88%, 100% { filter: none; }
+  90%  { filter: hue-rotate(30deg) saturate(1.5); }
+  92%  { filter: none; }
+  95%  { filter: hue-rotate(-20deg) brightness(1.1); }
+  97%  { filter: none; }
+}
