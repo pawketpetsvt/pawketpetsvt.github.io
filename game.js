@@ -4705,8 +4705,8 @@ async function race_renderSetup() {
       '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Select up to 2 pets to race (CPU fills the rest):</div>' +
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px;">' + petsHtml + '</div>' +
       '<div style="background:rgba(153,102,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:0.7rem;color:var(--text-light);line-height:1.7;">' +
-        '\'<strong style="color:var(--purple-dark);">🏎️ How does Speed work?</strong> \' +
-        \'Every pet has a base chance to win — even slow ones can upset! Higher Speed (💨) gives more tickets in the draw so faster pets win more often, but returns shrink as you stack gear. Rough win odds vs 3 opponents: Speed 4 ≈14%, Speed 8 ≈48%, Speed 12 ≈66%, Speed 20 ≈82%. Boost speed by leveling, equipping speed gear, or unlocking variants!\' +
+        '<strong style="color:var(--purple-dark);">🏎️ How does Speed work?</strong> ' +
+        'Every pet has a base chance to win — even slow ones can upset! Higher Speed (💨) gives more tickets in the draw so faster pets win more often, but returns shrink as you stack gear. Rough win odds vs 3 opponents: Speed 4 ≈14%, Speed 8 ≈48%, Speed 12 ≈66%, Speed 20 ≈82%. Boost speed by leveling, equipping speed gear, or unlocking variants!' +
       '</div>' +
       '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Your Bet:</div>' +
       '<div style="display:flex;gap:8px;margin-bottom:16px;">' + betBtns + '</div>' +
