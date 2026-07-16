@@ -18603,11 +18603,33 @@ async function gp_render(mount) {
 }
 
 async function gp_renderNoEvent(mount) {
+  // Calculate time until next Monday 00:00 UTC (when registration opens)
+  var now = new Date();
+  var nextMonday = new Date(now);
+  var dayOfWeek = nextMonday.getUTCDay(); // 0=Sun, 1=Mon ... 6=Sat
+  var daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7 || 7;
+  nextMonday.setUTCDate(nextMonday.getUTCDate() + daysUntilMonday);
+  nextMonday.setUTCHours(0, 0, 0, 0);
+
+  var msUntil = nextMonday - now;
+  var daysLeft  = Math.floor(msUntil / 86400000);
+  var hoursLeft = Math.floor((msUntil % 86400000) / 3600000);
+  var minsLeft  = Math.floor((msUntil % 3600000) / 60000);
+
+  var countdownStr = daysLeft > 0
+    ? daysLeft + 'd ' + hoursLeft + 'h ' + minsLeft + 'm'
+    : hoursLeft > 0 ? hoursLeft + 'h ' + minsLeft + 'm'
+    : minsLeft + 'm';
+
   mount.innerHTML =
     '<div style="text-align:center;padding:40px 20px;">' +
       '<div style="font-size:3rem;margin-bottom:12px;">🏆</div>' +
-      '<div style="font-weight:700;font-size:1.1rem;color:var(--purple-dark);margin-bottom:8px;">No Active Grand Prix</div>' +
-      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:20px;">Grand Prix events run every week Friday–Monday.<br>Check back when the next event opens!</div>' +
+      '<div style="font-weight:700;font-size:1.1rem;color:var(--purple-dark);margin-bottom:6px;">No Active Grand Prix</div>' +
+      '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:6px;">Grand Prix runs Monday–Friday registration, Saturday race.</div>' +
+      '<div style="background:rgba(153,102,255,0.12);border-radius:12px;padding:12px 20px;display:inline-block;margin-bottom:20px;">' +
+        '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:2px;">Next registration opens in</div>' +
+        '<div style="font-size:1.4rem;font-weight:800;color:var(--purple);">' + countdownStr + '</div>' +
+      '</div>' +
       '<div style="background:rgba(153,102,255,0.08);border-radius:14px;padding:16px;max-width:400px;margin:0 auto;">' +
         '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:10px;">🏆 Prize Structure</div>' +
         '<div style="font-size:0.8rem;color:var(--text-light);line-height:1.8;">' +
@@ -30828,7 +30850,7 @@ async function gp_adminRender(modal) {
       prizeHtml +
       entriesHtml +
       notifHtml +
-      '<button class="gp-admin-btn" onclick="gp_adminCreateEvent()" style="width:100%;background:#1a3a6b;">📅 Create New Event (this week)</button>' +
+      '<div style="font-size:0.72rem;color:#888;text-align:center;padding:8px 0;">🤖 Events are created automatically every Monday. No manual action needed.</div>' +
     '</div>';
 }
 
