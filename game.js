@@ -3247,6 +3247,7 @@ async function useItem(petId) {
   // FIX: track bingo + passXP (was missing from this path)
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
+    melonRequests_checkProgress('feed_pet', itemId);
     addPassXP(2, 'feed').catch(function(){});
     community_increment('feed_pets', 1);
   }
@@ -7526,9 +7527,21 @@ async function checkTop10Badge() {
 }
 
 var diceFaces=['&#9856;','&#9857;','&#9858;','&#9859;','&#9860;','&#9861;'];
+// Dice state for Double or Nothing
+var _diceCurrentEarned = 0;
+var _diceDoubleOrNothingActive = false;
+var _diceRollCount = 0;
+
 async function rollDice() {
   if(isCD('dice'))return;
-  var btn=el('roll-btn'); btn.disabled=true;
+  _diceCurrentEarned = 0;
+  _diceDoubleOrNothingActive = false;
+  _diceRollCount = 0;
+  _diceDoRoll();
+}
+
+function _diceDoRoll() {
+  var btn = el('roll-btn'); if(btn) btn.disabled = true;
   var d1=el('die1'); var d2=el('die2');
   var res=el('dice-result'); res.textContent=''; res.style.opacity='0';
   d1.classList.add('rolling'); d2.classList.add('rolling');
@@ -7537,90 +7550,161 @@ async function rollDice() {
     clearInterval(ri); d1.classList.remove('rolling'); d2.classList.remove('rolling');
     var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
     d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
-    var total=v1+v2; var isDouble=v1===v2; var earned=isDouble?total*3:total;
-    await awardPP(earned, 'dice_roll'); setCD('dice'); onMinigameComplete();
-    
-    // Award badges
-    await awardBadge('dice_first_play'); // First time playing
-    if (isDouble) {
-      await awardBadge('lucky_doubles'); // Any doubles
-      if (v1 === 1) await awardBadge('snake_eyes'); // Double 1s
-      if (v1 === 6) await awardBadge('boxcars'); // Double 6s
+    var total=v1+v2; var isDouble=v1===v2;
+    _diceRollCount++;
+
+    // Bust condition: rolled a 1 on either die after first roll during Double or Nothing
+    if (_diceDoubleOrNothingActive && (v1===1||v2===1)) {
+      res.style.opacity='1';
+      res.textContent='💀 Rolled a 1! Lost everything! +0 PP';
+      res.style.color='#ff4444';
+      _diceCurrentEarned=0;
+      await awardBadge('dice_first_play');
+      setCD('dice'); onMinigameComplete();
+      el('dice-don-btns') && (el('dice-don-btns').style.display='none');
+      el('dice-cooldown').style.display='block';
+      return;
     }
-    
+
+    var earned = isDouble ? total*3 : total;
+    if(_diceDoubleOrNothingActive) earned = _diceCurrentEarned * 2;
+    _diceCurrentEarned = earned;
+
+    await awardBadge('dice_first_play');
+    if(isDouble){
+      await awardBadge('lucky_doubles');
+      if(v1===1) await awardBadge('snake_eyes');
+      if(v1===6) await awardBadge('boxcars');
+    }
+
     res.style.opacity='1';
-    res.textContent=isDouble?'DOUBLE '+v1+'s! +'+earned+' PP!':'Rolled '+v1+'+'+v2+'='+total+'! +'+earned+' PP!';
-    res.style.color=isDouble?'#b06aff':'#5dde7a';
-    btn.style.display='none'; el('dice-cooldown').style.display='block';
+    var rollDesc = isDouble ? 'DOUBLE '+v1+'s!' : v1+'+'+v2+'='+total;
+    res.textContent = rollDesc + ' | Bank: '+earned+' PP';
+    res.style.color = isDouble?'#b06aff':'#5dde7a';
+
+    // Show Double or Nothing buttons (up to 4 times max)
+    var donBtns = el('dice-don-btns');
+    if(donBtns && _diceRollCount < 4) {
+      donBtns.style.display='flex';
+      donBtns.innerHTML =
+        '<button class="btn btn-primary" style="flex:1;font-size:0.8rem;" onclick="_diceTakeIt()">💰 Take '+earned+' PP</button>' +
+        '<button class="btn" style="flex:1;font-size:0.8rem;background:#cc0000;color:#fff;" onclick="_diceDoubleOrNothing()">🎲 Double or Nothing!</button>';
+      _diceDoubleOrNothingActive = true;
+    } else {
+      // Auto-collect on 4th roll
+      await _diceTakeIt();
+    }
   },1200);
+}
+
+async function _diceTakeIt() {
+  var donBtns = el('dice-don-btns');
+  if(donBtns) donBtns.style.display='none';
+  await awardPP(_diceCurrentEarned, 'dice_roll');
+  setCD('dice'); onMinigameComplete();
+  var res=el('dice-result');
+  res.textContent='Collected! +'+_diceCurrentEarned+' PP! 💰';
+  res.style.color='#5dde7a';
+  el('dice-cooldown').style.display='block';
+  var rollBtn=el('roll-btn'); if(rollBtn) rollBtn.style.display='none';
+}
+
+async function _diceDoubleOrNothing() {
+  var res=el('dice-result');
+  res.textContent='Going for double! 🎲';
+  var donBtns = el('dice-don-btns');
+  if(donBtns) donBtns.style.display='none';
+  _diceDoubleOrNothingActive = true;
+  setTimeout(function(){ _diceDoRoll(); }, 400);
 }
 
 var guessAttempts = 0; // Track attempts for badge
 
 function initGuess(){
-  secretNumber=Math.floor(Math.random()*10)+1;
-  guessesLeft=3;
+  secretNumber=Math.floor(Math.random()*100)+1;  // 1-100
+  guessesLeft=6;
   guessAttempts=0;
   el('guess-input').value='';
   el('guess-result').textContent='';
-  el('attempts-left').textContent='3 guesses remaining';
+  el('attempts-left').textContent='6 guesses remaining';
+  el('guess-input').placeholder='1 - 100';
+  el('guess-input').max='100';
+  // Reset hot/cold indicator
+  var hc=el('guess-hotcold'); if(hc) hc.textContent='';
 }
 
 async function makeGuess() {
   if(isCD('guess'))return;
   var input=el('guess-input'); var guess=parseInt(input.value);
   var result=el('guess-result'); var attEl=el('attempts-left');
-  if(!guess||guess<1||guess>10){result.textContent='Enter a number 1-10!';result.style.color='#ff6eb4';return;}
+  var hc=el('guess-hotcold');
+  if(!guess||guess<1||guess>100){result.textContent='Enter a number 1-100!';result.style.color='#ff6eb4';return;}
   
   guessesLeft--;
   guessAttempts++;
   
   if(guess===secretNumber){
-    await awardPP(25, 'guess_game'); setCD('guess'); onMinigameComplete();
+    // Reward gradient: fewer guesses = more PP
+    var ppRewards=[100,70,50,35,25,20];
+    var earned=ppRewards[Math.min(guessAttempts-1,5)];
+    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete();
     
-    // Award badges
-    await awardBadge('guess_first_play'); // First time playing
-    if (guessAttempts === 1) {
-      await awardBadge('first_try'); // Got it on first try!
-      
-      // Track first-try wins for Mind Reader badge
-      var playerRes = await supabaseClient.from('players').select('first_try_wins').eq('id',currentUser.id).single();
-      var newCount = (playerRes.data?.first_try_wins || 0) + 1;
-      await supabaseClient.from('players').update({first_try_wins: newCount}).eq('id',currentUser.id);
-      
-      if (newCount >= 5) {
-        await awardBadge('mind_reader'); // 5 first-try wins!
-      }
+    await awardBadge('guess_first_play');
+    if(guessAttempts===1){
+      await awardBadge('first_try');
+      var playerRes=await supabaseClient.from('players').select('first_try_wins').eq('id',currentUser.id).maybeSingle();
+      var newCount=((playerRes.data&&playerRes.data.first_try_wins)||0)+1;
+      await supabaseClient.from('players').update({first_try_wins:newCount}).eq('id',currentUser.id);
+      if(newCount>=5) await awardBadge('mind_reader');
     }
     
-    result.textContent='Correct! +25 PP!'; result.style.color='#5dde7a';
+    if(hc) hc.textContent='';
+    result.textContent='Correct in '+guessAttempts+' guess'+(guessAttempts===1?'':'es')+'! +'+earned+' PP! 🎯';
+    result.style.color='#5dde7a';
     el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
     
-    // 🐾 COMPANION REACTION - Minigame win!
-    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
-      setTimeout(function() {
-        var winMessages = ["You got it! 🌟", "Amazing guess! 🎯", "You're so smart! 💡", "Perfect! ✨"];
-        CompanionBuddy.showMessage(winMessages[Math.floor(Math.random() * winMessages.length)]);
-      }, 500);
+    if(typeof CompanionBuddy!=='undefined'&&CompanionBuddy.currentCompanionId){
+      setTimeout(function(){
+        var msgs=["You got it! 🌟","Amazing guess! 🎯","You\'re so smart! 💡","Perfect! ✨"];
+        CompanionBuddy.showMessage(msgs[Math.floor(Math.random()*msgs.length)]);
+      },500);
     }
   } else if(guessesLeft===0){
     setCD('guess');
-    await awardBadge('guess_first_play'); // Award badge even if lost
-    result.textContent='The number was '+secretNumber+'. Better luck tomorrow!'; result.style.color='#ff6eb4';
+    await awardBadge('guess_first_play');
+    await awardPP(5,'guess_consolation');
+    if(hc) hc.textContent='';
+    result.textContent='The number was '+secretNumber+'. +5 PP consolation.'; result.style.color='#ff6eb4';
     el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
   } else {
-    result.textContent=(guess<secretNumber?'Too low!':'Too high!')+' '+guessesLeft+' left.'; result.style.color='#ff9f43';
+    var diff=Math.abs(guess-secretNumber);
+    var direction=guess<secretNumber?'Too low! ⬆️':'Too high! ⬇️';
+    var temp=diff<=5?'🔥 Hot!':diff<=15?'♨️ Warm':diff<=30?'🌡️ Cool':'🧊 Cold';
+    if(hc){ hc.textContent=temp; hc.style.color=diff<=5?'#ff4444':diff<=15?'#ff9900':diff<=30?'#5dde7a':'#88bbff'; }
+    result.textContent=direction+' '+guessesLeft+' left.'; result.style.color='#ff9f43';
     attEl.textContent=guessesLeft+' guess'+(guessesLeft===1?'':'es')+' remaining';
     input.value=''; input.focus();
   }
 }
 
 function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
-function initMemory() {
+// Memory combo tracking
+var memoryCombo=0; var memoryLastMatchTime=0;
+
+function initMemory(difficulty) {
   if(isCD('memory'))return;
-  memoryCards=shuffle(memoryEmojis.concat(memoryEmojis));
-  flippedCards=[]; matchedPairs=0; triesLeft=15; memoryEarned=0; memoryLocked=false;
-  el('match-count').textContent='0'; el('tries-left').textContent='15'; el('memory-earned').textContent='0'; el('memory-result').textContent='';
+  difficulty = difficulty || 'easy';
+  var pairCounts={easy:6,medium:8,hard:12};
+  var tryCounts={easy:15,medium:18,hard:24};
+  var pairs=pairCounts[difficulty]||6;
+  var emojiSet=memoryEmojis.slice(0,pairs);
+  memoryCards=shuffle(emojiSet.concat(emojiSet));
+  flippedCards=[]; matchedPairs=0; triesLeft=tryCounts[difficulty]||15;
+  memoryEarned=0; memoryLocked=false; memoryCombo=0; memoryLastMatchTime=0;
+  el('match-count').textContent='0'; el('tries-left').textContent=triesLeft;
+  el('memory-earned').textContent='0'; el('memory-result').textContent='';
+  el('memory-total-pairs') && (el('memory-total-pairs').textContent=pairs);
+  el('memory-difficulty') && (el('memory-difficulty').textContent=difficulty.toUpperCase());
   var grid=el('memory-grid'); grid.innerHTML='';
   memoryCards.forEach(function(em,idx){
     var btn=document.createElement('button'); btn.className='memory-card';
@@ -7639,10 +7723,21 @@ function flipCard(btn) {
       matchedPairs++; memoryEarned+=5;
       el('match-count').textContent=matchedPairs; el('memory-earned').textContent=memoryEarned;
       flippedCards=[]; memoryLocked=false;
+      // Combo: consecutive matches within 3 seconds
+      var now=Date.now();
+      if(now-memoryLastMatchTime<3000){ memoryCombo++; } else { memoryCombo=1; }
+      memoryLastMatchTime=now;
+      if(memoryCombo>1){
+        var comboBonus=memoryCombo*3;
+        memoryEarned+=comboBonus;
+        el('memory-earned').textContent=memoryEarned;
+        showFlash('memory-result','🔥 Combo x'+memoryCombo+'! +'+comboBonus+' bonus PP!','#ff9f43');
+      }
       
-      if(matchedPairs===6){
+      var totalPairs=memoryCards.length/2;
+      if(matchedPairs===totalPairs){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
+        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete();
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -7780,9 +7875,12 @@ var whackScore = 0;
 var whackTimer = null;
 var whackInterval = null;
 
+// Whack combo tracking
+var whackCombo=0; var whackPPperHit=5;
+
 function startWhack() {
   if (isCD('whack')) return;
-  whackScore = 0;
+  whackScore = 0; whackCombo=0; whackPPperHit=5;
   var timeLeft = 30;
   
   el('whack-score').textContent = '0';
@@ -7791,15 +7889,19 @@ function startWhack() {
   el('whack-btn').disabled = true;
   el('whack-result').textContent = '';
   
-  // Pop moles randomly
+  // Pop moles randomly — 10% chance of golden mole (3x points)
   whackInterval = setInterval(function() {
     var moleId = Math.floor(Math.random() * 6);
     var mole = el('mole-' + moleId);
     if (!mole.classList.contains('active')) {
+      var isGolden = Math.random() < 0.10;
       mole.classList.add('active');
+      if(isGolden){ mole.classList.add('golden'); mole.dataset.golden='1'; }
+      else { mole.classList.remove('golden'); mole.dataset.golden=''; }
       setTimeout(function() {
-        mole.classList.remove('active');
-      }, 800);
+        mole.classList.remove('active','golden');
+        mole.dataset.golden='';
+      }, isGolden ? 600 : 800);
     }
   }, 600);
   
@@ -7816,32 +7918,53 @@ function startWhack() {
 function whackMole(id) {
   var mole = el('mole-' + id);
   if (mole.classList.contains('active')) {
+    var isGolden = mole.dataset.golden==='1';
     mole.classList.add('hit');
-    mole.classList.remove('active');
+    mole.classList.remove('active','golden');
+    mole.dataset.golden='';
     whackScore++;
-    var earned = whackScore * 5;
+    whackCombo++;
+    // Combo scaling: 5->10->15 PP per hit at 5/10/20 combo
+    if(whackCombo>=20) whackPPperHit=15;
+    else if(whackCombo>=10) whackPPperHit=10;
+    else whackPPperHit=5;
+    var hitPP = isGolden ? whackPPperHit*3 : whackPPperHit;
+    fishingTotal = (fishingTotal||0); // don't touch
+    var totalEarned = parseInt(el('whack-earned').textContent||'0') + hitPP;
     el('whack-score').textContent = whackScore;
-    el('whack-earned').textContent = earned;
+    el('whack-earned').textContent = totalEarned;
+    // Flash combo
+    if(whackCombo>=5){
+      var flash=el('whack-combo-flash');
+      if(flash){ flash.textContent=(isGolden?'✨ GOLDEN! ':'')+'x'+whackCombo+' combo! +'+hitPP+' PP';
+        flash.style.opacity='1';
+        setTimeout(function(){flash.style.opacity='0';},700);
+      }
+    }
     setTimeout(function() {
       mole.classList.remove('hit');
       mole.style.bottom = '-60px';
     }, 300);
+  } else {
+    // Miss resets combo
+    whackCombo=0; whackPPperHit=5;
   }
 }
 
 function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
-  var earned = Math.min(whackScore * 5, 50);
+  var earned = parseInt(el('whack-earned').textContent||'0');
   awardPP(earned, 'whack_a_mole'); onMinigameComplete();
   setCD('whack');
   var r = el('whack-result');
-  r.textContent = 'Game over! +' + earned + ' PP!';
+  r.textContent = 'Game over! Whacked '+whackScore+'! +' + earned + ' PP!';
   r.style.color = '#5dde7a';
   el('whack-cooldown').style.display = 'block';
   el('whack-btn').disabled = true;
   document.querySelectorAll('.mole').forEach(function(m) {
-    m.classList.remove('active');
+    m.classList.remove('active','golden');
+    m.dataset.golden='';
   });
 }
 
@@ -8220,62 +8343,237 @@ function endTyping() {
   el('typing-btn').disabled = true;
 }
 
-// ── FISHING GAME ──────────────────────────────
+// ── FISHING GAME — OVERHAULED ──────────────────────────────
+// Spots, bait, 24-fish collection, weather modifiers, rod upgrades
+
+var FISH_SPOTS = {
+  pond:  { name: '🏞️ Pond',  baseCasts: 8,  baitSlots: ['worm','bread'], description: 'Calm water. Common fish.' },
+  river: { name: '🏔️ River', baseCasts: 10, baitSlots: ['bread','lure'], description: 'Fast current. Uncommon fish.' },
+  lake:  { name: '🌊 Lake',  baseCasts: 10, baitSlots: ['lure','golden'], description: 'Deep water. Rare fish.' },
+  ocean: { name: '🌊 Ocean', baseCasts: 8,  baitSlots: ['lure','golden'], description: 'Legendary catches possible.' }
+};
+
+var FISH_BAIT = {
+  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    description: 'Free! Catches common fish.' },
+  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.05, description: '+5% rare chance.' },
+  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.12, description: '+12% rare chance.' },
+  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.25, description: '+25% rare chance.' }
+};
+
+// Fish pool — spot:rarity:weather-bonus
+var FISH_POOL = [
+  // Pond commons
+  { id:'boot',    name:'Old Boot',      emoji:'👢', pp:0,  rarity:'junk',   spots:['pond','river','lake','ocean'], weight:15 },
+  { id:'seaweed', name:'Seaweed Clump', emoji:'🌿', pp:1,  rarity:'junk',   spots:['pond','river','lake','ocean'], weight:12 },
+  { id:'pebble',  name:'Sparkly Pebble',emoji:'💎', pp:2,  rarity:'junk',   spots:['pond','river'],               weight:10 },
+  { id:'carp',    name:'Carp',          emoji:'🐟', pp:4,  rarity:'common', spots:['pond','river'],               weight:20 },
+  { id:'bluegill',name:'Bluegill',      emoji:'🐠', pp:5,  rarity:'common', spots:['pond','lake'],                weight:18 },
+  { id:'perch',   name:'Yellow Perch',  emoji:'🐡', pp:6,  rarity:'common', spots:['pond','river','lake'],        weight:16 },
+  { id:'catfish', name:'Catfish',       emoji:'🐈', pp:8,  rarity:'uncommon',spots:['river','lake'],              weight:14 },
+  { id:'trout',   name:'Rainbow Trout', emoji:'🌈', pp:10, rarity:'uncommon',spots:['river'],                     weight:12 },
+  { id:'bass',    name:'Largemouth Bass',emoji:'🎣', pp:12, rarity:'uncommon',spots:['lake','river'],             weight:10 },
+  { id:'pike',    name:'Northern Pike', emoji:'⚡', pp:14, rarity:'uncommon',spots:['lake'],                      weight:8  },
+  { id:'salmon',  name:'Atlantic Salmon',emoji:'🐟', pp:18, rarity:'rare',  spots:['river','ocean'],              weight:6  },
+  { id:'eel',     name:'Electric Eel',  emoji:'⚡', pp:20, rarity:'rare',   spots:['lake','ocean'],               weight:5  },
+  { id:'swordfish',name:'Swordfish',    emoji:'🗡️', pp:25, rarity:'rare',   spots:['ocean'],                      weight:4  },
+  { id:'pufferfish',name:'Pufferfish',  emoji:'🐡', pp:22, rarity:'rare',   spots:['ocean'],                      weight:5  },
+  { id:'shark',   name:'Baby Shark',    emoji:'🦈', pp:35, rarity:'epic',   spots:['ocean'],                      weight:2  },
+  { id:'turtle',  name:'Ancient Turtle',emoji:'🐢', pp:30, rarity:'epic',   spots:['lake','ocean'],               weight:2  },
+  { id:'manta',   name:'Manta Ray',     emoji:'🦅', pp:40, rarity:'epic',   spots:['ocean'],                      weight:1  },
+  // Weather-exclusive fish
+  { id:'ghost_fish', name:'Ghost Fish',   emoji:'👻', pp:50, rarity:'legendary', spots:['pond','lake'],  weather:'foggy',   weight:3  },
+  { id:'storm_eel',  name:'Storm Eel',    emoji:'⛈️', pp:45, rarity:'legendary', spots:['ocean','river'],weather:'windy',   weight:3  },
+  { id:'void_fish',  name:'Void Fish',    emoji:'🌑', pp:60, rarity:'legendary', spots:['lake','ocean'], weather:'cursed',  weight:2  },
+  { id:'aurora_cod', name:'Aurora Cod',   emoji:'🌌', pp:55, rarity:'legendary', spots:['ocean'],        weather:'starry',  weight:3  },
+  { id:'junk_ad',    name:'Sponsored Content',emoji:'📢', pp:0, rarity:'junk',   spots:['pond','river','lake','ocean'], weather:'adpocalypse', weight:8 },
+  { id:'golden_carp',name:'Golden Carp',  emoji:'✨', pp:100,rarity:'legendary', spots:['pond'],                   weight:1  },
+  { id:'piper_fish', name:'Unfamiliar Fish',emoji:'❓', pp:75, rarity:'legendary', spots:['lake','ocean'],          weight:1  }
+];
+
 var fishingCasts = 10;
 var fishingTotal = 0;
+var _fishingSpot = 'pond';
+var _fishingBait = 'worm';
+var _fishCollection = {};
+var _fishingRodLevel = 1; // 1=basic(8), 2=nice(12), 3=pro(18), 4=legendary(25)
+var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra casts per rod level
 
-function castLine() {
+function fishingGetRodCasts() {
+  var base = FISH_SPOTS[_fishingSpot] ? FISH_SPOTS[_fishingSpot].baseCasts : 8;
+  return base + (_rodCastsBonus[_fishingRodLevel] || 0);
+}
+
+function fishingSelectSpot(spot) {
+  _fishingSpot = spot;
+  fishingCasts = fishingGetRodCasts();
+  el('fishing-casts').textContent = fishingCasts;
+  // Update spot UI
+  document.querySelectorAll('.fishing-spot-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.spot===spot);
+  });
+}
+
+function fishingSelectBait(bait) {
+  _fishingBait = bait;
+  document.querySelectorAll('.fishing-bait-btn').forEach(function(b){
+    b.classList.toggle('active', b.dataset.bait===bait);
+  });
+}
+
+function fishingLoadCollection() {
+  try {
+    _fishCollection = JSON.parse(localStorage.getItem('fish_collection_'+currentUser.id)||'{}');
+  } catch(e){ _fishCollection={}; }
+}
+
+function fishingSaveCollection() {
+  try {
+    localStorage.setItem('fish_collection_'+currentUser.id, JSON.stringify(_fishCollection));
+  } catch(e){}
+}
+
+function fishingGetCatch() {
+  var spot = _fishingSpot;
+  var bait = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
+  var weather = (weatherSystem&&weatherSystem.currentWeather&&weatherSystem.currentWeather.id)||'clear';
+
+  // Build candidate pool for this spot
+  var pool = FISH_POOL.filter(function(f){
+    if(f.spots.indexOf(spot)===-1) return false;
+    // Weather-exclusive: only appears in that weather
+    if(f.weather && f.weather!==weather) return false;
+    return true;
+  });
+
+  // Add weather-exclusive fish at boosted weight if weather matches
+  var weatherPool = FISH_POOL.filter(function(f){
+    return f.weather && f.weather===weather && f.spots.indexOf(spot)!==-1;
+  });
+  weatherPool.forEach(function(f){
+    if(pool.indexOf(f)===-1) pool.push(f);
+  });
+
+  // Apply bait rarity boost (shifts probability toward rarer fish)
+  var totalWeight = pool.reduce(function(s,f){
+    var w = f.weight;
+    // Bait boost reduces weight of junk/common and boosts rare+
+    if(bait.rarityBoost>0){
+      if(f.rarity==='junk'||f.rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
+      if(f.rarity==='rare'||f.rarity==='epic'||f.rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
+    }
+    return s+w;
+  }, 0);
+
+  var roll = Math.random()*totalWeight;
+  var acc = 0;
+  for(var i=0;i<pool.length;i++){
+    var w=pool[i].weight;
+    if(bait.rarityBoost>0){
+      if(pool[i].rarity==='junk'||pool[i].rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
+      if(pool[i].rarity==='rare'||pool[i].rarity==='epic'||pool[i].rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
+    }
+    acc+=w;
+    if(roll<acc) return pool[i];
+  }
+  return pool[0];
+}
+
+async function castLine() {
   if (isCD('fishing') || fishingCasts <= 0) return;
   
+  // Deduct bait cost
+  var baitData=FISH_BAIT[_fishingBait]||FISH_BAIT.worm;
+  if(baitData.cost>0 && currentPoints<baitData.cost){
+    showToast('Not enough PP for '+baitData.name+'! Switching to worm.', 3000);
+    _fishingBait='worm';
+    fishingSelectBait('worm');
+  }
+  if(baitData.cost>0){
+    var ppRes=await supabaseClient.rpc('award_pp_secure',{p_amount:-baitData.cost,p_reason:'fishing_bait'}).catch(function(){return null;});
+    if(ppRes&&ppRes.data!==undefined) updateAllPoints(ppRes.data);
+  }
+
   var btn = el('fishing-btn');
   btn.disabled = true;
   btn.textContent = 'Casting...';
   
   var line = el('fishing-line');
-  line.style.display = 'block';
+  if(line) line.style.display = 'block';
   
-  setTimeout(function() {
-    line.style.display = 'none';
+  setTimeout(async function() {
+    if(line) line.style.display = 'none';
     
-    // Random catch
-    var catches = [
-      { name: 'Old Boot', pp: 0, emoji: '👢' },
-      { name: 'Seaweed', pp: 1, emoji: '🌿' },
-      { name: 'Small Fish', pp: 3, emoji: '🐟' },
-      { name: 'Medium Fish', pp: 5, emoji: '🐠' },
-      { name: 'Big Fish', pp: 8, emoji: '🐡' },
-      { name: 'Rare Fish', pp: 12, emoji: '🦈' }
-    ];
-    
-    var rand = Math.random();
-    var caught;
-    if (rand < 0.2) caught = catches[0]; // Boot
-    else if (rand < 0.4) caught = catches[1]; // Seaweed
-    else if (rand < 0.65) caught = catches[2]; // Small
-    else if (rand < 0.85) caught = catches[3]; // Medium
-    else if (rand < 0.95) caught = catches[4]; // Big
-    else caught = catches[5]; // Rare
-    
+    var caught = fishingGetCatch();
     fishingCasts--;
     fishingTotal += caught.pp;
     
     el('fishing-casts').textContent = fishingCasts;
     el('fishing-earned').textContent = fishingTotal;
-    
-    document.querySelector('.pond-text').textContent = caught.emoji + ' Caught: ' + caught.name + ' (+' + caught.pp + ' PP)';
+
+    // Collection tracking
+    fishingLoadCollection();
+    var isNew = !_fishCollection[caught.id];
+    if(!_fishCollection[caught.id]) _fishCollection[caught.id]={count:0,firstCatch:Date.now()};
+    _fishCollection[caught.id].count++;
+    fishingSaveCollection();
+
+    // Display catch
+    var catchEl=document.querySelector('.pond-text');
+    var rarityColors={junk:'#888',common:'#5dde7a',uncommon:'#4dabf7',rare:'#9966ff',epic:'#ff9f43',legendary:'#ffd700'};
+    var rarityColor=rarityColors[caught.rarity]||'#5dde7a';
+    if(catchEl){
+      catchEl.innerHTML=caught.emoji+' <span style="color:'+rarityColor+';font-weight:700;">'+caught.name+'</span>'+
+        (isNew?' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>':'')+
+        ' (+'+caught.pp+' PP)';
+    }
+
+    // New fish celebration
+    if(isNew && (caught.rarity==='epic'||caught.rarity==='legendary')){
+      showToast('🎣 NEW '+caught.rarity.toUpperCase()+' CATCH: '+caught.name+'! '+caught.emoji, 5000);
+    }
+
+    // Piper fish ARG easter egg
+    if(caught.id==='piper_fish'){
+      setTimeout(function(){
+        showToast('...you caught something that shouldn\'t be here. It looked at you.', 6000);
+      },2000);
+    }
+
+    // Junk ad — Ad-pocalypse fish
+    if(caught.id==='junk_ad'){
+      setTimeout(function(){
+        showToast('📢 You caught: Sponsored Content. It was not worth it.', 4000);
+      },500);
+    }
+
+    // Collection progress
+    var totalFish=FISH_POOL.filter(function(f){return f.rarity!=='junk';}).length;
+    var collected=Object.keys(_fishCollection).filter(function(k){
+      var f=FISH_POOL.find(function(ff){return ff.id===k;});
+      return f&&f.rarity!=='junk';
+    }).length;
+    var collEl=el('fishing-collection');
+    if(collEl) collEl.textContent=collected+'/'+totalFish+' fish found';
     
     if (fishingCasts <= 0) {
       awardPP(fishingTotal, 'fishing'); onMinigameComplete();
       setCD('fishing');
+      // Check collection bonus
+      if(collected>=totalFish){
+        awardPP(200,'fishing_collection_complete');
+        showToast('🏆 Complete collection! +200 PP bonus!',5000);
+      }
       setTimeout(function() {
         var r = el('fishing-result');
-        r.textContent = 'All casts used! +' + fishingTotal + ' PP total!';
-        r.style.color = '#5dde7a';
+        if(r){
+          r.textContent = 'All casts used! +' + fishingTotal + ' PP total! ('+collected+'/'+totalFish+' fish)';
+          r.style.color = '#5dde7a';
+        }
         el('fishing-cooldown').style.display = 'block';
       }, 2000);
     } else {
       btn.disabled = false;
-      btn.textContent = 'Cast Again!';
+      btn.textContent = '🎣 Cast Again!';
     }
   }, 1500);
 }
@@ -11347,6 +11645,15 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
   var xpPerkMult = getActivePerkMultiplier('xp_boost');
   if (xpPerkMult > 1 && expGained > 0) {
     expGained = Math.floor(expGained * xpPerkMult);
+  }
+
+  // Battle Tuesday: 2x XP calendar bonus
+  if (battleResult.victory && expGained > 0) {
+    var calXPMult = getCalendarBonus('battle_xp');
+    if (calXPMult > 1) {
+      expGained = Math.floor(expGained * calXPMult);
+      showToast('⚔️ Battle Tuesday! 2x XP!', 2500);
+    }
   }
   
   // CRITICAL: Ensure HP is properly updated after battle
@@ -24831,6 +25138,271 @@ function adpocalypse_stop() {
   });
 }
 
+
+// ══════════════════════════════════════════════════════════════════════════
+// EVENT CALENDAR — weekly schedule shown on home tab
+// Each day has a theme with a gameplay bonus. Purely informational for now;
+// the bonuses are applied via the existing multiplier system where supported.
+// ══════════════════════════════════════════════════════════════════════════
+
+// Returns PP/XP multiplier for today's calendar event bonus (1.0 = no bonus)
+function getCalendarBonus(statKey) {
+  var today = new Date().getDay();
+  var ev = EVENT_CALENDAR[today];
+  if (!ev || ev.stat !== statKey) return 1.0;
+  return 2.0; // 2x on matching day
+}
+
+var EVENT_CALENDAR = {
+  1: { name: 'Minigame Monday',    icon: '🎮', color: '#9966ff', bonus: '2x PP from all minigames',        stat: 'minigame_pp' },
+  2: { name: 'Battle Tuesday',     icon: '⚔️', color: '#ff6b6b', bonus: '2x XP from battles',              stat: 'battle_xp'  },
+  3: { name: 'Fishing Wednesday',  icon: '🎣', color: '#4dabf7', bonus: 'Rare fish spawn rate doubled',     stat: 'fishing'    },
+  4: { name: 'Guild Thursday',     icon: '🏛️', color: '#51cf66', bonus: '2x guild treasury donations',     stat: 'guild'      },
+  5: { name: 'Race Friday',        icon: '🏁', color: '#ffd43b', bonus: 'Grand Prix registration open!',    stat: 'race'       },
+  6: { name: 'Boss Saturday',      icon: '👹', color: '#ff4500', bonus: 'Boss difficulty increased + drops',stat: 'boss'       },
+  0: { name: 'Pet Sunday',         icon: '💖', color: '#ff9f43', bonus: 'Double happiness from feeding',    stat: 'pet'        }
+};
+
+function renderEventCalendar(mountId) {
+  var mount = el(mountId);
+  if (!mount) return;
+  
+  var today = new Date().getDay();
+  var days = [0,1,2,3,4,5,6]; // Sun-Sat
+  var dayShort = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var todayEvent = EVENT_CALENDAR[today];
+  
+  var html = '<div class="event-calendar-widget">' +
+    '<div class="event-cal-header">📅 This Week</div>' +
+    '<div class="event-cal-strip">';
+  
+  days.forEach(function(d) {
+    var ev = EVENT_CALENDAR[d];
+    var isToday = d === today;
+    html += '<div class="event-cal-day' + (isToday ? ' event-cal-today' : '') + '" title="' + ev.name + ': ' + ev.bonus + '">' +
+      '<div class="event-cal-day-label">' + dayShort[d] + '</div>' +
+      '<div class="event-cal-day-icon">' + ev.icon + '</div>' +
+    '</div>';
+  });
+  
+  html += '</div>';
+  
+  // Today's highlight
+  if (todayEvent) {
+    html += '<div class="event-cal-today-banner" style="border-color:' + todayEvent.color + ';background:' + todayEvent.color + '18;">' +
+      '<span style="font-size:1.3rem;">' + todayEvent.icon + '</span>' +
+      '<div>' +
+        '<div style="font-weight:700;font-size:0.82rem;color:' + todayEvent.color + ';">' + todayEvent.name + '</div>' +
+        '<div style="font-size:0.74rem;color:var(--text-light);">' + todayEvent.bonus + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+  
+  html += '</div>';
+  mount.innerHTML = html;
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// MELON'S REQUESTS — 2-3 daily personal errands from Melon
+// Food items are fetched from DB so they're always valid.
+// Non-food tasks use existing tracking hooks.
+// Resets daily. Rewards PP + scrapbook memory.
+// ══════════════════════════════════════════════════════════════════════════
+
+var _melonRequestsToday = null;
+var _melonRequestsDate = null;
+var _melonRequestsCompleted = {};
+var _melonFoodItems = []; // fetched from DB on load
+
+// Non-food request templates (always valid)
+var MELON_REQUEST_TEMPLATES = [
+  {
+    id: 'play_pet',
+    generateText: function() { return "Could you play with one of your pets today? They seem restless."; },
+    reward: 30,
+    trackKey: 'play_pet',
+    icon: '🎾'
+  },
+  {
+    id: 'win_battle',
+    generateText: function() { return "I heard there\'s been a lot of activity in the battle arena. Think you could win one for me?"; },
+    reward: 40,
+    trackKey: 'win_battle',
+    icon: '⚔️'
+  },
+  {
+    id: 'visit_shop',
+    generateText: function() { return "Business has been slow today. Stop by the shop, would you? Even just to browse."; },
+    reward: 15,
+    trackKey: 'visit_shop',
+    icon: '🛒'
+  },
+  {
+    id: 'play_minigame',
+    generateText: function() { return "I\'ve been thinking about the fishing pond. Have you been lately? The weather\'s nice."; },
+    reward: 25,
+    trackKey: 'complete_minigame',
+    icon: '🎮'
+  },
+  {
+    id: 'expedition',
+    generateText: function() { return "Could you send a pet on an expedition? I want to know what\'s out there these days."; },
+    reward: 35,
+    trackKey: 'complete_expedition',
+    icon: '🗺️'
+  },
+  {
+    id: 'login_check',
+    generateText: function() { return "Just... check in today, okay? I like knowing you\'re here."; },
+    reward: 10,
+    trackKey: 'login',
+    icon: '📅'
+  }
+];
+
+// Occasional mysterious requests (low chance)
+var MELON_MYSTERY_REQUESTS = [
+  {
+    id: 'mystery_piper',
+    generateText: function() { return "...Could you check the redeem codes page? I thought I saw something there earlier. Probably nothing."; },
+    reward: 50,
+    trackKey: 'visit_shop', // just rewards on next shop visit
+    icon: '❓',
+    mystery: true
+  },
+  {
+    id: 'mystery_corruption',
+    generateText: function() { return "The world\'s integrity is a little lower today. I worry about that. Could you battle something? It helps, somehow."; },
+    reward: 45,
+    trackKey: 'win_battle',
+    icon: '🟣',
+    mystery: true
+  }
+];
+
+async function melonRequests_loadFoodItems() {
+  if (_melonFoodItems.length > 0) return;
+  try {
+    var res = await supabaseClient
+      .from('items')
+      .select('id,name,emoji,hunger_effect')
+      .gt('hunger_effect', 0)
+      .order('hunger_effect', { ascending: false })
+      .limit(20);
+    if (res.data && res.data.length > 0) {
+      _melonFoodItems = res.data;
+    }
+  } catch(e) {}
+}
+
+function melonRequests_generateFood() {
+  if (_melonFoodItems.length === 0) return null;
+  var food = _melonFoodItems[Math.floor(Math.random() * Math.min(_melonFoodItems.length, 12))];
+  return {
+    id: 'feed_' + food.id,
+    generateText: function() {
+      var texts = [
+        "I\'ve been craving " + food.name + " lately. Could you feed some to your pets?",
+        "Your pets could use some " + food.name + " today, I think.",
+        "A little " + food.name + " goes a long way. Could you feed one to a pet?",
+      ];
+      return texts[Math.floor(Math.random() * texts.length)];
+    },
+    reward: 20 + Math.floor(food.hunger_effect / 2),
+    trackKey: 'feed_pet',
+    trackItemId: food.id,
+    icon: '🍽️',
+    foodName: food.name,
+    foodId: food.id
+  };
+}
+
+async function melonRequests_generate() {
+  await melonRequests_loadFoodItems();
+  
+  var today = new Date().toDateString();
+  if (_melonRequestsDate === today && _melonRequestsToday) return;
+  _melonRequestsDate = today;
+  
+  // Load completion state from localStorage
+  var savedKey = 'melon_requests_' + today + '_' + (currentUser && currentUser.id);
+  try {
+    _melonRequestsCompleted = JSON.parse(localStorage.getItem(savedKey) || '{}');
+  } catch(e) { _melonRequestsCompleted = {}; }
+
+  // Build today's 3 requests: 1 food + 1-2 regular + maybe 1 mystery
+  var requests = [];
+  
+  // Food request (if food items exist)
+  var foodReq = melonRequests_generateFood();
+  if (foodReq) requests.push(foodReq);
+  
+  // 2 regular requests
+  var shuffled = MELON_REQUEST_TEMPLATES.slice().sort(function(){ return Math.random()-0.5; });
+  requests = requests.concat(shuffled.slice(0, 2));
+  
+  // 15% chance of a mystery request replacing the last one
+  if (Math.random() < 0.15) {
+    var mystery = MELON_MYSTERY_REQUESTS[Math.floor(Math.random()*MELON_MYSTERY_REQUESTS.length)];
+    requests[requests.length-1] = mystery;
+  }
+  
+  _melonRequestsToday = requests.slice(0, 3);
+}
+
+async function melonRequests_complete(requestId, reward) {
+  if (_melonRequestsCompleted[requestId]) return;
+  var today = new Date().toDateString();
+  var savedKey = 'melon_requests_' + today + '_' + (currentUser && currentUser.id);
+  
+  _melonRequestsCompleted[requestId] = { completedAt: Date.now(), reward: reward };
+  try { localStorage.setItem(savedKey, JSON.stringify(_melonRequestsCompleted)); } catch(e){}
+  
+  await awardPP(reward, 'melon_request').catch(function(){});
+  showToast('🍉 Melon\'s Request complete! +' + reward + ' PP', 4000);
+  showMelonMessage('Thank you! That really helps. Here\'s ' + reward + ' PP. 🍉', { displayMs: 6000 });
+  melonRequests_renderWidget('melon-requests-mount');
+}
+
+// Called from updateBingoProgress hook — checks if any Melon request matches
+function melonRequests_checkProgress(taskType, itemId) {
+  if (!_melonRequestsToday || !currentUser) return;
+  _melonRequestsToday.forEach(function(req) {
+    if (_melonRequestsCompleted[req.id]) return;
+    if (req.trackKey !== taskType) return;
+    // For food requests, check item matches if specified
+    if (req.trackItemId && itemId && req.trackItemId !== itemId) return;
+    melonRequests_complete(req.id, req.reward);
+  });
+}
+
+function melonRequests_renderWidget(mountId) {
+  var mount = el(mountId);
+  if (!mount || !_melonRequestsToday) return;
+  
+  var allDone = _melonRequestsToday.every(function(r){ return _melonRequestsCompleted[r.id]; });
+  
+  var html = '<div class="melon-requests-widget">' +
+    '<div class="melon-req-header">🍉 Melon\'s Requests' +
+      (allDone ? ' <span style="color:#5dde7a;font-size:0.75rem;">All done! ✓</span>' : '') +
+    '</div>';
+  
+  _melonRequestsToday.forEach(function(req) {
+    var done = !!_melonRequestsCompleted[req.id];
+    html += '<div class="melon-req-item' + (done ? ' melon-req-done' : '') + (req.mystery ? ' melon-req-mystery' : '') + '">' +
+      '<span class="melon-req-icon">' + req.icon + '</span>' +
+      '<div class="melon-req-body">' +
+        '<div class="melon-req-text">' + (done ? '<s>' : '') + req.generateText() + (done ? '</s>' : '') + '</div>' +
+        '<div class="melon-req-reward">' + (done ? '✓ Claimed' : '+' + req.reward + ' PP') + '</div>' +
+      '</div>' +
+    '</div>';
+  });
+  
+  html += '</div>';
+  mount.innerHTML = html;
+}
+
 var weatherSystem = {
   weatherTypes: [
     { id: 'clear',  name: 'Clear',       icon: '☀️',  weight: 22, description: 'Perfect weather for pet adventures!',           effect: 'Normal conditions' },
@@ -26882,6 +27454,8 @@ async function updateBingoProgress(taskType, amount) {
   
   var square = dailyBingo.squares.find(function(s) { return s.taskType === taskType; });
   if (!square || square.completed) return;
+  // Also check Melon's Requests
+  if (typeof melonRequests_checkProgress === 'function') melonRequests_checkProgress(taskType, null);
   
   var wasCompleted = square.completed;
   square.progress = Math.min(square.progress + (amount || 1), square.target);
@@ -27166,8 +27740,15 @@ function onPetAdopted(petId) {
 }
 
 // Hook for minigame completion
-function onMinigameComplete() {
+function onMinigameComplete(baseReward) {
   updateBingoProgress('complete_minigame', 1);
+  // Minigame Monday: award bonus PP on top of what the minigame already paid
+  var bonus = getCalendarBonus('minigame_pp');
+  if (bonus > 1 && baseReward > 0) {
+    var extra = Math.floor(baseReward * (bonus - 1));
+    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(){});
+    showToast('🎮 Minigame Monday! +' + extra + ' bonus PP!', 3000);
+  }
 }
 
 // Hook for companion pet message
@@ -28237,9 +28818,18 @@ async function newFeatures_init() {
   dbg('🚀 Initializing new features...');
   try {
     if (typeof todayCard_init === 'function') await todayCard_init();
+    if (typeof renderEventCalendar === 'function') renderEventCalendar('event-calendar-mount');
     if (typeof corruptionVisuals_init === 'function') corruptionVisuals_init();
     // Check Melon milestone messages (fires once per milestone per player)
     safeSetTimeout(function() { checkMelonMilestones(); }, 5000);
+    // Generate today's Melon requests
+    safeSetTimeout(async function() {
+      try {
+        await melonRequests_generate();
+        melonRequests_renderWidget('melon-requests-mount');
+        renderEventCalendar('event-calendar-mount');
+      } catch(e) {}
+    }, 3000);
 
     // Show "missed you" messages for any pets the player hasn't seen in 12+ hours
     safeSetTimeout(function() {
