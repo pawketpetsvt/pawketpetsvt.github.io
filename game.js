@@ -7560,7 +7560,7 @@ function _diceDoRoll() {
       res.style.color='#ff4444';
       _diceCurrentEarned=0;
       await awardBadge('dice_first_play');
-      setCD('dice'); onMinigameComplete();
+      setCD('dice'); onMinigameComplete(0);
       el('dice-don-btns') && (el('dice-don-btns').style.display='none');
       el('dice-cooldown').style.display='block';
       return;
@@ -7601,7 +7601,7 @@ async function _diceTakeIt() {
   var donBtns = el('dice-don-btns');
   if(donBtns) donBtns.style.display='none';
   await awardPP(_diceCurrentEarned, 'dice_roll');
-  setCD('dice'); onMinigameComplete();
+  setCD('dice'); onMinigameComplete(_diceCurrentEarned);
   var res=el('dice-result');
   res.textContent='Collected! +'+_diceCurrentEarned+' PP! 💰';
   res.style.color='#5dde7a';
@@ -7647,7 +7647,7 @@ async function makeGuess() {
     // Reward gradient: fewer guesses = more PP
     var ppRewards=[100,70,50,35,25,20];
     var earned=ppRewards[Math.min(guessAttempts-1,5)];
-    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete();
+    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete(earned);
     
     await awardBadge('guess_first_play');
     if(guessAttempts===1){
@@ -7737,7 +7737,7 @@ function flipCard(btn) {
       var totalPairs=memoryCards.length/2;
       if(matchedPairs===totalPairs){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete();
+        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete(memoryEarned);
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -7757,7 +7757,7 @@ function flipCard(btn) {
         flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
         flippedCards=[]; memoryLocked=false;
         if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete();
+          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete(memoryEarned);
           awardBadge('memory_first_play'); // Award badge even if lost
           var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
         }
@@ -7858,7 +7858,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete();
+      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete(winningPrize);
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -7955,7 +7955,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = parseInt(el('whack-earned').textContent||'0');
-  awardPP(earned, 'whack_a_mole'); onMinigameComplete();
+  awardPP(earned, 'whack_a_mole'); onMinigameComplete(earned);
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! Whacked '+whackScore+'! +' + earned + ' PP!';
@@ -8096,7 +8096,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30, 'shell_game'); onMinigameComplete();
+        awardPP(30, 'shell_game'); onMinigameComplete(30);
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -8333,7 +8333,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge'); onMinigameComplete();
+  awardPP(earned, 'typing_challenge'); onMinigameComplete(earned);
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -8556,7 +8556,7 @@ async function castLine() {
     if(collEl) collEl.textContent=collected+'/'+totalFish+' fish found';
     
     if (fishingCasts <= 0) {
-      awardPP(fishingTotal, 'fishing'); onMinigameComplete();
+      awardPP(fishingTotal, 'fishing'); onMinigameComplete(fishingTotal);
       setCD('fishing');
       // Check collection bonus
       if(collected>=totalFish){
