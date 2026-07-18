@@ -643,7 +643,7 @@ var dailyTips = [
   "Boss battles are the ultimate challenge!",
   "Skills have a 30% chance to activate each turn!",
   "You can earn badges by completing achievements!",
-  "Visit Melons shop to buy treats and equipment!",
+  "Visit Melon's shop to buy treats and equipment!",
   "Battle in different forest zones for varying rewards!",
   "Your day streak is displayed in the sidebar!",
   "Blocked users cannot view your profile!",
@@ -1220,18 +1220,8 @@ function calendar_render(days) {
 
 function initEventStatusWidget() {
   updateEventStatusWidget();
-  // Refresh every minute + check adpocalypse/fish_frenzy weather
-  safeSetInterval(function() {
-    updateEventStatusWidget();
-    // Sync adpocalypse weather effect with current weather
-    var weatherId = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather)
-      ? weatherSystem.currentWeather.id : null;
-    if (weatherId === 'adpocalypse') {
-      adpocalypse_start();
-    } else {
-      adpocalypse_stop();
-    }
-  }, 60000);
+  // Refresh every minute
+  safeSetInterval(updateEventStatusWidget, 60000);
   // Hover tooltip
   var widget = document.getElementById('event-status-widget');
   if (widget) {
@@ -2196,6 +2186,11 @@ function cleanupSpookyEffects() {
 
 async function showApp(user) {
   document.body.classList.remove('guest');
+
+  // Remove the synchronous guest-hide <style> block so all elements become visible
+  var guestHideStyle = document.getElementById('guest-hide');
+  if (guestHideStyle) guestHideStyle.remove();
+
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding
@@ -2215,12 +2210,14 @@ async function showApp(user) {
   var rightSidebar = document.querySelector('.right-sidebar');
   var navCenter    = document.querySelector('.navbar-center');
   var navRight     = document.querySelector('.navbar-right');
-  if (leftSidebar)  leftSidebar.style.display    = '';
-  if (rightSidebar) rightSidebar.style.display   = '';
+  if (leftSidebar)  { leftSidebar.style.display  = ''; leftSidebar.style.visibility  = ''; }
+  if (rightSidebar) { rightSidebar.style.display = ''; rightSidebar.style.visibility = ''; }
+  // Restore news ticker and navbar sections
+  var ticker = document.querySelector('.news-ticker');
+  if (ticker) { ticker.style.display = ''; ticker.style.visibility = ''; }
+  if (navCenter) { navCenter.style.display = ''; navCenter.style.visibility = ''; }
   if (navCenter)    navCenter.style.visibility   = '';
   if (navRight)     navRight.style.visibility    = '';
-  var ticker = document.querySelector('.news-ticker');
-  if (ticker) ticker.style.display = '';
   document.body.classList.remove('logged-out');
   el('nav-profile').style.display = 'inline-block';
   
@@ -4712,7 +4709,7 @@ var PET_PERSONALITIES = {
     neglected: [
       "I have NEVER gotten a game over in my LIFE and this is what it feels like.",
       "The Furbies are handling this better than I am. That's humbling.",
-      "INSERT COIN. INSERT COIN. That's you. You're the coin. Please.",
+      "INSERT COIN. INSERT COIN. That's you. You are the coin. Please.",
       "Neopets The Darkest Faerie taught me resilience. It did not prepare me for THIS. 🎮",
     ],
     missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
@@ -4745,11 +4742,11 @@ var PET_PERSONALITIES = {
     ],
     neglected: [
       "I have been very patient. Parasaurs are known for patience. But still.",
-      "The fossils are keeping me company. They're good listeners. Unlike some people.",
+      "The fossils are keeping me company. They are good listeners. Unlike some people.",
       "I started a new potion. It's called 'please remember I exist.' It's almost done.",
       "Small adventures are less fun alone. Just so you know. 🌿",
     ],
-    missed_you: "Jess looks up from her fossil collection and gives you a shy little wave. 'Oh! You're back. I made a potion for you.' 🦕",
+    missed_you: "Jess looks up from her fossil collection and gives you a shy little wave. 'Oh! You are back. I made a potion for you.' 🦕",
   }
 };
 
@@ -5469,8 +5466,6 @@ async function expedition_claim(expeditionId) {
 }
 
 // Build 2-4 narrative sentences describing what happened
-function expeditionNarrativeClose(){var m=document.getElementById("expedition-narrative-modal");if(m)m.remove();}
-
 function expedition_buildNarrative(zone, petName, row, finalPP, itemNames) {
   var events = zone.events || [];
   var sentences = [];
@@ -6133,7 +6128,7 @@ function race_generateLog(runners, playerBest, playerWon, playerPlace) {
     lines.push(pName + ' stumbles trying to make up ground, losing a step!');
     lines.push(rival3 + ' also fades back, leaving ' + pName + ' to battle for pride alone.');
     lines.push('Final lap: ' + pName + ' digs deep for one last effort down the home stretch!');
-    lines.push('It won\'t be enough to catch the leaders today, but ' + pName + ' never lets up!');
+    lines.push('It will not be enough to catch the leaders today, but ' + pName + ' never lets up!');
     lines.push('\ud83d\udcaa ' + pName + ' crosses the line in last place. Tough one \u2014 better luck next time!');
   }
 
@@ -7273,7 +7268,7 @@ async function renderDailyShop(allItems) {
   mount.innerHTML = html;
 
   // Start countdown ticker
-  if (window._dailyCountdownInterval) clearInterval(window._dailyCountdownInterval);
+  clearInterval(window._dailyCountdownInterval);
   window._dailyCountdownInterval = setInterval(function() {
     var el = document.getElementById('daily-shop-countdown');
     if (el) el.textContent = getDailyShopCountdown();
@@ -8618,7 +8613,11 @@ function shareToTwitter(text, rewardPlayer) {
 }
 
 function shareToBluesky(text, rewardPlayer) {
-  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(text + '\n\nhttps://pawketpets.net');
+  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(
+    text + '
+
+https://pawketpets.net'
+  );
   window.open(url, '_blank', 'width=600,height=400,noopener');
   if (rewardPlayer) onSocialShare('bluesky').catch(function(){});
 }
@@ -10733,13 +10732,14 @@ async function fishingResolveCast(timing) {
       }, 400);
     }
   }
+
   // Check area completion after every real catch
   if (caught.rarity !== 'junk' && caught.id !== '__item__') {
     fishingCheckAreaComplete().catch(function(){});
   }
+} // closes fishingResolveCast
 
-}
-
+// ── PassXP visual toast sources ───────────────────────────────────────────────
 var PASS_XP_TOAST_SOURCES = {
   fishing:           '🎣 Fishing',
   battle:            '⚔️ Battle',
@@ -10753,29 +10753,22 @@ var PASS_XP_TOAST_SOURCES = {
   grand_prix_top_10: '🏅 Grand Prix Top 10',
   secret_discovery:  '🔍 Discovery',
   friend_added:      '👥 New Friend',
-  social_share:      '📢 Share',
 };
 
-// ══════════════════════════════════════════════════════════════════════════
-// FUNCTIONS ADDED THIS SESSION — appended to base file
-// ══════════════════════════════════════════════════════════════════════════
-
-// ── Calendar bonus multiplier ─────────────────────────────────────────────
+// ── Calendar day bonus multiplier ─────────────────────────────────────────────
 function getCalendarBonus(statKey) {
   var today = new Date().getDay();
   var schedule = {
-    1: { stat: 'minigame_pp' }, 2: { stat: 'battle_xp' },
-    3: { stat: 'fishing' },     5: { stat: 'race' }, 0: { stat: 'pet' }
+    1: 'minigame_pp', 2: 'battle_xp', 3: 'fishing', 5: 'race', 0: 'pet'
   };
-  var ev = schedule[today];
-  return (ev && ev.stat === statKey) ? 2.0 : 1.0;
+  return (schedule[today] === statKey) ? 2.0 : 1.0;
 }
 
-// ── Fishing area completion (DB-backed, idempotent) ───────────────────────
+// ── Fishing area completion (DB-backed, idempotent) ───────────────────────────
 async function fishingCheckAreaComplete() {
-  var spotFish = FISH_BY_SPOT[_fishingSpot] || [];
-  if (!spotFish.every(function(id){ return _fishCollection[id]; })) return;
-  var reward = FISH_SPOT_REWARDS[_fishingSpot];
+  var spotFish = (typeof FISH_BY_SPOT !== 'undefined' && FISH_BY_SPOT[_fishingSpot]) || [];
+  if (!spotFish.length || !spotFish.every(function(id){ return _fishCollection[id]; })) return;
+  var reward = (typeof FISH_SPOT_REWARDS !== 'undefined') && FISH_SPOT_REWARDS[_fishingSpot];
   if (!reward) return;
   var res = await supabaseClient.rpc('fishing_claim_reward', {
     p_reward_key: 'area_' + _fishingSpot, p_pp: reward.pp,
@@ -10783,27 +10776,27 @@ async function fishingCheckAreaComplete() {
   }).catch(function(){ return null; });
   if (!res || (res.data && res.data.already_claimed)) return;
   if (res.data && res.data.ok) {
-    addPassXP(reward.passXP, 'fishing').catch(function(){});
+    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(){});
     showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
     if (typeof showMelonMessage === 'function')
       showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
   }
+  if (typeof FISH_POOL === 'undefined') return;
   var allIds = FISH_POOL.filter(function(f){ return f.rarity !== 'junk'; }).map(function(f){ return f.id; });
   if (!allIds.every(function(id){ return _fishCollection[id]; })) return;
   var full = await supabaseClient.rpc('fishing_claim_reward', {
-    p_reward_key: 'full_collection', p_pp: FISH_FULL_COMPLETION_PP,
-    p_pass_xp: FISH_FULL_COMPLETION_PASSXP, p_skin_key: true
+    p_reward_key: 'full_collection', p_pp: (typeof FISH_FULL_COMPLETION_PP !== 'undefined' ? FISH_FULL_COMPLETION_PP : 2000),
+    p_pass_xp: (typeof FISH_FULL_COMPLETION_PASSXP !== 'undefined' ? FISH_FULL_COMPLETION_PASSXP : 300),
+    p_skin_key: true
   }).catch(function(){ return null; });
   if (full && full.data && full.data.ok) {
     if (typeof showRareCelebration === 'function')
-      showRareCelebration({ title:'Master Angler!',
-        subtitle:'Caught every fish! +' + FISH_FULL_COMPLETION_PP + ' PP + 1 Skin Key!',
-        icon:'🎣', rarity:'legendary',
+      showRareCelebration({ title:'Master Angler!', subtitle:'Caught every fish!', icon:'🎣', rarity:'legendary',
         shareText:'Completed the fish collection in PawketPetsVT! 🎣 #PawketPetsVT' });
   }
 }
 
-// ── Ad-pocalypse weather ──────────────────────────────────────────────────
+// ── Ad-pocalypse weather ───────────────────────────────────────────────────────
 var _adpocalypseInterval = null;
 var _adpocalypseActive   = false;
 var AD_POOL = [
@@ -10812,7 +10805,7 @@ var AD_POOL = [
     btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
     outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(){}); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
   { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
-    sub:'PetCare Pro™ — <strong>only 50 PP!!</strong>',
+    sub:'PetCare Pro — <strong>only 50 PP!!</strong>',
     btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
     outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(){}); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
   { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
@@ -10821,7 +10814,7 @@ var AD_POOL = [
     outcome:function(){ showToast('There was nothing there. Thank you. 🙂',4000); }, weight:15 },
   { id:'ad_horror', title:'SYSTEM — do not close', headline:'have you seen them?',
     sub:'the other testers. from before.<br><br>it was not fine.',
-    btn:'i haven\'t seen them', fine:'* this ad will not appear again.',
+    btn:'i have not seen them', fine:'* this ad will not appear again.',
     outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
 ];
 function adpocalypse_pickAd(){
@@ -10861,17 +10854,20 @@ function adpocalypse_stop(){
   document.querySelectorAll('.adpoc-popup').forEach(function(el){adpocalypse_closePopup(el);});
 }
 
-// ── ARG: Melon spooky shop dialogue ──────────────────────────────────────
-// This replaces the single spooky line in initMelonDialogue
-// The function initMelonDialogue already exists in the base file and calls
-// spookyLines internally — we patch it to use the expanded pool via a global
+// ── Melon spooky shop dialogue pool ───────────────────────────────────────────
 var MELON_SPOOKY_POOL = [
   'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing.',
   'Buy whatever you need! <span class="glitch-text">Piper</span> used to say that too.',
   'Is your pet happy today? They look happy. They always look happy.',
-  'I\'ve been here a long time. So have you. Isn\'t that nice?',
+  'I have been here a long time. So have you. Is not that nice?',
   'Welcome to the shop! Everything is fine. <span class="glitch-text">Everything is fine.</span>',
-  'I\'m not sure what happened to the last guide. I\'m sure it was nothing.',
-  'Your pet seems very attached to you. That\'s good. That\'s very good.',
-  'Sometimes I think the pets remember things I don\'t. But I\'m just the shopkeeper.',
+  'I am not sure what happened to the last guide. I am sure it was nothing.',
+  'Your pet seems very attached to you. That is good. That is very good.',
+  'Sometimes I think the pets remember things I do not. But I am just the shopkeeper.',
 ];
+
+// ── expeditionNarrativeClose helper ───────────────────────────────────────────
+function expeditionNarrativeClose() {
+  var m = document.getElementById('expedition-narrative-modal');
+  if (m) m.remove();
+}
