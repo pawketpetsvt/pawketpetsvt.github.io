@@ -17906,3 +17906,125 @@ body.guest .landing-v2-screenshots img {
   display: block !important;
   text-align: left !important;
 }
+
+/* ── INSTALL & AD POPUPS: Override night-mode color bleed ──────────────────
+   body.night-mode targets all div/span/p with !important
+   We need equal or higher specificity + !important to win */
+body.night-mode .install-popup,
+body.night-mode .install-popup div,
+body.night-mode .install-popup span,
+body.night-mode .install-popup p,
+body.night-mode .install-popup label,
+.install-popup,
+.install-popup div,
+.install-popup span,
+.install-popup p {
+  font-family: Tahoma, Arial, sans-serif !important;
+  color: #000 !important;
+}
+body.night-mode .install-popup-titlebar,
+body.night-mode .install-popup-titlebar span,
+body.night-mode .install-popup-titlebar div,
+.install-popup-titlebar span,
+.install-popup-titlebar div {
+  color: #fff !important;
+}
+body.night-mode .popup-headline,
+.popup-headline {
+  color: #cc0000 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-size: 28px !important;
+}
+body.night-mode .popup-sub,
+.popup-sub {
+  color: #333 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-size: 20px !important;
+}
+body.night-mode .popup-fine,
+.popup-fine {
+  color: #777 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+body.night-mode .popup-btn,
+.popup-btn {
+  color: #000 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+
+/* Ad-pocalypse popups */
+body.night-mode .adpoc-popup,
+body.night-mode .adpoc-popup div,
+body.night-mode .adpoc-popup span,
+body.night-mode .adpoc-popup p,
+.adpoc-popup,
+.adpoc-popup div,
+.adpoc-popup span,
+.adpoc-popup p {
+  font-family: Tahoma, Arial, sans-serif !important;
+  color: #000 !important;
+}
+body.night-mode .adpoc-titlebar span,
+.adpoc-titlebar span {
+  color: #fff !important;
+  font-size: 30px !important;
+}
+body.night-mode .adpoc-headline,
+.adpoc-headline {
+  color: #cc0000 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-size: 46px !important;
+}
+body.night-mode .adpoc-sub,
+.adpoc-sub {
+  color: #333 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-size: 30px !important;
+}
+body.night-mode .adpoc-fine,
+.adpoc-fine {
+  color: #777 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-size: 20px !important;
+}
+body.night-mode .adpoc-btn,
+.adpoc-btn {
+  color: #000 !important;
+  font-size: 34px !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+
+/* Install screen disc label */
+body.night-mode #install-congrats,
+#install-congrats {
+  color: #000080 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+body.night-mode #install-sub,
+#install-sub {
+  color: #333 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+body.night-mode #install-fine-print,
+body.night-mode #install-fine-print span,
+body.night-mode #install-fine-print p,
+#install-fine-print,
+#install-fine-print span {
+  color: #555 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+body.night-mode #install-disc-label,
+#install-disc-label {
+  color: #000 !important;
+  font-family: 'Courier New', monospace !important;
+}
+body.night-mode #install-disc-label span,
+#install-disc-label span {
+  color: #000080 !important;
+  font-family: 'Courier New', monospace !important;
+}
+body.night-mode #install-disc-hint,
+#install-disc-hint {
+  color: #555 !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+}
