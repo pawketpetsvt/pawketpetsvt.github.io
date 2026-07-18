@@ -4345,8 +4345,7 @@ function triggerSpookyEffect() {
   screen.style.display = 'flex';
   authGate.style.display = 'none';
 
-  // Play background music during install — first-visit players should hear it
-  // Wait for a user gesture (the disc click) before playing due to browser autoplay rules
+  // Play background music on first ANY interaction — don't wait for disc click
   var _installMusicStarted = false;
   function _startInstallMusic() {
     if (_installMusicStarted) return;
@@ -4357,6 +4356,14 @@ function triggerSpookyEffect() {
       bgMusic.play().catch(function(){});
     }
   }
+
+  // Hook into earliest possible user gesture — mousemove, keydown, touchstart, click
+  ['mousemove','keydown','touchstart','mousedown'].forEach(function(evt) {
+    document.addEventListener(evt, function _earlyMusic() {
+      _startInstallMusic();
+      document.removeEventListener(evt, _earlyMusic);
+    }, { once: true });
+  });
 
   // ── Web Audio click sound (XP-style) ──────────────────────────────────
   function playClickSound() {
