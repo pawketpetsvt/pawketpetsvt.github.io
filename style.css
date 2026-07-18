@@ -17562,7 +17562,7 @@ body.streamer-landing-active .form-card {
 ═══════════════════════════════════════════════════════════════════════════ */
 .landing-v2 {
   display: grid;
-  grid-template-columns: 620px minmax(360px, 440px) 1fr;
+  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr;
   min-height: calc(100vh - 56px);
   width: 100vw;
   position: relative;
@@ -17708,11 +17708,12 @@ body.guest #section-login {
 
 body.guest .landing-v2 {
   display: grid !important;
-  grid-template-columns: 620px minmax(360px, 440px) 1fr !important;
+  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr !important;
   width: 100vw !important;
   position: relative !important;
   left: 0 !important;
   transform: none !important;
+  overflow: hidden !important;
 }
 
 body.guest .landing-v2-screenshots {
@@ -17726,9 +17727,9 @@ body.guest .landing-v2-screenshots {
 body.guest .landing-v2-screenshots img {
   display: block !important;
   width: 100% !important;
-  height: 300px !important;
-  min-height: 300px !important;
-  max-height: 300px !important;
+  height: 230px !important;
+  min-height: 230px !important;
+  max-height: 230px !important;
   object-fit: cover !important;
   object-position: top center !important;
   flex-shrink: 0 !important;

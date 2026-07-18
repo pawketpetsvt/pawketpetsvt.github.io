@@ -724,10 +724,12 @@ var today = new Date().toISOString().split('T')[0];
 var bgMusic = document.getElementById('bg-music');
 bgMusic.volume = 0.4;
 
-document.addEventListener('click', function startM() {
+document.addEventListener("click", function startM() {
+  document.removeEventListener("click", startM);
+  if (window._installMusicStarted) return;
   bgMusic.play().catch(function(){});
-  document.getElementById('music-play-btn').textContent = '\u23F8';
-  document.removeEventListener('click', startM);
+  var btn = document.getElementById("music-play-btn");
+  if (btn) btn.textContent = "⏸";
 }, { once: true });
 
 function toggleMusic() {
@@ -8613,11 +8615,7 @@ function shareToTwitter(text, rewardPlayer) {
 }
 
 function shareToBluesky(text, rewardPlayer) {
-  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(
-    text + '
-
-https://pawketpets.net'
-  );
+  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(text + '\n\nhttps://pawketpets.net');
   window.open(url, '_blank', 'width=600,height=400,noopener');
   if (rewardPlayer) onSocialShare('bluesky').catch(function(){});
 }

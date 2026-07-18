@@ -1272,11 +1272,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
       <!-- SCREENSHOTS -->
       <div class="landing-v2-screenshots">
-        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" />
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">8 unique VTuber pets</div>
-        <img src="images/screenshot-shop.png" alt="Item Shop" />
+        <img src="images/screenshot-shop.png" alt="Item Shop" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
-        <img src="images/screenshot-battle.png" alt="Battle Arena" />
+        <img src="images/screenshot-battle.png" alt="Battle Arena" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
       </div>
 
@@ -1370,11 +1370,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
       <!-- SCREENSHOTS -->
       <div class="landing-v2-screenshots">
-        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" />
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">8 unique VTuber pets</div>
-        <img src="images/screenshot-shop.png" alt="Item Shop" />
+        <img src="images/screenshot-shop.png" alt="Item Shop" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
-        <img src="images/screenshot-battle.png" alt="Battle Arena" />
+        <img src="images/screenshot-battle.png" alt="Battle Arena" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
       </div>
 
@@ -4352,24 +4352,36 @@ function triggerSpookyEffect() {
   screen.style.display = 'flex';
   authGate.style.display = 'none';
 
-  // Play background music on first ANY interaction — don't wait for disc click
-  var _installMusicStarted = false;
+  // Play background music on first ANY interaction
+  // Uses window flag so game.js doesn't double-trigger
+  window._installMusicStarted = false;
   function _startInstallMusic() {
-    if (_installMusicStarted) return;
-    _installMusicStarted = true;
+    if (window._installMusicStarted) return;
+    window._installMusicStarted = true;
     var bgMusic = document.getElementById('bg-music');
-    if (bgMusic && bgMusic.paused) {
-      bgMusic.volume = 0.4;
-      bgMusic.play().catch(function(){});
+    if (!bgMusic) return;
+    bgMusic.volume = 0.4;
+    var playPromise = bgMusic.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function() {
+        // Autoplay blocked — retry on next user click
+        document.addEventListener('click', function retryMusic() {
+          bgMusic.play().catch(function(){});
+          document.removeEventListener('click', retryMusic);
+        }, { once: true });
+      });
     }
   }
 
-  // Hook into earliest possible user gesture — mousemove, keydown, touchstart, click
-  ['mousemove','keydown','touchstart','mousedown'].forEach(function(evt) {
-    document.addEventListener(evt, function _earlyMusic() {
-      _startInstallMusic();
-      document.removeEventListener(evt, _earlyMusic);
-    }, { once: true });
+  // Start on ANY user gesture — whichever comes first
+  function _onGesture() {
+    _startInstallMusic();
+    ['mousemove','mousedown','keydown','touchstart','click'].forEach(function(e) {
+      document.removeEventListener(e, _onGesture);
+    });
+  }
+  ['mousemove','mousedown','keydown','touchstart','click'].forEach(function(evt) {
+    document.addEventListener(evt, _onGesture, { once: true, passive: true });
   });
 
   // ── Web Audio click sound (XP-style) ──────────────────────────────────
