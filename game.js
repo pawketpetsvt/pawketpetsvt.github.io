@@ -242,7 +242,7 @@ function playBattleSound(soundKey, volume, forceBoss) {
   sound.volume = volume || 0.35;
   
   sound.play().catch(function(err) {
-    // Silently fail if sound can't play
+    // Silently fail if sound cannot play
   });
 }
 
@@ -626,9 +626,9 @@ function cosmetics_switchTab(tab) {
 var dailyTips = [
   "Pets with higher happiness perform better in battles!",
   "Play minigames daily to earn PawketPoints!",
-  "Your pet's level increases their battle stats!",
+  "Your pets level increases their battle stats!",
   "Boss battles drop exclusive items!",
-  "Equipment boosts your pet's combat stats!",
+  "Equipment boosts your pets combat stats!",
   "Ember's Flametail Strike deals 1.5x damage!",
   "Pyxie's Raspberry Soda Stream heals while attacking!",
   "Login daily to build your streak for bonus rewards!",
@@ -643,7 +643,7 @@ var dailyTips = [
   "Boss battles are the ultimate challenge!",
   "Skills have a 30% chance to activate each turn!",
   "You can earn badges by completing achievements!",
-  "Visit Melon's shop to buy treats and equipment!",
+  "Visit Melons shop to buy treats and equipment!",
   "Battle in different forest zones for varying rewards!",
   "Your day streak is displayed in the sidebar!",
   "Blocked users cannot view your profile!",
@@ -1044,7 +1044,7 @@ async function calendar_load(modal) {
     days[0].event = worldEvents.currentEvent;
   }
 
-  // Check daily_features for today's scheduled weather (may override in-memory)
+  // Check daily_features for todays scheduled weather (may override in-memory)
   try {
     var { data: todayFeature } = await supabaseClient
       .from('daily_features')
@@ -1054,7 +1054,7 @@ async function calendar_load(modal) {
 
     if (todayFeature && todayFeature.weather) {
       var weatherId = typeof todayFeature.weather === 'object' ? todayFeature.weather.id : todayFeature.weather;
-      // Use live weatherSystem types so today's card always matches actual weather definitions
+      // Use live weatherSystem types so todays card always matches actual weather definitions
     var found = (typeof weatherSystem !== 'undefined' && weatherSystem.weatherTypes)
       ? weatherSystem.weatherTypes.find(function(w) { return w.id === weatherId; })
       : null;
@@ -1372,7 +1372,7 @@ var SPOOKY_PP_GLITCH_CHANCE = 0.015; // ~1.5% chance per points update
 
 function maybeGlitchPointsDisplay(realPts) {
   if (!playerSettings.spooky_enabled) return;
-  if (_ppGlitchActive) return; // don't stack while one is already playing out
+  if (_ppGlitchActive) return; // do not stack while one is already playing out
   if (Math.random() >= SPOOKY_PP_GLITCH_CHANCE) return;
 
   var glitchIds = ['adopt-points','mypets-points','shop-points','games-points','redeem-points','nav-points','sidebar-points'];
@@ -1719,7 +1719,7 @@ async function createNotification(userId, type, title, message, actionTab) {
     // Update the bell badge
     await updateNotificationBadge();
   } catch(e) {
-    // Notification failures are non-critical — log but don't surface
+    // Notification failures are non-critical — log but do not surface
     console.error('[Notif] createNotification failed:', e);
   }
 }
@@ -2451,7 +2451,7 @@ async function updateSidebarStats() {
       .eq('id', currentUser.id)
       .maybeSingle();
     
-    // If player doesn't exist, they're being auto-created - skip stats for now
+    // If player does not exist, they are being auto-created - skip stats for now
     if (!player) {
       dbg('⏳ Player not yet created, skipping sidebar stats...');
       return;
@@ -2630,7 +2630,7 @@ function checkMelonMilestones() {
       key: 'day7',
       check: function() { return streak >= 7; },
       title: 'Melon checks in 🍉',
-      message: "One week! Have you noticed the news ticker yet? Sometimes it says... unusual things. I'm sure it's nothing. Probably just a display bug. Anyway — keep feeding your pets!"
+      message: "One week! Have you noticed the news ticker yet? Sometimes it says... unusual things. I am sure it is nothing. Probably just a display bug. Anyway — keep feeding your pets!"
     },
     {
       key: 'first_boss',
@@ -2639,7 +2639,7 @@ function checkMelonMilestones() {
         return (stats.bosses_killed || 0) >= 1;
       },
       title: 'Melon has a question 🍉',
-      message: "...That wasn't supposed to happen. The boss, I mean. I didn't think anyone would actually get that far this quickly. Are you doing okay? The pets seem unsettled."
+      message: "...That wasn't supposed to happen. The boss, I mean. I did not think anyone would actually get that far this quickly. Are you doing okay? The pets seem unsettled."
     },
     {
       key: 'corruption_50',
@@ -2656,7 +2656,7 @@ function checkMelonMilestones() {
         return Object.values(petState || {}).some(function(p) { return p && (p.level || 0) >= 10; });
       },
       title: 'Melon is impressed 🍉',
-      message: "Level 10! That's real dedication. I've seen a lot of testers come through here. Not many make it this far. ...Well. Most of them don't. But you're doing great!"
+      message: "Level 10! That's real dedication. I have seen a lot of testers come through here. Not many make it this far. ...Well. Most of them do not. But you are doing great!"
     }
   ];
 
@@ -2929,7 +2929,7 @@ var PROFANITY_LIST = [
 ];
 
 // Extra letter substitutions frequently used to dodge filters — kept
-// separate from the main word list so it's easy to extend on its own.
+// separate from the main word list so it is easy to extend on its own.
 var PROFANITY_SUBSTITUTIONS = {
   a: 'a@4', e: 'e3', i: 'i1!|', o: 'o0', s: 's5$z', t: 't7',
   g: 'g69', l: 'l1', b: 'b8', u: 'uv', c: 'ck', z: 'z2'
@@ -2977,8 +2977,8 @@ function containsProfanity(text) {
     
     // Check for word with extra separator characters (f.u.c.k, f-u-c-k, etc)
     // FIX: require at least one separator between letters (use [^a-z]+ not *) AND
-    // word boundaries around the whole match, so "hello" doesn't trip on "hell"
-    // and "scrapbook" doesn't trip on "crap"
+    // word boundaries around the whole match, so "hello" does not trip on "hell"
+    // and "scrapbook" does not trip on "crap"
     var spacedWord = word.split('').join('[^a-z0-9]+');
     var spacedRegex = new RegExp('(?<![a-zA-Z0-9])' + spacedWord + '(?![a-zA-Z0-9])', 'i');
     if (spacedRegex.test(lowerText)) {
@@ -3313,7 +3313,7 @@ async function confirmAdopt() {
   // PHASE 8 - Process referral on first adoption
   await processReferral();
   
-  // Clear streamer landing suggestion — they've adopted now
+  // Clear streamer landing suggestion — they have adopted now
   localStorage.removeItem('suggestedFirstPet');
 
   // Track adoption in analytics
@@ -3409,7 +3409,7 @@ async function loadMyPets() {
     return;
   }
   
-  // Process pets and calculate decay for DISPLAY ONLY (don't save back to DB!)
+  // Process pets and calculate decay for DISPLAY ONLY (do not save back to DB!)
   res.data.forEach(function(pet) {
     var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
     var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
@@ -3422,7 +3422,7 @@ async function loadMyPets() {
     var maxHP = pet.max_hp || pet.base_hp || 25;
     var hpRegenRef = pet.last_played || pet.last_fed || null;
     
-    // Only regenerate if HP > 0 (don't auto-revive fainted pets!)
+    // Only regenerate if HP > 0 (do not auto-revive fainted pets!)
     var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, hpRegenRef) : 0;
     
     petState[pet.id] = Object.assign({}, pet, {
@@ -3721,7 +3721,7 @@ async function useItem(petId) {
       return;
     }
     
-    // Calculate new HP (can't exceed max)
+    // Calculate new HP (cannot exceed max)
     var newHP = Math.min(currentHP + healValue, maxHP);
     var healedAmount = newHP - currentHP;
     
@@ -4118,7 +4118,7 @@ function makeMyPetCard(pet) {
   var moodMount = makeEl('div', { id: 'mood-widget-' + pet.id });
   moodMount.innerHTML = '<div style="height:4px"></div>'; // placeholder
   body.appendChild(moodMount);
-  // Load asynchronously so it doesn't block card render
+  // Load asynchronously so it does not block card render
   personality_loadMood(pet.id).then(function() {
     personality_renderWidget(pet.id);
     // Also render quest widget and try to assign one if none active
@@ -4479,13 +4479,13 @@ var PET_PERSONALITIES = {
       "This is the grind. I love the grind. 🔥",
     ],
     happy: [
-      "Doing pretty good. Could be spicier but I'll manage.",
+      "Doing pretty good. Could be spicier but I will manage.",
       "Feeling solid. Maybe we go fight something?",
       "Good energy today. Been thinking about Abiotic Factor...",
       "Yeah, this is nice. Thanks for checking in. 🧡",
     ],
     meh: [
-      "I've been better. I've also been worse. This is fine.",
+      "I have been better. I have also been worse. This is fine.",
       "Could use a snack tbh. The spicy kind.",
       "Just vibing. Kind of. Not really.",
       "Eleven years of this and I still get hungry. Annoying.",
@@ -4493,14 +4493,14 @@ var PET_PERSONALITIES = {
     sad: [
       "Hey. Hey. I need food. This is not a drill.",
       "Running low over here. Not great, not great at all.",
-      "I'm tired and hungry and I need you to fix that. Please.",
-      "This is the bad grind. I don't love the bad grind. 😢",
+      "I am tired and hungry and I need you to fix that. Please.",
+      "This is the bad grind. I do not love the bad grind. 😢",
     ],
     neglected: [
-      "...I know you've been busy. I know. But also. FOOD.",
+      "...I know you have been busy. I know. But also. FOOD.",
       "Hello? It's me. Your pet. Remember? Fire? Protogen? Hungry?",
-      "I've started talking to myself. It's fine. Everything is fine. 🔥",
-      "I didn't survive 11 years on Twitch to be forgotten by MY OWN OWNER.",
+      "I have started talking to myself. It's fine. Everything is fine. 🔥",
+      "I did not survive 11 years on Twitch to be forgotten by MY OWN OWNER.",
     ],
     missed_you: "Ember perks up! You were gone for a while... she pretends not to care. She cares a little. 🧡",
   },
@@ -4542,7 +4542,7 @@ var PET_PERSONALITIES = {
   'Aria': {
     thriving: [
       "I am thriving. The bones are plentiful. Life is good. 🦋",
-      "Humans are so silly but you're doing wonderfully. So am I.",
+      "Humans are so silly but you are doing wonderfully. So am I.",
       "Shiny things! Good food! Bones everywhere! What a day!",
       "Feeling very powerful today. In a gentle, moth-adjacent way. 🌸",
     ],
@@ -4555,7 +4555,7 @@ var PET_PERSONALITIES = {
     meh: [
       "Humans are strange and I am a little hungry. Curious combination.",
       "Doing okay! The cheesecake situation could be better.",
-      "I'm fine. I'm always fine. The Crane Wives are playing in my head.",
+      "I am fine. I am always fine. The Crane Wives are playing in my head.",
       "Could use a little something. Bones or food, either works.",
     ],
     sad: [
@@ -4584,10 +4584,10 @@ var PET_PERSONALITIES = {
       "Pretty good! The portal situation is very manageable right now.",
       "Yip! Good vibes, good magic, good food. The pom life.",
       "Happy and studying some galaxy magic. Don't mind me. ✨",
-      "Feeling adventurous. In a good way. Probably won't get lost.",
+      "Feeling adventurous. In a good way. Probably will not get lost.",
     ],
     meh: [
-      "I'm fine but the void seems quieter than usual. Suspicious.",
+      "I am fine but the void seems quieter than usual. Suspicious.",
       "Okay I guess. Would be better with more snacks and/or portals.",
       "Yap. That's it. Just yap. Energy is low.",
       "Studying. Being a gremlin. Could be fed more often just saying.",
@@ -4595,12 +4595,12 @@ var PET_PERSONALITIES = {
     sad: [
       "Kleat is not yipping. This is how you know something is wrong.",
       "The portal to the snack dimension is closed. This is a crisis.",
-      "Unhappy pom noises. Feed me and I'll open you a portal. Deal.",
+      "Unhappy pom noises. Feed me and I will open you a portal. Deal.",
       "Low energy. Even for a grand mage this is concerning. 💜",
     ],
     neglected: [
       "I OPENED A PORTAL AND YOU WEREN'T EVEN HERE TO SEE IT.",
-      "Fine. I'll just go adventure alone. Through the void. By myself. This is fine.",
+      "Fine. I will just go adventure alone. Through the void. By myself. This is fine.",
       "The void is kind of lonely actually. Come back please. Yip.",
       "No yaps. No yips. Just... quiet. You should fix that. 🌀",
     ],
@@ -4618,7 +4618,7 @@ var PET_PERSONALITIES = {
       "What the glob, today is pretty good!!",
       "Happy puppy princess reporting in! All good here! 🐾",
       "Feeling great! What should we do?? I have ideas. So many ideas.",
-      "Good! Really good! Have you played Tomodachi Life? I'm thinking about it.",
+      "Good! Really good! Have you played Tomodachi Life? I am thinking about it.",
     ],
     meh: [
       "What the... glob? I think I need a snack.",
@@ -4628,7 +4628,7 @@ var PET_PERSONALITIES = {
     ],
     sad: [
       "what the glob :(((( i am SAD and HUNGRY",
-      "This isn't what escaping a video game was supposed to be like!!",
+      "This is not what escaping a video game was supposed to be like!!",
       "Princess status: depleted. Please help immediately. 🐾",
       "I escaped my game for THIS?? (please feed me i love you)",
     ],
@@ -4646,7 +4646,7 @@ var PET_PERSONALITIES = {
       "Cluck. I am thriving. Do not question the cluck. 🐔",
       "Fed. Happy. Still a menace. Everything is as it should be.",
       "As chill as a fire in hell, and currently: extremely chill.",
-      "Bawk. Cockadoodledoo. That means I'm doing great. Trust.",
+      "Bawk. Cockadoodledoo. That means I am doing great. Trust.",
     ],
     happy: [
       "Pretty good. Considering. You know. Everything.",
@@ -4657,7 +4657,7 @@ var PET_PERSONALITIES = {
     meh: [
       "Cluck. Could be worse. Has been worse. Is fine.",
       "The chaos is... manageable right now. Suspicious.",
-      "Neutral menace energy. Feed me and I'll escalate appropriately.",
+      "Neutral menace energy. Feed me and I will escalate appropriately.",
       "Existing. Causing minor problems. Living the dream I guess.",
     ],
     sad: [
@@ -4670,7 +4670,7 @@ var PET_PERSONALITIES = {
       "I have been a menace to myself out of pure boredom. This is your fault.",
       "CLUCK. BAWK. BUCK. The good words. You know what they mean.",
       "I started streaming for fun back in 2016 and I refuse to starve in 2026.",
-      "Fine. I'll just be unhinged alone. I'm good at it. But come back. 🐄",
+      "Fine. I will just be unhinged alone. I am good at it. But come back. 🐄",
     ],
     missed_you: "Steve eyes you with deep suspicion, then headbutts you anyway. That's cowbee love. Don't question it. 🐔",
   },
@@ -4691,20 +4691,20 @@ var PET_PERSONALITIES = {
     meh: [
       "Could be more radical. The nachos situation needs addressing.",
       "Medium energy. The arcade awaits but I need fuel first.",
-      "Furbies are giving me a look. I think they're judging my stats.",
-      "Eh. Not my best run. Feed me, let's try again. 🕹️",
+      "Furbies are giving me a look. I think they are judging my stats.",
+      "Eh. Not my best run. Feed me, let us try again. 🕹️",
     ],
     sad: [
       "Low score. Real low. This is NOT the high score life.",
-      "Even the Furbies look concerned. That's how you know it's bad.",
+      "Even the Furbies look concerned. That's how you know it is bad.",
       "Need nachos. Need energy. Need to be fed. In that order.",
-      "The PaleoPlex doesn't run on empty. Neither do I. 😢",
+      "The PaleoPlex does not run on empty. Neither do I. 😢",
     ],
     neglected: [
       "I have NEVER gotten a game over in my LIFE and this is what it feels like.",
       "The Furbies are handling this better than I am. That's humbling.",
       "INSERT COIN. INSERT COIN. That's you. You're the coin. Please.",
-      "Neopets The Darkest Faerie taught me resilience. It didn't prepare me for THIS. 🎮",
+      "Neopets The Darkest Faerie taught me resilience. It did not prepare me for THIS. 🎮",
     ],
     missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
   },
@@ -4713,7 +4713,7 @@ var PET_PERSONALITIES = {
     thriving: [
       "Thriving! The potions are working and the fossils are beautiful today. 🦕",
       "Full energy, full tummy, and I found a really nice bone. Good day.",
-      "This fossil is 65 million years cuter than you. But you're doing great too.",
+      "This fossil is 65 million years cuter than you. But you are doing great too.",
       "Happy and warm and maybe a little adventurous today. 🌿",
     ],
     happy: [
@@ -4723,19 +4723,19 @@ var PET_PERSONALITIES = {
       "Happy! It's a good day for small adventures.",
     ],
     meh: [
-      "Okay. The potion needs one more ingredient and I can't find it.",
+      "Okay. The potion needs one more ingredient and I cannot find it.",
       "Existing quietly. Could use a snack and maybe a hug.",
-      "A little low today. Nothing a mango delight wouldn't fix.",
+      "A little low today. Nothing a mango delight would not fix.",
       "The adventure is paused. Fuel required. 🌿",
     ],
     sad: [
-      "Sad and hungry and the potion definitely didn't work that time.",
+      "Sad and hungry and the potion definitely did not work that time.",
       "65 million years of dinosaur history and none of them thought to leave snacks.",
       "I need something sweet please. And some company. 🦕",
       "Quiet critter is being very quiet right now. In the sad way.",
     ],
     neglected: [
-      "I've been very patient. Parasaurs are known for patience. But still.",
+      "I have been very patient. Parasaurs are known for patience. But still.",
       "The fossils are keeping me company. They're good listeners. Unlike some people.",
       "I started a new potion. It's called 'please remember I exist.' It's almost done.",
       "Small adventures are less fun alone. Just so you know. 🌿",
@@ -4778,7 +4778,7 @@ function getPetPersonalityMessage(petType, hunger, energy, happiness, maxHunger,
   else if (overall >= 0.20) pool = p.sad;
   else                      pool = p.neglected;
 
-  // Rotate through messages based on hour of day so it changes but doesn't flicker
+  // Rotate through messages based on hour of day so it changes but does not flicker
   return pool[Math.floor(Date.now() / 3600000) % pool.length];
 }
 
@@ -5066,7 +5066,7 @@ function expedition_renderSelector() {
   var area = document.getElementById('expedition-area');
   if (!area) return;
 
-  // If petState hasn't loaded yet (user came directly to Battle tab),
+  // If petState has not loaded yet (user came directly to Battle tab),
   // fetch pets from DB and then re-render
   if (Object.keys(petState).length === 0 && currentUser) {
     supabaseClient
@@ -5659,7 +5659,7 @@ async function race_renderSetup() {
 
   area.innerHTML = '<div class="spinner"></div>';
 
-  // Query DB directly — don't rely on petState being populated
+  // Query DB directly — do not rely on petState being populated
   var myPets = [];
   try {
     var { data: dbPets, error } = await supabaseClient
@@ -6156,7 +6156,7 @@ var WISH_POOL = [
 // In-memory cache: { petId: { personality, wishes, completedWishes, date } }
 var petMoodCache = {};
 
-// Load (or generate) today's mood for a pet
+// Load (or generate) todays mood for a pet
 async function personality_loadMood(petId) {
   if (!petId || typeof petId !== 'string') return null;
   var today = new Date().toISOString().slice(0, 10);
@@ -7144,7 +7144,7 @@ var foodCategoryData = {
 // ══════════════════════════════════════════════════════════════════════════
 
 function getDailyShopSeed() {
-  // Deterministic seed from today's date — same for all players
+  // Deterministic seed from todays date — same for all players
   var d = new Date();
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
@@ -7382,7 +7382,7 @@ async function getActiveMiniSeasons() {
 
 // Independent weekly counter for seasonal item rotation (1-4), deliberately
 // separate from getCurrentRotationWeek()'s A/B/C engine above so seasonal
-// items rotating in doesn't touch or risk the existing rotation logic.
+// items rotating in does not touch or risk the existing rotation logic.
 function getSeasonalWeekSlot() {
   var weeksSinceEpoch = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
   return (weeksSinceEpoch % 4) + 1; // 1-4
@@ -7426,7 +7426,7 @@ async function getWorldStateValue(flagKey, fallback) {
   return (flags[flagKey] && typeof flags[flagKey].value === 'number') ? flags[flagKey].value : fallback;
 }
 
-// Synchronous, cache-only read (no network call) — for spots that can't
+// Synchronous, cache-only read (no network call) — for spots that cannot
 // await, like weatherSystem.generateWeather() below. A slightly-stale
 // value here is fine; this never blocks weather from being set.
 function getWorldStateValueSync(flagKey, fallback) {
@@ -7504,7 +7504,7 @@ async function generateDiscordLinkCode() {
 // day, to push the world 5 points toward Light ('purify') or Darkness
 // ('corrupt'). Exists specifically so players who want Dark gear (or
 // Light gear) have a way to actually make that happen, rather than
-// waiting on random boss-kill timing they can't control.
+// waiting on random boss-kill timing they cannot control.
 async function performCorruptionRitual(direction) {
   if (!currentUser) return;
   try {
@@ -7552,7 +7552,7 @@ async function loadShop() {
   Object.values(seen).forEach(function(i){deduped.push(i);});
   
   // MINI SEASONS: filter out seasonal items unless their season is
-  // currently active AND it's their week to appear (separate 1-4 rotation
+  // currently active AND it is their week to appear (separate 1-4 rotation
   // from the regular A/B/C weekly rotation below, see getSeasonalWeekSlot())
   var activeSeasons = await getActiveMiniSeasons();
   var activeSeasonKeys = activeSeasons.map(function(s) { return s.season_key; });
@@ -7813,7 +7813,7 @@ async function loadInventory() {
     }
     
     card.appendChild(makeEl('div',{class:'inv-qty'},'x'+row.quantity));
-    // Skip Use button for Skin Keys — they're spent in the Variant menu on pet cards
+    // Skip Use button for Skin Keys — they are spent in the Variant menu on pet cards
     if (item.name === 'Skin Key' || row.item_id === '00000000-0000-0000-0000-000000000001') {
       var infoBadge = makeEl('div');
       infoBadge.textContent = '🔑 Use in My Pets → Variant';
@@ -7979,7 +7979,7 @@ async function checkSidebarStreamStatus() {
       }
     }
     
-    // If no token, can't check live status — still sort by whatever is currently shown
+    // If no token, cannot check live status — still sort by whatever is currently shown
     if (!token) {
       if (!twitchTokenLoggedOnce) {
         dbg('No Twitch token available - cannot check live status');
@@ -8377,7 +8377,7 @@ async function awardBadge(badgeKey) {
 
 var SHARE_REWARD_PP      = 100;
 var SHARE_REWARD_PASS_XP = 10;
-var SHARE_COOLDOWN_MS    = 60000; // 1 min cooldown so spamming one button doesn't farm PP
+var SHARE_COOLDOWN_MS    = 60000; // 1 min cooldown so spamming one button does not farm PP
 var _lastShareTime       = 0;
 
 // Badge thresholds: shares needed for each badge
@@ -8437,7 +8437,7 @@ async function initReferralSystem(userId) {
 async function referralClaimTier(tier, alreadyClaimed) {
   if (!currentUser) return;
   try {
-    // Use secure RPC to award — idempotent, won't double-pay
+    // Use secure RPC to award — idempotent, will not double-pay
     var res = await supabaseClient.rpc('referral_claim_tier', {
       p_tier_count: tier.count,
       p_pp:         tier.pp,
@@ -8629,7 +8629,7 @@ function shareBadgeToBluesky(badgeName, badgeIcon) {
 // Shows a rich notification with context-aware nav button + nav flash
 // ═══════════════════════════════════════════════════════════════════════════
 
-var _navFlashTimers = {}; // track active flashes so we don't stack them
+var _navFlashTimers = {}; // track active flashes so we do not stack them
 
 function flashNavButton(tab, duration) {
   // Add pulsing attention dot to the sidebar nav button
@@ -8998,7 +8998,7 @@ async function fishingUpgradeRod() {
   if (!rod) return;
   if (currentPoints < rod.cost) { showToast('Need ' + rod.cost + ' PP to buy the ' + rod.name + '!', 3000); return; }
   if (!confirm('Buy ' + rod.emoji + ' ' + rod.name + ' for ' + rod.cost + ' PP?\n' + rod.desc)) return;
-  // Use secure RPC — validates PP server-side, won't allow skipping levels
+  // Use secure RPC — validates PP server-side, will not allow skipping levels
   var res = await supabaseClient.rpc('fishing_upgrade_rod', {
     p_next_level: nextLevel, p_cost: rod.cost
   }).catch(function(){ return null; });
@@ -9646,7 +9646,7 @@ function whackMole(id) {
     else if(whackCombo>=10) whackPPperHit=10;
     else whackPPperHit=5;
     var hitPP = isGolden ? whackPPperHit*3 : whackPPperHit;
-    fishingTotal = (fishingTotal||0); // don't touch
+    fishingTotal = (fishingTotal||0); // do not touch
     var totalEarned = parseInt(el('whack-earned').textContent||'0') + hitPP;
     el('whack-score').textContent = whackScore;
     el('whack-earned').textContent = totalEarned;
@@ -10177,7 +10177,7 @@ var FISHING_RODS = [
   null, // index 0 unused
   { level:1, name:'Basic Rod',     emoji:'🎣', desc:'The starter rod.',                cost:0,    baseCasts:8  },
   { level:2, name:'Nice Rod',      emoji:'🎣', desc:'Sturdier. Reduced junk rate.',    cost:500,  baseCasts:8  },
-  { level:3, name:'Pro Rod',       emoji:'🎣', desc:'Fisher's choice. Much less junk.',cost:2000, baseCasts:8  },
+  { level:3, name:'Pro Rod',       emoji:'🎣', desc:'Fishers choice. Much less junk.',cost:2000, baseCasts:8  },
   { level:4, name:'Legendary Rod', emoji:'✨', desc:'Almost no junk. Melon-approved.',  cost:5000, baseCasts:8  },
 ];
 
@@ -10461,7 +10461,7 @@ function fishingShowTimingBar() {
   if (!indicator || !sweetspot) return;
 
   _fishingTimingWindow = true;
-  _fishingTimingResult = 'miss'; // default if they don't click
+  _fishingTimingResult = 'miss'; // default if they do not click
 
   // Animate indicator left→right over 1.8s
   var start = null;
