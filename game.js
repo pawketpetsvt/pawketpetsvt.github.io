@@ -1991,8 +1991,7 @@ async function loadNews() {
           '<span style="font-size:0.72rem;color:var(--text-light);">' + date + '</span>' +
         '</div>' +
         '<div style="font-size:1.05rem;font-weight:800;color:var(--purple-dark);margin-bottom:6px;">' + escapeHtml(post.title || '') + '</div>' +
-        '<div style="font-size:0.85rem;color:var(--text);line-height:1.6;">' + (post.content || '').replace(/
-/g, '<br>') + '</div>' +
+        '<div style="font-size:0.85rem;color:var(--text);line-height:1.6;">' + (post.content || '').replace(/\n/g, '<br>') + '</div>' +
       '</div>';
     }).join('');
   } catch(e) {
@@ -10721,3 +10720,124 @@ async function fishingResolveCast(timing) {
       }, 400);
     }
   }
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// FUNCTIONS ADDED THIS SESSION — appended to base file
+// ══════════════════════════════════════════════════════════════════════════
+
+// ── Calendar bonus multiplier ─────────────────────────────────────────────
+function getCalendarBonus(statKey) {
+  var today = new Date().getDay();
+  var schedule = {
+    1: { stat: 'minigame_pp' }, 2: { stat: 'battle_xp' },
+    3: { stat: 'fishing' },     5: { stat: 'race' }, 0: { stat: 'pet' }
+  };
+  var ev = schedule[today];
+  return (ev && ev.stat === statKey) ? 2.0 : 1.0;
+}
+
+// ── Fishing area completion (DB-backed, idempotent) ───────────────────────
+async function fishingCheckAreaComplete() {
+  var spotFish = FISH_BY_SPOT[_fishingSpot] || [];
+  if (!spotFish.every(function(id){ return _fishCollection[id]; })) return;
+  var reward = FISH_SPOT_REWARDS[_fishingSpot];
+  if (!reward) return;
+  var res = await supabaseClient.rpc('fishing_claim_reward', {
+    p_reward_key: 'area_' + _fishingSpot, p_pp: reward.pp,
+    p_pass_xp: reward.passXP, p_skin_key: false
+  }).catch(function(){ return null; });
+  if (!res || (res.data && res.data.already_claimed)) return;
+  if (res.data && res.data.ok) {
+    addPassXP(reward.passXP, 'fishing').catch(function(){});
+    showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
+    if (typeof showMelonMessage === 'function')
+      showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
+  }
+  var allIds = FISH_POOL.filter(function(f){ return f.rarity !== 'junk'; }).map(function(f){ return f.id; });
+  if (!allIds.every(function(id){ return _fishCollection[id]; })) return;
+  var full = await supabaseClient.rpc('fishing_claim_reward', {
+    p_reward_key: 'full_collection', p_pp: FISH_FULL_COMPLETION_PP,
+    p_pass_xp: FISH_FULL_COMPLETION_PASSXP, p_skin_key: true
+  }).catch(function(){ return null; });
+  if (full && full.data && full.data.ok) {
+    if (typeof showRareCelebration === 'function')
+      showRareCelebration({ title:'Master Angler!',
+        subtitle:'Caught every fish! +' + FISH_FULL_COMPLETION_PP + ' PP + 1 Skin Key!',
+        icon:'🎣', rarity:'legendary',
+        shareText:'Completed the fish collection in PawketPetsVT! 🎣 #PawketPetsVT' });
+  }
+}
+
+// ── Ad-pocalypse weather ──────────────────────────────────────────────────
+var _adpocalypseInterval = null;
+var _adpocalypseActive   = false;
+var AD_POOL = [
+  { id:'ad_free_pp', title:'💰 FREE PawketPoints!!', headline:'CLICK HERE FOR FREE PP!!',
+    sub:'Limited time! Click NOW for <strong>free 25 PP</strong>!',
+    btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
+    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(){}); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
+  { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
+    sub:'PetCare Pro™ — <strong>only 50 PP!!</strong>',
+    btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
+    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(){}); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
+  { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
+    sub:'You have been pre-approved for our <strong>Exclusive Rewards Program</strong>!!',
+    btn:'✅ TELL ME MORE!!', fine:'* There is nothing more.',
+    outcome:function(){ showToast('There was nothing there. Thank you. 🙂',4000); }, weight:15 },
+  { id:'ad_horror', title:'SYSTEM — do not close', headline:'have you seen them?',
+    sub:'the other testers. from before.<br><br>it was not fine.',
+    btn:'i haven\'t seen them', fine:'* this ad will not appear again.',
+    outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
+];
+function adpocalypse_pickAd(){
+  var t=AD_POOL.reduce(function(s,a){return s+a.weight;},0),r=Math.random()*t,acc=0;
+  for(var i=0;i<AD_POOL.length;i++){acc+=AD_POOL[i].weight;if(r<acc)return AD_POOL[i];}return AD_POOL[0];
+}
+function adpocalypse_showAd(){
+  if(!_adpocalypseActive||!currentUser)return;
+  var ad=adpocalypse_pickAd(),pos=[{top:'8%',right:'3%'},{bottom:'10%',right:'3%'},{top:'35%',right:'2%'}][Math.floor(Math.random()*3)];
+  var popup=document.createElement('div');
+  popup.className='adpoc-popup'+(ad.id==='ad_horror'?' adpoc-horror':'');
+  popup.style.cssText=Object.keys(pos).map(function(k){return k+':'+pos[k];}).join(';');
+  popup.innerHTML='<div class="adpoc-titlebar"><span>'+ad.title+'</span><button class="adpoc-close" onclick="adpocalypse_closePopup(this.parentElement.parentElement)">×</button></div>'+
+    '<div class="adpoc-body"><div class="adpoc-headline">'+ad.headline+'</div><div class="adpoc-sub">'+ad.sub+'</div>'+
+    '<button class="adpoc-btn">'+ad.btn+'</button><div class="adpoc-fine">'+ad.fine+'</div></div>';
+  popup.querySelector('.adpoc-btn').addEventListener('click',function(){ad.outcome();adpocalypse_closePopup(popup);});
+  document.body.appendChild(popup);
+  setTimeout(function(){popup.classList.add('adpoc-show');},50);
+  setTimeout(function(){adpocalypse_closePopup(popup);},12000);
+}
+function adpocalypse_closePopup(el){
+  if(!el||!el.parentNode)return;
+  el.classList.remove('adpoc-show');
+  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},400);
+}
+function adpocalypse_start(){
+  if(_adpocalypseActive)return; _adpocalypseActive=true;
+  showToast('📢 Ad-pocalypse weather! Watch out for ads...',4000);
+  setTimeout(function(){
+    adpocalypse_showAd();
+    _adpocalypseInterval=setInterval(function(){ if(!_adpocalypseActive){clearInterval(_adpocalypseInterval);return;} adpocalypse_showAd(); },25000+Math.random()*15000);
+  },8000);
+}
+function adpocalypse_stop(){
+  _adpocalypseActive=false;
+  if(_adpocalypseInterval){clearInterval(_adpocalypseInterval);_adpocalypseInterval=null;}
+  document.querySelectorAll('.adpoc-popup').forEach(function(el){adpocalypse_closePopup(el);});
+}
+
+// ── ARG: Melon spooky shop dialogue ──────────────────────────────────────
+// This replaces the single spooky line in initMelonDialogue
+// The function initMelonDialogue already exists in the base file and calls
+// spookyLines internally — we patch it to use the expanded pool via a global
+var MELON_SPOOKY_POOL = [
+  'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing.',
+  'Buy whatever you need! <span class="glitch-text">Piper</span> used to say that too.',
+  'Is your pet happy today? They look happy. They always look happy.',
+  'I\'ve been here a long time. So have you. Isn\'t that nice?',
+  'Welcome to the shop! Everything is fine. <span class="glitch-text">Everything is fine.</span>',
+  'I\'m not sure what happened to the last guide. I\'m sure it was nothing.',
+  'Your pet seems very attached to you. That\'s good. That\'s very good.',
+  'Sometimes I think the pets remember things I don\'t. But I\'m just the shopkeeper.',
+];
