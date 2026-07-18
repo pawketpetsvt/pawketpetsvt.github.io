@@ -17562,35 +17562,41 @@ body.streamer-landing-active .form-card {
 ═══════════════════════════════════════════════════════════════════════════ */
 .landing-v2 {
   display: grid;
-  grid-template-columns: minmax(320px, 35%) 420px 1fr;
+  grid-template-columns: 420px minmax(400px, 480px) 1fr;
   min-height: calc(100vh - 56px);
-  width: 100%;
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
   align-items: start;
   gap: 0;
+  overflow: hidden;
 }
 .landing-v2-screenshots {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 24px 24px 24px 24px;
+  gap: 20px;
+  padding: 20px 20px 20px 20px;
   border-right: 1px solid rgba(153,102,255,0.15);
   position: sticky;
   top: 56px;
-  align-self: start;
   height: calc(100vh - 56px);
   justify-content: center;
   box-sizing: border-box;
+  background: rgba(255,255,255,0.03);
 }
 .landing-v2-screenshots img {
   width: 100%;
   border-radius: 12px;
-  border: 2px solid rgba(153,102,255,0.3);
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  border: 2px solid rgba(153,102,255,0.35);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.22);
   display: block;
   transition: transform 0.2s, box-shadow 0.2s;
   object-fit: cover;
+  object-position: top;
   flex: 1;
   min-height: 0;
+  max-height: calc((100vh - 56px - 120px) / 3);
 }
 .landing-v2-screenshots img:hover {
   transform: scale(1.04);
@@ -17639,17 +17645,17 @@ body.streamer-landing-active .form-card {
 .landing-v2-discord:hover { background:#4752C4; }
 
 /* Ad-pocalypse */
-.adpoc-popup { position:fixed; z-index:88888; width:450px; background:#d4d0c8; border:2px solid #fff; border-right-color:#404040; border-bottom-color:#404040; box-shadow:3px 3px 0 #000; font-family:Tahoma,Arial,sans-serif; opacity:0; transform:translateY(-12px) scale(0.95); transition:opacity 0.25s,transform 0.25s; pointer-events:none; }
+.adpoc-popup { position:fixed; z-index:88888; width:580px; background:#d4d0c8; border:2px solid #fff; border-right-color:#404040; border-bottom-color:#404040; box-shadow:3px 3px 0 #000; font-family:Tahoma,Arial,sans-serif; opacity:0; transform:translateY(-12px) scale(0.95); transition:opacity 0.25s,transform 0.25s; pointer-events:none; }
 .adpoc-popup.adpoc-show { opacity:1; transform:translateY(0) scale(1); pointer-events:all; }
-.adpoc-titlebar { background:linear-gradient(90deg,#000080,#1084d0); padding:7px 10px; display:flex; align-items:center; justify-content:space-between; }
-.adpoc-titlebar span { color:#fff; font-size:16px; font-weight:bold; }
-.adpoc-close { background:#d4d0c8; border:1px solid #888; color:#000; font-size:14px; width:22px; height:20px; cursor:pointer; padding:0; }
+.adpoc-titlebar { background:linear-gradient(90deg,#000080,#1084d0); padding:10px 14px; display:flex; align-items:center; justify-content:space-between; }
+.adpoc-titlebar span { color:#fff; font-size:22px; font-weight:bold; }
+.adpoc-close { background:#d4d0c8; border:1px solid #888; color:#000; font-size:18px; width:28px; height:24px; cursor:pointer; padding:0; }
 .adpoc-close:hover { background:#ff4444; color:#fff; }
-.adpoc-body { padding:18px 20px 20px; text-align:center; }
-.adpoc-headline { font-size:21px; font-weight:bold; color:#cc0000; margin-bottom:8px; }
-.adpoc-sub { font-size:16px; color:#333; margin-bottom:10px; line-height:1.5; }
-.adpoc-btn { display:inline-block; background:linear-gradient(180deg,#ffff00,#ffcc00); border:2px outset #888; color:#000; font-size:18px; font-weight:bold; padding:9px 24px; cursor:pointer; margin-bottom:8px; }
-.adpoc-fine { font-size:13px; color:#777; }
+.adpoc-body { padding:24px 28px 26px; text-align:center; }
+.adpoc-headline { font-size:28px; font-weight:bold; color:#cc0000; margin-bottom:8px; }
+.adpoc-sub { font-size:20px; color:#333; margin-bottom:10px; line-height:1.5; }
+.adpoc-btn { display:inline-block; background:linear-gradient(180deg,#ffff00,#ffcc00); border:2px outset #888; color:#000; font-size:24px; font-weight:bold; padding:12px 32px; cursor:pointer; margin-bottom:8px; }
+.adpoc-fine { font-size:16px; color:#777; }
 .adpoc-horror .adpoc-titlebar { background:linear-gradient(90deg,#1a001a,#3d0050); }
 .adpoc-horror .adpoc-headline { color:#6600aa; font-family:'Courier New',monospace; }
 .adpoc-horror .adpoc-btn { background:#2a002a; color:#cc88ff; border-color:#660088; font-family:'Courier New',monospace; }
