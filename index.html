@@ -956,31 +956,71 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       <!-- Hamburger is now in the navbar (navbar-left) for proper mobile positioning -->
     </div>
     
-    <!-- DESKTOP NAVIGATION (visible on desktop) -->
+    <!-- DESKTOP NAVIGATION -->
     <div class="sidebar-section desktop-nav">
       <div class="sidebar-title">📋 Menu</div>
       <div class="sidebar-nav-links">
-        <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-journal" onclick="showTab('journal')">📓 Pet Journal</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-news" onclick="showTab('news')">📰 News</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-twitch" onclick="showTab('twitch')">🎬 Twitch</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-redeem" onclick="showTab('redeem')">🎟️ Redeem</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-friends" onclick="showTab('friends')">
-          👥 Friends
-          <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
-        </button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-racing" onclick="showTab('racing')">🏁 Racing</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-guild" onclick="showTab('guild')">🏛️ Guild</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-forum" onclick="showTab('forum')">💬 Forum</button>
-        <button class="sidebar-nav-btn" id="sidebar-btn-settings" onclick="showTab('settings')">⚙️ Settings</button>
+
+        <button class="sidebar-nav-btn standalone" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
+
+        <!-- PETS GROUP -->
+        <div class="nav-group" id="navgroup-pets">
+          <button class="nav-group-header" onclick="navGroupToggle('pets')" onmouseenter="navGroupHover('pets',true)" onmouseleave="navGroupHover('pets',false)">
+            🐾 Pets <span class="nav-group-arrow">›</span>
+          </button>
+          <div class="nav-group-children" onmouseenter="navGroupHover('pets',true)" onmouseleave="navGroupHover('pets',false)">
+            <button class="sidebar-nav-btn child" id="sidebar-btn-adopt" onclick="showTab('adopt');navGroupClose('pets')">🐣 Adopt</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-mypets" onclick="showTab('mypets');navGroupClose('pets')">💖 My Pets</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-journal" onclick="showTab('journal');navGroupClose('pets')">📓 Pet Journal</button>
+          </div>
+        </div>
+
+        <!-- GAMES GROUP -->
+        <div class="nav-group" id="navgroup-games">
+          <button class="nav-group-header" onclick="navGroupToggle('games')" onmouseenter="navGroupHover('games',true)" onmouseleave="navGroupHover('games',false)">
+            🎮 Games <span class="nav-group-arrow">›</span>
+          </button>
+          <div class="nav-group-children" onmouseenter="navGroupHover('games',true)" onmouseleave="navGroupHover('games',false)">
+            <button class="sidebar-nav-btn child" id="sidebar-btn-minigames" onclick="showTab('minigames');navGroupClose('games')">🕹️ Minigames</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-fishing" onclick="showTab('fishing');navGroupClose('games')">🎣 Fishing</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-racing" onclick="showTab('racing');navGroupClose('games')">🏁 Racing</button>
+          </div>
+        </div>
+
+        <button class="sidebar-nav-btn standalone" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
+        <button class="sidebar-nav-btn standalone" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
+
+        <!-- COMMUNITY GROUP -->
+        <div class="nav-group" id="navgroup-community">
+          <button class="nav-group-header" onclick="navGroupToggle('community')" onmouseenter="navGroupHover('community',true)" onmouseleave="navGroupHover('community',false)">
+            🌐 Community <span class="nav-group-arrow">›</span>
+          </button>
+          <div class="nav-group-children" onmouseenter="navGroupHover('community',true)" onmouseleave="navGroupHover('community',false)">
+            <button class="sidebar-nav-btn child" id="sidebar-btn-guild" onclick="showTab('guild');navGroupClose('community')">🏛️ Guild</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-friends" onclick="showTab('friends');navGroupClose('community')">
+              👥 Friends
+              <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
+            </button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard');navGroupClose('community')">🏆 Leaderboard</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-forum" onclick="showTab('forum');navGroupClose('community')">💬 Forum</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-stats" onclick="showTab('stats');navGroupClose('community')">📊 Statistics</button>
+          </div>
+        </div>
+
+        <!-- MORE GROUP -->
+        <div class="nav-group" id="navgroup-more">
+          <button class="nav-group-header" onclick="navGroupToggle('more')" onmouseenter="navGroupHover('more',true)" onmouseleave="navGroupHover('more',false)">
+            ✨ More <span class="nav-group-arrow">›</span>
+          </button>
+          <div class="nav-group-children" onmouseenter="navGroupHover('more',true)" onmouseleave="navGroupHover('more',false)">
+            <button class="sidebar-nav-btn child" id="sidebar-btn-twitch" onclick="showTab('twitch');navGroupClose('more')">🎬 Twitch</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-redeem" onclick="showTab('redeem');navGroupClose('more')">🎟️ Redeem</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-news" onclick="showTab('news');navGroupClose('more')">📰 News</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-team" onclick="showTab('team');navGroupClose('more')">👥 Team</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -989,27 +1029,52 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close menu">✕ Close</button>
       <div class="sidebar-section">
         <div class="sidebar-nav-links">
-          <button class="sidebar-nav-btn active" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-adopt" onclick="showTab('adopt')">🐣 Adopt</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-mypets" onclick="showTab('mypets')">💖 My Pets</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-journal" onclick="showTab('journal')">📓 Pet Journal</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-minigames" onclick="showTab('minigames')">🎮 Minigames</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-news" onclick="showTab('news')">📰 News</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-twitch" onclick="showTab('twitch')">🎬 Twitch</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-redeem" onclick="showTab('redeem')">🎟️ Redeem</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-friends" onclick="showTab('friends')">
-            👥 Friends
-            <span class="friend-request-badge" id="friend-request-badge" style="display:none;">0</span>
-          </button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-racing" onclick="showTab('racing')">🏁 Racing</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-guild" onclick="showTab('guild')">🏛️ Guild</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-leaderboard" onclick="showTab('leaderboard')">🏆 Leaderboard</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-stats" onclick="showTab('stats')">📊 Statistics</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-team" onclick="showTab('team')">👥 Team</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-forum" onclick="showTab('forum')">💬 Forum</button>
-          <button class="sidebar-nav-btn" id="sidebar-btn-settings" onclick="showTab('settings')">⚙️ Settings</button>
+
+          <button class="sidebar-nav-btn standalone" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
+
+          <div class="nav-group" id="navgroup-pets-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('pets-mobile')">🐾 Pets <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('adopt');navGroupClose('pets-mobile')">🐣 Adopt</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('mypets');navGroupClose('pets-mobile')">💖 My Pets</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('journal');navGroupClose('pets-mobile')">📓 Pet Journal</button>
+            </div>
+          </div>
+
+          <div class="nav-group" id="navgroup-games-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('games-mobile')">🎮 Games <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('minigames');navGroupClose('games-mobile')">🕹️ Minigames</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('fishing');navGroupClose('games-mobile')">🎣 Fishing</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('racing');navGroupClose('games-mobile')">🏁 Racing</button>
+            </div>
+          </div>
+
+          <button class="sidebar-nav-btn standalone" onclick="showTab('battle')">⚔️ Battle Arena</button>
+          <button class="sidebar-nav-btn standalone" onclick="showTab('shop')">🛍️ Shop</button>
+
+          <div class="nav-group" id="navgroup-community-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('community-mobile')">🌐 Community <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('guild');navGroupClose('community-mobile')">🏛️ Guild</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('friends');navGroupClose('community-mobile')">👥 Friends</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('leaderboard');navGroupClose('community-mobile')">🏆 Leaderboard</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('forum');navGroupClose('community-mobile')">💬 Forum</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('stats');navGroupClose('community-mobile')">📊 Statistics</button>
+            </div>
+          </div>
+
+          <div class="nav-group" id="navgroup-more-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('more-mobile')">✨ More <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('twitch');navGroupClose('more-mobile')">🎬 Twitch</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('redeem');navGroupClose('more-mobile')">🎟️ Redeem</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')">⚙️ Settings</button>
+            </div>
+          </div>
+
         </div>
       </div>
 
@@ -1398,6 +1463,12 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       <!-- Today in PawketPets — weather, daily stats, featured goal, live streamers -->
       <div id="today-card-mount"></div>
 
+      <!-- Event Calendar -->
+      <div id="event-calendar-mount" style="margin:8px 0;"></div>
+
+      <!-- Melon's Requests -->
+      <div id="melon-requests-mount" style="margin:8px 0;"></div>
+
       <!-- Login streak widget — click to open full 30-day calendar -->
       <div id="calendar-widget-mount"></div>
       
@@ -1558,7 +1629,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <button class="shop-tab" id="furn-tab-btn" onclick="showShopTab('furniture')">🪑 Furniture</button>
         <button class="shop-tab" id="inv-tab-btn" onclick="showShopTab('inventory')">My Inventory</button>
       </div>
-      <div id="shop-items-panel"><div id="shop-grid" class="shop-grid"><div class="spinner"></div></div></div>
+      <div id="shop-items-panel"><div id="daily-shop-mount"></div><div id="shop-grid" class="shop-grid"><div class="spinner"></div></div></div>
       
       <!-- EQUIPMENT SHOP PANEL -->
       <div id="shop-equipment-panel" style="display:none">
@@ -1748,30 +1819,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
         </div>
 
-        <!-- FISHING GAME -->
-        <div class="game-card">
-          <div class="game-title">🎣 Fishing Pond</div>
-          <div class="game-desc">Cast your line! Catch fish for PP. 10 casts per day!</div>
-          <span class="game-reward">10-80 PP per day</span>
-          <div class="game-area">
-            <div id="fishing-cooldown" class="cooldown-msg" style="display:none">Already played today! Come back tomorrow.</div>
-            <div id="fishing-play">
-              <div class="fishing-stats">
-                <span>Casts Left: <strong id="fishing-casts">10</strong></span>
-                <span>Total: <strong id="fishing-earned">0</strong> PP</span>
-              </div>
-              <div class="fishing-pond">
-                <div class="fishing-line" id="fishing-line" style="display:none;">
-                  <div class="fishing-hook">🪝</div>
-                </div>
-                <div class="pond-text">🌊 Click Cast to fish! 🌊</div>
-              </div>
-              <button class="btn btn-primary" id="fishing-btn" onclick="castLine()">Cast Line!</button>
-            </div>
-            <div class="game-result" id="fishing-result"></div>
-          </div>
-        </div>
-
 
 
 
@@ -1779,6 +1826,111 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
     </div>
   </div>
 
+
+  <!-- FISHING -->
+  <div class="page-section" id="section-fishing">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">🎣 ✨ 🎣</div>
+        <h1>Fishing</h1>
+        <p>Cast your line, collect fish, upgrade your rod, and discover what lurks in the deep. 🌊</p>
+      </div>
+      <div style="max-width:720px;margin:0 auto;">
+        <!-- FISHING GAME -->
+        <div class="game-card" style="grid-column:1/-1;">
+          <div class="game-title">🎣 Fishing</div>
+          <div class="game-desc">Cast your line at different spots. Catch rare fish, build your collection, and upgrade your rod!</div>
+          <div class="game-area" style="max-width:680px;margin:0 auto;">
+            <div id="fishing-cooldown" class="cooldown-msg" style="display:none">Already fished today! Come back tomorrow. 🎣</div>
+            <div id="fishing-play">
+
+              <!-- Rod + Stats bar -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start;">
+                <div id="fishing-rod-shop" style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.2);border-radius:10px;padding:10px 12px;">
+                  Loading rod...
+                </div>
+                <div id="auto-fisher-mount" style="background:rgba(93,222,122,0.06);border:1px solid rgba(93,222,122,0.2);border-radius:10px;padding:10px 12px;margin-top:8px;">
+                  Loading auto-fisher...
+                </div>
+                <div style="background:rgba(77,171,247,0.08);border:1px solid rgba(77,171,247,0.2);border-radius:10px;padding:10px 12px;font-size:0.78rem;">
+                  <div style="font-weight:700;color:var(--purple-dark);margin-bottom:4px;">📊 Today's Session</div>
+                  <div>Casts left: <strong id="fishing-casts">10</strong></div>
+                  <div>Earned: <strong id="fishing-earned">0</strong> PP</div>
+                  <div style="margin-top:4px;color:var(--text-light);">Total: <span id="fishing-collection">0</span> found</div>
+                  <div style="font-size:0.68rem;color:var(--text-light);" id="fishing-area-progress">Area: 0/0</div>
+                </div>
+              </div>
+
+              <!-- Spot selector -->
+              <div style="margin-bottom:10px;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">📍 Choose Fishing Spot</div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+                  <button class="fishing-spot-btn active" data-spot="pond" onclick="fishingSelectSpot('pond')" title="Pond — common fish, 8 base casts">🏞️<br><span>Pond</span><br><span style="font-size:0.6rem;opacity:0.7;">Common</span></button>
+                  <button class="fishing-spot-btn" data-spot="river" onclick="fishingSelectSpot('river')" title="River — uncommon fish, 10 base casts">🏔️<br><span>River</span><br><span style="font-size:0.6rem;opacity:0.7;">Uncommon</span></button>
+                  <button class="fishing-spot-btn" data-spot="lake" onclick="fishingSelectSpot('lake')" title="Lake — rare fish, 10 base casts">🌊<br><span>Lake</span><br><span style="font-size:0.6rem;opacity:0.7;">Rare</span></button>
+                  <button class="fishing-spot-btn" data-spot="ocean" onclick="fishingSelectSpot('ocean')" title="Ocean — legendary fish, 8 base casts">🌊<br><span>Ocean</span><br><span style="font-size:0.6rem;opacity:0.7;">Legendary</span></button>
+                </div>
+              </div>
+
+              <!-- Bait selector -->
+              <div style="margin-bottom:12px;">
+                <div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">🪱 Choose Bait</div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
+                  <button class="fishing-bait-btn active" data-bait="worm" onclick="fishingSelectBait('worm')" title="Free bait">🪱<br><span>Worm</span><br><span style="font-size:0.6rem;color:#5dde7a;">Free</span></button>
+                  <button class="fishing-bait-btn" data-bait="bread" onclick="fishingSelectBait('bread')" title="+5% rare chance">🍞<br><span>Bread</span><br><span style="font-size:0.6rem;color:#ffd43b;">5 PP</span></button>
+                  <button class="fishing-bait-btn" data-bait="lure" onclick="fishingSelectBait('lure')" title="+12% rare chance">🪝<br><span>Lure</span><br><span style="font-size:0.6rem;color:#4dabf7;">15 PP</span></button>
+                  <button class="fishing-bait-btn" data-bait="golden" onclick="fishingSelectBait('golden')" title="+25% rare chance">✨<br><span>Golden</span><br><span style="font-size:0.6rem;color:#ffd700;">40 PP</span></button>
+                </div>
+              </div>
+
+              <!-- Water + cast -->
+              <div class="fishing-pond" style="min-height:90px;position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;">
+                <div class="fishing-line" id="fishing-line" style="display:none;">
+                  <div class="fishing-hook">🪝</div>
+                </div>
+                <div class="pond-text" style="font-size:0.85rem;font-weight:500;">🌊 Select a spot and cast your line! 🌊</div>
+              </div>
+
+              <!-- Timing bar (hidden until nibble) -->
+              <div id="fishing-timing-wrap" style="display:none;margin:8px 0;">
+                <div style="font-size:0.72rem;color:var(--text-light);text-align:center;margin-bottom:4px;">Click when the indicator is in the <span style="color:#5dde7a;font-weight:700;">green zone</span>!</div>
+                <div style="position:relative;height:24px;background:var(--border);border-radius:12px;overflow:hidden;cursor:pointer;" onclick="fishingTimingClick()">
+                  <!-- Sweet spot zone (35%-65%) -->
+                  <div style="position:absolute;left:35%;width:30%;height:100%;background:rgba(93,222,122,0.25);border-left:2px solid #5dde7a;border-right:2px solid #5dde7a;pointer-events:none;"></div>
+                  <!-- Moving indicator -->
+                  <div id="fishing-timing-indicator" style="position:absolute;left:0%;top:0;width:4px;height:100%;background:#ff6b6b;border-radius:2px;pointer-events:none;transition:background 0.05s;"></div>
+                </div>
+              </div>
+
+              <!-- Power bar (hidden until holding) -->
+              <div id="fishing-power-wrap" style="display:none;margin:6px 0 4px;">
+                <div style="font-size:0.7rem;color:var(--text-light);text-align:center;margin-bottom:3px;">🎣 Release at the right moment!</div>
+                <div style="background:var(--border);border-radius:8px;height:18px;overflow:hidden;">
+                  <div id="fishing-power-bar" style="height:100%;width:0%;background:#5dde7a;border-radius:8px;transition:background 0.1s;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-light);margin-top:2px;"><span>Weak</span><span>Good</span><span>Perfect</span></div>
+              </div>
+              <button class="btn btn-primary" id="fishing-btn"
+                onmousedown="castLineStart(event)" ontouchstart="castLineStart(event)"
+                onmouseup="castLineRelease()" ontouchend="castLineRelease()"
+                onmouseleave="if(_castPressing)castLineRelease()"
+                style="width:100%;margin-top:4px;padding:12px;font-size:1rem;user-select:none;">
+                🎣 Hold to Cast!
+              </button>
+            </div>
+            <div class="game-result" id="fishing-result" style="margin-top:8px;text-align:center;"></div>
+
+            <!-- Fish Journal -->
+            <div style="margin-top:20px;border-top:1px solid rgba(153,102,255,0.15);padding-top:16px;">
+              <div style="font-size:0.85rem;font-weight:700;color:var(--purple-dark);margin-bottom:10px;">📖 Fish Journal</div>
+              <div id="fishing-journal-mount"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
   <!-- NEWS -->
   <div class="page-section" id="section-news">
     <div class="page-wrap">
@@ -2904,6 +3056,9 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           🔗 View My Public Profile
         </button>
       </div>
+
+      <!-- Referral Widget -->
+      <div id="referral-widget-mount" style="margin-bottom:16px;"></div>
 
       <!-- Edit Form -->
       <div class="profile-edit-card">
