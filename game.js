@@ -2187,6 +2187,13 @@ async function initApp() {
   });
 }
 
+function cleanupSpookyEffects() {
+  document.querySelectorAll('.horror-overlay,.arg-overlay,.subliminal-flash').forEach(function(el){ el.remove(); });
+  document.body.classList.remove('horror-mode','arg-active','piper-watching');
+  if (window._horrorInterval) { clearInterval(window._horrorInterval); window._horrorInterval = null; }
+  if (window._argTickInterval) { clearInterval(window._argTickInterval); window._argTickInterval = null; }
+}
+
 async function showApp(user) {
   document.body.classList.remove('guest');
   dbg('showApp called with user:', user?.id || 'null');
@@ -2212,6 +2219,8 @@ async function showApp(user) {
   if (rightSidebar) rightSidebar.style.display   = '';
   if (navCenter)    navCenter.style.visibility   = '';
   if (navRight)     navRight.style.visibility    = '';
+  var ticker = document.querySelector('.news-ticker');
+  if (ticker) ticker.style.display = '';
   document.body.classList.remove('logged-out');
   el('nav-profile').style.display = 'inline-block';
   
