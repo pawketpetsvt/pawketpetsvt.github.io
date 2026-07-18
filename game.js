@@ -1220,8 +1220,18 @@ function calendar_render(days) {
 
 function initEventStatusWidget() {
   updateEventStatusWidget();
-  // Refresh every minute
-  safeSetInterval(updateEventStatusWidget, 60000);
+  // Refresh every minute + check adpocalypse/fish_frenzy weather
+  safeSetInterval(function() {
+    updateEventStatusWidget();
+    // Sync adpocalypse weather effect with current weather
+    var weatherId = (typeof weatherSystem !== 'undefined' && weatherSystem.currentWeather)
+      ? weatherSystem.currentWeather.id : null;
+    if (weatherId === 'adpocalypse') {
+      adpocalypse_start();
+    } else {
+      adpocalypse_stop();
+    }
+  }, 60000);
   // Hover tooltip
   var widget = document.getElementById('event-status-widget');
   if (widget) {
@@ -4896,7 +4906,7 @@ var EXPEDITION_ZONES = [
       { weight:15, outcome:'mood',  text:'{pet} ran into another creature and came back shaken.' },
       { weight:10, outcome:'injury',text:'{pet} tripped on some roots. A little banged up.' },
       { weight:4,  outcome:'bonus', text:'{pet} followed a strange light and found something remarkable.' },
-      { weight:1,  outcome:'lore',  text:'{pet} kept staring at one particular tree on the way back. You're not sure why.' }
+      { weight:1,  outcome:'lore',  text:'{pet} kept staring at one particular tree on the way back. You are not sure why.' }
     ]
   },
   {
@@ -7252,7 +7262,7 @@ async function renderDailyShop(allItems) {
   mount.innerHTML = html;
 
   // Start countdown ticker
-  clearInterval(window._dailyCountdownInterval);
+  if (window._dailyCountdownInterval) clearInterval(window._dailyCountdownInterval);
   window._dailyCountdownInterval = setInterval(function() {
     var el = document.getElementById('daily-shop-countdown');
     if (el) el.textContent = getDailyShopCountdown();
@@ -10720,7 +10730,27 @@ async function fishingResolveCast(timing) {
       }, 400);
     }
   }
+  // Check area completion after every real catch
+  if (caught.rarity !== 'junk' && caught.id !== '__item__') {
+    fishingCheckAreaComplete().catch(function(){});
+  }
 
+
+var PASS_XP_TOAST_SOURCES = {
+  fishing:           '🎣 Fishing',
+  battle:            '⚔️ Battle',
+  expedition:        '🗺️ Expedition',
+  minigame:          '🎮 Minigame',
+  level_up:          '⭐ Level Up',
+  quest_complete:    '📜 Quest',
+  bingo_line:        '🎯 Bingo Line',
+  bingo_blackout:    '🎯 Bingo Blackout',
+  grand_prix_winner: '🏆 Grand Prix Win',
+  grand_prix_top_10: '🏅 Grand Prix Top 10',
+  secret_discovery:  '🔍 Discovery',
+  friend_added:      '👥 New Friend',
+  social_share:      '📢 Share',
+};
 
 // ══════════════════════════════════════════════════════════════════════════
 // FUNCTIONS ADDED THIS SESSION — appended to base file
