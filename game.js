@@ -8231,6 +8231,43 @@ async function loadUserBadges() {
   earnedBadges = res.data.map(b => b.badges.badge_key);
   dbg('[Badges] User has earned:', earnedBadges);
 }
+// Award a player title by title_key — looks up from player_titles table
+// and inserts into player_titles_earned (or equivalent) if not already owned
+async function awardPlayerTitle(titleKey, reason) {
+  if (!currentUser || !titleKey) return;
+  try {
+    // Check if already have it
+    var existing = await supabaseClient
+      .from('player_title_unlocks')
+      .select('id')
+      .eq('user_id', currentUser.id)
+      .eq('title_key', titleKey)
+      .maybeSingle();
+
+    if (existing.data) return; // already earned
+
+    // Award it
+    await supabaseClient.from('player_title_unlocks').insert({
+      user_id:   currentUser.id,
+      title_key: titleKey,
+      earned_at: new Date().toISOString()
+    });
+
+    // Get display name for toast
+    var titleRes = await supabaseClient
+      .from('player_titles')
+      .select('display_name, rarity')
+      .eq('title_key', titleKey)
+      .maybeSingle();
+
+    var displayName = (titleRes.data && titleRes.data.display_name) || titleKey;
+    showToast('🏷️ New title unlocked: "' + displayName + '"!', 5000);
+
+  } catch(e) {
+    console.error('[Title] awardPlayerTitle failed:', e);
+  }
+}
+
 async function awardBadge(badgeKey) {
   if (!currentUser) return;
   
@@ -8328,8 +8365,8 @@ var _lastShareTime       = 0;
 var SHARE_BADGE_THRESHOLDS = [
   { count: 1,  badge: 'first_share',   title: null,              label: 'First Share!' },
   { count: 5,  badge: 'word_spreader', title: null,              label: 'Word Spreader' },
-  { count: 10, badge: 'hype_machine',  title: 'the Broadcaster', label: 'Hype Machine' },
-  { count: 25, badge: 'viral_moment',  title: 'the Viral',       label: 'Viral Moment' },
+  { count: 10, badge: 'hype_machine',  title: 'the_broadcaster', label: 'Hype Machine' },
+  { count: 25, badge: 'viral_moment',  title: 'the_viral',       label: 'Viral Moment' },
 ];
 
 // ══════════════════════════════════════════════════════════════════════════
