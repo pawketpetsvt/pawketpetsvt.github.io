@@ -8231,37 +8231,45 @@ async function loadUserBadges() {
   earnedBadges = res.data.map(b => b.badges.badge_key);
   dbg('[Badges] User has earned:', earnedBadges);
 }
-// Award a player title by title_key — looks up from player_titles table
-// and inserts into player_titles_earned (or equivalent) if not already owned
+// Award a player title by title_key
+// Table: user_player_titles (user_id, player_title_id UUID, unlocked_at, unlock_reason)
 async function awardPlayerTitle(titleKey, reason) {
   if (!currentUser || !titleKey) return;
   try {
-    // Check if already have it
+    // Look up the title's UUID from player_titles
+    var titleRes = await supabaseClient
+      .from('player_titles')
+      .select('id, display_name')
+      .eq('title_key', titleKey)
+      .maybeSingle();
+
+    if (!titleRes.data) {
+      console.warn('[Title] Title not found in DB:', titleKey);
+      return;
+    }
+
+    var titleId   = titleRes.data.id;
+    var titleName = titleRes.data.display_name;
+
+    // Check if already unlocked
     var existing = await supabaseClient
-      .from('player_title_unlocks')
+      .from('user_player_titles')
       .select('id')
       .eq('user_id', currentUser.id)
-      .eq('title_key', titleKey)
+      .eq('player_title_id', titleId)
       .maybeSingle();
 
     if (existing.data) return; // already earned
 
-    // Award it
-    await supabaseClient.from('player_title_unlocks').insert({
-      user_id:   currentUser.id,
-      title_key: titleKey,
-      earned_at: new Date().toISOString()
+    // Insert unlock record
+    await supabaseClient.from('user_player_titles').insert({
+      user_id:         currentUser.id,
+      player_title_id: titleId,
+      unlocked_at:     new Date().toISOString(),
+      unlock_reason:   reason || 'earned'
     });
 
-    // Get display name for toast
-    var titleRes = await supabaseClient
-      .from('player_titles')
-      .select('display_name, rarity')
-      .eq('title_key', titleKey)
-      .maybeSingle();
-
-    var displayName = (titleRes.data && titleRes.data.display_name) || titleKey;
-    showToast('🏷️ New title unlocked: "' + displayName + '"!', 5000);
+    showToast('🏷️ New title unlocked: "' + titleName + '"!', 5000);
 
   } catch(e) {
     console.error('[Title] awardPlayerTitle failed:', e);
