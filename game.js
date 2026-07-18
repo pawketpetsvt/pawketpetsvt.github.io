@@ -4922,7 +4922,7 @@ var EXPEDITION_ZONES = [
       { weight:18, outcome:'injury',text:'{pet} encountered something aggressive. They won, but took a hit.' },
       { weight:12, outcome:'mood',  text:'{pet} came back quieter than usual. Something unsettled them.' },
       { weight:8,  outcome:'bonus', text:'{pet} found a hidden clearing with remarkable loot.' },
-      { weight:2,  outcome:'lore',  text:'{pet} was gone longer than expected. They won't show you what they found.' }
+      { weight:2,  outcome:'lore',  text:'{pet} was gone longer than expected. They will not show you what they found.' }
     ]
   },
   {
@@ -4936,7 +4936,7 @@ var EXPEDITION_ZONES = [
       { weight:35, outcome:'pp',    text:'{pet} excavated the ruins and returned with artifacts.' },
       { weight:22, outcome:'equip', text:'{pet} found something remarkable — old but sturdy.' },
       { weight:18, outcome:'injury',text:'{pet} triggered a trap. They made it out, but just barely.' },
-      { weight:15, outcome:'mood',  text:'{pet} saw something in the ruins. They won't talk about it.' },
+      { weight:15, outcome:'mood',  text:'{pet} saw something in the ruins. They will not talk about it.' },
       { weight:8,  outcome:'bonus', text:'{pet} found a sealed chamber. Whatever was inside is yours now.' },
       { weight:2,  outcome:'lore',  text:'{pet} came back with a piece of paper covered in writing. The handwriting looks recent.' }
     ]
@@ -5460,6 +5460,8 @@ async function expedition_claim(expeditionId) {
 }
 
 // Build 2-4 narrative sentences describing what happened
+function expeditionNarrativeClose(){var m=document.getElementById("expedition-narrative-modal");if(m)m.remove();}
+
 function expedition_buildNarrative(zone, petName, row, finalPP, itemNames) {
   var events = zone.events || [];
   var sentences = [];
@@ -5534,7 +5536,7 @@ function expedition_showNarrativeModal(zone, petName, finalPP, itemNames, senten
         (itemNames.length > 0 ? '<div style="font-size:0.72rem;color:var(--text-light);">' + itemNames.join(', ') + '</div>' : '') +
       '</div>' +
     '</div>' +
-    '<button class="btn btn-primary" onclick="document.getElementById('expedition-narrative-modal').remove()" ' +
+    '<button class="btn btn-primary" onclick="expeditionNarrativeClose()"' +
     'style="width:100%;">Continue</button>';
 
   document.body.appendChild(modal);
@@ -8601,21 +8603,13 @@ async function checkShareMilestones(count) {
 
 // Core share functions — open social media with pre-filled text, reward on click
 function shareToTwitter(text, rewardPlayer) {
-  var url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(
-    text + '
-
-https://pawketpets.net'
-  );
+  var url = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(text + '\n\nhttps://pawketpets.net');
   window.open(url, '_blank', 'width=600,height=400,noopener');
   if (rewardPlayer) onSocialShare('twitter').catch(function(){});
 }
 
 function shareToBluesky(text, rewardPlayer) {
-  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(
-    text + '
-
-https://pawketpets.net'
-  );
+  var url = 'https://bsky.app/intent/compose?text=' + encodeURIComponent(text + '\n\nhttps://pawketpets.net');
   window.open(url, '_blank', 'width=600,height=400,noopener');
   if (rewardPlayer) onSocialShare('bluesky').catch(function(){});
 }
@@ -9186,7 +9180,7 @@ function autoFisherRenderWidget() {
   var html = '<div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">🤖 Auto-Fisher</div>';
 
   if (_autoFisherLevel === 0) {
-    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:6px;">Automatically catches fish while you're away!</div>';
+    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:6px;">Automatically catches fish while you are away!</div>';
     html += '<button class="btn btn-outline btn-sm" onclick="autoFisherPurchase()" style="width:100%;font-size:0.72rem;">🤖 Buy Auto-Fisher I — 500 PP</button>';
   } else {
     html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:4px;">Level ' + _autoFisherLevel + ': ' + tier.name + ' — ' + tier.dailyCasts + ' casts/day</div>';
