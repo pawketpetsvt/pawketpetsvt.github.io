@@ -1536,6 +1536,656 @@ function initLeaderboardTab() {
 }
 
 // ── TAB NAVIGATION ───────────────────────
+
+var NAV_GROUP_MAP = {
+  adopt: 'pets', mypets: 'pets', journal: 'pets',
+  minigames: 'games', fishing: 'games', racing: 'games',
+  guild: 'community', friends: 'community', leaderboard: 'community',
+  forum: 'community', stats: 'community',
+  twitch: 'more', redeem: 'more', news: 'more', team: 'more', settings: 'more'
+};
+
+var _navGroupTimers = {};
+
+function navGroupOpen(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
+  if (g) g.classList.add('open');
+  if (gm) gm.classList.add('open');
+}
+
+function navGroupClose(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
+  if (g) g.classList.remove('open');
+  if (gm) gm.classList.remove('open');
+}
+
+function navGroupToggle(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  if (!g) return;
+  if (g.classList.contains('open')) {
+    navGroupClose(groupId);
+  } else {
+    navGroupOpen(groupId);
+  }
+}
+
+// Hover open with delay-close so mouse can move into children
+function navGroupHover(groupId, entering) {
+  if (_navGroupTimers[groupId]) {
+    clearTimeout(_navGroupTimers[groupId]);
+    _navGroupTimers[groupId] = null;
+  }
+  if (entering) {
+    // Small delay prevents accidental triggers when mousing across nav
+    _navGroupTimers[groupId] = setTimeout(function() {
+      navGroupOpen(groupId);
+      _navGroupTimers[groupId] = null;
+    }, 80);
+  } else {
+    // Longer close delay so mouse can travel into the dropdown
+    _navGroupTimers[groupId] = setTimeout(function() {
+      navGroupClose(groupId);
+      _navGroupTimers[groupId] = null;
+    }, 500);
+  }
+}
+
+function showTab(tab) {
+  // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
+  cleanupAllTimers();
+
+  // WISHES: shop visit — check for any pet that has a visit_shop wish
+  if (tab === 'shop' && currentUser) {
+    Object.keys(petMoodCache).forEach(function(pid) {
+      checkPetWishes('visit_shop', pid).catch(function(){});
+    });
+  }
+  // WISHES: profile visit
+  if (tab === 'profile' && currentUser) {
+    Object.keys(petMoodCache).forEach(function(pid) {
+      checkPetWishes('view_profile', pid).catch(function(){});
+    });
+  }
+  
+  document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
+  var sec = el('section-' + tab); if (sec) sec.classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
+  var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
+  
+  // Update sidebar buttons
+  document.querySelectorAll('.sidebar-nav-btn').forEach(function(b){ b.classList.remove('active'); });
+  var sidebarBtn = el('sidebar-btn-' + tab);
+  if (sidebarBtn) sidebarBtn.classList.add('active');
+
+  // Open parent nav group if this tab belongs to one
+  var parentGroup = NAV_GROUP_MAP[tab];
+  if (parentGroup) {
+    // Close all groups first
+    ['pets','games','community','more'].forEach(function(g) {
+      var el2 = document.getElementById('navgroup-' + g);
+      var el3 = document.getElementById('navgroup-' + g + '-mobile');
+      if (el2) { el2.classList.remove('has-active'); }
+      if (el3) { el3.classList.remove('has-active'); }
+    });
+    // Mark parent as having active child
+    var parentEl = document.getElementById('navgroup-' + parentGroup);
+    var parentMobile = document.getElementById('navgroup-' + parentGroup + '-mobile');
+    if (parentEl) parentEl.classList.add('has-active');
+    if (parentMobile) parentMobile.classList.add('has-active');
+  }
+  
+  // FIX 4: Particle system cleanup - stop when leaving home, start when entering
+  if (tab !== 'home' && window.particleInterval) {
+    // Leaving home tab - clean up particles
+    safeClearInterval(window.particleInterval);
+    window.particleInterval = null;
+    // Remove all existing sparkle particles
+    document.querySelectorAll('.sparkle-particle').forEach(function(el) {
+      el.remove();
+    });
+  } else if (tab === 'home' && !window.particleInterval) {
+    // Entering home tab - start particles if not already running
+    createFloatingSparkles();
+  }
+  
+  // Special cases: some tabs need to initialize every time
+  if (tab === 'leaderboard') {
+    initLeaderboardTab();
+  } else if (tab === 'forum') {
+    // Ensure forum initializes properly
+    safeSetTimeout(function() {
+      initForum();
+    }, 100);
+  } else if (tab === 'settings') {
+    loadSettings();
+  } else if (tab === 'myprofile') {
+    loadMyProfile();
+    renderReferralWidget('referral-widget-mount');
+  } else if (tab === 'profile' && window.currentProfileUsername) {
+    loadProfile(window.currentProfileUsername);
+  } else if (tab === 'battle') {
+    // Always run both systems when battle tab opens
+    setTimeout(function() { loadBattlePets(); }, 100);
+    setTimeout(function() { battleExp_init(); }, 150);
+  } else if (!tabsLoaded[tab]) { 
+    tabsLoaded[tab] = true; 
+    loadTab(tab); 
+  }
+  
+  // Load daily tip when home tab is shown
+  if (tab === 'home') {
+    loadDailyTip();
+  }
+  
+  window.scrollTo(0, 0);
+  
+  // Update URL hash to persist tab (without triggering reload)
+  if (window.location.hash !== '#tab-' + tab) {
+    history.replaceState(null, null, '#tab-' + tab);
+  }
+}
+
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// NOTIFICATION SYSTEM
+// createNotification — saves to user_notifications table + updates bell badge
+// toggleNotificationDropdown — shows/hides the dropdown
+// ══════════════════════════════════════════════════════════════════════════
+
+async function createNotification(userId, type, title, message, actionTab) {
+  if (!userId) return;
+  try {
+    await supabaseClient.from('user_notifications').insert({
+      user_id:    userId,
+      type:       type || 'general',
+      title:      title || '',
+      message:    message || '',
+      action_tab: actionTab || null,
+      is_read:    false,
+      created_at: new Date().toISOString()
+    });
+    // Update the bell badge
+    await updateNotificationBadge();
+  } catch(e) {
+    // Notification failures are non-critical — log but do not surface
+    console.error('[Notif] createNotification failed:', e);
+  }
+}
+
+async function updateNotificationBadge() {
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient
+      .from('user_notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+    var count = res.count || 0;
+    var badge = document.getElementById('notification-badge');
+    var bell  = document.getElementById('notification-bell');
+    if (badge) {
+      badge.textContent = count > 9 ? '9+' : count;
+      badge.style.display = count > 0 ? 'flex' : 'none';
+    }
+    if (bell) bell.style.display = currentUser ? 'flex' : 'none';
+    return count;
+  } catch(e) { return 0; }
+}
+
+async function toggleNotificationDropdown() {
+  var dropdown = document.getElementById('notification-dropdown');
+  if (!dropdown) {
+    // Create dropdown dynamically
+    dropdown = document.createElement('div');
+    dropdown.id = 'notification-dropdown';
+    dropdown.style.cssText = [
+      'position:fixed','top:52px','right:120px',
+      'width:320px','max-height:420px',
+      'background:var(--white)','border-radius:16px',
+      'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
+      'border:1px solid rgba(153,102,255,0.2)',
+      'z-index:8000','overflow:hidden',
+      'display:flex','flex-direction:column'
+    ].join(';');
+    document.body.appendChild(dropdown);
+    // Close on outside click
+    setTimeout(function() {
+      document.addEventListener('click', function closeDD(e) {
+        if (!dropdown.contains(e.target) && e.target.id !== 'notification-bell') {
+          dropdown.remove();
+          document.removeEventListener('click', closeDD);
+        }
+      });
+    }, 10);
+  } else {
+    dropdown.remove();
+    return;
+  }
+
+  dropdown.innerHTML = '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.1);display:flex;justify-content:space-between;align-items:center;">' +
+    '<span style="font-weight:700;color:var(--purple-dark);">🔔 Notifications</span>' +
+    '<button onclick="markAllNotificationsRead()" style="background:none;border:none;font-size:0.72rem;color:var(--purple);cursor:pointer;">Mark all read</button>' +
+  '</div>' +
+  '<div id="notification-list" style="overflow-y:auto;flex:1;"><div style="padding:20px;text-align:center;color:var(--text-light);">Loading...</div></div>';
+
+  // Load notifications
+  try {
+    var res = await supabaseClient
+      .from('user_notifications')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    var list = document.getElementById('notification-list');
+    if (!list) return;
+
+    if (!res.data || res.data.length === 0) {
+      list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-light);">No notifications yet! 🌸</div>';
+      return;
+    }
+
+    // Set up click delegation for notification rows
+    list.addEventListener('click', function(e) {
+      var row = e.target.closest('[data-action]');
+      if (row) {
+        var action = row.getAttribute('data-action').replace('tab:', '');
+        showTab(action);
+        var dd = document.getElementById('notification-dropdown');
+        if (dd) dd.remove();
+      }
+    });
+
+    list.innerHTML = res.data.map(function(n) {
+      var timeAgo = notifTimeAgo(n.created_at);
+      return '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.07);opacity:' + (n.is_read ? '0.6' : '1') + ';cursor:' + (n.action_tab ? 'pointer' : 'default') + ';transition:background 0.15s;" ' +
+        (n.action_tab ? (' data-action="' + n.action_tab + '"') : '') +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
+          '<div>' +
+            '<div style="font-size:0.82rem;font-weight:' + (n.is_read ? '400' : '700') + ';color:var(--text);margin-bottom:2px;">' + escapeHtml(n.title || '') + '</div>' +
+            '<div style="font-size:0.74rem;color:var(--text-light);line-height:1.4;">' + escapeHtml((n.message || '').substring(0, 100)) + '</div>' +
+          '</div>' +
+          '<div style="font-size:0.65rem;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + timeAgo + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    // Mark all as read
+    await supabaseClient
+      .from('user_notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+    await updateNotificationBadge();
+  } catch(e) {
+    var list2 = document.getElementById('notification-list');
+    if (list2) list2.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-light);">Could not load notifications.</div>';
+  }
+}
+
+async function markAllNotificationsRead() {
+  if (!currentUser) return;
+  await supabaseClient.from('user_notifications').update({ is_read: true }).eq('user_id', currentUser.id);
+  await updateNotificationBadge();
+  var dropdown = document.getElementById('notification-dropdown');
+  if (dropdown) dropdown.remove();
+}
+
+function notifNavClick(el) {
+  var tab = el && el.getAttribute ? el.getAttribute('onclick') : null;
+  // Extract tab name from onclick string
+  var match = (el.outerHTML || '').match(/notifNavClick.*?'([^']+)'/);
+  // Simpler: use data approach — just close dropdown and navigate
+  var dropdown = document.getElementById('notification-dropdown');
+  if (dropdown) dropdown.remove();
+}
+
+function notifTimeAgo(isoStr) {
+  if (!isoStr) return '';
+  var diff = Date.now() - new Date(isoStr).getTime();
+  var mins = Math.floor(diff / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return mins + 'm ago';
+  var hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return hrs + 'h ago';
+  return Math.floor(hrs / 24) + 'd ago';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// STATISTICS TAB
+// Shows personal stats + global community stats
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadStatistics() {
+  var container = document.getElementById('stats-container');
+  if (!container) return;
+  container.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    // Personal stats
+    var playerRes = await supabaseClient
+      .from('players')
+      .select('pawketpoints, login_streak, skin_keys, referral_count')
+      .eq('id', currentUser.id)
+      .single();
+
+    // Battle history
+    var battleRes = await supabaseClient
+      .from('battle_history')
+      .select('victory')
+      .eq('user_id', currentUser.id);
+
+    // Pets
+    var petRes = await supabaseClient
+      .from('user_pets')
+      .select('id, level, nickname, pets(name)')
+      .eq('user_id', currentUser.id);
+
+    // Badges earned
+    var badgeRes = await supabaseClient
+      .from('user_badges')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+
+    // Fish caught
+    var fishRes = await supabaseClient
+      .from('user_fish_collection')
+      .select('fish_id, catch_count')
+      .eq('user_id', currentUser.id);
+
+    // Global stats
+    var globalRes = await supabaseClient
+      .from('global_stats')
+      .select('stat_key, stat_value');
+
+    var p           = (playerRes.data) || {};
+    var battles     = (battleRes.data) || [];
+    var pets        = (petRes.data) || [];
+    var badgeCount  = badgeRes.count || 0;
+    var fishCaught  = (fishRes.data) || [];
+    var globalStats = {};
+    ((globalRes.data) || []).forEach(function(r) { globalStats[r.stat_key] = r.stat_value; });
+
+    var battlesWon  = battles.filter(function(b) { return b.victory; }).length;
+    var totalFish   = fishCaught.reduce(function(s,f) { return s + (f.catch_count||0); }, 0);
+    var uniqueFish  = fishCaught.length;
+    var highestPet  = pets.reduce(function(best, p) { return (p.level||0) > (best.level||0) ? p : best; }, {});
+
+    var personalRows = [
+      { icon:'💰', label:'Total PawketPoints',     value: (p.pawketpoints||0).toLocaleString() + ' PP' },
+      { icon:'🔥', label:'Login Streak',            value: (p.login_streak||0) + ' days' },
+      { icon:'🗝️',  label:'Skin Keys',              value: p.skin_keys||0 },
+      { icon:'⚔️', label:'Battles Won',             value: battlesWon + ' / ' + battles.length },
+      { icon:'🐾', label:'Pets Owned',              value: pets.length },
+      { icon:'⭐', label:'Highest Pet Level',       value: highestPet.level ? 'Lv.' + highestPet.level + ' ' + escapeHtml(highestPet.nickname || (highestPet.pets && highestPet.pets.name) || '?') : 'None' },
+      { icon:'🏅', label:'Badges Earned',           value: badgeCount },
+      { icon:'🎣', label:'Fish Caught',             value: totalFish + ' total, ' + uniqueFish + ' unique species' },
+      { icon:'🌟', label:'Referrals',               value: (p.referral_count||0) + ' players' },
+    ];
+
+    var globalRows = [
+      { icon:'⚔️', label:'Total Battles Fought',   value: (globalStats.total_battles_won||0).toLocaleString() },
+      { icon:'💀', label:'Bosses Slain',            value: (globalStats.total_bosses_slain||0).toLocaleString() },
+      { icon:'🐾', label:'Pets Adopted',            value: (globalStats.total_pets_adopted||0).toLocaleString() },
+      { icon:'💰', label:'PP Earned (all players)', value: (globalStats.total_pp_earned||0).toLocaleString() },
+      { icon:'🛍️', label:'Items Purchased',         value: (globalStats.total_items_purchased||0).toLocaleString() },
+      { icon:'🎮', label:'Minigames Played',        value: (globalStats.total_minigames_played||0).toLocaleString() },
+    ];
+
+    function makeStatCard(rows) {
+      return rows.map(function(r) {
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
+          '<span style="color:var(--text-light);font-size:0.85rem;">' + r.icon + ' ' + r.label + '</span>' +
+          '<span style="font-weight:700;color:var(--purple-dark);font-size:0.9rem;">' + r.value + '</span>' +
+        '</div>';
+      }).join('');
+    }
+
+    container.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
+        '<div style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.18);border-radius:16px;padding:16px 18px;">' +
+          '<div style="font-size:0.9rem;font-weight:700;color:var(--purple-dark);margin-bottom:4px;">📊 Your Stats</div>' +
+          makeStatCard(personalRows) +
+        '</div>' +
+        '<div style="background:rgba(255,102,178,0.05);border:1px solid rgba(255,102,178,0.18);border-radius:16px;padding:16px 18px;">' +
+          '<div style="font-size:0.9rem;font-weight:700;color:#e0245e;margin-bottom:4px;">🌍 Community Stats</div>' +
+          makeStatCard(globalRows) +
+        '</div>' +
+      '</div>';
+
+  } catch(e) {
+    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-light);">Could not load statistics. Please try again.</div>';
+    console.error('[Stats] loadStatistics error:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// NEWS TAB
+// Loads news_posts from DB, displays in reverse chronological order
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadNews() {
+  var container = document.getElementById('news-container');
+  if (!container) return;
+  container.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var { data, error } = await supabaseClient
+      .from('news_posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+
+    if (error || !data || data.length === 0) {
+      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);">No news posts yet. Check back soon! 📰</div>';
+      return;
+    }
+
+    container.innerHTML = data.map(function(post) {
+      var date = new Date(post.created_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+      return '<div style="background:var(--white);border:1px solid rgba(153,102,255,0.15);border-radius:16px;padding:18px 22px;margin-bottom:14px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+          '<span style="font-size:0.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px;">' + escapeHtml(post.category || 'Update') + '</span>' +
+          '<span style="font-size:0.72rem;color:var(--text-light);">' + date + '</span>' +
+        '</div>' +
+        '<div style="font-size:1.05rem;font-weight:800;color:var(--purple-dark);margin-bottom:6px;">' + escapeHtml(post.title || '') + '</div>' +
+        '<div style="font-size:0.85rem;color:var(--text);line-height:1.6;">' + (post.content || '').replace(/\n/g, '<br>') + '</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);">Could not load news.</div>';
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// FORUM — loadForumCategories + initForum
+// ══════════════════════════════════════════════════════════════════════════
+
+async function loadForumCategories() {
+  var list = document.getElementById('forum-categories-list');
+  if (!list) return;
+  list.innerHTML = '<div class="spinner"></div>';
+  try {
+    var { data, error } = await supabaseClient
+      .from('forum_categories')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📂</div><p>No forum categories yet. Please run the SQL migration!</p></div>';
+      console.warn('No categories found in database!');
+      return;
+    }
+
+    list.innerHTML = data.map(function(cat) {
+      return '<div class="forum-category-card" onclick="loadForumCategory(' + cat.id + ', ' + JSON.stringify(escapeHtml(cat.name)) + ')">' +
+        '<div class="forum-cat-icon">' + (cat.icon || '💬') + '</div>' +
+        '<div class="forum-cat-body">' +
+          '<div class="forum-cat-name">' + escapeHtml(cat.name) + '</div>' +
+          '<div class="forum-cat-desc">' + escapeHtml(cat.description || '') + '</div>' +
+        '</div>' +
+        '<div class="forum-cat-arrow">›</div>' +
+      '</div>';
+    }).join('');
+  } catch(e) {
+    list.innerHTML = '<div class="forum-empty-state"><p>Could not load forum. Please try again.</p></div>';
+    console.error('[Forum] loadForumCategories error:', e);
+  }
+}
+
+function initForum() {
+  loadForumCategories();
+  // Ensure categories view is shown
+  var catView = document.getElementById('forum-categories-view');
+  var threadView = document.getElementById('forum-thread-view');
+  if (catView) catView.style.display = 'block';
+  if (threadView) threadView.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// PET MOOD DECAY
+// Runs on login — pets lose hunger/happiness while player was away
+// Creates a Melon notification if pet needs attention
+// ══════════════════════════════════════════════════════════════════════════
+
+async function applyPetDecay() {
+  if (!currentUser || !petState) return;
+
+  var now = Date.now();
+  var petsNeedingCare = [];
+
+  for (var petId in petState) {
+    var pet = petState[petId];
+    if (!pet || !pet.id) continue;
+
+    // Calculate hours since last fed / last played
+    var lastFed   = pet.last_fed   ? new Date(pet.last_fed).getTime()   : now;
+    var lastPlay  = pet.last_played ? new Date(pet.last_played).getTime() : now;
+
+    var hoursSinceFed  = Math.max(0, (now - lastFed)  / 3600000);
+    var hoursSincePlay = Math.max(0, (now - lastPlay) / 3600000);
+
+    // Hunger decays ~5 per hour away (max 24h worth)
+    var hungerLoss = Math.min(Math.floor(hoursSinceFed * 5), pet.max_hunger || 100);
+    // Happiness decays ~3 per hour away (max 12h worth)  
+    var happyLoss  = Math.min(Math.floor(hoursSincePlay * 3), pet.max_happiness || 100);
+
+    if (hungerLoss === 0 && happyLoss === 0) continue;
+
+    var newHunger  = Math.max(0, (pet.hunger  || 0) - hungerLoss);
+    var newHappy   = Math.max(0, (pet.happiness || 0) - happyLoss);
+
+    // Update local state
+    petState[petId].hunger    = newHunger;
+    petState[petId].happiness = newHappy;
+
+    // Update bars if rendered
+    updateBar(petId, 'hunger',    newHunger, pet.max_hunger    || 100);
+    updateBar(petId, 'happiness', newHappy,  pet.max_happiness || 100);
+
+    // Persist to DB (fire-and-forget, decay is approximate)
+    supabaseClient.from('user_pets')
+      .update({ hunger: newHunger, happiness: newHappy })
+      .eq('id', petId)
+      .catch(function(){});
+
+    var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your pet';
+    if (newHunger < 30 || newHappy < 30) {
+      petsNeedingCare.push(petName);
+    }
+  }
+
+  if (petsNeedingCare.length > 0) {
+    showToast('😢 ' + petsNeedingCare.slice(0,2).join(', ') + (petsNeedingCare.length > 2 ? ' and others need' : (petsNeedingCare.length > 1 ? ' need' : ' needs')) + ' attention!', 6000);
+  }
+}
+
+function loadTab(tab) {
+  if (tab === 'adopt') loadAdopt();
+  else if (tab === 'mypets') loadMyPets();
+  else if (tab === 'journal') initJournalTab();
+  else if (tab === 'shop') { loadShop(); loadInventory(); }
+  else if (tab === 'minigames') initMinigames();
+  else if (tab === 'battle') loadBattlePets();
+  else if (tab === 'news') loadNews();
+  else if (tab === 'twitch') initTwitchTab();
+  else if (tab === 'redeem') { loadRedeemHistory(); }
+  else if (tab === 'stats') loadStatistics();
+  else if (tab === 'guild') loadGuildPage();
+  else if (tab === 'fishing') { if (!tabsLoaded['fishing']) { tabsLoaded['fishing'] = true; initMinigames(); } }
+  else if (tab === 'racing') racing_init();
+  // Note: leaderboard and myprofile handled in showTab()
+}
+
+// ── AUTH GATE ────────────────────────────
+function showAuthSection(which) {
+  document.querySelectorAll('#auth-gate .page-section').forEach(function(s){ s.classList.remove('active'); });
+  el('section-' + which).classList.add('active');
+  return false;
+}
+
+function showForgotPassword() {
+  showAuthSection('forgot');
+  return false;
+}
+
+async function initApp() {
+  // Guard: wait for Supabase client to be ready
+  if (!supabaseClient) {
+    dbg('Waiting for Supabase client to initialize...');
+    setTimeout(initApp, 500);
+    return;
+  }
+
+  // Check if user is coming from password reset email
+  var hash = window.location.hash;
+  if (hash && hash.includes('type=recovery')) {
+    dbg('Password recovery mode detected');
+    el('auth-gate').style.display = 'none';
+    el('reset-password-gate').style.display = 'block';
+    el('app-content').style.display = 'none';
+    return;
+  }
+  
+  var session = await requireLogin();
+  if (session) {
+    await showApp(session.user);
+  } else {
+    showAuth();
+  }
+
+  // Check for streamer landing page parameter
+  streamerLanding_init();
+
+  // Set up auth state listener
+  supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
+    if (event === 'PASSWORD_RECOVERY') {
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
+  });
+}
+
+function cleanupSpookyEffects() {
+  document.querySelectorAll('.horror-overlay,.arg-overlay,.subliminal-flash').forEach(function(el){ el.remove(); });
+  document.body.classList.remove('horror-mode','arg-active','piper-watching');
+  if (window._horrorInterval) { clearInterval(window._horrorInterval); window._horrorInterval = null; }
+  if (window._argTickInterval) { clearInterval(window._argTickInterval); window._argTickInterval = null; }
+}
+
+
 function showTab(tab) {
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
@@ -1589,6 +2239,7 @@ function showTab(tab) {
     loadSettings();
   } else if (tab === 'myprofile') {
     loadMyProfile();
+    if (typeof renderReferralWidget === 'function') renderReferralWidget('referral-widget-mount');
   } else if (tab === 'profile' && window.currentProfileUsername) {
     loadProfile(window.currentProfileUsername);
   } else if (tab === 'battle') {
@@ -1876,6 +2527,7 @@ async function showApp(user) {
   safeSetTimeout(function() { applyPetDecay().catch(function(){}); }, 3500);
   // AUTO-FISHER: Check for completed casts since last login
   safeSetTimeout(function() { if(typeof autoFisherLoadState==='function'){autoFisherLoadState();} if(typeof autoFisherCheck==='function'){autoFisherCheck().catch(function(){});} }, 6000);
+  safeSetTimeout(function() { if(typeof checkMelonMilestones==='function') checkMelonMilestones(); }, 5000);
   // EVENT/WEATHER WIDGET: Initialize navbar widget
   initEventStatusWidget();
 
@@ -2317,7 +2969,16 @@ async function registerUser(email, password, username) {
     console.error('Error creating player profile:', profileError);
     // Don't throw here - auth account was created, they can still log in
   }
-  
+
+  // Increment referrer count if this player was referred
+  if (refUsername && !profileError) {
+    supabaseClient.rpc('referral_increment', {
+      p_referrer_username: refUsername
+    }).catch(function(e){ console.error('[Referral] increment failed:', e); });
+    // Give new player welcome bonus PP
+    supabaseClient.rpc('award_pp_secure', { p_amount: 50, p_reason: 'referral_welcome' }).catch(function(){});
+  }
+
   return authData;
 }
 
@@ -36067,7 +36728,21 @@ function loadTab(tab) {
   else if (tab === 'redeem') { loadRedeemHistory(); }
   else if (tab === 'stats') loadStatistics();
   else if (tab === 'guild') loadGuildPage();
-  else if (tab === 'fishing') { if (!tabsLoaded['fishing']) { tabsLoaded['fishing'] = true; initMinigames(); } }
+  else if (tab === 'fishing') {
+    if (!tabsLoaded['fishing']) {
+      tabsLoaded['fishing'] = true;
+      initMinigames();
+      // Initialize fishing system
+      if (typeof fishingLoadCollection === 'function') {
+        fishingLoadCollection().then(function() {
+          if (typeof fishingRenderRodShop === 'function') fishingRenderRodShop();
+          if (typeof fishingRenderJournal === 'function') fishingRenderJournal();
+          if (typeof fishingUpdateAreaStatus === 'function') fishingUpdateAreaStatus();
+          if (typeof autoFisherRenderWidget === 'function') { autoFisherRenderWidget(); }
+        }).catch(function(){});
+      }
+    }
+  }
   else if (tab === 'racing') racing_init();
   // Note: leaderboard and myprofile handled in showTab()
 }
@@ -36186,3 +36861,73 @@ async function claimDailyBonus() {
     showToast('Daily bonus already claimed today! Come back tomorrow 🌟');
   }
 }
+
+
+async function onSocialShare(platform) {
+  if (!currentUser) return;
+
+  // Cooldown check — prevent rapid button mashing for PP
+  var now = Date.now();
+  if (now - _lastShareTime < SHARE_COOLDOWN_MS) {
+    showToast('Thanks for sharing! Reward available again in a moment.', 3000);
+    return;
+  }
+  _lastShareTime = now;
+
+  // Award PP + PassXP
+  var ppRes = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: SHARE_REWARD_PP,
+    p_reason: 'social_share_' + platform
+  }).catch(function(){ return null; });
+  if (ppRes && ppRes.data !== undefined) updateAllPoints(ppRes.data);
+
+  addPassXP(SHARE_REWARD_PASS_XP, 'social_share').catch(function(){});
+
+  showToast('🎉 Thanks for sharing! +' + SHARE_REWARD_PP + ' PP +' + SHARE_REWARD_PASS_XP + ' Pass XP!', 4000);
+
+  // Increment share count and check milestones
+  var newCount = incrementSocialShareCount();
+  await checkShareMilestones(newCount);
+
+  // Track in community stats
+  community_increment('social_shares', 1);
+}
+
+async function checkDailyBonus(userId) {
+  // Check if daily bonus was already claimed today
+  var lastClaim = localStorage.getItem('daily_bonus_' + userId + '_' + today);
+  
+  if (lastClaim === 'claimed') {
+    // Update sidebar button to show claimed status
+    var btn = document.querySelector('.daily-bonus-btn');
+    if (btn) {
+      btn.textContent = '✅ Claimed Today!';
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+    }
+    return { awarded: false };
+  }
+  
+  // Award daily bonus
+  var bonusAmount = 50;
+  var { data: newTotal, error: bonusErr } = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: bonusAmount, p_reason: 'daily_login_bonus'
+  });
+  if (bonusErr) { dbg('Daily bonus award failed:', bonusErr); return { awarded: false }; }
+  
+  // Mark as claimed
+  localStorage.setItem('daily_bonus_' + userId + '_' + today, 'claimed');
+  
+  // Update sidebar button
+  var btn = document.querySelector('.daily-bonus-btn');
+  if (btn) {
+    btn.textContent = '✅ Claimed Today!';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.style.cursor = 'not-allowed';
+  }
+  
+  return { awarded: true, amount: bonusAmount, newTotal: newTotal };
+}
+
