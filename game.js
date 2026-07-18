@@ -10729,6 +10729,7 @@ async function fishingResolveCast(timing) {
     fishingCheckAreaComplete().catch(function(){});
   }
 
+}
 
 var PASS_XP_TOAST_SOURCES = {
   fishing:           '🎣 Fishing',
