@@ -17465,11 +17465,12 @@ body.streamer-landing-active .form-card {
 .nav-group.open .nav-group-header {
   background: rgba(153,102,255,0.12);
   color: var(--purple);
+  border-radius: 10px 10px 0 0;
 }
 
 .nav-group-arrow {
   font-size: 0.9rem;
-  transition: transform 0.2s;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   display: inline-block;
   color: var(--text-light);
 }
@@ -17481,18 +17482,22 @@ body.streamer-landing-active .form-card {
 .nav-group-children {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.22s ease;
-  padding-left: 10px;
+  transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-left: 0;
 }
 .nav-group.open .nav-group-children {
-  max-height: 300px;
+  max-height: 500px;
+  transition: max-height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .sidebar-nav-btn.child {
-  font-size: 0.82rem;
-  padding: 6px 10px;
-  font-weight: 500;
-  color: var(--text);
+  font-size: 0.95rem;
+  padding: 10px 16px;
+  font-weight: 600;
+  color: var(--purple-dark);
+  width: 100%;
+  border-radius: 10px;
+  margin-bottom: 2px;
 }
 .sidebar-nav-btn.child:hover {
   background: rgba(153,102,255,0.10);
@@ -17836,3 +17841,68 @@ body.guest .landing-v2-screenshots img {
 .popup-headline { color: #cc0000 !important; }
 .popup-sub { color: #333 !important; }
 .popup-fine { color: #777 !important; }
+
+
+/* ── INSTALL SCREEN & AD POPUP SPAN/FONT OVERRIDES ───────────────────────
+   These must come LAST to beat body !important rules and .navbar-logo span */
+
+/* Fix .EXE span color — beat .navbar-logo span { color: var(--yellow) !important } */
+#install-disc-label span { color: #000080 !important; font-family: 'Courier New', monospace !important; }
+
+/* Fix all install screen fine print spans */
+#install-fine-print span { color: #666 !important; }
+#install-fine-print a { color: #0000cc !important; }
+
+/* Fix ad popup font — beat body { font-family: 'Fredoka' !important } */
+.adpoc-popup,
+.adpoc-popup *,
+.adpoc-titlebar,
+.adpoc-titlebar span,
+.adpoc-body,
+.adpoc-headline,
+.adpoc-sub,
+.adpoc-btn,
+.adpoc-fine {
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+.adpoc-titlebar span { color: #fff !important; font-size: 30px !important; }
+.adpoc-headline { color: #cc0000 !important; font-size: 46px !important; }
+.adpoc-sub { color: #333 !important; font-size: 30px !important; }
+.adpoc-fine { color: #777 !important; font-size: 20px !important; }
+.adpoc-btn { color: #000 !important; font-size: 34px !important; }
+
+/* Fix install popup font same way */
+.install-popup,
+.install-popup *,
+.install-popup-titlebar,
+.install-popup-body,
+.popup-headline,
+.popup-sub,
+.popup-btn,
+.popup-fine {
+  font-family: Tahoma, Arial, sans-serif !important;
+}
+.popup-headline { color: #cc0000 !important; }
+.popup-sub { color: #333 !important; }
+.popup-fine { color: #777 !important; }
+.popup-btn { color: #000 !important; }
+
+/* ── NAV GROUP CHILDREN — definitive final rules ───────────────────────────
+   Applied last to beat any earlier duplicates */
+.nav-group-children {
+  padding-left: 0 !important;
+  transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.nav-group.open .nav-group-children {
+  max-height: 500px !important;
+}
+.sidebar-nav-btn.child {
+  font-size: 0.95rem !important;
+  padding: 10px 16px !important;
+  font-weight: 600 !important;
+  width: 100% !important;
+  border-radius: 10px !important;
+  margin-bottom: 2px !important;
+  display: block !important;
+  text-align: left !important;
+}

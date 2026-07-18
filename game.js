@@ -1584,11 +1584,11 @@ function navGroupHover(groupId, entering) {
       _navGroupTimers[groupId] = null;
     }, 80);
   } else {
-    // Longer close delay so mouse can travel into the dropdown
+    // Longer close delay so mouse can comfortably travel into the dropdown
     _navGroupTimers[groupId] = setTimeout(function() {
       navGroupClose(groupId);
       _navGroupTimers[groupId] = null;
-    }, 500);
+    }, 800);
   }
 }
 
