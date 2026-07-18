@@ -17562,32 +17562,35 @@ body.streamer-landing-active .form-card {
 ═══════════════════════════════════════════════════════════════════════════ */
 .landing-v2 {
   display: grid;
-  grid-template-columns: 380px 420px 1fr;
+  grid-template-columns: minmax(320px, 35%) 420px 1fr;
   min-height: calc(100vh - 56px);
-  max-width: 1280px;
-  margin: 0 auto;
+  width: 100%;
   align-items: start;
   gap: 0;
 }
 .landing-v2-screenshots {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 28px 20px 28px 16px;
+  gap: 16px;
+  padding: 24px 24px 24px 24px;
   border-right: 1px solid rgba(153,102,255,0.15);
   position: sticky;
   top: 56px;
   align-self: start;
+  height: calc(100vh - 56px);
+  justify-content: center;
+  box-sizing: border-box;
 }
 .landing-v2-screenshots img {
   width: 100%;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 2px solid rgba(153,102,255,0.3);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
   display: block;
   transition: transform 0.2s, box-shadow 0.2s;
   object-fit: cover;
-  min-height: 160px;
+  flex: 1;
+  min-height: 0;
 }
 .landing-v2-screenshots img:hover {
   transform: scale(1.04);
