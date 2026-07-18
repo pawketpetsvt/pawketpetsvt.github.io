@@ -17820,3 +17820,19 @@ body.guest .landing-v2-screenshots img {
 .adpoc-horror .adpoc-titlebar { background: linear-gradient(90deg, #1a001a, #3d0050); }
 .adpoc-horror .adpoc-headline { color: #6600aa; font-family: 'Courier New', monospace; }
 .adpoc-horror .adpoc-btn { background: #2a002a; color: #cc88ff; border-color: #660088; font-family: 'Courier New', monospace; }
+
+
+/* Install screen color overrides */
+#install-screen { background: #008080 !important; }
+#install-inner { background: #d4d0c8 !important; color: #000 !important; }
+#install-congrats { color: #000080 !important; font-family: Tahoma, Arial, sans-serif !important; }
+#install-sub { color: #333 !important; font-family: Tahoma, Arial, sans-serif !important; }
+#install-fine-print { color: #666 !important; font-family: Tahoma, Arial, sans-serif !important; }
+#install-disc-label { color: #000080 !important; font-family: Tahoma, Arial, sans-serif !important; }
+#install-disc-hint { color: #555 !important; font-family: Tahoma, Arial, sans-serif !important; }
+#install-status { color: #000 !important; }
+#install-percent { color: #000080 !important; }
+.install-popup { color: #000 !important; }
+.popup-headline { color: #cc0000 !important; }
+.popup-sub { color: #333 !important; }
+.popup-fine { color: #777 !important; }
