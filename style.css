@@ -18434,3 +18434,11 @@ body.night-mode .expedition-speed-btn {
   color: #e8d5ff !important;
   border-color: rgba(153,102,255,0.3) !important;
 }
+
+/* ── GUEST NAVBAR — always bright, never night-mode dark ─────────────────
+   Placed last to beat body.night-mode .navbar rule */
+body.guest .navbar,
+body.guest.night-mode .navbar {
+  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
+}

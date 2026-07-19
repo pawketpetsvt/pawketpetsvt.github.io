@@ -36970,7 +36970,7 @@ async function checkDailyBonus(userId) {
 
 
 
-function loadSidebarNews() {
+async function loadSidebarNews() {
   var widget = el('sidebar-news-container');
   if (!widget) {
     console.error('[loadSidebarNews] Widget not found!');
