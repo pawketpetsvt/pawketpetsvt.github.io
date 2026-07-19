@@ -2586,6 +2586,16 @@ function showAuth() {
   if (navCenter)    navCenter.style.visibility   = 'hidden';
   if (navRight)     navRight.style.visibility    = 'hidden';
   document.body.classList.add('guest');
+
+  // Strip all night-mode, weather, and theme classes from body on logout
+  // so the landing page always shows in clean day-mode
+  var classesToRemove = ['night-mode','weather-cursed','weather-foggy','weather-rainy',
+    'weather-starry','weather-sunny','weather-windy','theme-autumn','theme-winter',
+    'theme-halloween','theme-golden','corruption-low','corruption-mid','corruption-high',
+    'spooky-mode','horror-mode','arg-active'];
+  classesToRemove.forEach(function(cls) {
+    document.body.classList.remove(cls);
+  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════

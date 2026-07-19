@@ -18184,3 +18184,79 @@ body.installing #install-screen {
 body.installing #install-inner {
   background: #d4d0c8 !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GUEST STATE — FORCE CLEAN DAY-MODE REGARDLESS OF ANY BODY CLASSES
+   When logged out, the landing page always uses the default bright theme.
+   Placed last to win all cascade conflicts.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Override the night-mode background on guest */
+body.guest {
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* Override night-mode CSS variables for guest so all colors revert to day defaults */
+body.guest {
+  --text:          #2d1b4e !important;
+  --text-light:    #888 !important;
+  --bg:            #fff !important;
+  --white:         #fff !important;
+  --purple:        #9966ff !important;
+  --purple-dark:   #3d1a6e !important;
+  --purple-light:  #c9a8ff !important;
+  --pink:          #ff66cc !important;
+  --yellow:        #ffd700 !important;
+  --border:        #e0d0ff !important;
+  --card-bg:       #fff !important;
+}
+
+/* Kill the night-mode blanket p/span/div/label color on guest */
+body.guest p,
+body.guest span,
+body.guest div,
+body.guest label {
+  color: revert !important;
+}
+
+/* Kill night-mode card backgrounds bleeding into landing */
+body.guest .card,
+body.guest .form-card,
+body.guest .landing-v2-form,
+body.guest .landing-v2-info,
+body.guest .landing-v2-feature,
+body.guest .landing-feature-card {
+  background: rgba(255,255,255,0.85) !important;
+  border-color: rgba(153,102,255,0.2) !important;
+  color: var(--purple-dark) !important;
+}
+
+/* Landing text always readable */
+body.guest .landing-v2-tagline,
+body.guest .landing-v2-title,
+body.guest h1, body.guest h2, body.guest h3 {
+  color: var(--purple-dark) !important;
+}
+body.guest .landing-v2-sub,
+body.guest p {
+  color: var(--text-light) !important;
+}
+
+/* Form inputs always readable on guest */
+body.guest input[type="email"],
+body.guest input[type="password"],
+body.guest input[type="text"] {
+  background: #fff !important;
+  color: #333 !important;
+  border-color: rgba(153,102,255,0.3) !important;
+}
+body.guest input::placeholder {
+  color: #aaa !important;
+}
+
+/* Kill weather effects on guest */
+body.guest::before,
+body.guest::after {
+  display: none !important;
+}
