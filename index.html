@@ -1272,11 +1272,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
       <!-- SCREENSHOTS -->
       <div class="landing-v2-screenshots">
-        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">8 unique VTuber pets</div>
-        <img src="images/screenshot-shop.png" alt="Item Shop" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-shop.png" alt="Item Shop" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
-        <img src="images/screenshot-battle.png" alt="Battle Arena" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-battle.png" alt="Battle Arena" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
       </div>
 
@@ -1370,11 +1370,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
       <!-- SCREENSHOTS -->
       <div class="landing-v2-screenshots">
-        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-adopt.png" alt="Adopt a Pet" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">8 unique VTuber pets</div>
-        <img src="images/screenshot-shop.png" alt="Item Shop" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-shop.png" alt="Item Shop" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Shop, items &amp; equipment</div>
-        <img src="images/screenshot-battle.png" alt="Battle Arena" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
+        <img src="images/screenshot-battle.png" alt="Battle Arena" onclick="ssLightbox(this)" onerror="this.style.background='rgba(153,102,255,0.1)';this.style.border='2px dashed rgba(153,102,255,0.3)'" />
         <div class="landing-v2-ss-label">Battle, race &amp; explore</div>
       </div>
 
@@ -4613,5 +4613,50 @@ function triggerSpookyEffect() {
 })();
 </script>
 
+
+<script>
+// ── Screenshot lightbox ────────────────────────────────────────────────
+function ssLightbox(imgEl) {
+  var overlay = document.createElement('div');
+  overlay.className = 'ss-lightbox-overlay';
+  overlay.onclick = ssLightboxClose;
+
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'ss-lightbox-close';
+  closeBtn.innerHTML = '&#10005;';
+  closeBtn.onclick = ssLightboxClose;
+
+  var img = document.createElement('img');
+  img.className = 'ss-lightbox-img';
+  img.src = imgEl.src;
+  img.alt = imgEl.alt;
+  img.onclick = function(e) { e.stopPropagation(); };
+
+  overlay.appendChild(closeBtn);
+  overlay.appendChild(img);
+  document.body.appendChild(overlay);
+
+  // Animate in
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() { overlay.classList.add('open'); });
+  });
+
+  // Close on Escape
+  overlay._keyHandler = function(e) {
+    if (e.key === 'Escape') ssLightboxClose();
+  };
+  document.addEventListener('keydown', overlay._keyHandler);
+  window._ssLightboxOverlay = overlay;
+}
+
+function ssLightboxClose() {
+  var overlay = window._ssLightboxOverlay;
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  if (overlay._keyHandler) document.removeEventListener('keydown', overlay._keyHandler);
+  setTimeout(function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 220);
+  window._ssLightboxOverlay = null;
+}
+</script>
 </body>
 </html>

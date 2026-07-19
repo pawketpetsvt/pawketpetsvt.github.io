@@ -18222,14 +18222,19 @@ body.guest label {
 
 /* Kill night-mode card backgrounds bleeding into landing */
 body.guest .card,
-body.guest .form-card,
-body.guest .landing-v2-form,
-body.guest .landing-v2-info,
-body.guest .landing-v2-feature,
-body.guest .landing-feature-card {
+body.guest .form-card {
   background: rgba(255,255,255,0.85) !important;
   border-color: rgba(153,102,255,0.2) !important;
   color: var(--purple-dark) !important;
+}
+/* Landing columns: transparent, not white */
+body.guest .landing-v2-form,
+body.guest .landing-v2-info {
+  background: transparent !important;
+}
+body.guest .landing-v2-feature {
+  background: rgba(255,255,255,0.6) !important;
+  border-color: rgba(153,102,255,0.15) !important;
 }
 
 /* Landing text always readable */
@@ -18259,4 +18264,54 @@ body.guest input::placeholder {
 body.guest::before,
 body.guest::after {
   display: none !important;
+}
+
+/* ── SCREENSHOT LIGHTBOX ──────────────────────────────────────────────── */
+.ss-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: rgba(0,0,0,0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  cursor: zoom-out;
+}
+.ss-lightbox-overlay.open { opacity: 1; }
+.ss-lightbox-img {
+  max-width: 92vw;
+  max-height: 90vh;
+  border-radius: 12px;
+  box-shadow: 0 8px 60px rgba(0,0,0,0.6);
+  object-fit: contain;
+  cursor: default;
+  transform: scale(0.95);
+  transition: transform 0.2s ease;
+}
+.ss-lightbox-overlay.open .ss-lightbox-img { transform: scale(1); }
+.ss-lightbox-close {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  border: 2px solid rgba(255,255,255,0.4);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  z-index: 1000000;
+}
+.ss-lightbox-close:hover { background: rgba(255,255,255,0.3); }
+/* Make screenshots show a zoom cursor */
+.landing-v2-screenshots img {
+  cursor: zoom-in !important;
 }
