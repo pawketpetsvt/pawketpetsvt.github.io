@@ -18028,3 +18028,159 @@ body.night-mode #install-disc-hint,
   color: #555 !important;
   font-family: Tahoma, Arial, sans-serif !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   INSTALL SCREEN — NUCLEAR OVERRIDE
+   Defeats body.night-mode div/span/p/label { color: #e8d5ff !important }
+   by scoping every element inside #install-screen with higher specificity
+══════════════════════════════════════════════════════════════════════════ */
+#install-screen * {
+  font-family: Tahoma, Arial, sans-serif !important;
+  color: #333 !important;
+}
+
+/* Now re-apply specific colors where needed */
+#install-screen #install-header,
+#install-screen #install-header * { color: #fff !important; }
+
+#install-screen #install-header-title { color: #fff !important; font-weight: bold !important; font-size: 12px !important; }
+
+#install-screen #install-congrats { color: #000080 !important; font-size: clamp(1.1rem, 4vw, 1.5rem) !important; font-weight: bold !important; font-family: Tahoma, Arial, sans-serif !important; }
+
+#install-screen #install-sub { color: #333 !important; }
+
+#install-screen #install-disc-label { color: #000080 !important; font-family: 'Courier New', monospace !important; letter-spacing: 1px !important; }
+
+#install-screen #install-disc-label span { color: #000080 !important; font-family: 'Courier New', monospace !important; }
+
+#install-screen #install-disc-hint { color: #555 !important; }
+
+#install-screen #install-status-text { color: #000080 !important; font-size: 0.85rem !important; }
+
+#install-screen #install-error-msg { color: #cc0000 !important; }
+
+#install-screen #install-sub-status { color: #333 !important; font-size: 0.78rem !important; }
+
+#install-screen #install-fine-print,
+#install-screen #install-fine-print * { color: #555 !important; font-size: 0.65rem !important; }
+
+#install-screen #install-tester-id { color: #555 !important; }
+
+/* Popup text inside install screen */
+#install-screen .install-popup-titlebar,
+#install-screen .install-popup-titlebar * { color: #fff !important; }
+
+#install-screen .popup-headline { color: #cc0000 !important; font-size: 28px !important; font-weight: bold !important; }
+
+#install-screen .popup-sub { color: #333 !important; font-size: 20px !important; }
+
+#install-screen .popup-btn { color: #000 !important; }
+
+#install-screen .popup-fine { color: #777 !important; font-size: 0.65rem !important; }
+
+/* Creepy popup */
+#install-screen #creepy-popup-headline { color: #222 !important; font-style: italic !important; }
+#install-screen #creepy-popup-sub,
+#install-screen #creepy-popup-sub * { color: #333 !important; }
+#install-screen #creepy-date { color: #666 !important; }
+#install-screen #creepy-fine { color: #888 !important; font-style: italic !important; }
+
+/* Install screen background elements */
+#install-screen { background: #008080 !important; }
+#install-screen #install-inner { background: #d4d0c8 !important; }
+#install-screen #install-header { background: linear-gradient(90deg, #000080, #1084d0) !important; }
+#install-screen .install-popup { background: #d4d0c8 !important; color: #000 !important; }
+#install-screen .install-popup.creepy { background: #d4d0c8 !important; }
+
+/* Ad-pocalypse popups (outside install-screen, different parent) */
+body.night-mode .adpoc-popup *,
+.adpoc-popup * {
+  font-family: Tahoma, Arial, sans-serif !important;
+  color: #333 !important;
+}
+body.night-mode .adpoc-titlebar *,
+.adpoc-titlebar * { color: #fff !important; }
+body.night-mode .adpoc-headline,
+.adpoc-headline { color: #cc0000 !important; font-size: 46px !important; }
+body.night-mode .adpoc-sub,
+.adpoc-sub { color: #333 !important; font-size: 30px !important; }
+body.night-mode .adpoc-fine,
+.adpoc-fine { color: #777 !important; font-size: 20px !important; }
+body.night-mode .adpoc-btn,
+.adpoc-btn { color: #000 !important; font-size: 34px !important; }
+body.night-mode .adpoc-close,
+.adpoc-close { color: #000 !important; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GUEST + INSTALL EXEMPTION FROM NIGHT MODE / WEATHER / THEMES
+   When body has .guest or .installing, ALL modifier classes are neutralised.
+   These rules come last so they win the cascade unconditionally.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Block night-mode color bleed on guest/install */
+body.guest.night-mode,
+body.installing.night-mode {
+  --text:          #2d1b4e !important;
+  --bg:            #fff !important;
+  --white:         #fff !important;
+  --purple-dark:   #3d1a6e !important;
+  --text-light:    #888 !important;
+}
+
+body.guest.night-mode *,
+body.installing.night-mode * {
+  /* Reset the night-mode blanket color override */
+  color: revert;
+}
+
+/* Specifically block the night-mode p/span/div/label rule */
+body.guest.night-mode p,
+body.guest.night-mode span,
+body.guest.night-mode div,
+body.guest.night-mode label,
+body.installing.night-mode p,
+body.installing.night-mode span,
+body.installing.night-mode div,
+body.installing.night-mode label {
+  color: revert !important;
+}
+
+/* Block weather background/filter effects on guest/install */
+body.guest.weather-cursed,
+body.guest.weather-foggy,
+body.guest.weather-rainy,
+body.guest.weather-starry,
+body.guest.weather-sunny,
+body.guest.weather-windy,
+body.installing.weather-cursed,
+body.installing.weather-foggy,
+body.installing.weather-rainy,
+body.installing.weather-starry,
+body.installing.weather-sunny,
+body.installing.weather-windy {
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+  filter: none !important;
+}
+
+/* Block theme overrides on guest/install */
+body.guest.theme-autumn,
+body.guest.theme-winter,
+body.guest.theme-halloween,
+body.guest.theme-golden,
+body.installing.theme-autumn,
+body.installing.theme-winter,
+body.installing.theme-halloween,
+body.installing.theme-golden {
+  --purple:        #9966ff !important;
+  --pink:          #ff66cc !important;
+  --purple-dark:   #3d1a6e !important;
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+}
+
+/* Install screen always gets teal desktop regardless */
+body.installing #install-screen {
+  background: #008080 !important;
+}
+body.installing #install-inner {
+  background: #d4d0c8 !important;
+}
