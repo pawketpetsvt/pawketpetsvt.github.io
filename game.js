@@ -727,13 +727,13 @@ bgMusic.volume = 0.4;
 document.addEventListener('click', function startM() {
   document.removeEventListener('click', startM);
   if (window._installMusicStarted) return;
-  bgMusic.play().catch(function(){});
+  bgMusic.play().catch(function(e){ dbg('upsert error:', e); });
   var btn = document.getElementById('music-play-btn');
   if (btn) btn.textContent = '\u23F8';
 }, { once: true });
 
 function toggleMusic() {
-  if (bgMusic.paused) { bgMusic.play().catch(function(){}); document.getElementById('music-play-btn').textContent = '\u23F8'; }
+  if (bgMusic.paused) { bgMusic.play().catch(function(e){ dbg('upsert error:', e); }); document.getElementById('music-play-btn').textContent = '\u23F8'; }
   else { bgMusic.pause(); document.getElementById('music-play-btn').textContent = '\u25B6'; }
 }
 function stopMusic() { bgMusic.pause(); bgMusic.currentTime = 0; document.getElementById('music-play-btn').textContent = '\u25B6'; }
@@ -1599,13 +1599,13 @@ function showTab(tab) {
   // WISHES: shop visit — check for any pet that has a visit_shop wish
   if (tab === 'shop' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('visit_shop', pid).catch(function(){});
+      checkPetWishes('visit_shop', pid).catch(function(e){ dbg('upsert error:', e); });
     });
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('view_profile', pid).catch(function(){});
+      checkPetWishes('view_profile', pid).catch(function(e){ dbg('upsert error:', e); });
     });
   }
   
@@ -2193,13 +2193,13 @@ function showTab(tab) {
   // WISHES: shop visit — check for any pet that has a visit_shop wish
   if (tab === 'shop' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('visit_shop', pid).catch(function(){});
+      checkPetWishes('visit_shop', pid).catch(function(e){ dbg('upsert error:', e); });
     });
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('view_profile', pid).catch(function(){});
+      checkPetWishes('view_profile', pid).catch(function(e){ dbg('upsert error:', e); });
     });
   }
   
@@ -2524,9 +2524,9 @@ async function showApp(user) {
   community_init();
 
   // PET DECAY: Apply hunger/happiness decay since last visit
-  safeSetTimeout(function() { applyPetDecay().catch(function(){}); }, 3500);
+  safeSetTimeout(function() { applyPetDecay().catch(function(e){ dbg('upsert error:', e); }); }, 3500);
   // AUTO-FISHER: Check for completed casts since last login
-  safeSetTimeout(function() { if(typeof autoFisherLoadState==='function'){autoFisherLoadState();} if(typeof autoFisherCheck==='function'){autoFisherCheck().catch(function(){});} }, 6000);
+  safeSetTimeout(function() { if(typeof autoFisherLoadState==='function'){autoFisherLoadState();} if(typeof autoFisherCheck==='function'){autoFisherCheck().catch(function(e){ dbg('upsert error:', e); });} }, 6000);
   safeSetTimeout(function() { if(typeof checkMelonMilestones==='function') checkMelonMilestones(); }, 5000);
   // EVENT/WEATHER WIDGET: Initialize navbar widget
   initEventStatusWidget();
@@ -2552,7 +2552,7 @@ async function showApp(user) {
     .then(function(res) {
       var badge = document.getElementById('gift-inbox-badge');
       if (badge && res.count > 0) { badge.textContent = res.count; badge.style.display = 'inline'; }
-    }).catch(function(){});
+    }).catch(function(e){ dbg('upsert error:', e); });
   
   // PHASE 1: Initialize cosmetics, milestones, daily features
   phase1_init();
@@ -2587,15 +2587,6 @@ function showAuth() {
   if (navRight)     navRight.style.visibility    = 'hidden';
   document.body.classList.add('guest');
 
-  // Strip all night-mode, weather, and theme classes from body on logout
-  // so the landing page always shows in clean day-mode
-  var classesToRemove = ['night-mode','weather-cursed','weather-foggy','weather-rainy',
-    'weather-starry','weather-sunny','weather-windy','theme-autumn','theme-winter',
-    'theme-halloween','theme-golden','corruption-low','corruption-mid','corruption-high',
-    'spooky-mode','horror-mode','arg-active'];
-  classesToRemove.forEach(function(cls) {
-    document.body.classList.remove(cls);
-  });
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2844,7 +2835,7 @@ function checkMelonMilestones() {
               milestone.title,
               milestone.message,
               'tab:shop'
-            ).catch(function(){});
+            ).catch(function(e){ dbg('upsert error:', e); });
           }, 4000);
         })(m);
       }
@@ -2986,7 +2977,7 @@ async function registerUser(email, password, username) {
       p_referrer_username: refUsername
     }).catch(function(e){ console.error('[Referral] increment failed:', e); });
     // Give new player welcome bonus PP
-    supabaseClient.rpc('award_pp_secure', { p_amount: 50, p_reason: 'referral_welcome' }).catch(function(){});
+    supabaseClient.rpc('award_pp_secure', { p_amount: 50, p_reason: 'referral_welcome' }).catch(function(e){ dbg('upsert error:', e); });
   }
 
   return authData;
@@ -3472,7 +3463,7 @@ async function confirmAdopt() {
   // Award first pet badge
   await awardBadge('first_pet');
   onPetAdopted(result.pet_id);
-  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(){});
+  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -3932,13 +3923,13 @@ async function useItem(petId) {
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
     melonRequests_checkProgress('feed_pet', itemId);
-    addPassXP(2, 'feed').catch(function(){});
+    addPassXP(2, 'feed').catch(function(e){ dbg('upsert error:', e); });
     community_increment('feed_pets', 1);
   }
   if (item.hap > 0 && !(item.h > 0)) {
     updateBingoProgress('use_toy', 1);
     updateBingoProgress('play_pet', 1);
-    addPassXP(2, 'play').catch(function(){});
+    addPassXP(2, 'play').catch(function(e){ dbg('upsert error:', e); });
   }
   
   // Update UI for non-healing effects
@@ -4287,8 +4278,8 @@ function makeMyPetCard(pet) {
     personality_renderWidget(pet.id);
     // Also render quest widget and try to assign one if none active
     personality_renderQuestWidget(pet.id);
-    assignQuestArc(pet.id).catch(function(){});
-  }).catch(function(){});
+    assignQuestArc(pet.id).catch(function(e){ dbg('upsert error:', e); });
+  }).catch(function(e){ dbg('upsert error:', e); });
 
   // Quest widget mount point (separate from mood widget)
   var questMount = makeEl('div', { id: 'quest-widget-' + pet.id });
@@ -5147,6 +5138,13 @@ function expedition_renderSelector() {
       '<div id="expedition-pet-selected" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-light);text-align:center;">No pet selected</div>' +
       '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px;font-size:0.9rem;">2️⃣ Choose a Zone:</div>' +
       zoneOptions +
+      '<div style="margin-top:14px;margin-bottom:4px;font-size:0.85rem;font-weight:700;color:var(--text-light);">⏱️ Expedition Speed:</div>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
+        Object.entries(EXPEDITION_SPEED_OPTS).map(function(e){
+          var k=e[0],v=e[1];
+          return '<button class="expedition-speed-btn btn btn-sm" data-speed="'+k+'" onclick="expedition_setSpeed(this.getAttribute(\"data-speed\"))" style="flex:1;font-size:0.78rem;padding:6px 4px;border:2px solid var(--border);border-radius:10px;cursor:pointer;" title="'+v.desc+'">'+v.label+'</button>';
+        }).join('') +
+      '</div>' +
       '<button id="expedition-start-btn" class="btn btn-primary" onclick="expedition_start()" disabled style="width:100%;margin-top:14px;opacity:0.5;">Select a pet and zone</button>' +
     '</div>';
 }
@@ -5163,6 +5161,26 @@ function expedition_selectPet(petId) {
   var pet = petState[petId];
   var nameEl = document.getElementById('expedition-pet-selected');
   if (nameEl && pet) nameEl.textContent = '✅ ' + (pet.nickname || pet.pet_type || 'Pet') + ' selected';
+  expedition_updateStartBtn();
+}
+
+
+// ── EXPEDITION SPEED SELECTION ────────────────────────────────────────────
+var _expeditionSpeed = 'normal'; // 'quick', 'normal', 'thorough'
+var EXPEDITION_SPEED_OPTS = {
+  quick:    { label:'⚡ Quick',    mult:0.5,  ppMult:0.7,  xpMult:0.7,  energyMult:0.7,  desc:'Half the time, fewer rewards' },
+  normal:   { label:'🗺️ Normal',   mult:1.0,  ppMult:1.0,  xpMult:1.0,  energyMult:1.0,  desc:'Standard expedition' },
+  thorough: { label:'🔍 Thorough', mult:2.0,  ppMult:1.5,  xpMult:1.6,  energyMult:1.3,  desc:'Twice as long, better rewards' },
+};
+
+function expedition_setSpeed(speed) {
+  _expeditionSpeed = speed;
+  document.querySelectorAll('.expedition-speed-btn').forEach(function(btn) {
+    var active = btn.getAttribute('data-speed') === speed;
+    btn.style.background = active ? 'var(--purple)' : '';
+    btn.style.color = active ? '#fff' : '';
+    btn.style.borderColor = active ? 'var(--purple)' : '';
+  });
   expedition_updateStartBtn();
 }
 
@@ -5183,7 +5201,12 @@ function expedition_updateStartBtn() {
   var ready = _expeditionPetId && _expeditionZoneKey;
   btn.disabled = !ready;
   btn.style.opacity = ready ? '1' : '0.5';
-  if (zone && ready) btn.textContent = '⚡ ' + zone.energyCost + ' energy. Send to ' + zone.label + '!';
+  if (zone && ready) {
+    var spd = EXPEDITION_SPEED_OPTS[_expeditionSpeed] || EXPEDITION_SPEED_OPTS.normal;
+    var actualEnergy = Math.ceil(zone.energyCost * spd.energyMult);
+    var actualTime   = Math.round(zone.duration * spd.mult);
+    btn.textContent  = '⚡ ' + actualEnergy + ' energy · ' + actualTime + 'min · Send to ' + zone.label + '!';
+  }
 }
 
 async function expedition_start() {
@@ -5204,11 +5227,15 @@ async function expedition_start() {
     return;
   }
 
-  var endsAt = new Date(Date.now() + zone.duration * 60000).toISOString();
+  var _spd = EXPEDITION_SPEED_OPTS[_expeditionSpeed] || EXPEDITION_SPEED_OPTS.normal;
+  var actualDuration = Math.max(5, Math.round(zone.duration * _spd.mult));
+  var endsAt = new Date(Date.now() + actualDuration * 60000).toISOString();
 
   // Pre-calculate rewards with balanced economy
   var levelBonus2 = Math.min(1.5, 1 + ((pet.level || 1) / 100));
-  var rewardPP = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus2);
+  var _speedPPMult  = (_spd || EXPEDITION_SPEED_OPTS.normal).ppMult;
+  var _speedXPMult  = (_spd || EXPEDITION_SPEED_OPTS.normal).xpMult;
+  var rewardPP = Math.floor(_speedPPMult * (zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus2);
 
   // Single item drop
   var droppedItemsMG = [];
@@ -5341,7 +5368,7 @@ async function expedition_claim(expeditionId) {
     if (rewardItems[ri].id) {
       await supabaseClient.from('user_inventory').insert({
         user_id: currentUser.id, item_id: rewardItems[ri].id, quantity: 1
-      }).catch(function(){});
+      }).catch(function(e){ dbg('upsert error:', e); });
       itemNames.push(rewardItems[ri].name || '📦');
     }
   }
@@ -5381,16 +5408,16 @@ async function expedition_claim(expeditionId) {
   }
 
   // Check for secrets
-  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
+  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(e){ dbg('upsert error:', e); });
 
   // Integrations
-  addPassXP(10, 'expedition').catch(function(){});
+  addPassXP(10, 'expedition').catch(function(e){ dbg('upsert error:', e); });
   updateBingoProgress('complete_expedition', 1);
-  checkPetWishes('expedition', row.pet_id).catch(function(){});
-  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  checkPetWishes('expedition', row.pet_id).catch(function(e){ dbg('upsert error:', e); });
+  progressQuestArc(row.pet_id, 'expedition').catch(function(e){ dbg('upsert error:', e); });
   community_increment('expeditions', 1);
-  trackDailyStat('expeditions_completed').catch(function(){});
-  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
+  trackDailyStat('expeditions_completed').catch(function(e){ dbg('upsert error:', e); });
+  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(e){ dbg('upsert error:', e); });
 
   var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
   showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
@@ -5752,17 +5779,17 @@ async function race_start() {
 
   // Integrations
   raceState.racesLeft = Math.max(0, raceState.racesLeft - 1);
-  addPassXP(5, 'race').catch(function(){});
+  addPassXP(5, 'race').catch(function(e){ dbg('upsert error:', e); });
   if (playerWon) {
-    checkPetWishes('race', winner.pet.id).catch(function(){});
-    awardBadge('speed_demon').catch(function(){});
-    progressQuestArc(winner.pet.id, 'race').catch(function(){});
+    checkPetWishes('race', winner.pet.id).catch(function(e){ dbg('upsert error:', e); });
+    awardBadge('speed_demon').catch(function(e){ dbg('upsert error:', e); });
+    progressQuestArc(winner.pet.id, 'race').catch(function(e){ dbg('upsert error:', e); });
   }
   // Weekly leaderboard + achievement tiers
   var raceTimeMs = racerunners.length > 0 ? Math.floor(3000 + Math.random() * 2000) : null; // simulated time
   if (playerBest && !playerBest.pet.isCpu) {
-    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(){});
-    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(){});
+    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(e){ dbg('upsert error:', e); });
+    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(e){ dbg('upsert error:', e); });
   }
   community_increment('races', 1);
 
@@ -6362,16 +6389,16 @@ async function feedFree(petId) {
   await addPassXP(2, 'feed');
   
   // WISHES: check feed wish
-  checkPetWishes('feed', petId).catch(function(){});
-  progressQuestArc(petId, 'feed').catch(function(){});
-  checkAchievementTierProgress('feed_count', petId, 1).catch(function(){});
+  checkPetWishes('feed', petId).catch(function(e){ dbg('upsert error:', e); });
+  progressQuestArc(petId, 'feed').catch(function(e){ dbg('upsert error:', e); });
+  checkAchievementTierProgress('feed_count', petId, 1).catch(function(e){ dbg('upsert error:', e); });
 
   // JOURNAL: log food discovery
   if (typeof logJournalDiscovery === 'function') {
     var feedPet = petState[petId] || {};
     var feedPetType = feedPet.pet_type || (feedPet.pets && feedPet.pets.name) || null;
     if (feedPetType) {
-      logJournalDiscovery(feedPetType, 'loved', '').catch(function(){});  // free feed, no item name
+      logJournalDiscovery(feedPetType, 'loved', '').catch(function(e){ dbg('upsert error:', e); });  // free feed, no item name
     }
   }
   
@@ -6687,9 +6714,9 @@ async function playFree(petId) {
     await addPassXP(2, 'play');
 
     // WISHES: check play wish
-    checkPetWishes('play', petId).catch(function(){});
-    progressQuestArc(petId, 'play').catch(function(){});
-    checkAchievementTierProgress('play_count', petId, 1).catch(function(){});
+    checkPetWishes('play', petId).catch(function(e){ dbg('upsert error:', e); });
+    progressQuestArc(petId, 'play').catch(function(e){ dbg('upsert error:', e); });
+    checkAchievementTierProgress('play_count', petId, 1).catch(function(e){ dbg('upsert error:', e); });
     petState[petId].happiness = result.happiness;
     petState[petId].xp = result.xp;
 
@@ -6757,8 +6784,8 @@ async function playWithToy(petId, toyId, toyName) {
   await addPassXP(2, 'play');
   
   // WISHES: check play and use_toy wishes
-  checkPetWishes('play', petId).catch(function(){});
-  checkPetWishes('use_toy', petId).catch(function(){});
+  checkPetWishes('play', petId).catch(function(e){ dbg('upsert error:', e); });
+  checkPetWishes('use_toy', petId).catch(function(e){ dbg('upsert error:', e); });
   updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
   updateXpBar(petId, result.xp, pet.level);
   
@@ -6821,13 +6848,13 @@ async function checkTwitchRewards() {
       showTwitchRewardNotification(reward);
       // Also log to bell notification center
       createNotification(currentUser.id, 'twitch_reward', '🎬 Twitch Reward!',
-        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(){});
+        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(e){ dbg('upsert error:', e); });
       // Mark claimed
       await fetch(WORKER_URL + '/api/rewards/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reward_id: reward.id, twitch_id: twitchId })
-      }).catch(function(){});
+      }).catch(function(e){ dbg('upsert error:', e); });
     }
   } catch(e) { dbg('Twitch rewards check failed:', e); }
 }
@@ -7247,7 +7274,7 @@ async function loadShop() {
   
   // Render daily shop rotation at the top
   if (typeof renderDailyShop === 'function') {
-    renderDailyShop(deduped).catch(function(){});
+    renderDailyShop(deduped).catch(function(e){ dbg('upsert error:', e); });
   }
 
   // Categorize items
@@ -7763,14 +7790,14 @@ async function useOnPet(petId,petNickname) {
   // Track bingo + PassXP the same way feedWithItem does
   if(ef.hunger_effect>0){
     updateBingoProgress('feed_pet',1);
-    addPassXP(2,'feed').catch(function(){});
+    addPassXP(2,'feed').catch(function(e){ dbg('upsert error:', e); });
     community_increment('feed_pets',1);
   }
   if(ef.happiness_effect>0 && ef.hunger_effect<=0){
     // Toy/happiness-only item counts as play
     updateBingoProgress('use_toy',1);
     updateBingoProgress('play_pet',1);
-    addPassXP(2,'play').catch(function(){});
+    addPassXP(2,'play').catch(function(e){ dbg('upsert error:', e); });
   }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
@@ -8928,7 +8955,7 @@ function spinSlots() {
           // corruption up a little — small, frequent lever ("gambling
           // feeds the dark"), not a dominant one on its own
           if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
-            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(){});
+            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(e){ dbg('upsert error:', e); });
           }
           
           if (netProfit > 0) {
@@ -9549,11 +9576,11 @@ async function fishingResolveCast(timing) {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: randomItem.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         if (catchText) catchText.innerHTML = '🎁 <span style="color:#ff66cc;font-weight:700;">You caught an item: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + '!</span>' +
           (timing === 'great' ? ' <span style="color:#ffd700;font-size:0.7rem;">PERFECT TIMING!</span>' : '');
         showToast('🎣 Found: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + ' in your tackle box! Added to inventory.', 4000);
-        addPassXP(3, 'fishing').catch(function(){});
+        addPassXP(3, 'fishing').catch(function(e){ dbg('upsert error:', e); });
       }
     } catch(e) { /* silent */ }
     fishingUpdateStats();
@@ -9627,11 +9654,11 @@ async function fishingResolveCast(timing) {
   }
 
   // Award PP
-  await awardPP(ppEarned, 'fishing').catch(function(){});
+  await awardPP(ppEarned, 'fishing').catch(function(e){ dbg('upsert error:', e); });
 
   // Award PassXP per fish
   var fishPassXP = caught.passXP || 2;
-  addPassXP(fishPassXP, 'fishing').catch(function(){});
+  addPassXP(fishPassXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
 
   // New fish celebrations
   if (isNew) {
@@ -9666,7 +9693,7 @@ async function fishingResolveCast(timing) {
 
   // Check area completion after every real catch
   if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-    fishingCheckAreaComplete().catch(function(){});
+    fishingCheckAreaComplete().catch(function(e){ dbg('upsert error:', e); });
   }
 } // closes fishingResolveCast
 
@@ -9707,7 +9734,7 @@ async function fishingCheckAreaComplete() {
   }).catch(function(){ return null; });
   if (!res || (res.data && res.data.already_claimed)) return;
   if (res.data && res.data.ok) {
-    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(){});
+    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
     showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
     if (typeof showMelonMessage === 'function')
       showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
@@ -9734,11 +9761,11 @@ var AD_POOL = [
   { id:'ad_free_pp', title:'💰 FREE PawketPoints!!', headline:'CLICK HERE FOR FREE PP!!',
     sub:'Limited time! Click NOW for <strong>free 25 PP</strong>!',
     btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
-    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(){}); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
+    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); }); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
   { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
     sub:'PetCare Pro — <strong>only 50 PP!!</strong>',
     btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
-    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(){}); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
+    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(e){ dbg('upsert error:', e); }); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
   { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
     sub:'You have been pre-approved for our <strong>Exclusive Rewards Program</strong>!!',
     btn:'✅ TELL ME MORE!!', fine:'* There is nothing more.',
@@ -9955,7 +9982,7 @@ async function autoFisherSaveState() {
   // Save auto_fisher_state JSON to players table via RPC
   await supabaseClient.rpc('fishing_save_autofisher_state', {
     p_state: _autoFisherState ? JSON.parse(JSON.stringify(_autoFisherState)) : null
-  }).catch(function(){});
+  }).catch(function(e){ dbg('upsert error:', e); });
 }
 
 async function autoFisherPurchase() {
@@ -10041,8 +10068,8 @@ async function autoFisherCheck() {
         catches.push({ name: caught.name, emoji: caught.emoji, pp: pp, rarity: caught.rarity, weight: w });
         if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now() };
         _fishCollection[caught.id].count++;
-        await awardPP(pp, 'auto_fishing').catch(function(){});
-        addPassXP(caught.passXP || 2, 'fishing').catch(function(){});
+        await awardPP(pp, 'auto_fishing').catch(function(e){ dbg('upsert error:', e); });
+        addPassXP(caught.passXP || 2, 'fishing').catch(function(e){ dbg('upsert error:', e); });
       }
     }
     fishingSaveCollection();
@@ -10056,7 +10083,7 @@ async function autoFisherCheck() {
       if (catches.length > 8) summaryLines.push('...and ' + (catches.length - 8) + ' more!');
       var totalPP = catches.reduce(function(s,c){ return s+c.pp; }, 0);
       var msg = 'Auto-Fisher caught ' + catches.length + ' fish! (+' + totalPP + ' PP total) ' + summaryLines.join(', ');
-      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(){});
+      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(e){ dbg('upsert error:', e); });
       if (completedCount === _autoFisherState.castsTotal) {
         // All done!
         showMelonMessage('Your auto-fisher is done for the day! Caught ' + catches.length + ' fish. 🍉', { displayMs: 8000 });
@@ -10855,7 +10882,7 @@ function spinSlots() {
           // corruption up a little — small, frequent lever ("gambling
           // feeds the dark"), not a dominant one on its own
           if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
-            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(){});
+            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(e){ dbg('upsert error:', e); });
           }
           
           if (netProfit > 0) {
@@ -11509,11 +11536,11 @@ async function fishingResolveCast(timing) {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: randomItem.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         if (catchText) catchText.innerHTML = '🎁 <span style="color:#ff66cc;font-weight:700;">You caught an item: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + '!</span>' +
           (timing === 'great' ? ' <span style="color:#ffd700;font-size:0.7rem;">PERFECT TIMING!</span>' : '');
         showToast('🎣 Found: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + ' in your tackle box! Added to inventory.', 4000);
-        addPassXP(3, 'fishing').catch(function(){});
+        addPassXP(3, 'fishing').catch(function(e){ dbg('upsert error:', e); });
       }
     } catch(e) { /* silent */ }
     fishingUpdateStats();
@@ -11587,11 +11614,11 @@ async function fishingResolveCast(timing) {
   }
 
   // Award PP
-  await awardPP(ppEarned, 'fishing').catch(function(){});
+  await awardPP(ppEarned, 'fishing').catch(function(e){ dbg('upsert error:', e); });
 
   // Award PassXP per fish
   var fishPassXP = caught.passXP || 2;
-  addPassXP(fishPassXP, 'fishing').catch(function(){});
+  addPassXP(fishPassXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
 
   // New fish celebrations
   if (isNew) {
@@ -11626,7 +11653,7 @@ async function fishingResolveCast(timing) {
 
   // Check area completion after every real catch
   if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-    fishingCheckAreaComplete().catch(function(){});
+    fishingCheckAreaComplete().catch(function(e){ dbg('upsert error:', e); });
   }
 } // closes fishingResolveCast
 
@@ -11667,7 +11694,7 @@ async function fishingCheckAreaComplete() {
   }).catch(function(){ return null; });
   if (!res || (res.data && res.data.already_claimed)) return;
   if (res.data && res.data.ok) {
-    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(){});
+    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
     showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
     if (typeof showMelonMessage === 'function')
       showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
@@ -11694,11 +11721,11 @@ var AD_POOL = [
   { id:'ad_free_pp', title:'💰 FREE PawketPoints!!', headline:'CLICK HERE FOR FREE PP!!',
     sub:'Limited time! Click NOW for <strong>free 25 PP</strong>!',
     btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
-    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(){}); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
+    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); }); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
   { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
     sub:'PetCare Pro — <strong>only 50 PP!!</strong>',
     btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
-    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(){}); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
+    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(e){ dbg('upsert error:', e); }); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
   { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
     sub:'You have been pre-approved for our <strong>Exclusive Rewards Program</strong>!!',
     btn:'✅ TELL ME MORE!!', fine:'* There is nothing more.',
@@ -11788,7 +11815,7 @@ async function autoFisherSaveState() {
   // Save auto_fisher_state JSON to players table via RPC
   await supabaseClient.rpc('fishing_save_autofisher_state', {
     p_state: _autoFisherState ? JSON.parse(JSON.stringify(_autoFisherState)) : null
-  }).catch(function(){});
+  }).catch(function(e){ dbg('upsert error:', e); });
 }
 
 async function autoFisherPurchase() {
@@ -11874,8 +11901,8 @@ async function autoFisherCheck() {
         catches.push({ name: caught.name, emoji: caught.emoji, pp: pp, rarity: caught.rarity, weight: w });
         if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now() };
         _fishCollection[caught.id].count++;
-        await awardPP(pp, 'auto_fishing').catch(function(){});
-        addPassXP(caught.passXP || 2, 'fishing').catch(function(){});
+        await awardPP(pp, 'auto_fishing').catch(function(e){ dbg('upsert error:', e); });
+        addPassXP(caught.passXP || 2, 'fishing').catch(function(e){ dbg('upsert error:', e); });
       }
     }
     fishingSaveCollection();
@@ -11889,7 +11916,7 @@ async function autoFisherCheck() {
       if (catches.length > 8) summaryLines.push('...and ' + (catches.length - 8) + ' more!');
       var totalPP = catches.reduce(function(s,c){ return s+c.pp; }, 0);
       var msg = 'Auto-Fisher caught ' + catches.length + ' fish! (+' + totalPP + ' PP total) ' + summaryLines.join(', ');
-      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(){});
+      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(e){ dbg('upsert error:', e); });
       if (completedCount === _autoFisherState.castsTotal) {
         // All done!
         showMelonMessage('Your auto-fisher is done for the day! Caught ' + catches.length + ' fish. 🍉', { displayMs: 8000 });
@@ -12010,7 +12037,7 @@ async function initTwitchTab() {
   }
   await checkTwitchLinked();
   // Load Twitch stats from worker (silent if worker not reachable)
-  loadTwitchStats().catch(function(){});
+  loadTwitchStats().catch(function(e){ dbg('upsert error:', e); });
   // Poll for pending worker rewards every 2 minutes
   safeSetInterval(function() { checkTwitchRewards(); }, 120000);
 }
@@ -12316,7 +12343,7 @@ async function checkTwitchLinked() {
     el('twitch-not-linked').style.display='none';
     el('twitch-linked').style.display='block';
     el('twitch-username').textContent=res.data.twitch_username;
-    loadTwitchStats().catch(function(){});
+    loadTwitchStats().catch(function(e){ dbg('upsert error:', e); });
     var rewards=res.data.twitch_follow_rewards||{};
     if(rewards.embertail){var b=el('follow-ember-badge');b.textContent='Claimed';b.className='status-badge status-done';b.style.display='inline-block';}
     if(rewards.pyxshuul){var b2=el('follow-pyxs-badge');b2.textContent='Claimed';b2.className='status-badge status-done';b2.style.display='inline-block';}
@@ -13303,7 +13330,7 @@ async function loadProfile(username) {
     // Update profile action buttons (add/remove friend, block, etc.)
     // Set the profile user ID first so updateProfileButtons knows whose profile this is
     window.currentProfileUserId = profile.id;
-    updateProfileButtons().catch(function(){});
+    updateProfileButtons().catch(function(e){ dbg('upsert error:', e); });
     
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
@@ -14806,9 +14833,9 @@ async function executeBattle(playerStats, enemyStats, petId) {
       await awardBadge('badge_comeback');
     }
     // WISHES: battle win
-    checkPetWishes('win_battle', petId).catch(function(){});
-    trackDailyStat('battles_won').catch(function(){});
-    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
+    checkPetWishes('win_battle', petId).catch(function(e){ dbg('upsert error:', e); });
+    trackDailyStat('battles_won').catch(function(e){ dbg('upsert error:', e); });
+    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(e){ dbg('upsert error:', e); });
   }
 
   // CRITICAL: Force reload pet data AFTER HP is saved
@@ -14921,7 +14948,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         if (weatherXPBonus > 0) expGained += weatherXPBonus;
       }
     }
-    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(){});
+    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(e){ dbg('upsert error:', e); });
     var hpUpdate = await supabaseClient
       .from('user_pets')
       .update({ current_hp: battleResult.playerFinalHP })
@@ -14949,7 +14976,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     });
     
     // Increment global boss kill stat (read by Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(){});
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
 
     // Track boss kill for Melon milestone
     try {
@@ -15038,7 +15065,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     community_increment('battle_wins', 1);
     updateBingoProgress('win_battle', 1);
     // Increment global community stat (read by the Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(){});
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -15926,7 +15953,7 @@ function battleExp_updateBtn() {
     supabaseClient.from('user_pets').select('id, energy, level, nickname').eq('id', petId).single()
       .then(function(res) {
         if (res.data) { petState[petId] = res.data; battleExp_updateBtn(); }
-      }).catch(function(){});
+      }).catch(function(e){ dbg('upsert error:', e); });
     return;
   }
 
@@ -16031,18 +16058,18 @@ async function battleExp_claim(expeditionId) {
     var bonusPP = Math.floor(pp * (expMult - 1));
     if (bonusPP > 0) { await awardPP(bonusPP, 'streak_bonus'); showToast('🔥 Streak bonus: +' + bonusPP + ' PP!', 3000); }
   }
-  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(){});
+  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(e){ dbg('upsert error:', e); });
 
   // Award item drops
   for (var i = 0; i < items.length; i++) {
     if (items[i].id) {
-      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(){});
+      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(e){ dbg('upsert error:', e); });
     }
   }
 
-  addPassXP(10, 'expedition').catch(function(){});
-  checkPetWishes('expedition', row.pet_id).catch(function(){});
-  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  addPassXP(10, 'expedition').catch(function(e){ dbg('upsert error:', e); });
+  checkPetWishes('expedition', row.pet_id).catch(function(e){ dbg('upsert error:', e); });
+  progressQuestArc(row.pet_id, 'expedition').catch(function(e){ dbg('upsert error:', e); });
   community_increment('expeditions', 1);
 
   // Show rewards modal
@@ -18392,7 +18419,7 @@ var newsTicker = {
     this.updateTicker();
     this.startScrollDetection();
     // Pre-load today's stats for dynamic headlines (non-blocking)
-    this.loadDailyStats().catch(function(){});
+    this.loadDailyStats().catch(function(e){ dbg('upsert error:', e); });
   },
   
   shuffle: function() {
@@ -18772,14 +18799,14 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
     dayNightCycle.init();
-    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(e){ dbg('upsert error:', e); });
+    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(e){ dbg('upsert error:', e); });
   });
 } else {
   newsTicker.init();
   dayNightCycle.init();
-  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(e){ dbg('upsert error:', e); });
+  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(e){ dbg('upsert error:', e); });
 }
 
 // WORLD STATE: periodically check for a newly-triggered celebration buff
@@ -20472,8 +20499,8 @@ async function guild_checkUserStatus() {
 
     // Orphaned guild_members row (guild_id points nowhere) — auto-clean
     if (data && !data.guilds) {
-      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(){});
-      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(){});
+      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(e){ dbg('upsert error:', e); });
+      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(e){ dbg('upsert error:', e); });
     }
 
     guildState.myGuild = null;
@@ -20717,12 +20744,12 @@ async function guild_join(guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(){});
+      ).catch(function(e){ dbg('upsert error:', e); });
     }
 
     showToast('✅ Joined the guild!', 3000);
     await loadGuildPage();
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
   } catch(err) {
     showToast('Could not join: ' + err.message, 3000);
   }
@@ -21062,7 +21089,7 @@ async function guild_acceptInvite(inviteId, guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(){});
+      ).catch(function(e){ dbg('upsert error:', e); });
     }
 
     showToast('🏛️ Joined the guild!', 3000);
@@ -21304,7 +21331,7 @@ async function guild_donate() {
     if (rpcErr) {
       // Treasury RPC failed — refund the player rather than silently losing their donation
       // (direct client writes to guild_treasury are blocked at the database level)
-      await awardPP(amount, 'guild_donation_refund').catch(function(){});
+      await awardPP(amount, 'guild_donation_refund').catch(function(e){ dbg('upsert error:', e); });
       showToast('Could not process donation. Refunded. Please try again later.', 3500);
       return;
     }
@@ -21316,7 +21343,7 @@ async function guild_donate() {
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
 
-    awardBadge('treasury_donor').catch(function(){});
+    awardBadge('treasury_donor').catch(function(e){ dbg('upsert error:', e); });
     updateBingoProgress('donate_guild', 1);
     showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
     loadGuildPage();
@@ -21441,7 +21468,7 @@ async function guild_renderTreasury() {
       '<div>' + logHtml + '</div>';
 
     // Load any newly passed votes
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
   } catch(err) {
     mount.innerHTML = '<div class="empty-state"><p>Error loading treasury: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
   }
@@ -21514,7 +21541,7 @@ async function guild_createProposal() {
     });
     if (error) throw error;
 
-    addPassXP(10, 'guild_proposal').catch(function(){});
+    addPassXP(10, 'guild_proposal').catch(function(e){ dbg('upsert error:', e); });
     closeModal();
     showToast('📊 Proposal created! Guild members can now vote.', 4000);
     guild_renderTreasury();
@@ -21538,7 +21565,7 @@ async function guild_castVote(voteId, inFavor) {
     if (updateErr) throw updateErr;
 
     updateBingoProgress('vote_in_guild', 1);
-    addPassXP(5, 'guild_vote').catch(function(){});
+    addPassXP(5, 'guild_vote').catch(function(e){ dbg('upsert error:', e); });
     showToast(inFavor ? '👍 Voted Yes!' : '👎 Voted No!', 2500);
 
     // Check if this vote just passed (simple majority, 3+ votes for, more for than against)
@@ -22055,9 +22082,9 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
 
     if (ppReward > 0) await awardPP(ppReward, 'guild_dungeon');
     if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
-    addPassXP(15, 'guild_dungeon').catch(function(){});
+    addPassXP(15, 'guild_dungeon').catch(function(e){ dbg('upsert error:', e); });
     updateBingoProgress('guild_dungeon', 1);
-    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(){});
+    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(e){ dbg('upsert error:', e); });
 
     // Log run
     await supabaseClient.from('guild_dungeon_runs').insert({
@@ -22066,7 +22093,7 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
       party: party.map(function(p) { return { pet_id: p.id, owner: p.ownerName }; }),
       enemies_defeated: wavesCleared, victory: victory, rewards_claimed: true,
       completed_at: new Date().toISOString()
-    }).catch(function(){});
+    }).catch(function(e){ dbg('upsert error:', e); });
 
     // Show result
     var survivalSummary = party.map(function(p) {
@@ -22178,7 +22205,7 @@ async function checkExplorationStreak(petId, zone) {
   var bonusMsg = '';
   if (streak >= 10) {
     bonusMsg = '🔥×10 Streak! +100% rewards & guaranteed rare item!';
-    awardPlayerTitle('forest_friend').catch(function(){});
+    awardPlayerTitle('forest_friend').catch(function(e){ dbg('upsert error:', e); });
   } else if (streak >= 5) {
     bonusMsg = '🔥×5 Streak! +50% rewards!';
   } else if (streak >= 3) {
@@ -22239,9 +22266,9 @@ async function checkSecretDiscovery(petId, zone, streak) {
         '</div>';
       openModal(modal);
 
-      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(){});
-      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(){});
-      addPassXP(20, 'secret_discovery').catch(function(){});
+      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(e){ dbg('upsert error:', e); });
+      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(e){ dbg('upsert error:', e); });
+      addPassXP(20, 'secret_discovery').catch(function(e){ dbg('upsert error:', e); });
     });
   } catch(e) { dbg('checkSecretDiscovery error:', e); }
 }
@@ -22313,19 +22340,19 @@ async function checkAchievementTierProgress(achievementKey, petId, currentValue)
       // Grant tier reward
       var reward = tierRewards[newTier - 1];
       if (reward) {
-        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(){});
-        if (reward.badge) await awardBadge(reward.badge).catch(function(){});
-        if (reward.title) await awardPlayerTitle(reward.title).catch(function(){});
+        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(e){ dbg('upsert error:', e); });
+        if (reward.badge) await awardBadge(reward.badge).catch(function(e){ dbg('upsert error:', e); });
+        if (reward.title) await awardPlayerTitle(reward.title).catch(function(e){ dbg('upsert error:', e); });
       }
 
       // Tier milestone badges
-      if (newTier >= 5) awardBadge('gold_collector').catch(function(){});
-      else if (newTier >= 4) awardBadge('silver_collector').catch(function(){});
-      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(){});
+      if (newTier >= 5) awardBadge('gold_collector').catch(function(e){ dbg('upsert error:', e); });
+      else if (newTier >= 4) awardBadge('silver_collector').catch(function(e){ dbg('upsert error:', e); });
+      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(e){ dbg('upsert error:', e); });
 
       // Show notification
       showToast('🏆 ' + escapeHtml(achievement.name || achievementKey) + ' reached Tier ' + newTier + '!', 4000);
-      addPassXP(10 * newTier, 'tier_unlock').catch(function(){});
+      addPassXP(10 * newTier, 'tier_unlock').catch(function(e){ dbg('upsert error:', e); });
 
       // ACTIVITY FEED: Log so friend feeds + OBS live alerts pick it up
       logActivity('achievement_unlocked', { achievement_name: (achievement.name || achievementKey) + ' (Tier ' + newTier + ')' });
@@ -22399,8 +22426,8 @@ async function progressQuestArc(petId, actionKey) {
 
   // Day reward
   var dayReward = arc['day' + (newDay - 1) + '_reward'] || 25;
-  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(){});
-  addPassXP(10, 'quest_progress').catch(function(){});
+  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(e){ dbg('upsert error:', e); });
+  addPassXP(10, 'quest_progress').catch(function(e){ dbg('upsert error:', e); });
   updateBingoProgress('complete_quest', 1);
 
   var pet = petState[petId] || {};
@@ -22410,10 +22437,10 @@ async function progressQuestArc(petId, actionKey) {
     // Quest complete!
     questData.completed = true;
     var finalReward = arc.completion_reward || 100;
-    await awardPP(finalReward, 'quest_complete').catch(function(){});
-    addPassXP(50, 'quest_complete').catch(function(){});
-    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(){});
-    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(){});
+    await awardPP(finalReward, 'quest_complete').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(50, 'quest_complete').catch(function(e){ dbg('upsert error:', e); });
+    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(e){ dbg('upsert error:', e); });
+    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(e){ dbg('upsert error:', e); });
 
     // Celebration modal
     var modal = makeModal();
@@ -22742,7 +22769,7 @@ async function gp_load() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
     }).catch(function(e) { dbg('GP auto-check failed:', e); });
-  }).catch(function(){});
+  }).catch(function(e){ dbg('upsert error:', e); });
 
   try {
     // Fetch current event — RPC first, fallback to direct query if RPC missing
@@ -22982,7 +23009,7 @@ async function gp_enter() {
     if (result && result.success === false) throw new Error(result.error || 'Failed');
 
     updateAllPoints((currentPoints||0) - 100);
-    addPassXP(25, 'grand_prix_entry').catch(function(){});
+    addPassXP(25, 'grand_prix_entry').catch(function(e){ dbg('upsert error:', e); });
     updateBingoProgress('enter_grand_prix', 1);
     showToast('🏁 Entered the Grand Prix! Train your pet to boost your score!', 5000);
     gp_load();
@@ -23144,10 +23171,10 @@ async function gp_train(trainingType) {
       var upd = {};
       if (t.energyCost > 0 || t.energyGain > 0) upd.energy = petState[petId].energy;
       if (t.happinessCost > 0) upd.happiness = petState[petId].happiness;
-      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(){});
+      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(e){ dbg('upsert error:', e); });
     }
 
-    addPassXP(10, 'grand_prix_training').catch(function(){});
+    addPassXP(10, 'grand_prix_training').catch(function(e){ dbg('upsert error:', e); });
     updateBingoProgress('train_grand_prix', 1);
     showToast('🎯 Training complete! +' + addedBonus + ' race score! (' + (currentBonus + addedBonus) + '/15)', 3000);
     gp_load();
@@ -23305,7 +23332,7 @@ async function simulateGrandPrix(eventId) {
       await supabaseClient.from('grand_prix_replays').upsert({
         event_id: eventId, user_id: te.user_id,
         replay_text: text, finish_time_ms: finishMs, rank: trnk
-      }, { onConflict: 'event_id,user_id' }).catch(function(){});
+      }, { onConflict: 'event_id,user_id' }).catch(function(e){ dbg('upsert error:', e); });
     }
 
     // Mark event complete
@@ -23322,7 +23349,7 @@ async function simulateGrandPrix(eventId) {
         '🏁 Grand Prix Results Ready!',
         uname + ' placed #' + ne._rank + '! Claim your rewards now!',
         'tab:racing'
-      ).catch(function(){});
+      ).catch(function(e){ dbg('upsert error:', e); });
     });
 
     showToast('🏆 Grand Prix simulation complete! ' + entries.length + ' entries ranked.', 5000);
@@ -23363,7 +23390,7 @@ async function gp_simulateMyScore() {
     await supabaseClient.from('grand_prix_replays').upsert({
       event_id: gpState.event.id, user_id: currentUser.id,
       replay_text: replay_text, finish_time_ms: finishMs, rank: 1
-    }, { onConflict: 'event_id,user_id' }).catch(function(){});
+    }, { onConflict: 'event_id,user_id' }).catch(function(e){ dbg('upsert error:', e); });
   }
 }
 
@@ -23407,13 +23434,13 @@ async function gp_claimRewards() {
       : 25;
 
     await awardPP(ppReward, 'grand_prix_reward');
-    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(){});
-    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(){});
+    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(e){ dbg('upsert error:', e); });
+    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(e){ dbg('upsert error:', e); });
 
     // Pass XP
-    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(){});
-    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(){});
-    else                 addPassXP(25, 'grand_prix_entry').catch(function(){});
+    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(e){ dbg('upsert error:', e); });
+    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(e){ dbg('upsert error:', e); });
+    else                 addPassXP(25, 'grand_prix_entry').catch(function(e){ dbg('upsert error:', e); });
 
     // Bingo
     updateBingoProgress('grand_prix_top_10', rank <= 10 ? 1 : 0);
@@ -23427,13 +23454,13 @@ async function gp_claimRewards() {
     await supabaseClient.from('grand_prix_leaderboard').upsert({
       user_id: currentUser.id, week_number: ev.week_number, year: ev.year,
       rank: rank, pet_level: (petState[entry.pet_id]||{}).level || 1
-    }, { onConflict: 'user_id,week_number,year' }).catch(function(){});
+    }, { onConflict: 'user_id,week_number,year' }).catch(function(e){ dbg('upsert error:', e); });
 
     showToast('🎉 Grand Prix rewards claimed! +' + ppReward + ' PP!', 5000);
     createNotification(
       currentUser.id, 'grand_prix_claimed', '🏆 Grand Prix Rewards Claimed!',
       'You placed #' + rank + ' and earned ' + ppReward + ' PP!', 'tab:racing'
-    ).catch(function(){});
+    ).catch(function(e){ dbg('upsert error:', e); });
     gp_load();
   } catch(err) {
     showToast('Failed: ' + err.message, 3000);
@@ -23580,7 +23607,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: cookieRes.data.id, quantity: 3 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         streakBonusItem = '3x Honey Cookies';
       }
     } else if (streak === 5) {
@@ -23599,7 +23626,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: faerieRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         streakBonusItem = '1x Faerie Dust Delight';
       }
       var kr2 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23612,7 +23639,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: toyRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         streakBonusItem = '1x Squeaky Toy';
       }
       var kr3 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23625,7 +23652,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: crownRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).catch(function(e){ dbg('upsert error:', e); });
         streakBonusItem = '1x Golden Crown Roast';
       }
       var kr4 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23665,9 +23692,9 @@ async function checkDailyLogin() {
     dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
 
     // Apply furniture room happiness bonuses (non-blocking)
-    furniture_applyDailyBonus().catch(function(){});
+    furniture_applyDailyBonus().catch(function(e){ dbg('upsert error:', e); });
     // Load guild perks (non-blocking)
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
 
   } catch (err) {
     console.error('[DailyLogin] Error:', err);
@@ -25194,27 +25221,27 @@ async function grantReferralMilestone(userId, newCount) {
 
   // Award badge
   if (milestone.badge) {
-    await awardBadge(milestone.badge).catch(function(){});
+    await awardBadge(milestone.badge).catch(function(e){ dbg('upsert error:', e); });
   }
 
   // Award player title
   if (milestone.title) {
-    await awardPlayerTitle(milestone.title, userId).catch(function(){});
+    await awardPlayerTitle(milestone.title, userId).catch(function(e){ dbg('upsert error:', e); });
   }
 
   // Award skin keys
   if (milestone.skinKeys > 0) {
-    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
+    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(e){ dbg('upsert error:', e); });
   }
 
   // Unlock cosmetic frame
   if (milestone.frame) {
-    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(){});
+    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(e){ dbg('upsert error:', e); });
   }
 
   // Bonus PP for milestone
   var bonusPP = newCount * 10; // 10 PP per referral as milestone bonus
-  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(){});
+  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(e){ dbg('upsert error:', e); });
 
   // Show celebration if it's the current user
   if (currentUser && currentUser.id === userId) {
@@ -28195,7 +28222,7 @@ var AD_POOL = [
     btn: '✨ CLAIM NOW — FREE!!',
     fine: '* One per ad. While supplies last. Melon Interactive not responsible for emotional attachment.',
     outcome: function() {
-      awardPP(25, 'adpocalypse_ad').catch(function(){});
+      awardPP(25, 'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); });
       showToast('🎉 You got 25 free PP from an ad! Melon is feeling generous.', 4000);
     },
     weight: 25,
@@ -28258,7 +28285,7 @@ var AD_POOL = [
         var newHap = Math.max(0, (p.happiness || 0) - 10);
         petState[pid].happiness = newHap;
         updateBar(pid, 'happiness', newHap, p.max_happiness || 100);
-        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(){});
+        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(e){ dbg('upsert error:', e); });
       });
       showToast('😢 The guilt ad worked. All your pets lost 10 happiness.', 5000);
     },
@@ -28289,7 +28316,7 @@ var AD_POOL = [
       showToast('...noted. please continue playing.', 5000);
       // Subtle: slightly nudge corruption
       if (typeof nudgeWorldState === 'function') {
-        nudgeWorldState('corruption_level', 0.5).catch(function(){});
+        nudgeWorldState('corruption_level', 0.5).catch(function(e){ dbg('upsert error:', e); });
       }
     },
     weight: 10,
@@ -28613,7 +28640,7 @@ async function melonRequests_complete(requestId, reward) {
   _melonRequestsCompleted[requestId] = { completedAt: Date.now(), reward: reward };
   try { localStorage.setItem(savedKey, JSON.stringify(_melonRequestsCompleted)); } catch(e){}
   
-  await awardPP(reward, 'melon_request').catch(function(){});
+  await awardPP(reward, 'melon_request').catch(function(e){ dbg('upsert error:', e); });
   showToast('🍉 Melon\'s Request complete! +' + reward + ' PP', 4000);
   showMelonMessage('Thank you! That really helps. Here\'s ' + reward + ' PP. 🍉', { displayMs: 6000 });
   melonRequests_renderWidget('melon-requests-mount');
@@ -28678,7 +28705,7 @@ var weatherSystem = {
     this.currentDate = new Date().toISOString().slice(0, 10);
     // Fire-and-forget warm-up so getWorldStateValueSync() below has a
     // better chance of a fresh value by the time generateWeather() runs
-    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(){});
+    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(e){ dbg('upsert error:', e); });
     // Try DB first, fall back to localStorage, then generate
     var loaded = await this.loadFromDailyFeatures();
     if (!loaded) {
@@ -28690,7 +28717,7 @@ var weatherSystem = {
     }
     if (!loaded || !this.currentWeather) {
       this.generateWeather();
-      this.syncToDailyFeatures().catch(function(){});
+      this.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
     }
     this.applyWeather();
     this.startRotationChecker();
@@ -28836,7 +28863,7 @@ var weatherSystem = {
 
       if (dateChanged || rotationDue) {
         self.generateWeather();
-        self.syncToDailyFeatures().catch(function(){});
+        self.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
       }
     }, 60000); // check every minute, but only acts when a rotation window has actually elapsed
   },
@@ -28898,7 +28925,7 @@ var weatherSystem = {
       localStorage.setItem('currentWeather', JSON.stringify(weather));
       localStorage.setItem('weatherSetAt', Date.now().toString());
       this.applyWeather();
-      this.syncToDailyFeatures().catch(function(){});
+      this.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
     }
   }
 };
@@ -29919,7 +29946,7 @@ function applySettings() {
     // Resume music if available
     if (typeof bgMusic !== 'undefined' && bgMusic) {
       bgMusic.volume = playerSettings.music_volume / 100;
-      bgMusic.play().catch(function(){}); // Ignore autoplay errors
+      bgMusic.play().catch(function(e){ dbg('upsert error:', e); }); // Ignore autoplay errors
     }
   } else {
     // Pause music
@@ -30729,7 +30756,7 @@ async function updateBingoProgress(taskType, amount) {
       
       // Award points — use awardPP which has its own fallback, not award_pp_secure directly
       updateAllPoints(currentPoints + square.rewardPoints);
-      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(){});
+      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(e){ dbg('upsert error:', e); });
       
       // Award Pass XP
       await addPassXP(15, 'bingo_square');
@@ -30990,18 +31017,18 @@ function onPetLevelUp(petId) {
 // Hook for adoption - call this when adopting a pet
 function onPetAdopted(petId) {
   updateBingoProgress('adopt_pet', 1);
-  trackDailyStat('pets_adopted').catch(function(){});
+  trackDailyStat('pets_adopted').catch(function(e){ dbg('upsert error:', e); });
 }
 
 // Hook for minigame completion
 function onMinigameComplete(baseReward) {
   updateBingoProgress('complete_minigame', 1);
-  if (typeof addPassXP === 'function') addPassXP(5, 'minigame').catch(function(){});
+  if (typeof addPassXP === 'function') addPassXP(5, 'minigame').catch(function(e){ dbg('upsert error:', e); });
   // Minigame Monday: award bonus PP on top of what the minigame already paid
   var bonus = getCalendarBonus('minigame_pp');
   if (bonus > 1 && baseReward > 0) {
     var extra = Math.floor(baseReward * (bonus - 1));
-    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(){});
+    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(e){ dbg('upsert error:', e); });
     showToast('🎮 Minigame Monday! +' + extra + ' bonus PP!', 3000);
   }
 }
@@ -32105,7 +32132,7 @@ async function newFeatures_init() {
           }
           // After 48h absence, add a quiet scrapbook memory
           if (hoursGone >= 48 && p.id) {
-            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(){});
+            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(e){ dbg('upsert error:', e); });
           }
         });
         if (missedPets.length > 0) {
@@ -34289,8 +34316,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(){});
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(){});
+  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(e){ dbg('upsert error:', e); });
+  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(e){ dbg('upsert error:', e); });
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -35672,7 +35699,7 @@ async function buyDailyItem(itemId, salePrice, btn) {
   markDailyItemBought(itemId);
   showToast('✅ Daily deal purchased! Check your inventory.', 4000);
   updateBingoProgress('purchase_item', 1);
-  addPassXP(3, 'shop').catch(function(){});
+  addPassXP(3, 'shop').catch(function(e){ dbg('upsert error:', e); });
 
   if (btn) { btn.textContent = '✓ Bought'; btn.style.background = '#eee'; btn.style.color = '#999'; }
 }
@@ -35723,7 +35750,7 @@ function renderReferralWidget(mountId) {
         '</div>';
 
       mount.innerHTML = html;
-    }).catch(function(){});
+    }).catch(function(e){ dbg('upsert error:', e); });
 }
 
 
@@ -35913,7 +35940,7 @@ async function gp_adminRecalcScores() {
     updated++;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(e){ dbg('upsert error:', e); });
   restore();
   showToast('Recalculated scores for ' + updated + ' entries', 3000);
   await gp_adminRefresh();
@@ -35941,7 +35968,7 @@ async function gp_adminFixRankings() {
     prevScore = entries[i].race_score;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Rankings fixed for ' + entries.length + ' entries', 3000);
   await gp_adminRefresh();
 }
@@ -35964,7 +35991,7 @@ async function gp_adminSetWinner(entryId, username) {
   // Give the winner a score high enough to justify rank 1
   await supabaseClient.from('grand_prix_entries').update({ final_rank: 1, race_score: 200 }).eq('id', entryId);
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(e){ dbg('upsert error:', e); });
   showToast(username + ' set as winner!', 3000);
   await gp_adminRefresh();
 }
@@ -36199,7 +36226,7 @@ async function gp_adminForceSimulate() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 3000); return; }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(e){ dbg('upsert error:', e); });
   await simulateGrandPrix(events[0].id);
   restore();
   await gp_adminRefresh();
@@ -36212,7 +36239,7 @@ async function gp_adminAdjustPrize(delta) {
   var ev = events[0];
   var newPool = Math.max(0, (ev.prize_pool||0) + delta);
   await supabaseClient.from('grand_prix_events').update({ prize_pool: newPool }).eq('id', ev.id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Prize pool: ' + newPool.toLocaleString() + ' PP', 2000);
   await gp_adminRefresh();
 }
@@ -36225,7 +36252,7 @@ async function gp_adminSetPrize() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   await supabaseClient.from('grand_prix_events').update({ prize_pool: amount }).eq('id', events[0].id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Prize pool set to ' + amount.toLocaleString() + ' PP', 2500);
   await gp_adminRefresh();
 }
@@ -36236,7 +36263,7 @@ async function gp_adminEditTraining(entryId, currentBonus) {
   if (input === null) return;
   var val = Math.min(15, Math.max(0, parseInt(input)||0));
   await supabaseClient.from('grand_prix_entries').update({ training_bonus: val }).eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Training bonus updated to ' + val, 2000);
   await gp_adminRefresh();
 }
@@ -36245,7 +36272,7 @@ async function gp_adminRemoveEntry(entryId, username) {
   if (!await isAdmin()) return;
   if (!confirm('Remove entry for ' + username + '? This cannot be undone.')) return;
   await supabaseClient.from('grand_prix_entries').delete().eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Entry removed', 2500);
   await gp_adminRefresh();
 }
@@ -36265,10 +36292,10 @@ async function gp_adminSendNotif() {
 
   var sent = 0;
   for (var i = 0; i < (targets||[]).length; i++) {
-    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(){});
+    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(e){ dbg('upsert error:', e); });
     sent++;
   }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Sent to ' + sent + ' players', 3000);
 }
 
@@ -36296,7 +36323,7 @@ async function gp_adminCreateEvent() {
   });
 
   if (error) { showToast('Error: ' + error.message, 3500); return; }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(e){ dbg('upsert error:', e); });
   showToast('Event created!', 3000);
   await gp_adminRefresh();
 }
@@ -36749,7 +36776,7 @@ function loadTab(tab) {
           if (typeof fishingRenderJournal === 'function') fishingRenderJournal();
           if (typeof fishingUpdateAreaStatus === 'function') fishingUpdateAreaStatus();
           if (typeof autoFisherRenderWidget === 'function') { autoFisherRenderWidget(); }
-        }).catch(function(){});
+        }).catch(function(e){ dbg('upsert error:', e); });
       }
     }
   }
@@ -36891,7 +36918,7 @@ async function onSocialShare(platform) {
   }).catch(function(){ return null; });
   if (ppRes && ppRes.data !== undefined) updateAllPoints(ppRes.data);
 
-  addPassXP(SHARE_REWARD_PASS_XP, 'social_share').catch(function(){});
+  addPassXP(SHARE_REWARD_PASS_XP, 'social_share').catch(function(e){ dbg('upsert error:', e); });
 
   showToast('🎉 Thanks for sharing! +' + SHARE_REWARD_PP + ' PP +' + SHARE_REWARD_PASS_XP + ' Pass XP!', 4000);
 
@@ -36939,5 +36966,33 @@ async function checkDailyBonus(userId) {
   }
   
   return { awarded: true, amount: bonusAmount, newTotal: newTotal };
+}
+
+
+
+function loadSidebarNews() {
+  var widget = el('sidebar-news-container');
+  if (!widget) {
+    console.error('[loadSidebarNews] Widget not found!');
+    return;
+  }
+  
+  dbg('[loadSidebarNews] Loading news...');
+  var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
+  
+  dbg('[loadSidebarNews] Result:', res);
+  
+  if (res.error || !res.data || !res.data.length) {
+    widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
+    return;
+  }
+  
+  widget.innerHTML = '';
+  res.data.forEach(function(post){
+    var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    var item = makeEl('div', {class:'news-item'});
+    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.content || 'No content') + '</div>';
+    widget.appendChild(item);
+  });
 }
 

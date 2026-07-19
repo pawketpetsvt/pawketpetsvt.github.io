@@ -9745,7 +9745,6 @@ body.night-mode .btn-outline:hover {
   /* Responsive Grids */
   .pets-grid,
   .mypets-grid,
-  .shop-grid,
   .badges-grid,
   .leaderboard-list {
     grid-template-columns: 1fr !important;
@@ -18314,4 +18313,124 @@ body.guest::after {
 /* Make screenshots show a zoom cursor */
 .landing-v2-screenshots img {
   cursor: zoom-in !important;
+}
+
+/* ── EQUIPMENT SHOP GRID — matches item shop layout ─────────────────────── */
+#equipment-shop-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
+  gap: 24px !important;
+  margin-top: 20px !important;
+}
+
+/* ── NIGHT MODE: FISHING GAME ──────────────────────────────────────────── */
+body.night-mode .fishing-spot-btn,
+body.night-mode .fishing-bait-btn {
+  background: rgba(153,102,255,0.2) !important;
+  border-color: rgba(153,102,255,0.4) !important;
+  color: #e8d5ff !important;
+}
+body.night-mode .fishing-spot-btn.selected,
+body.night-mode .fishing-bait-btn.selected {
+  background: var(--purple) !important;
+  color: #fff !important;
+}
+body.night-mode #fishing-btn {
+  background: linear-gradient(135deg, #6644aa, #9966ff) !important;
+  color: #fff !important;
+}
+body.night-mode .pond-area {
+  background: linear-gradient(180deg, #1a1a3e 0%, #0d2137 100%) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+}
+body.night-mode .fishing-session-stats {
+  background: rgba(30,20,60,0.8) !important;
+  color: #e8d5ff !important;
+}
+body.night-mode #fishing-timing-wrap {
+  background: rgba(30,20,60,0.9) !important;
+}
+
+/* ── NIGHT MODE: COMPANION CHAT BUBBLE ──────────────────────────────────── */
+body.night-mode #companion-buddy .companion-speech,
+body.night-mode .companion-speech {
+  background: rgba(30,20,60,0.95) !important;
+  color: #e8d5ff !important;
+  border-color: rgba(153,102,255,0.4) !important;
+}
+body.night-mode #companion-buddy .companion-speech * {
+  color: #e8d5ff !important;
+}
+
+/* ── NIGHT MODE: GUILD SECTION ───────────────────────────────────────────── */
+body.night-mode .guild-card,
+body.night-mode #section-guild .card,
+body.night-mode .guild-info-card {
+  background: rgba(30,20,60,0.85) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+  color: #e8d5ff !important;
+}
+body.night-mode .guild-empty-state,
+body.night-mode .guild-browse-empty {
+  background: rgba(30,20,60,0.85) !important;
+  color: #e8d5ff !important;
+}
+
+/* ── NIGHT MODE: NEWS SECTION ───────────────────────────────────────────── */
+body.night-mode .news-card,
+body.night-mode .news-post,
+body.night-mode #section-news .card {
+  background: rgba(30,20,60,0.85) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+  color: #e8d5ff !important;
+}
+body.night-mode .news-post h3,
+body.night-mode .news-card h3 {
+  color: var(--purple-light) !important;
+}
+
+/* ── NIGHT MODE: PET CARDS ──────────────────────────────────────────────── */
+body.night-mode .pet-card {
+  overflow: hidden !important;
+}
+body.night-mode .pet-card-banner {
+  border-radius: 12px 12px 0 0 !important;
+  overflow: hidden !important;
+}
+
+/* ── NIGHT MODE: GENERAL WHITE CARD BACKGROUNDS ─────────────────────────── */
+body.night-mode .card,
+body.night-mode .form-card,
+body.night-mode .stat-card,
+body.night-mode .info-card {
+  background: rgba(30,20,60,0.85) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+}
+
+/* ── PET CARD BORDER RADIUS FIX ─────────────────────────────────────────── */
+.pet-card {
+  overflow: hidden !important;
+  border-radius: var(--radius-xl) !important;
+}
+.pet-card-banner {
+  border-radius: 0 !important;
+  margin: -1px !important;
+}
+.pet-card .pet-avatar-wrap {
+  overflow: hidden !important;
+}
+
+/* ── EXPEDITION SPEED BUTTONS ─────────────────────────────────────────────── */
+.expedition-speed-btn {
+  transition: all 0.15s ease;
+  font-family: 'Fredoka', cursive !important;
+}
+.expedition-speed-btn:hover {
+  background: rgba(153,102,255,0.15) !important;
+  border-color: var(--purple) !important;
+}
+body.night-mode .expedition-speed-btn {
+  background: rgba(30,20,60,0.6) !important;
+  color: #e8d5ff !important;
+  border-color: rgba(153,102,255,0.3) !important;
 }
