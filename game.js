@@ -2141,14 +2141,38 @@ async function initApp() {
     return;
   }
 
-  // Check if user is coming from password reset email
+  // Register auth state listener FIRST — before anything else.
+  // This ensures PASSWORD_RECOVERY event is caught even when
+  // Supabase processes the hash tokens immediately on load.
+  supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
+    if (event === 'PASSWORD_RECOVERY') {
+      // Supabase has established a session from the reset link.
+      // Show the reset password form — updateUser() will now work.
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      // Don't redirect if we're in the middle of a password reset
+      if (el('reset-password-gate') && el('reset-password-gate').style.display === 'block') return;
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
+  });
+
+  // Check if user is coming from password reset email.
+  // Show the gate immediately for UI, but the session is established
+  // by onAuthStateChange above — don't return early.
   var hash = window.location.hash;
   if (hash && hash.includes('type=recovery')) {
-    dbg('Password recovery mode detected');
+    dbg('Password recovery mode detected — waiting for session via onAuthStateChange');
     el('auth-gate').style.display = 'none';
     el('reset-password-gate').style.display = 'block';
     el('app-content').style.display = 'none';
-    return;
+    return; // onAuthStateChange will handle the rest
   }
   
   var session = await requireLogin();
@@ -2160,22 +2184,6 @@ async function initApp() {
 
   // Check for streamer landing page parameter
   streamerLanding_init();
-
-  // Set up auth state listener
-  supabaseClient.auth.onAuthStateChange(function(event, session) {
-    dbg('Auth state changed:', event);
-    if (event === 'PASSWORD_RECOVERY') {
-      el('auth-gate').style.display = 'none';
-      el('reset-password-gate').style.display = 'block';
-      el('app-content').style.display = 'none';
-    } else if (event === 'SIGNED_IN' && session) {
-      setTimeout(function() {
-        showApp(session.user);
-      }, 100);
-    } else if (event === 'SIGNED_OUT') {
-      showAuth();
-    }
-  });
 }
 
 function cleanupSpookyEffects() {
@@ -2301,10 +2309,28 @@ async function initApp() {
     return;
   }
 
+  // Register auth state listener FIRST so PASSWORD_RECOVERY is caught
+  // when Supabase processes hash tokens from the reset email link.
+  supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
+    if (event === 'PASSWORD_RECOVERY') {
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      if (el('reset-password-gate') && el('reset-password-gate').style.display === 'block') return;
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
+  });
+
   // Check if user is coming from password reset email
   var hash = window.location.hash;
   if (hash && hash.includes('type=recovery')) {
-    dbg('Password recovery mode detected');
+    dbg('Password recovery mode detected — session handled via onAuthStateChange');
     el('auth-gate').style.display = 'none';
     el('reset-password-gate').style.display = 'block';
     el('app-content').style.display = 'none';
@@ -2320,22 +2346,6 @@ async function initApp() {
 
   // Check for streamer landing page parameter
   streamerLanding_init();
-
-  // Set up auth state listener
-  supabaseClient.auth.onAuthStateChange(function(event, session) {
-    dbg('Auth state changed:', event);
-    if (event === 'PASSWORD_RECOVERY') {
-      el('auth-gate').style.display = 'none';
-      el('reset-password-gate').style.display = 'block';
-      el('app-content').style.display = 'none';
-    } else if (event === 'SIGNED_IN' && session) {
-      setTimeout(function() {
-        showApp(session.user);
-      }, 100);
-    } else if (event === 'SIGNED_OUT') {
-      showAuth();
-    }
-  });
 }
 
 async function showApp(user) {
@@ -18758,6 +18768,11 @@ var dayNightCycle = {
   },
   
   checkTimeAndApplyTheme: function() {
+    // Never apply night mode on the guest/landing page
+    if (document.body.classList.contains('guest')) {
+      this.enableDayMode();
+      return;
+    }
     var hour = new Date().getHours();
     var shouldBeNight = hour >= 18 || hour < 6; // 6 PM to 6 AM
     
@@ -18769,6 +18784,8 @@ var dayNightCycle = {
   },
   
   enableNightMode: function() {
+    // Never apply night mode on the guest/landing page
+    if (document.body.classList.contains('guest')) return;
     document.body.classList.add('night-mode');
     this.isNightMode = true;
     dbg('🌙 Night mode enabled');

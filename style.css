@@ -18442,3 +18442,143 @@ body.guest.night-mode .navbar {
   background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
   box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NIGHT MODE UI FIXES — appended last to win cascade
+══════════════════════════════════════════════════════════════════════════ */
+
+/* ── LEFT NAV BUTTONS — more visible in night mode ──────────────────────── */
+body.night-mode .sidebar-nav-btn {
+  background: rgba(153,102,255,0.18) !important;
+  border-color: rgba(153,102,255,0.35) !important;
+  color: #d4b8ff !important;
+}
+body.night-mode .sidebar-nav-btn:hover {
+  background: rgba(153,102,255,0.32) !important;
+  border-color: rgba(153,102,255,0.6) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-nav-btn.active {
+  background: linear-gradient(135deg, rgba(153,102,255,0.55), rgba(255,102,204,0.45)) !important;
+  border-color: rgba(153,102,255,0.7) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-nav-btn.child {
+  background: rgba(153,102,255,0.12) !important;
+  border-color: rgba(153,102,255,0.25) !important;
+  color: #c4a8f5 !important;
+}
+body.night-mode .sidebar-nav-btn.child:hover {
+  background: rgba(153,102,255,0.28) !important;
+  color: #fff !important;
+}
+body.night-mode .nav-group-header {
+  color: #d4b8ff !important;
+}
+body.night-mode .nav-group-header:hover {
+  background: rgba(153,102,255,0.2) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-section {
+  border-color: rgba(153,102,255,0.3) !important;
+  background: rgba(20,12,40,0.6) !important;
+}
+
+/* ── TODAY IN PAWKETPETS — softer border and background ─────────────────── */
+body.night-mode .today-card,
+body.night-mode #today-card-mount > div {
+  background: rgba(28,18,52,0.92) !important;
+  border-color: rgba(153,102,255,0.35) !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
+  color: #d4b8ff !important;
+}
+body.night-mode .today-card *,
+body.night-mode #today-card-mount * {
+  border-color: rgba(153,102,255,0.2) !important;
+}
+
+/* ── MELON REQUESTS — readable in night mode ─────────────────────────────── */
+body.night-mode .melon-req-item {
+  background: rgba(28,18,52,0.85) !important;
+  border-color: rgba(153,102,255,0.25) !important;
+  color: #d4b8ff !important;
+}
+body.night-mode .melon-req-item * {
+  color: #c4a8f5 !important;
+}
+body.night-mode .melon-req-item .melon-req-reward {
+  color: #ffd700 !important;
+}
+body.night-mode .melon-requests-widget .melon-req-header {
+  color: #c4a8f5 !important;
+}
+
+/* ── DID YOU KNOW / TIP BOX — softer in night mode ─────────────────────── */
+body.night-mode .did-you-know,
+body.night-mode .tip-box {
+  background: rgba(28,18,52,0.9) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+  color: #d4b8ff !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NIGHT MODE UI FIXES — nav, today card, melon requests
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Nav buttons — more visible in night mode */
+body.night-mode .sidebar-nav-btn {
+  background: rgba(80,50,140,0.5) !important;
+  border: 1px solid rgba(153,102,255,0.5) !important;
+  color: #ddc8ff !important;
+}
+body.night-mode .sidebar-nav-btn:hover {
+  background: rgba(120,80,200,0.65) !important;
+  border-color: rgba(180,140,255,0.7) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-nav-btn.active {
+  background: linear-gradient(135deg, rgba(153,102,255,0.7), rgba(255,102,204,0.55)) !important;
+  border-color: rgba(180,140,255,0.8) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-nav-btn.child {
+  background: rgba(60,35,110,0.6) !important;
+  border: 1px solid rgba(130,90,220,0.45) !important;
+  color: #ccb0ff !important;
+}
+body.night-mode .sidebar-nav-btn.child:hover {
+  background: rgba(100,65,180,0.7) !important;
+  border-color: rgba(180,140,255,0.65) !important;
+  color: #fff !important;
+}
+body.night-mode .sidebar-section {
+  border-color: rgba(120,80,200,0.4) !important;
+  box-shadow: 0 0 0 2px rgba(100,60,180,0.3), 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+
+/* Today in PawketPets card — soften the bright border */
+body.night-mode .today-widget,
+body.night-mode #today-card-mount > div {
+  border: 1px solid rgba(100,70,180,0.4) !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.4) !important;
+}
+body.night-mode .today-widget-inner,
+body.night-mode .today-card {
+  border-color: rgba(100,70,180,0.3) !important;
+}
+
+/* Melon requests — dark background, legible text */
+body.night-mode .melon-req-item,
+body.night-mode .melon-request-card {
+  background: rgba(40,25,80,0.75) !important;
+  border-color: rgba(120,80,200,0.35) !important;
+  color: #ddc8ff !important;
+}
+body.night-mode .melon-req-item *,
+body.night-mode .melon-request-card * {
+  color: #ccb8f0 !important;
+}
+body.night-mode .melon-req-pp,
+body.night-mode .melon-req-reward {
+  color: #ffd700 !important;
+}
