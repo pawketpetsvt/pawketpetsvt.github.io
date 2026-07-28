@@ -803,7 +803,11 @@ function showNextToast() {
     default: icon = 'ⓘ'; break;
   }
   
-  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + escapeHtml(toast.message) + '</span>';
+  var safeMsg = escapeHtml(toast.message);
+  // Replace PP amounts with coin icon for visual flair
+  safeMsg = safeMsg.replace(/(\+\d[\d,]*)\s*PP/g, '$1 <img src="images/icons/pawketpoint.png" alt="PP" style="width:14px;height:14px;vertical-align:middle;margin:0 1px;object-fit:contain;">');
+  safeMsg = safeMsg.replace(/(\d[\d,]+)\s*PP(?!\s*icon)/g, '$1 <img src="images/icons/pawketpoint.png" alt="PP" style="width:14px;height:14px;vertical-align:middle;margin:0 1px;object-fit:contain;">');
+  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + safeMsg + '</span>';
   
   document.body.appendChild(toastEl);
   
@@ -1342,16 +1346,17 @@ function updateAllPoints(pts) {
   
   currentPoints = pts;
   var str = pts + ' PP';
+  var ppIconHtml = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;object-fit:contain;"> ';
   ['adopt-points','mypets-points','shop-points','games-points','redeem-points'].forEach(function(id){
-    var e = el(id); if (e) e.textContent = str;
+    var e = el(id); if (e) e.innerHTML = ppIconHtml + pts.toLocaleString() + ' PP';
   });
   
   var navPoints = el('nav-points');
-  if (navPoints) navPoints.innerHTML = '&#129689; ' + pts + ' PP';
+  if (navPoints) navPoints.innerHTML = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:18px;height:18px;vertical-align:middle;margin-right:4px;object-fit:contain;"> ' + pts.toLocaleString() + ' PP';
   
   // Update sidebar points
   var sidebarPoints = document.getElementById('sidebar-points');
-  if (sidebarPoints) sidebarPoints.textContent = pts.toLocaleString() + ' PP';
+  if (sidebarPoints) sidebarPoints.innerHTML = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:16px;height:16px;vertical-align:middle;margin-right:3px;object-fit:contain;"> ' + pts.toLocaleString() + ' PP';
 
   maybeGlitchPointsDisplay(pts);
 }
@@ -1695,272 +1700,10 @@ function showTab(tab) {
 // toggleNotificationDropdown — shows/hides the dropdown
 // ══════════════════════════════════════════════════════════════════════════
 
-async function createNotification(userId, type, title, message, actionTab) {
-  if (!userId) return;
-  try {
-    await supabaseClient.from('user_notifications').insert({
-      user_id:    userId,
-      type:       type || 'general',
-      title:      title || '',
-      message:    message || '',
-      action_tab: actionTab || null,
-      is_read:    false,
-      created_at: new Date().toISOString()
-    });
-    // Update the bell badge
-    await updateNotificationBadge();
-  } catch(e) {
-    // Notification failures are non-critical — log but do not surface
-    console.error('[Notif] createNotification failed:', e);
-  }
-}
-
-async function updateNotificationBadge() {
-  if (!currentUser) return;
-  try {
-    var res = await supabaseClient
-      .from('user_notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', currentUser.id)
-      .eq('is_read', false);
-    var count = res.count || 0;
-    var badge = document.getElementById('notification-badge');
-    var bell  = document.getElementById('notification-bell');
-    if (badge) {
-      badge.textContent = count > 9 ? '9+' : count;
-      badge.style.display = count > 0 ? 'flex' : 'none';
-    }
-    if (bell) bell.style.display = currentUser ? 'flex' : 'none';
-    return count;
-  } catch(e) { return 0; }
-}
-
-async function toggleNotificationDropdown() {
-  var dropdown = document.getElementById('notification-dropdown');
-  if (!dropdown) {
-    // Create dropdown dynamically
-    dropdown = document.createElement('div');
-    dropdown.id = 'notification-dropdown';
-    dropdown.style.cssText = [
-      'position:fixed','top:52px','right:120px',
-      'width:320px','max-height:420px',
-      'background:var(--white)','border-radius:16px',
-      'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
-      'border:1px solid rgba(153,102,255,0.2)',
-      'z-index:8000','overflow:hidden',
-      'display:flex','flex-direction:column'
-    ].join(';');
-    document.body.appendChild(dropdown);
-    // Close on outside click
-    setTimeout(function() {
-      document.addEventListener('click', function closeDD(e) {
-        if (!dropdown.contains(e.target) && e.target.id !== 'notification-bell') {
-          dropdown.remove();
-          document.removeEventListener('click', closeDD);
-        }
-      });
-    }, 10);
-  } else {
-    dropdown.remove();
-    return;
-  }
-
-  dropdown.innerHTML = '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.1);display:flex;justify-content:space-between;align-items:center;">' +
-    '<span style="font-weight:700;color:var(--purple-dark);">🔔 Notifications</span>' +
-    '<button onclick="markAllNotificationsRead()" style="background:none;border:none;font-size:0.72rem;color:var(--purple);cursor:pointer;">Mark all read</button>' +
-  '</div>' +
-  '<div id="notification-list" style="overflow-y:auto;flex:1;"><div style="padding:20px;text-align:center;color:var(--text-light);">Loading...</div></div>';
-
-  // Load notifications
-  try {
-    var res = await supabaseClient
-      .from('user_notifications')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    var list = document.getElementById('notification-list');
-    if (!list) return;
-
-    if (!res.data || res.data.length === 0) {
-      list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-light);">No notifications yet! 🌸</div>';
-      return;
-    }
-
-    // Set up click delegation for notification rows
-    list.addEventListener('click', function(e) {
-      var row = e.target.closest('[data-action]');
-      if (row) {
-        var action = row.getAttribute('data-action').replace('tab:', '');
-        showTab(action);
-        var dd = document.getElementById('notification-dropdown');
-        if (dd) dd.remove();
-      }
-    });
-
-    list.innerHTML = res.data.map(function(n) {
-      var timeAgo = notifTimeAgo(n.created_at);
-      return '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.07);opacity:' + (n.is_read ? '0.6' : '1') + ';cursor:' + (n.action_tab ? 'pointer' : 'default') + ';transition:background 0.15s;" ' +
-        (n.action_tab ? (' data-action="' + n.action_tab + '"') : '') +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
-          '<div>' +
-            '<div style="font-size:0.82rem;font-weight:' + (n.is_read ? '400' : '700') + ';color:var(--text);margin-bottom:2px;">' + escapeHtml(n.title || '') + '</div>' +
-            '<div style="font-size:0.74rem;color:var(--text-light);line-height:1.4;">' + escapeHtml((n.message || '').substring(0, 100)) + '</div>' +
-          '</div>' +
-          '<div style="font-size:0.65rem;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + timeAgo + '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    // Mark all as read
-    await supabaseClient
-      .from('user_notifications')
-      .update({ is_read: true })
-      .eq('user_id', currentUser.id)
-      .eq('is_read', false);
-    await updateNotificationBadge();
-  } catch(e) {
-    var list2 = document.getElementById('notification-list');
-    if (list2) list2.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-light);">Could not load notifications.</div>';
-  }
-}
-
-async function markAllNotificationsRead() {
-  if (!currentUser) return;
-  await supabaseClient.from('user_notifications').update({ is_read: true }).eq('user_id', currentUser.id);
-  await updateNotificationBadge();
-  var dropdown = document.getElementById('notification-dropdown');
-  if (dropdown) dropdown.remove();
-}
-
-function notifNavClick(el) {
-  var tab = el && el.getAttribute ? el.getAttribute('onclick') : null;
-  // Extract tab name from onclick string
-  var match = (el.outerHTML || '').match(/notifNavClick.*?'([^']+)'/);
-  // Simpler: use data approach — just close dropdown and navigate
-  var dropdown = document.getElementById('notification-dropdown');
-  if (dropdown) dropdown.remove();
-}
-
-function notifTimeAgo(isoStr) {
-  if (!isoStr) return '';
-  var diff = Date.now() - new Date(isoStr).getTime();
-  var mins = Math.floor(diff / 60000);
-  if (mins < 1)   return 'just now';
-  if (mins < 60)  return mins + 'm ago';
-  var hrs = Math.floor(mins / 60);
-  if (hrs < 24)   return hrs + 'h ago';
-  return Math.floor(hrs / 24) + 'd ago';
-}
-
 // ══════════════════════════════════════════════════════════════════════════
 // STATISTICS TAB
 // Shows personal stats + global community stats
 // ══════════════════════════════════════════════════════════════════════════
-
-async function loadStatistics() {
-  var container = document.getElementById('stats-container');
-  if (!container) return;
-  container.innerHTML = '<div class="spinner"></div>';
-
-  try {
-    // Personal stats
-    var playerRes = await supabaseClient
-      .from('players')
-      .select('pawketpoints, login_streak, skin_keys, referral_count')
-      .eq('id', currentUser.id)
-      .single();
-
-    // Battle history
-    var battleRes = await supabaseClient
-      .from('battle_history')
-      .select('victory')
-      .eq('user_id', currentUser.id);
-
-    // Pets
-    var petRes = await supabaseClient
-      .from('user_pets')
-      .select('id, level, nickname, pets(name)')
-      .eq('user_id', currentUser.id);
-
-    // Badges earned
-    var badgeRes = await supabaseClient
-      .from('user_badges')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', currentUser.id);
-
-    // Fish caught
-    var fishRes = await supabaseClient
-      .from('user_fish_collection')
-      .select('fish_id, catch_count')
-      .eq('user_id', currentUser.id);
-
-    // Global stats
-    var globalRes = await supabaseClient
-      .from('global_stats')
-      .select('stat_key, stat_value');
-
-    var p           = (playerRes.data) || {};
-    var battles     = (battleRes.data) || [];
-    var pets        = (petRes.data) || [];
-    var badgeCount  = badgeRes.count || 0;
-    var fishCaught  = (fishRes.data) || [];
-    var globalStats = {};
-    ((globalRes.data) || []).forEach(function(r) { globalStats[r.stat_key] = r.stat_value; });
-
-    var battlesWon  = battles.filter(function(b) { return b.victory; }).length;
-    var totalFish   = fishCaught.reduce(function(s,f) { return s + (f.catch_count||0); }, 0);
-    var uniqueFish  = fishCaught.length;
-    var highestPet  = pets.reduce(function(best, p) { return (p.level||0) > (best.level||0) ? p : best; }, {});
-
-    var personalRows = [
-      { icon:'💰', label:'Total PawketPoints',     value: (p.pawketpoints||0).toLocaleString() + ' PP' },
-      { icon:'🔥', label:'Login Streak',            value: (p.login_streak||0) + ' days' },
-      { icon:'🗝️',  label:'Skin Keys',              value: p.skin_keys||0 },
-      { icon:'⚔️', label:'Battles Won',             value: battlesWon + ' / ' + battles.length },
-      { icon:'🐾', label:'Pets Owned',              value: pets.length },
-      { icon:'⭐', label:'Highest Pet Level',       value: highestPet.level ? 'Lv.' + highestPet.level + ' ' + escapeHtml(highestPet.nickname || (highestPet.pets && highestPet.pets.name) || '?') : 'None' },
-      { icon:'🏅', label:'Badges Earned',           value: badgeCount },
-      { icon:'🎣', label:'Fish Caught',             value: totalFish + ' total, ' + uniqueFish + ' unique species' },
-      { icon:'🌟', label:'Referrals',               value: (p.referral_count||0) + ' players' },
-    ];
-
-    var globalRows = [
-      { icon:'⚔️', label:'Total Battles Fought',   value: (globalStats.total_battles_won||0).toLocaleString() },
-      { icon:'💀', label:'Bosses Slain',            value: (globalStats.total_bosses_slain||0).toLocaleString() },
-      { icon:'🐾', label:'Pets Adopted',            value: (globalStats.total_pets_adopted||0).toLocaleString() },
-      { icon:'💰', label:'PP Earned (all players)', value: (globalStats.total_pp_earned||0).toLocaleString() },
-      { icon:'🛍️', label:'Items Purchased',         value: (globalStats.total_items_purchased||0).toLocaleString() },
-      { icon:'🎮', label:'Minigames Played',        value: (globalStats.total_minigames_played||0).toLocaleString() },
-    ];
-
-    function makeStatCard(rows) {
-      return rows.map(function(r) {
-        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(153,102,255,0.08);">' +
-          '<span style="color:var(--text-light);font-size:0.85rem;">' + r.icon + ' ' + r.label + '</span>' +
-          '<span style="font-weight:700;color:var(--purple-dark);font-size:0.9rem;">' + r.value + '</span>' +
-        '</div>';
-      }).join('');
-    }
-
-    container.innerHTML =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">' +
-        '<div style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.18);border-radius:16px;padding:16px 18px;">' +
-          '<div style="font-size:0.9rem;font-weight:700;color:var(--purple-dark);margin-bottom:4px;">📊 Your Stats</div>' +
-          makeStatCard(personalRows) +
-        '</div>' +
-        '<div style="background:rgba(255,102,178,0.05);border:1px solid rgba(255,102,178,0.18);border-radius:16px;padding:16px 18px;">' +
-          '<div style="font-size:0.9rem;font-weight:700;color:#e0245e;margin-bottom:4px;">🌍 Community Stats</div>' +
-          makeStatCard(globalRows) +
-        '</div>' +
-      '</div>';
-
-  } catch(e) {
-    container.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-light);">Could not load statistics. Please try again.</div>';
-    console.error('[Stats] loadStatistics error:', e);
-  }
-}
 
 // ══════════════════════════════════════════════════════════════════════════
 // NEWS TAB
@@ -2003,39 +1746,6 @@ async function loadNews() {
 // ══════════════════════════════════════════════════════════════════════════
 // FORUM — loadForumCategories + initForum
 // ══════════════════════════════════════════════════════════════════════════
-
-async function loadForumCategories() {
-  var list = document.getElementById('forum-categories-list');
-  if (!list) return;
-  list.innerHTML = '<div class="spinner"></div>';
-  try {
-    var { data, error } = await supabaseClient
-      .from('forum_categories')
-      .select('*')
-      .order('display_order', { ascending: true });
-
-    if (error) throw error;
-    if (!data || data.length === 0) {
-      list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📂</div><p>No forum categories yet. Please run the SQL migration!</p></div>';
-      console.warn('No categories found in database!');
-      return;
-    }
-
-    list.innerHTML = data.map(function(cat) {
-      return '<div class="forum-category-card" onclick="loadForumCategory(' + cat.id + ', ' + JSON.stringify(escapeHtml(cat.name)) + ')">' +
-        '<div class="forum-cat-icon">' + (cat.icon || '💬') + '</div>' +
-        '<div class="forum-cat-body">' +
-          '<div class="forum-cat-name">' + escapeHtml(cat.name) + '</div>' +
-          '<div class="forum-cat-desc">' + escapeHtml(cat.description || '') + '</div>' +
-        '</div>' +
-        '<div class="forum-cat-arrow">›</div>' +
-      '</div>';
-    }).join('');
-  } catch(e) {
-    list.innerHTML = '<div class="forum-empty-state"><p>Could not load forum. Please try again.</p></div>';
-    console.error('[Forum] loadForumCategories error:', e);
-  }
-}
 
 function initForum() {
   loadForumCategories();
@@ -2122,16 +1832,6 @@ function loadTab(tab) {
 }
 
 // ── AUTH GATE ────────────────────────────
-function showAuthSection(which) {
-  document.querySelectorAll('#auth-gate .page-section').forEach(function(s){ s.classList.remove('active'); });
-  el('section-' + which).classList.add('active');
-  return false;
-}
-
-function showForgotPassword() {
-  showAuthSection('forgot');
-  return false;
-}
 
 async function initApp() {
   // Guard: wait for Supabase client to be ready
@@ -2290,16 +1990,6 @@ function loadTab(tab) {
 }
 
 // ── AUTH GATE ────────────────────────────
-function showAuthSection(which) {
-  document.querySelectorAll('#auth-gate .page-section').forEach(function(s){ s.classList.remove('active'); });
-  el('section-' + which).classList.add('active');
-  return false;
-}
-
-function showForgotPassword() {
-  showAuthSection('forgot');
-  return false;
-}
 
 async function initApp() {
   // Guard: wait for Supabase client to be ready
@@ -2465,14 +2155,8 @@ async function showApp(user) {
   // Check tutorial status and start if needed
   await checkTutorialStatus();
   
-  // Initialize daily fortune AFTER tutorial (only for logged-in users)
-  if (typeof dailyFortune !== 'undefined' && dailyFortune.init) {
-    // Check if tutorial is completed before showing fortune
-    var tutorialDone = playerSettings.tutorial_completed;
-    if (tutorialDone) {
-      dailyFortune.init();
-    }
-  }
+  // Daily fortune disabled — caused popup conflicts with login bonus
+  // if (typeof dailyFortune !== 'undefined' && dailyFortune.init) { dailyFortune.init(); }
   
   // Check sidebar stream status
   await checkSidebarStreamStatus();
@@ -2496,6 +2180,8 @@ async function showApp(user) {
       el('bonus-amount').textContent = bonus.amount + ' PP';
       el('bonus-modal').classList.add('show');
       localStorage.setItem(modalKey, '1');
+      // Award PassXP for daily login
+      if (typeof addPassXP === 'function') addPassXP(10, 'daily_login').catch(function(){});
     }
     updateAllPoints(bonus.newTotal);
   }
@@ -2932,7 +2618,7 @@ async function handleLogout() {
   await supabaseClient.auth.signOut();
   location.reload();
 }
-function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
+async function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
 
 // ── LOGIN / REGISTER ─────────────────────
 // ══════════════════════════════════════════════════════════════════════════
@@ -2947,6 +2633,15 @@ async function loginUser(email, password) {
   if (error) throw error;
   return data;
 }
+
+function getReferralFromURL() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var ref = params.get('ref') || params.get('referral') || params.get('invite');
+    return ref ? ref.trim().toLowerCase() : null;
+  } catch(e) { return null; }
+}
+
 
 async function registerUser(email, password, username) {
   // Capture ?ref= param before registration
@@ -6506,16 +6201,20 @@ async function feedWithItem(petId, itemId, itemName) {
   var reactionType = feedResult.reaction_type || 'normal';
   var reactionMsg = '';
   
+  var petType = (pet && pet.pet_type) ? pet.pet_type : null;
   if (reactionType === 'loved') {
     reactionMsg = '💖 ' + escapeHtml(itemName) + '! (1.75x bonus!)';
-    // SCRAPBOOK: Favorite food discovered
     scrapbook_addMemory(petId, 'favorite_food', { food: itemName });
+    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'loved', itemName).catch(function(){});
   } else if (reactionType === 'liked') {
     reactionMsg = '😊 ' + escapeHtml(itemName) + '! (1.25x bonus)';
+    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'liked', itemName).catch(function(){});
   } else if (reactionType === 'disliked') {
     reactionMsg = '😐 ' + escapeHtml(itemName) + '... (0.75x effect)';
+    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'disliked', itemName).catch(function(){});
   } else if (reactionType === 'hated') {
     reactionMsg = '😖 Ew, ' + escapeHtml(itemName) + '! (0.5x effect)';
+    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'hated', itemName).catch(function(){});
   } else {
     reactionMsg = '🍽️ Ate ' + escapeHtml(itemName) + '!';
   }
@@ -9124,28 +8823,6 @@ var _fishCollection = {};
 var _fishingRodLevel = 1; // 1=basic(8), 2=nice(12), 3=pro(18), 4=legendary(25)
 var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra casts per rod level
 
-function fishingGetRodCasts() {
-  var base = FISH_SPOTS[_fishingSpot] ? FISH_SPOTS[_fishingSpot].baseCasts : 8;
-  return base + (_rodCastsBonus[_fishingRodLevel] || 0);
-}
-
-function fishingSelectSpot(spot) {
-  _fishingSpot = spot;
-  fishingCasts = fishingGetRodCasts();
-  el('fishing-casts').textContent = fishingCasts;
-  // Update spot UI
-  document.querySelectorAll('.fishing-spot-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.spot===spot);
-  });
-}
-
-function fishingSelectBait(bait) {
-  _fishingBait = bait;
-  document.querySelectorAll('.fishing-bait-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.bait===bait);
-  });
-}
-
 
 // ══ FISHING SYSTEM (full overhaul) ══
 
@@ -9176,31 +8853,6 @@ async function fishingLoadRodLevel() {
 }
 
 async function fishingSaveRodLevel() { /* rod level is written by fishing_upgrade_rod RPC */ }
-
-function fishingGetRodCasts() {
-  // Kept for compatibility but no longer limits — returns display cast count
-  var base = (FISH_SPOTS[_fishingSpot] && FISH_SPOTS[_fishingSpot].baseCasts) || 8;
-  return base + (_rodCastsBonus[_fishingRodLevel] || 0);
-}
-
-function fishingSelectSpot(spot) {
-  _fishingSpot = spot;
-  document.querySelectorAll('.fishing-spot-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.spot === spot);
-  });
-  fishingUpdateAreaStatus();
-}
-
-function fishingSelectBait(bait) {
-  _fishingBait = bait;
-  document.querySelectorAll('.fishing-bait-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.bait === bait);
-  });
-  // Show junk rate for current selection
-  var rate = (FISHING_JUNK_RATES[_fishingRodLevel] || FISHING_JUNK_RATES[1])[_fishingBait] || 0.45;
-  var junkEl = document.getElementById('fishing-junk-rate');
-  if (junkEl) junkEl.textContent = Math.round(rate * 100) + '% junk chance';
-}
 
 async function fishingLoadCollection() {
   if (!currentUser) return;
@@ -9724,13 +9376,6 @@ var PASS_XP_TOAST_SOURCES = {
 };
 
 // ── Calendar day bonus multiplier ─────────────────────────────────────────────
-function getCalendarBonus(statKey) {
-  var today = new Date().getDay();
-  var schedule = {
-    1: 'minigame_pp', 2: 'battle_xp', 3: 'fishing', 5: 'race', 0: 'pet'
-  };
-  return (schedule[today] === statKey) ? 2.0 : 1.0;
-}
 
 // ── Fishing area completion (DB-backed, idempotent) ───────────────────────────
 async function fishingCheckAreaComplete() {
@@ -9785,42 +9430,6 @@ var AD_POOL = [
     btn:'i have not seen them', fine:'* this ad will not appear again.',
     outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
 ];
-function adpocalypse_pickAd(){
-  var t=AD_POOL.reduce(function(s,a){return s+a.weight;},0),r=Math.random()*t,acc=0;
-  for(var i=0;i<AD_POOL.length;i++){acc+=AD_POOL[i].weight;if(r<acc)return AD_POOL[i];}return AD_POOL[0];
-}
-function adpocalypse_showAd(){
-  if(!_adpocalypseActive||!currentUser)return;
-  var ad=adpocalypse_pickAd(),pos=[{top:'8%',right:'3%'},{bottom:'10%',right:'3%'},{top:'35%',right:'2%'}][Math.floor(Math.random()*3)];
-  var popup=document.createElement('div');
-  popup.className='adpoc-popup'+(ad.id==='ad_horror'?' adpoc-horror':'');
-  popup.style.cssText=Object.keys(pos).map(function(k){return k+':'+pos[k];}).join(';');
-  popup.innerHTML='<div class="adpoc-titlebar"><span>'+ad.title+'</span><button class="adpoc-close" onclick="adpocalypse_closePopup(this.parentElement.parentElement)">×</button></div>'+
-    '<div class="adpoc-body"><div class="adpoc-headline">'+ad.headline+'</div><div class="adpoc-sub">'+ad.sub+'</div>'+
-    '<button class="adpoc-btn">'+ad.btn+'</button><div class="adpoc-fine">'+ad.fine+'</div></div>';
-  popup.querySelector('.adpoc-btn').addEventListener('click',function(){ad.outcome();adpocalypse_closePopup(popup);});
-  document.body.appendChild(popup);
-  setTimeout(function(){popup.classList.add('adpoc-show');},50);
-  setTimeout(function(){adpocalypse_closePopup(popup);},12000);
-}
-function adpocalypse_closePopup(el){
-  if(!el||!el.parentNode)return;
-  el.classList.remove('adpoc-show');
-  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},400);
-}
-function adpocalypse_start(){
-  if(_adpocalypseActive)return; _adpocalypseActive=true;
-  showToast('📢 Ad-pocalypse weather! Watch out for ads...',4000);
-  setTimeout(function(){
-    adpocalypse_showAd();
-    _adpocalypseInterval=setInterval(function(){ if(!_adpocalypseActive){clearInterval(_adpocalypseInterval);return;} adpocalypse_showAd(); },25000+Math.random()*15000);
-  },8000);
-}
-function adpocalypse_stop(){
-  _adpocalypseActive=false;
-  if(_adpocalypseInterval){clearInterval(_adpocalypseInterval);_adpocalypseInterval=null;}
-  document.querySelectorAll('.adpoc-popup').forEach(function(el){adpocalypse_closePopup(el);});
-}
 
 // ── Melon spooky shop dialogue pool ───────────────────────────────────────────
 var MELON_SPOOKY_POOL = [
@@ -9835,6 +9444,20 @@ var MELON_SPOOKY_POOL = [
 ];
 
 // ── expeditionNarrativeClose helper ───────────────────────────────────────────
+function copyToken(text) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(function() {
+    showToast('Copied to clipboard!', 2000);
+  }).catch(function() {
+    showToast('Could not copy — please copy manually.', 3000);
+  });
+}
+
+function closeCreepyPopup() {
+  var p = document.getElementById('install-popup-3');
+  if (p) p.classList.remove('show');
+}
+
 function expeditionNarrativeClose() {
   var m = document.getElementById('expedition-narrative-modal');
   if (m) m.remove();
@@ -11684,13 +11307,6 @@ var PASS_XP_TOAST_SOURCES = {
 };
 
 // ── Calendar day bonus multiplier ─────────────────────────────────────────────
-function getCalendarBonus(statKey) {
-  var today = new Date().getDay();
-  var schedule = {
-    1: 'minigame_pp', 2: 'battle_xp', 3: 'fishing', 5: 'race', 0: 'pet'
-  };
-  return (schedule[today] === statKey) ? 2.0 : 1.0;
-}
 
 // ── Fishing area completion (DB-backed, idempotent) ───────────────────────────
 async function fishingCheckAreaComplete() {
@@ -11745,42 +11361,6 @@ var AD_POOL = [
     btn:'i have not seen them', fine:'* this ad will not appear again.',
     outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
 ];
-function adpocalypse_pickAd(){
-  var t=AD_POOL.reduce(function(s,a){return s+a.weight;},0),r=Math.random()*t,acc=0;
-  for(var i=0;i<AD_POOL.length;i++){acc+=AD_POOL[i].weight;if(r<acc)return AD_POOL[i];}return AD_POOL[0];
-}
-function adpocalypse_showAd(){
-  if(!_adpocalypseActive||!currentUser)return;
-  var ad=adpocalypse_pickAd(),pos=[{top:'8%',right:'3%'},{bottom:'10%',right:'3%'},{top:'35%',right:'2%'}][Math.floor(Math.random()*3)];
-  var popup=document.createElement('div');
-  popup.className='adpoc-popup'+(ad.id==='ad_horror'?' adpoc-horror':'');
-  popup.style.cssText=Object.keys(pos).map(function(k){return k+':'+pos[k];}).join(';');
-  popup.innerHTML='<div class="adpoc-titlebar"><span>'+ad.title+'</span><button class="adpoc-close" onclick="adpocalypse_closePopup(this.parentElement.parentElement)">×</button></div>'+
-    '<div class="adpoc-body"><div class="adpoc-headline">'+ad.headline+'</div><div class="adpoc-sub">'+ad.sub+'</div>'+
-    '<button class="adpoc-btn">'+ad.btn+'</button><div class="adpoc-fine">'+ad.fine+'</div></div>';
-  popup.querySelector('.adpoc-btn').addEventListener('click',function(){ad.outcome();adpocalypse_closePopup(popup);});
-  document.body.appendChild(popup);
-  setTimeout(function(){popup.classList.add('adpoc-show');},50);
-  setTimeout(function(){adpocalypse_closePopup(popup);},12000);
-}
-function adpocalypse_closePopup(el){
-  if(!el||!el.parentNode)return;
-  el.classList.remove('adpoc-show');
-  setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},400);
-}
-function adpocalypse_start(){
-  if(_adpocalypseActive)return; _adpocalypseActive=true;
-  showToast('📢 Ad-pocalypse weather! Watch out for ads...',4000);
-  setTimeout(function(){
-    adpocalypse_showAd();
-    _adpocalypseInterval=setInterval(function(){ if(!_adpocalypseActive){clearInterval(_adpocalypseInterval);return;} adpocalypse_showAd(); },25000+Math.random()*15000);
-  },8000);
-}
-function adpocalypse_stop(){
-  _adpocalypseActive=false;
-  if(_adpocalypseInterval){clearInterval(_adpocalypseInterval);_adpocalypseInterval=null;}
-  document.querySelectorAll('.adpoc-popup').forEach(function(el){adpocalypse_closePopup(el);});
-}
 
 // ── Melon spooky shop dialogue pool ───────────────────────────────────────────
 var MELON_SPOOKY_POOL = [
@@ -19852,15 +19432,6 @@ var notificationDropdownOpen = false;
 var currentNotifications = [];
 
 // Toggle notification dropdown
-function toggleNotificationDropdown() {
-  var dropdown = document.getElementById('notification-dropdown');
-  
-  if (notificationDropdownOpen) {
-    closeNotificationDropdown();
-  } else {
-    openNotificationDropdown();
-  }
-}
 
 // Open notification dropdown
 async function openNotificationDropdown() {
@@ -20009,23 +19580,6 @@ async function markNotificationRead(notificationId) {
 }
 
 // Mark all notifications as read
-async function markAllNotificationsRead() {
-  if (!currentUser) return;
-  
-  try {
-    await supabaseClient
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', currentUser.id)
-      .eq('is_read', false);
-    
-    await loadNotifications();
-    await updateNotificationBadge();
-    
-  } catch (err) {
-    console.error('Error marking all as read:', err);
-  }
-}
 
 // Update notification badge count
 async function updateNotificationBadge() {
@@ -30724,7 +30278,7 @@ function generateDailyBingo() {
 }
 
 // Save bingo to localStorage
-function saveDailyBingo() {
+async function saveDailyBingo() {
   localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo));
   // Also persist to DB so progress survives localStorage clears
   if (currentUser) {
@@ -37013,3 +36567,17 @@ async function loadSidebarNews() {
   });
 }
 
+
+// ── PawketPass level check (fires after XP is added) ─────────────────────────
+function checkPassLevel(newXP) {
+  // Pass levels: 100xp per level, rewards at each level
+  var newLevel = Math.floor(newXP / 100) + 1;
+  var oldLevel = parseInt(localStorage.getItem('passLevel_' + currentUser.id) || '1');
+  if (newLevel > oldLevel) {
+    localStorage.setItem('passLevel_' + currentUser.id, newLevel);
+    showToast('🎫 PawketPass Level ' + newLevel + '! New rewards available!', 5000, 'var(--purple)');
+    updateBingoProgress('level_up_pet', 1);
+    // Claim any pending pass rewards
+    if (typeof loadPassProgress === 'function') loadPassProgress();
+  }
+}
