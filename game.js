@@ -1694,6 +1694,9 @@ async function initApp() {
 
 async function showApp(user) {
   document.body.classList.remove('guest');
+  // Remove the guest-hide <style> block — its !important rules block layout restore
+  var guestHideStyle = document.getElementById('guest-hide');
+  if (guestHideStyle) guestHideStyle.parentNode.removeChild(guestHideStyle);
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding
