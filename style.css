@@ -12627,15 +12627,7 @@ body[data-theme="dark"] .modal-content {
   }
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
-   SHOP CONTAINER VISIBILITY (FOR TESTING)
-   ══════════════════════════════════════════════════════════════════════════ */
-
-#shop-grid,
-.shop-grid {
-  display: grid !important;
-  visibility: visible !important;
-}
+/* Shop grid display is set in the main .shop-grid rule above */
 
 
 
@@ -18316,13 +18308,7 @@ body.guest::after {
   cursor: zoom-in !important;
 }
 
-/* ── EQUIPMENT SHOP GRID — matches item shop layout ─────────────────────── */
-#equipment-shop-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
-  gap: 24px !important;
-  margin-top: 20px !important;
-}
+/* #equipment-shop-grid inherits from .shop-grid class rule above */
 
 /* ── NIGHT MODE: FISHING GAME ──────────────────────────────────────────── */
 body.night-mode .fishing-spot-btn,
