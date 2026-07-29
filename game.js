@@ -1535,45 +1535,32 @@ function initLeaderboardTab() {
 
 // ── TAB NAVIGATION ───────────────────────
 
-// ── NAV GROUP HOVER/TOGGLE SYSTEM ────────────────────────────────────────────
+// ── NAV GROUP SYSTEM ─────────────────────────────────────────────────────────
 var _navGroupTimers = {};
-
-function navGroupOpen(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
-  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
-  if (g) g.classList.add('open');
-  if (gm) gm.classList.add('open');
+function navGroupOpen(id) {
+  var a = document.getElementById('navgroup-' + id);
+  var b = document.getElementById('navgroup-' + id + '-mobile');
+  if (a) a.classList.add('open');
+  if (b) b.classList.add('open');
 }
-
-function navGroupClose(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
-  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
-  if (g) g.classList.remove('open');
-  if (gm) gm.classList.remove('open');
+function navGroupClose(id) {
+  var a = document.getElementById('navgroup-' + id);
+  var b = document.getElementById('navgroup-' + id + '-mobile');
+  if (a) a.classList.remove('open');
+  if (b) b.classList.remove('open');
 }
-
-function navGroupToggle(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
+function navGroupToggle(id) {
+  var g = document.getElementById('navgroup-' + id);
   if (!g) return;
-  if (g.classList.contains('open')) navGroupClose(groupId);
-  else navGroupOpen(groupId);
+  if (g.classList.contains('open')) navGroupClose(id);
+  else navGroupOpen(id);
 }
-
-function navGroupHover(groupId, entering) {
-  if (_navGroupTimers[groupId]) {
-    clearTimeout(_navGroupTimers[groupId]);
-    _navGroupTimers[groupId] = null;
-  }
+function navGroupHover(id, entering) {
+  if (_navGroupTimers[id]) { clearTimeout(_navGroupTimers[id]); _navGroupTimers[id] = null; }
   if (entering) {
-    _navGroupTimers[groupId] = setTimeout(function() {
-      navGroupOpen(groupId);
-      _navGroupTimers[groupId] = null;
-    }, 80);
+    _navGroupTimers[id] = setTimeout(function() { navGroupOpen(id); _navGroupTimers[id] = null; }, 80);
   } else {
-    _navGroupTimers[groupId] = setTimeout(function() {
-      navGroupClose(groupId);
-      _navGroupTimers[groupId] = null;
-    }, 800);
+    _navGroupTimers[id] = setTimeout(function() { navGroupClose(id); _navGroupTimers[id] = null; }, 800);
   }
 }
 
@@ -1737,6 +1724,8 @@ async function initApp() {
 
 async function showApp(user) {
   document.body.classList.remove('guest');
+  var _gh = document.getElementById('guest-hide');
+  if (_gh) _gh.parentNode.removeChild(_gh);
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding
@@ -15539,6 +15528,7 @@ var dayNightCycle = {
   },
   
   enableNightMode: function() {
+    if (document.body.classList.contains('guest')) return;
     if (document.body.classList.contains('guest')) return;
     document.body.classList.add('night-mode');
     this.isNightMode = true;
