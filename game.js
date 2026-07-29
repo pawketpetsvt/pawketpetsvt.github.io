@@ -1534,6 +1534,49 @@ function initLeaderboardTab() {
 }
 
 // ── TAB NAVIGATION ───────────────────────
+
+// ── NAV GROUP HOVER/TOGGLE SYSTEM ────────────────────────────────────────────
+var _navGroupTimers = {};
+
+function navGroupOpen(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
+  if (g) g.classList.add('open');
+  if (gm) gm.classList.add('open');
+}
+
+function navGroupClose(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
+  if (g) g.classList.remove('open');
+  if (gm) gm.classList.remove('open');
+}
+
+function navGroupToggle(groupId) {
+  var g = document.getElementById('navgroup-' + groupId);
+  if (!g) return;
+  if (g.classList.contains('open')) navGroupClose(groupId);
+  else navGroupOpen(groupId);
+}
+
+function navGroupHover(groupId, entering) {
+  if (_navGroupTimers[groupId]) {
+    clearTimeout(_navGroupTimers[groupId]);
+    _navGroupTimers[groupId] = null;
+  }
+  if (entering) {
+    _navGroupTimers[groupId] = setTimeout(function() {
+      navGroupOpen(groupId);
+      _navGroupTimers[groupId] = null;
+    }, 80);
+  } else {
+    _navGroupTimers[groupId] = setTimeout(function() {
+      navGroupClose(groupId);
+      _navGroupTimers[groupId] = null;
+    }, 800);
+  }
+}
+
 function showTab(tab) {
   var mobileMenu = document.getElementById('mobile-nav-menu');
   if (mobileMenu && mobileMenu.classList.contains('open')) {
@@ -1694,9 +1737,6 @@ async function initApp() {
 
 async function showApp(user) {
   document.body.classList.remove('guest');
-  // Remove the guest-hide <style> block — its !important rules block layout restore
-  var guestHideStyle = document.getElementById('guest-hide');
-  if (guestHideStyle) guestHideStyle.parentNode.removeChild(guestHideStyle);
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding

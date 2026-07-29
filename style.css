@@ -2476,8 +2476,8 @@ body::after {
 }
 
 .sidebar-nav-btn {
-  background: rgba(153,102,255,0.12) !important;
-  border: 2px solid transparent !important;
+  background: rgba(153,102,255,0.22) !important;
+  border: 2px solid rgba(153,102,255,0.35) !important;
   border-radius: 20px !important;
   padding: 12px 16px !important;
   font-family: 'Fredoka', cursive !important;
@@ -2500,7 +2500,7 @@ body::after {
 }
 
 .sidebar-nav-btn.active {
-  background: linear-gradient(135deg, var(--purple), var(--pink)) !important;
+  background: linear-gradient(135deg, rgba(153,102,255,0.9), rgba(255,102,204,0.8)) !important;
   color: var(--white) !important;
   border-color: rgba(255,255,255,0.3) !important;
   box-shadow: 
@@ -17444,12 +17444,12 @@ body.streamer-landing-active .form-card {
 
 .nav-group-header {
   width: 100%;
-  background: none;
-  border: none;
-  border-radius: 10px;
-  padding: 8px 12px;
+  background: rgba(153,102,255,0.22) !important;
+  border: 2px solid rgba(153,102,255,0.35) !important;
+  border-radius: 20px;
+  padding: 12px 16px;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--purple-dark);
   text-align: left;
@@ -17463,8 +17463,9 @@ body.streamer-landing-active .form-card {
   background: rgba(153,102,255,0.10);
 }
 .nav-group.open .nav-group-header {
-  background: rgba(153,102,255,0.12);
-  color: var(--purple);
+  background: linear-gradient(135deg, rgba(153,102,255,0.55), rgba(255,102,204,0.45)) !important;
+  border-color: rgba(153,102,255,0.6) !important;
+  color: #fff !important;
 }
 
 .nav-group-arrow {
@@ -17481,18 +17482,23 @@ body.streamer-landing-active .form-card {
 .nav-group-children {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.22s ease;
-  padding-left: 10px;
+  transition: max-height 0.38s cubic-bezier(0.4,0,0.2,1);
+  padding-left: 0;
 }
 .nav-group.open .nav-group-children {
-  max-height: 300px;
+  max-height: 500px;
 }
 
 .sidebar-nav-btn.child {
-  font-size: 0.82rem;
-  padding: 6px 10px;
-  font-weight: 500;
-  color: var(--text);
+  font-size: 0.88rem !important;
+  padding: 9px 16px 9px 28px !important;
+  font-weight: 600 !important;
+  width: 100% !important;
+  border-radius: 14px !important;
+  margin-bottom: 3px !important;
+  background: rgba(153,102,255,0.14) !important;
+  border: 1.5px solid rgba(153,102,255,0.25) !important;
+  color: var(--purple-dark) !important;
 }
 .sidebar-nav-btn.child:hover {
   background: rgba(153,102,255,0.10);
