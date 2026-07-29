@@ -1598,6 +1598,14 @@ function navGroupHover(groupId, entering) {
 }
 
 function showTab(tab) {
+  // Close mobile nav drawer if open
+  var mobileMenu = document.getElementById('mobile-nav-menu');
+  var mobileOverlay = document.querySelector('.mobile-nav-overlay');
+  if (mobileMenu && mobileMenu.classList.contains('open')) {
+    mobileMenu.classList.remove('open');
+    if (mobileOverlay) mobileOverlay.classList.remove('show');
+    document.body.style.overflow = '';
+  }
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
 
@@ -31471,169 +31479,8 @@ function community_init() {
 // MOBILE-ONLY MENU SYSTEM (DESKTOP COMPLETELY UNTOUCHED)
 // ════════════════════════════════════════════════════════════════════════════
 
-(function() {
-  // CRITICAL: Only run on mobile devices
-  function isMobile() {
-    return window.innerWidth <= 768;
-  }
-  
-  // Exit immediately if desktop
-  if (!isMobile()) {
-    dbg('Desktop mode - mobile menu disabled');
-    return;
-  }
-  
-  dbg('Mobile mode - initializing mobile menu');
-  
-  // Initialize mobile menu on DOM ready
-  function initMobileMenu() {
-    // Exit if already initialized
-    if (document.getElementById('mobile-menu')) {
-      return;
-    }
-    
-    // Create hamburger button
-    var hamburger = document.createElement('button');
-    hamburger.id = 'hamburger-btn';
-    hamburger.className = 'hamburger-btn';
-    hamburger.innerHTML = '☰';
-    hamburger.setAttribute('aria-label', 'Open menu');
-    document.body.appendChild(hamburger);
-    
-    // Create overlay
-    var overlay = document.createElement('div');
-    overlay.id = 'mobile-overlay';
-    overlay.className = 'mobile-overlay';
-    document.body.appendChild(overlay);
-    
-    // Create mobile menu
-    var menu = document.createElement('div');
-    menu.id = 'mobile-menu';
-    menu.className = 'mobile-menu';
-    
-    // Menu items
-    var menuItems = [
-      { icon: '🏠', text: 'Home', tab: 'home' },
-      { icon: '🐾', text: 'My Pets', tab: 'mypets' },
-      { icon: '🐣', text: 'Adopt', tab: 'adopt' },
-      { icon: '⚔️', text: 'Battle', tab: 'battle' },
-      { icon: '🛒', text: 'Shop', tab: 'shop' },
-      { icon: '🎯', text: 'Pass', action: 'showPassModal' },
-      { icon: '🎲', text: 'Bingo', action: 'showBingoModal' },
-      { icon: '🌍', text: 'Community', tab: 'community-goals' },
-      { icon: '📊', text: 'Statistics', tab: 'statistics' },
-      { icon: '👤', text: 'Profile', tab: 'profile' },
-      { icon: '🚪', text: 'Logout', action: 'logout' }
-    ];
-    
-    menuItems.forEach(function(item) {
-      var menuItem = document.createElement('div');
-      menuItem.className = 'mobile-menu-item mobile-nav-item';
-      menuItem.innerHTML = '<span class="mobile-nav-icon">' + item.icon + '</span>' +
-                           '<span class="mobile-nav-text mobile-menu-text">' + item.text + '</span>';
-      
-      menuItem.addEventListener('click', function() {
-        if (item.tab) {
-          if (typeof showTab === 'function') {
-            showTab(item.tab);
-          }
-        } else if (item.action === 'showPassModal') {
-          if (typeof showPassModal === 'function') {
-            showPassModal();
-          }
-        } else if (item.action === 'showBingoModal') {
-          if (typeof showBingoModal === 'function') {
-            showBingoModal();
-          }
-        } else if (item.action === 'logout') {
-          if (typeof logout === 'function') {
-            logout();
-          }
-        }
-        
-        // Close menu after selection
-        closeMobileMenu();
-      });
-      
-      menu.appendChild(menuItem);
-    });
-    
-    document.body.appendChild(menu);
-    
-    // Toggle menu function
-    function toggleMobileMenu() {
-      var isActive = menu.classList.contains('active');
-      if (isActive) {
-        closeMobileMenu();
-      } else {
-        openMobileMenu();
-      }
-    }
-    
-    function openMobileMenu() {
-      menu.classList.add('active');
-      overlay.classList.add('active');
-      hamburger.innerHTML = '✕';
-      document.body.style.overflow = 'hidden';
-    }
-    
-    function closeMobileMenu() {
-      menu.classList.remove('active');
-      overlay.classList.remove('active');
-      hamburger.innerHTML = '☰';
-      document.body.style.overflow = '';
-    }
-    
-    // Event listeners
-    hamburger.addEventListener('click', toggleMobileMenu);
-    overlay.addEventListener('click', closeMobileMenu);
-    
-    // Close menu on escape key
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && menu.classList.contains('active')) {
-        closeMobileMenu();
-      }
-    });
-    
-    dbg('Mobile menu initialized');
-  }
-  
-  // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileMenu);
-  } else {
-    initMobileMenu();
-  }
-  
-  // Handle window resize - reinitialize or cleanup
-  // Store reference so it can be removed if needed (prevent duplicate listeners)
-  if (window._mobileResizeHandler) {
-    window.removeEventListener('resize', window._mobileResizeHandler);
-  }
-  window._mobileResizeHandler = function() {
-    if (!isMobile()) {
-      // Desktop mode - remove mobile elements
-      var menu = document.getElementById('mobile-menu');
-      var hamburger = document.getElementById('hamburger-menu-btn');
-      var overlay = document.getElementById('mobile-overlay');
-      
-      if (menu) menu.style.display = 'none';
-      // Only hide/show via JS on mobile — CSS handles desktop hiding
-      if (hamburger && window.innerWidth <= 768) hamburger.style.display = 'none';
-      if (overlay) overlay.style.display = 'none';
-      document.body.style.overflow = '';
-    } else {
-      // Mobile mode - ensure elements visible
-      var menu = document.getElementById('mobile-menu');
-      var hamburger = document.getElementById('hamburger-menu-btn');
-      
-      if (menu) menu.style.display = '';
-      if (hamburger && window.innerWidth <= 768) hamburger.style.display = '';
-    }
-  };
-  window.addEventListener('resize', window._mobileResizeHandler);
-  
-})();
+
+// Mobile menu is handled by the DOMContentLoaded listener above (mobile-nav-menu system)
 
 
 // ════════════════════════════════════════════════════════════════════════════
