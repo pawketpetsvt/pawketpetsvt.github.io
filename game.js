@@ -1535,6 +1535,13 @@ function initLeaderboardTab() {
 
 // ── TAB NAVIGATION ───────────────────────
 function showTab(tab) {
+  var mobileMenu = document.getElementById('mobile-nav-menu');
+  if (mobileMenu && mobileMenu.classList.contains('open')) {
+    mobileMenu.classList.remove('open');
+    var ov = document.querySelector('.mobile-nav-overlay');
+    if (ov) ov.classList.remove('show');
+    document.body.style.overflow = '';
+  }
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
 
@@ -15477,6 +15484,7 @@ var dayNightCycle = {
   },
   
   checkTimeAndApplyTheme: function() {
+    if (document.body.classList.contains('guest')) { this.enableDayMode(); return; }
     var hour = new Date().getHours();
     var shouldBeNight = hour >= 18 || hour < 6; // 6 PM to 6 AM
     
@@ -15488,6 +15496,7 @@ var dayNightCycle = {
   },
   
   enableNightMode: function() {
+    if (document.body.classList.contains('guest')) return;
     document.body.classList.add('night-mode');
     this.isNightMode = true;
     dbg('🌙 Night mode enabled');

@@ -17556,3 +17556,218 @@ body.streamer-landing-active .form-card {
   from { transform: scale(0); }
   to   { transform: scale(1); }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GUEST STATE — matches index.html patches. Must be present for site to work.
+══════════════════════════════════════════════════════════════════════════ */
+
+/* Hide game chrome when logged out */
+body.guest .left-sidebar,
+body.guest .right-sidebar,
+body.guest .notification-bell,
+body.guest .pass-button,
+body.guest .bingo-button,
+body.guest .event-status-widget,
+body.guest #nav-skin-key-display,
+body.guest .news-ticker,
+body.guest #app-content {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+body.guest .app-container {
+  display: block !important;
+  max-width: 100vw !important;
+  width: 100vw !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  grid-template-columns: none !important;
+}
+
+body.guest .center-content {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  padding: 0 !important;
+}
+
+body.guest #auth-gate,
+body.guest #section-login {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Guest always shows day-mode regardless of body classes */
+body.guest {
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+  background-attachment: fixed !important;
+}
+
+body.guest {
+  --text:        #2d1b4e !important;
+  --text-light:  #888 !important;
+  --bg:          #fff !important;
+  --white:       #fff !important;
+  --purple:      #9966ff !important;
+  --purple-dark: #3d1a6e !important;
+  --pink:        #ff66cc !important;
+}
+
+body.guest p,
+body.guest span,
+body.guest div,
+body.guest label {
+  color: revert !important;
+}
+
+/* Guest navbar always bright */
+body.guest .navbar,
+body.guest.night-mode .navbar {
+  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
+}
+
+/* Landing page layout */
+.landing-v2 {
+  display: grid;
+  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr;
+  min-height: calc(100vh - 56px);
+  width: 100vw;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+  align-items: start;
+  gap: 0;
+  overflow: hidden;
+}
+
+.landing-v2-screenshots {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 20px 24px 24px;
+  border-right: 1px solid rgba(153,102,255,0.15);
+  position: sticky;
+  top: 56px;
+  height: calc(100vh - 56px);
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.landing-v2-screenshots img {
+  width: 100%;
+  border-radius: 12px;
+  border: 2px solid rgba(153,102,255,0.35);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.2);
+  display: block;
+  object-fit: cover;
+  object-position: top;
+  cursor: zoom-in;
+  height: 230px;
+  min-height: 230px;
+  max-height: 230px;
+  flex-shrink: 0;
+}
+
+.landing-v2-ss-label {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.5rem !important;
+  color: var(--purple-dark) !important;
+  text-align: center !important;
+  margin-top: 6px !important;
+  margin-bottom: 12px !important;
+  letter-spacing: 0.04em !important;
+}
+
+.landing-v2-form {
+  padding: 24px 28px;
+  border-right: 1px solid rgba(153,102,255,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.landing-v2-info {
+  padding: 24px 12px 24px 28px;
+}
+
+.landing-v2-tagline { font-family:'Chewy',cursive; font-size:1.55rem; color:var(--purple-dark); line-height:1.25; margin-bottom:8px; }
+.landing-v2-tagline strong { color:var(--pink); }
+.landing-v2-sub { font-size:0.88rem; color:var(--text-light); margin-bottom:18px; }
+.landing-v2-features { margin-bottom:16px; }
+.landing-v2-feature { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid rgba(153,102,255,0.08); }
+.landing-v2-feature:last-child { border-bottom:none; }
+.landing-v2-feature-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
+.landing-v2-perks { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.landing-v2-perk { background:rgba(153,102,255,0.1); border:1px solid rgba(153,102,255,0.2); border-radius:20px; padding:4px 12px; font-size:0.75rem; color:var(--purple-dark); font-weight:600; }
+.landing-v2-lore { background:rgba(0,0,0,0.04); border:1px solid rgba(153,102,255,0.12); border-left:3px solid rgba(153,102,255,0.4); border-radius:0 8px 8px 0; padding:10px 14px; margin-bottom:14px; font-size:0.78rem; color:var(--text-light); line-height:1.6; }
+.landing-v2-lore-label { font-size:0.65rem; letter-spacing:2px; color:rgba(153,102,255,0.6); text-transform:uppercase; display:block; margin-bottom:6px; }
+.landing-v2-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.landing-v2-discord { display:inline-flex; align-items:center; gap:8px; background:#5865F2; color:#fff !important; border-radius:10px; padding:10px 20px; font-weight:700; font-size:0.88rem; text-decoration:none; }
+
+/* Lightbox for screenshots */
+.ss-lightbox-overlay {
+  position:fixed; inset:0; z-index:999999;
+  background:rgba(0,0,0,0.88);
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity 0.2s; cursor:zoom-out;
+}
+.ss-lightbox-overlay.open { opacity:1; }
+.ss-lightbox-img {
+  max-width:92vw; max-height:90vh; border-radius:12px;
+  box-shadow:0 8px 60px rgba(0,0,0,0.6); object-fit:contain; cursor:default;
+  transform:scale(0.95); transition:transform 0.2s;
+}
+.ss-lightbox-overlay.open .ss-lightbox-img { transform:scale(1); }
+.ss-lightbox-close {
+  position:fixed; top:20px; right:24px; width:44px; height:44px;
+  border-radius:50%; background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4);
+  color:#fff; font-size:1.4rem; cursor:pointer; display:flex;
+  align-items:center; justify-content:center; z-index:1000000;
+}
+
+/* Install screen color overrides — beat body.night-mode !important rules */
+#install-screen * { font-family: Tahoma, Arial, sans-serif !important; color: #333 !important; }
+#install-screen #install-header * { color: #fff !important; }
+#install-screen #install-congrats { color: #000080 !important; }
+#install-screen #install-sub { color: #333 !important; }
+#install-screen #install-fine-print * { color: #555 !important; }
+#install-screen #install-disc-label { color: #000080 !important; font-family:'Courier New',monospace !important; }
+#install-screen #install-disc-label span { color: #000080 !important; }
+#install-screen #install-disc-hint { color: #555 !important; }
+#install-screen { background: #008080 !important; }
+#install-screen #install-inner { background: #d4d0c8 !important; }
+.install-popup * { font-family:Tahoma,Arial,sans-serif !important; color:#000 !important; }
+.install-popup-titlebar * { color:#fff !important; }
+.popup-headline { color:#cc0000 !important; }
+.popup-sub { color:#333 !important; }
+.popup-fine { color:#777 !important; }
+
+/* Night mode nav buttons — more visible */
+body.night-mode .sidebar-nav-btn {
+  background: rgba(80,50,140,0.5) !important;
+  border: 1px solid rgba(153,102,255,0.5) !important;
+  color: #ddc8ff !important;
+}
+body.night-mode .sidebar-nav-btn.child {
+  background: rgba(60,35,110,0.6) !important;
+  border: 1px solid rgba(130,90,220,0.45) !important;
+  color: #ccb0ff !important;
+}
+body.night-mode .sidebar-section {
+  border-color: rgba(120,80,200,0.4) !important;
+  box-shadow: 0 0 0 2px rgba(100,60,180,0.3), 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+
+/* Performance: GPU promote weather animations */
+body.weather-cursed::before, body.weather-cursed::after,
+body.weather-foggy::before, body.weather-foggy::after,
+body.weather-rainy::before, body.weather-rainy::after,
+body.weather-starry::before, body.weather-starry::after,
+body.weather-sunny::before, body.weather-sunny::after,
+body.weather-windy::before, body.weather-windy::after {
+  will-change: transform, opacity;
+}
+.sparkle-particle { will-change: transform, opacity; }
