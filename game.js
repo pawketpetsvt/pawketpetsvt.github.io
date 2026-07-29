@@ -31,8 +31,8 @@ var DEBUG = false;
     if (t) show(t, t.getAttribute('data-tooltip'));
     else hide();
   }, true);
-  document.addEventListener('touchstart', hide, true);
-  document.addEventListener('scroll', hide, true);
+  document.addEventListener('touchstart', hide, { passive: true, capture: true });
+  document.addEventListener('scroll', hide, { passive: true, capture: true });
 })();
 // Refresh notification badge when user returns to this tab
 document.addEventListener('visibilitychange', function() {
@@ -18060,12 +18060,10 @@ var newsTicker = {
       if (!parentEl) return;
       var parent = parentEl.getBoundingClientRect();
       
-      // If the right edge of the message is past the left edge of the container
-      // (fully scrolled off screen to the left)
       if (rect.right < parent.left) {
         newsTicker.updateTicker();
       }
-    }, 100);
+    }, 250);  // 250ms is plenty — ticker is 40s long
   },
   
   // Cache for today's stats — loaded once and reused

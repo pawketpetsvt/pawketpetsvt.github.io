@@ -4500,7 +4500,7 @@ body, button, a, input, textarea, select {
 }
 
 .slot-reel.spinning {
-  animation: reel-spin 0.1s infinite;
+  animation: reel-spin 0.15s infinite;
 }
 
 @keyframes reel-spin {
@@ -4582,7 +4582,7 @@ body, button, a, input, textarea, select {
     rgba(0, 0, 255, 0.15) 2px,
     transparent 3px
   );
-  animation: glitch-scan 0.15s infinite, glitch-shift 0.4s infinite, glitch-distort 0.8s infinite;
+  animation: glitch-scan 0.4s infinite, glitch-shift 0.8s infinite, glitch-distort 0.8s infinite;
 }
 
 @keyframes glitch-scan {
@@ -4647,7 +4647,7 @@ body, button, a, input, textarea, select {
   font-size: 1.2rem;
   border: 2px solid #FF0000;
   box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
-  animation: boss-pulse 1s infinite;
+  animation: boss-pulse 1.5s ease-in-out infinite;
   z-index: 100;
 }
 
@@ -4719,7 +4719,7 @@ body, button, a, input, textarea, select {
 
 /* Boss name glitch effect */
 .boss-name-glitch {
-  animation: name-glitch 0.3s infinite;
+  animation: name-glitch 0.6s steps(2) infinite;
 }
 
 @keyframes name-glitch {
@@ -4923,12 +4923,12 @@ body.boss-ui-glitch header {
 
 /* Scroll from left animation */
 .boss-warning-scroll-left {
-  animation: warning-shake-intense 0.08s infinite, warning-scroll-left 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
+  animation: warning-shake-intense 0.15s infinite, warning-scroll-left 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
 }
 
 /* Scroll from right animation */
 .boss-warning-scroll-right {
-  animation: warning-shake-intense 0.08s infinite, warning-scroll-right 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
+  animation: warning-shake-intense 0.15s infinite, warning-scroll-right 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
 }
 
 @keyframes warning-shake-intense {
@@ -18607,4 +18607,41 @@ body.night-mode .melon-req-reward {
 .shop-points-display img,
 [id$="-points"] img {
   vertical-align: middle;
+}
+
+/* Performance: promote weather elements to GPU composite layers */
+body.weather-cursed::before, body.weather-cursed::after,
+body.weather-foggy::before, body.weather-foggy::after,
+body.weather-rainy::before, body.weather-rainy::after,
+body.weather-starry::before, body.weather-starry::after,
+body.weather-sunny::before, body.weather-sunny::after,
+body.weather-windy::before, body.weather-windy::after {
+  will-change: transform, opacity;
+  contain: strict;
+}
+/* Contain sparkle particles to avoid full-page repaints */
+.sparkle-particle {
+  will-change: transform, opacity;
+  contain: layout style;
+}
+/* Contain companion buddy to its own layer */
+#companion-buddy {
+  will-change: transform;
+  contain: layout style;
+}
+
+/* Performance: limit repaint scope for main layout areas */
+.page-section { contain: content; }
+.left-sidebar  { contain: layout style; }
+.right-sidebar { contain: layout style; }
+/* Boss battle glitch effects — isolate to their own layer */
+.boss-container, .boss-battle-screen { 
+  contain: layout style;
+  isolation: isolate;
+}
+/* Weather overlay pseudo-elements already have will-change,
+   also add contain to body for weather to limit scope */
+body.weather-cursed, body.weather-foggy, body.weather-rainy,
+body.weather-starry, body.weather-sunny, body.weather-windy {
+  isolation: isolate;
 }
