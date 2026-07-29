@@ -1806,58 +1806,33 @@ async function showApp(user) {
   // Update sidebar stats
   await updateSidebarStats();
   
-  // Load user's badges
-  await loadUserBadges();
-  
-  // Load pet title library
-  await loadAllPetTitles();
-  
-  // Load player title system
-  await loadAllPlayerTitles();
-  await loadPlayerTitles();
-  await loadActivePlayerTitle();
-  
-  // Check for 3am login (Sleep Deprived title)
-  // Note: Player titles not yet implemented, this is for future use
-  // checkMidnightLogin();
-  
-  // Check player title unlocks
-  await checkPlayerTitleUnlocks();
-  
-  // Award welcome badge if new user
-  await awardBadge('welcome');
-  
-  // Load daily tip on home page (delay to ensure DOM is ready)
+  // ── PARALLEL LOAD: fire all independent DB calls at once ─────────────────
+  // These don't depend on each other so run simultaneously.
+  // Saves ~1500ms vs sequential on a 150ms-latency connection.
   setTimeout(loadDailyTip, 100);
-  
-  // Initialize referral system
-  await initReferralSystem(user.id);
-  
-  // Check tutorial status and start if needed
-  await checkTutorialStatus();
-  
-  // Initialize daily fortune AFTER tutorial (only for logged-in users)
-  if (typeof dailyFortune !== 'undefined' && dailyFortune.init) {
-    // Check if tutorial is completed before showing fortune
-    var tutorialDone = playerSettings.tutorial_completed;
-    if (tutorialDone) {
-      dailyFortune.init();
-    }
-  }
-  
-  // Check sidebar stream status
-  await checkSidebarStreamStatus();
-  
-  // FIX 2: Refresh stream status every 2 minutes (throttled, using safe timer)
+  checkReferralCode();
   safeSetInterval(checkSidebarStreamStatus, 120000);
-  
-  // PHASE 8 - Growth Features Initialization
-  await checkDailyLogin(); // Daily rewards and buffs
-  checkReferralCode(); // Check for referral code in URL
-  await updateNotificationBadge(); // Update notification count
-  
-  // Refresh notifications every 2 minutes (reduced from 60s to limit CORS noise)
   safeSetInterval(updateNotificationBadge, 120000);
+
+  await Promise.all([
+    loadUserBadges().catch(function(){}),
+    loadAllPetTitles().catch(function(){}),
+    loadAllPlayerTitles().catch(function(){}),
+    checkPlayerTitleUnlocks().catch(function(){}),
+    awardBadge('welcome').catch(function(){}),
+    initReferralSystem(user.id).catch(function(){}),
+    checkTutorialStatus().catch(function(){}),
+    checkSidebarStreamStatus().catch(function(){}),
+    checkDailyLogin().catch(function(){}),
+    updateNotificationBadge().catch(function(){}),
+    loadPassProgress().catch(function(){}),
+  ]);
+
+  // These need results from the parallel block
+  await Promise.all([
+    loadPlayerTitles().catch(function(){}),
+    loadActivePlayerTitle().catch(function(){}),
+  ]);
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -1895,8 +1870,7 @@ async function showApp(user) {
   // Load sidebar news widget
   loadSidebarNews();
   
-  // PAWKETPASS & BINGO: Initialize systems
-  await loadPassProgress();
+  // PAWKETPASS & BINGO: already loaded in parallel block above
   loadDailyBingo();
   updateBingoUI();
   

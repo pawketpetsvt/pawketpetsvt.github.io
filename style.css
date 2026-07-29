@@ -43,6 +43,8 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
+  will-change: transform;
+  contain: strict;
   background-image: 
     radial-gradient(circle at 20% 30%, rgba(255,102,204,0.15) 0%, transparent 50%),
     radial-gradient(circle at 80% 70%, rgba(153,102,255,0.15) 0%, transparent 50%),
@@ -2295,6 +2297,8 @@ body::after {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  will-change: transform;
+  contain: strict;
   z-index: 0;
   background-image: 
     radial-gradient(circle at 10% 20%, rgba(255,255,255,0.8) 0%, transparent 2%),
@@ -17689,4 +17693,17 @@ body.night-mode .sidebar-nav-btn.child { background:rgba(60,35,110,0.6) !importa
   input[type="text"], input[type="email"], input[type="password"] { font-size:16px !important; }
   .landing-v2 { grid-template-columns:1fr !important; }
   .landing-v2-screenshots { border-right:none; border-bottom:1px solid rgba(153,102,255,0.15); }
+}
+
+/* ── SCROLL PERFORMANCE ─────────────────────────────────────────────────────
+   content-visibility:auto skips painting off-screen sections entirely.
+   contain-intrinsic-size prevents layout shift when they load in. */
+.page-section {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 600px;
+}
+/* Ensure fixed/sticky elements aren't affected */
+.navbar, #companion-buddy, .modal-overlay, .pixel-toast,
+.ss-lightbox-overlay, #install-screen {
+  content-visibility: visible;
 }
