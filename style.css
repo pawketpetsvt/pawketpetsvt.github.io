@@ -421,6 +421,11 @@ a:hover { color: var(--pink) !important; }
   animation: sparkle-pulse 2.5s ease-in-out infinite !important;
   filter: drop-shadow(0 2px 4px rgba(255,102,204,0.3)) !important;
 }
+@keyframes sparkle-pulse { 
+  0%,100% { opacity:1; transform:scale(1) rotate(0deg); } 
+  50% { opacity:0.8; transform:scale(1.1) rotate(5deg); } 
+}
+
 /* CARDS */
 .card { 
   background: var(--white) !important; 
@@ -836,6 +841,10 @@ a:hover { color: var(--pink) !important; }
   filter: drop-shadow(0 4px 8px rgba(153,102,255,0.3)) !important;
   animation: float 3s ease-in-out infinite !important;
 }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
 .welcome-panel h1 {
   font-size: 2.5rem !important;
   color: var(--purple-dark) !important;
@@ -1066,6 +1075,11 @@ a:hover { color: var(--pink) !important; }
   font-weight: 600 !important;
   animation: pulse-warning 2s ease-in-out infinite !important;
 }
+@keyframes pulse-warning {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
 /* STAT BARS */
 .stat-bars {
   margin: 16px 0 !important;
@@ -1957,6 +1971,11 @@ a:hover { color: var(--pink) !important; }
   animation: pulse-live 2s ease-in-out infinite !important;
   box-shadow: 0 0 20px rgba(255,0,0,0.6) !important;
 }
+@keyframes pulse-live {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.9; }
+}
+
 .streamer-avatar {
   width: 100px !important;
   height: 100px !important;
@@ -2287,6 +2306,11 @@ body::after {
   background-position: 0 0, 40px 60px, 130px 270px, 70px 100px, 150px 30px;
   animation: sparkle-float 8s linear infinite;
   opacity: 0.4;
+}
+
+@keyframes sparkle-float {
+  0% { background-position: 0 0, 40px 60px, 130px 270px, 70px 100px, 150px 30px; }
+  100% { background-position: 200px 200px, 240px 260px, 330px 470px, 270px 300px, 350px 230px; }
 }
 
 /* 3-COLUMN LAYOUT CONTAINER */
@@ -2633,6 +2657,11 @@ body::after {
   animation: pulse-live-dot 2s ease-in-out infinite !important;
 }
 
+@keyframes pulse-live-dot {
+  0%, 100% { opacity: 1; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.7; transform: translateX(-50%) scale(1.1); }
+}
+
 .streamer-item {
   background: rgba(153,102,255,0.08) !important;
   border: 3px solid transparent !important;
@@ -2678,6 +2707,11 @@ body::after {
     0 0 16px rgba(255,0,0,0.6) !important;
   animation: pulse-live 2s ease-in-out infinite !important;
   z-index: 10 !important;
+}
+
+@keyframes pulse-live {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.05); }
 }
 
 .streamer-avatar {
@@ -2844,9 +2878,78 @@ body::after {
   animation: float-and-twinkle-delayed 3.5s ease-in-out infinite !important;
 }
 
+@keyframes float-and-twinkle {
+  0%, 100% { 
+    transform: translateY(0) scale(1); 
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  25% {
+    transform: translateY(-4px) scale(1.1);
+    opacity: 0.8;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 12px currentColor;
+  }
+  50% { 
+    transform: translateY(0) scale(1.15);
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 16px currentColor;
+  }
+  75% {
+    transform: translateY(-2px) scale(1.05);
+    opacity: 0.9;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.25), 0 0 10px currentColor;
+  }
+}
+
+@keyframes float-and-twinkle-delayed {
+  0%, 100% { 
+    transform: translateY(0) scale(1); 
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  30% {
+    transform: translateY(-3px) scale(1.12);
+    opacity: 0.85;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 14px currentColor;
+  }
+  60% { 
+    transform: translateY(0) scale(1.08);
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 18px currentColor;
+  }
+  80% {
+    transform: translateY(-5px) scale(1.15);
+    opacity: 0.95;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.25), 0 0 12px currentColor;
+  }
+}
+
 /* Animate streamers widget LIVE dot */
 .streamers-widget::before {
   animation: pulse-and-float 2.5s ease-in-out infinite !important;
+}
+
+@keyframes pulse-and-float {
+  0%, 100% { 
+    opacity: 1; 
+    transform: translateX(-50%) translateY(0) scale(1);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 12px rgba(255,0,0,0.6);
+  }
+  25% {
+    opacity: 0.8;
+    transform: translateX(-50%) translateY(-3px) scale(1.15);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 20px rgba(255,0,0,0.8);
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: translateX(-50%) translateY(0) scale(1.2);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 16px rgba(255,0,0,0.7);
+  }
+  75% {
+    opacity: 0.85;
+    transform: translateX(-50%) translateY(-2px) scale(1.1);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.25), 0 0 18px rgba(255,0,0,0.75);
+  }
 }
 
 /* Animate news widget pink dot */
@@ -2854,6 +2957,33 @@ body::after {
   animation: sparkle-bounce 2.8s ease-in-out infinite !important;
 }
 
+@keyframes sparkle-bounce {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg) scale(1);
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  20% {
+    transform: translateY(-4px) rotate(5deg) scale(1.15);
+    opacity: 0.9;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 16px rgba(255,102,204,0.8);
+  }
+  40% {
+    transform: translateY(0) rotate(-3deg) scale(1.1);
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 12px rgba(255,102,204,0.6);
+  }
+  60% {
+    transform: translateY(-2px) rotate(3deg) scale(1.2);
+    opacity: 0.95;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.25), 0 0 20px rgba(255,102,204,0.9);
+  }
+  80% {
+    transform: translateY(0) rotate(-2deg) scale(1.05);
+    opacity: 1;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 14px rgba(255,102,204,0.7);
+  }
+}
 .live-indicator {
   display: inline-block;
   background: linear-gradient(135deg, #ff0000, #ff6b6b);
@@ -2867,6 +2997,17 @@ body::after {
   box-shadow: 0 0 10px rgba(255, 0, 0, 0.5);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+}
+
+@keyframes pulse-live {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.8; 
+    transform: scale(1.05);
+  }
 }
 
 .watch-stream-btn {
@@ -2926,7 +3067,7 @@ body::after {
   color: #fff;
   box-shadow: 0 0 30px rgba(255, 0, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.2);
   transform: translateY(-2px);
-  animation: glitch-shake 0.3s infinite;
+  animation: glitch-shake 0.5s infinite;
 }
 
 .redeem-lore-btn::before {
@@ -2939,6 +3080,40 @@ body::after {
   background: linear-gradient(45deg, transparent, rgba(255, 56, 56, 0.3), transparent);
   animation: glitch-sweep 4s infinite;
   pointer-events: none;
+}
+
+@keyframes glitch-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.9;
+    filter: brightness(1.1);
+  }
+  85% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  87% {
+    opacity: 0.7;
+    filter: brightness(0.8);
+  }
+  89% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes glitch-shake {
+  0%, 100% { transform: translateY(-2px) translateX(0); }
+  25% { transform: translateY(-2px) translateX(-2px); }
+  75% { transform: translateY(-2px) translateX(2px); }
+}
+
+@keyframes glitch-sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(200%) rotate(45deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -3904,6 +4079,11 @@ body::after {
   animation: pulse 1.5s ease-in-out infinite;
 }
 
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
 .battle-name {
   font-weight: bold;
   font-size: 1.2rem;
@@ -4098,6 +4278,29 @@ body::after {
   text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
 }
 
+@keyframes glitch {
+  0% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
+  25% {
+    text-shadow: -2px 0 #ff0000, 2px 0 #00ff00;
+    transform: translateX(2px);
+  }
+  50% {
+    text-shadow: 2px 0 #00ff00, -2px 0 #ff0000;
+    transform: translateX(-2px);
+  }
+  75% {
+    text-shadow: -2px 0 #00ff00, 2px 0 #ff0000;
+    transform: translateX(2px);
+  }
+  100% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
+}
+
 /* Full page glitch effect when spooky dialogue appears */
 .page-glitch {
   animation: page-glitch-effect 0.8s ease-in-out;
@@ -4214,6 +4417,17 @@ body, button, a, input, textarea, select {
   animation: sparkle-fade 0.8s ease-out forwards;
 }
  
+@keyframes sparkle-fade {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), var(--dy)) scale(0);
+  }
+}
+ 
 /* Different sparkle colors */
 .sparkle-pink { background: radial-gradient(circle, #FF69B4, #FF1493); }
 .sparkle-purple { background: radial-gradient(circle, #B06AFF, #8B3FFF); }
@@ -4286,7 +4500,12 @@ body, button, a, input, textarea, select {
 }
 
 .slot-reel.spinning {
-  animation: reel-spin 0.15s infinite;
+  animation: reel-spin 0.1s infinite;
+}
+
+@keyframes reel-spin {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
 .slot-reel.win {
@@ -4320,6 +4539,33 @@ body, button, a, input, textarea, select {
   animation: boss-fade-in 3s ease-in-out;
 }
 
+@keyframes boss-fade-in {
+  0% { 
+    opacity: 0;
+    filter: brightness(0);
+  }
+  20% {
+    opacity: 0.3;
+    filter: brightness(0.3) hue-rotate(90deg);
+  }
+  40% {
+    opacity: 0;
+    filter: brightness(0);
+  }
+  60% {
+    opacity: 0.7;
+    filter: brightness(0.7) hue-rotate(-90deg);
+  }
+  80% {
+    opacity: 0.5;
+    filter: brightness(0.5);
+  }
+  100% { 
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
 /* Screen glitch/artifact effect - MORE INTENSE VERSION */
 .screen-glitch {
   position: fixed;
@@ -4339,7 +4585,54 @@ body, button, a, input, textarea, select {
   animation: glitch-scan 0.4s infinite, glitch-shift 0.8s infinite, glitch-distort 0.8s infinite;
 }
 
+@keyframes glitch-scan {
+  0%, 100% { 
+    transform: translateY(0) scaleY(1);
+    opacity: 0.9;  /* Increased from 0.8 */
+  }
+  50% { 
+    transform: translateY(-100vh) scaleY(1.3);  /* More exaggerated */
+    opacity: 0.5;  /* Increased from 0.4 */
+  }
+}
+
+@keyframes glitch-shift {
+  0%, 100% {
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    filter: hue-rotate(90deg) saturate(4);  /* Increased saturation */
+  }
+  50% {
+    filter: hue-rotate(180deg) saturate(2);
+  }
+  75% {
+    filter: hue-rotate(270deg) saturate(3);
+  }
+}
+
 /* New: Random horizontal distortion */
+@keyframes glitch-distort {
+  0%, 100% {
+    background-position: 0 0;
+  }
+  10% {
+    background-position: 5px 0;
+  }
+  20% {
+    background-position: -5px 0;
+  }
+  30% {
+    background-position: 3px 0;
+  }
+  40% {
+    background-position: -3px 0;
+  }
+  50% {
+    background-position: 0 0;
+  }
+}
+
 /* Boss indicator on battle screen */
 .boss-battle-indicator {
   position: absolute;
@@ -4354,8 +4647,19 @@ body, button, a, input, textarea, select {
   font-size: 1.2rem;
   border: 2px solid #FF0000;
   box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
-  animation: boss-pulse 1.5s ease-in-out infinite;
+  animation: boss-pulse 1s infinite;
   z-index: 100;
+}
+
+@keyframes boss-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(255, 0, 0, 1);
+    transform: translateX(-50%) scale(1.05);
+  }
 }
 
 /* Shadow of Piper sprite - glitchy question mark */
@@ -4415,7 +4719,7 @@ body, button, a, input, textarea, select {
 
 /* Boss name glitch effect */
 .boss-name-glitch {
-  animation: name-glitch 0.6s steps(2) infinite;
+  animation: name-glitch 0.5s steps(2) infinite;
 }
 
 @keyframes name-glitch {
@@ -4627,6 +4931,41 @@ body.boss-ui-glitch header {
   animation: warning-shake-intense 0.15s infinite, warning-scroll-right 6s linear forwards, warning-fade-scroll 6s ease-in-out forwards;
 }
 
+@keyframes warning-shake-intense {
+  0% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
+  8% { transform: translate(-7px, 4px) rotate(-2.5deg) skew(-2deg); }
+  16% { transform: translate(7px, -4px) rotate(2.5deg) skew(2deg); }
+  24% { transform: translate(-6px, 5px) rotate(-2deg) skew(-1.5deg); }
+  32% { transform: translate(6px, -5px) rotate(2deg) skew(1.5deg); }
+  40% { transform: translate(-8px, -4px) rotate(-3deg) skew(-2.5deg); }
+  48% { transform: translate(8px, 4px) rotate(3deg) skew(2.5deg); }
+  56% { transform: translate(-5px, -6px) rotate(-2deg) skew(-2deg); }
+  64% { transform: translate(5px, 6px) rotate(2deg) skew(2deg); }
+  72% { transform: translate(-7px, 5px) rotate(-2.5deg) skew(-1.5deg); }
+  80% { transform: translate(7px, -5px) rotate(2.5deg) skew(1.5deg); }
+  88% { transform: translate(-6px, 4px) rotate(-2deg) skew(-2deg); }
+  96% { transform: translate(6px, -4px) rotate(2deg) skew(2deg); }
+  100% { transform: translate(0, 0) rotate(0deg) skew(0deg); }
+}
+
+@keyframes warning-scroll-left {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@keyframes warning-scroll-right {
+  0% {
+    right: -100%;
+  }
+  100% {
+    right: 100%;
+  }
+}
+
 @keyframes warning-fade-scroll {
   0% {
     opacity: 0;
@@ -4653,6 +4992,39 @@ body.boss-ui-glitch header {
 /* ═══════════════════════════════════════════════════════════════════════
    DEATH SCREEN - "WE WARNED YOU" messages
    ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes death-warning-shake {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  10% {
+    transform: translate(-8px, 5px) rotate(-3deg);
+  }
+  20% {
+    transform: translate(8px, -5px) rotate(3deg);
+  }
+  30% {
+    transform: translate(-7px, 6px) rotate(-2.5deg);
+  }
+  40% {
+    transform: translate(7px, -6px) rotate(2.5deg);
+  }
+  50% {
+    transform: translate(-9px, -5px) rotate(-3.5deg);
+  }
+  60% {
+    transform: translate(9px, 5px) rotate(3.5deg);
+  }
+  70% {
+    transform: translate(-6px, -7px) rotate(-2deg);
+  }
+  80% {
+    transform: translate(6px, 7px) rotate(2deg);
+  }
+  90% {
+    transform: translate(-8px, 6px) rotate(-3deg);
+  }
+}
 
 @keyframes death-warning-fade {
   0% {
@@ -4718,6 +5090,11 @@ body.boss-ui-glitch header {
   line-height: 20px;
   margin-left: 6px;
   animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
 }
 
 .friends-tabs {
@@ -5100,6 +5477,11 @@ body.boss-ui-glitch header {
   padding: 2px 6px;
   border: 2px solid var(--white);
   animation: pulse-notification 2s ease-in-out infinite;
+}
+
+@keyframes pulse-notification {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
 }
 
 .notification-dropdown {
@@ -6760,6 +7142,33 @@ body.boss-ui-glitch header {
   animation: glitch-effect 0.8s steps(2) infinite;
 }
 
+@keyframes glitch-effect {
+  0% { 
+    transform: translateX(0); 
+    filter: hue-rotate(0deg);
+  }
+  20% { 
+    transform: translateX(-3px) translateY(2px); 
+    filter: hue-rotate(90deg);
+  }
+  40% { 
+    transform: translateX(3px) translateY(-2px); 
+    filter: hue-rotate(180deg);
+  }
+  60% { 
+    transform: translateX(-2px) translateY(-2px); 
+    filter: hue-rotate(270deg);
+  }
+  80% { 
+    transform: translateX(2px) translateY(2px); 
+    filter: hue-rotate(360deg);
+  }
+  100% { 
+    transform: translateX(0); 
+    filter: hue-rotate(0deg);
+  }
+}
+
 /* Special variant label in battle UI */
 .enemy-variant-badge {
   position: absolute;
@@ -7357,6 +7766,24 @@ body.boss-ui-glitch header {
 /* ═══════════════════════════════════════════════════════════════════════
    SPOOKY EFFECT ANIMATIONS (for THEYWENTMISSING code)
    ═══════════════════════════════════════════════════════════════════════ */
+
+@keyframes spooky-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spooky-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
 
 @keyframes crt-flicker {
   0%, 100% {
@@ -8191,44 +8618,43 @@ body.weather-foggy::after {
 
 /* WINDY - Leaves drifting across screen */
 body.weather-windy::before {
-  content: '🍃  🍂  🍃  🍂  🍃';
+  content: '🍃 🍂 🍃 🍂 🍃';
   position: fixed;
   top: 15%;
-  left: -20%;
-  width: auto;
-  font-size: 28px;
+  left: -150px;
+  width: 200%;
+  font-size: 26px;
   pointer-events: none;
   z-index: 9999;
   white-space: nowrap;
-  letter-spacing: 80px;
-  opacity: 0.7;
-  animation: windLeaves 9s linear infinite;
+  letter-spacing: 55px;
+  opacity: 0.75;
+  animation: windLeaves 7s linear infinite;
 }
 @keyframes windLeaves {
-  0%   { transform: translateX(-120px) translateY(0)    rotate(-5deg); opacity: 0; }
-  5%   { opacity: 0.7; }
-  50%  { transform: translateX(45vw)   translateY(40px) rotate(15deg); opacity: 0.7; }
-  95%  { opacity: 0.5; }
-  100% { transform: translateX(110vw)  translateY(20px) rotate(-5deg); opacity: 0; }
+  0%   { transform: translateX(0)    translateY(0)   rotate(0deg); }
+  25%  { transform: translateX(25%)  translateY(28px) rotate(12deg); }
+  50%  { transform: translateX(50%)  translateY(8px)  rotate(-8deg); }
+  75%  { transform: translateX(75%)  translateY(36px) rotate(18deg); }
+  100% { transform: translateX(100%) translateY(15px) rotate(0deg); }
 }
 body.weather-windy::after {
-  content: '🍂  🍃  🍂  🍃  🍂';
+  content: '🍂 🍃 🍂 🍃 🍂';
   position: fixed;
   bottom: 10%;
-  right: -20%;
-  width: auto;
-  font-size: 22px;
+  right: -150px;
+  width: 200%;
+  font-size: 20px;
   pointer-events: none;
   z-index: 9998;
   white-space: nowrap;
-  letter-spacing: 90px;
-  opacity: 0.45;
-  animation: windLeavesReverse 12s linear infinite;
+  letter-spacing: 75px;
+  opacity: 0.5;
+  animation: windLeavesReverse 9s linear infinite;
 }
 @keyframes windLeavesReverse {
-  0%   { transform: translateX(120px)  translateY(0)    rotate(5deg); opacity: 0; }
-  5%   { opacity: 0.5; }
-  100% { transform: translateX(-110vw) translateY(-30px) rotate(-10deg); opacity: 0; }
+  0%   { transform: translateX(0)     translateY(0)    rotate(0deg); }
+  100% { transform: translateX(-100%) translateY(-45px) rotate(360deg); }
 }
 
 /* STARRY - Twinkling stars, many particles, no scan band */
@@ -9319,6 +9745,7 @@ body.night-mode .btn-outline:hover {
   /* Responsive Grids */
   .pets-grid,
   .mypets-grid,
+  .shop-grid,
   .badges-grid,
   .leaderboard-list {
     grid-template-columns: 1fr !important;
@@ -9938,6 +10365,11 @@ body.night-mode .btn-outline:hover {
   animation: shimmer 2s infinite;
 }
  
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+ 
 /* ========== BINGO MODAL ========== */
 .bingo-modal .modal-content {
   max-width: 700px;
@@ -9971,6 +10403,12 @@ body.night-mode .btn-outline:hover {
   animation: bingoComplete 0.5s ease;
 }
  
+@keyframes bingoComplete {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+ 
 .bingo-square::before {
   content: '';
   position: absolute;
@@ -9986,6 +10424,11 @@ body.night-mode .btn-outline:hover {
 .bingo-square.completed::before {
   opacity: 1;
   animation: pulse 2s infinite;
+}
+ 
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.5); opacity: 0; }
 }
  
 /* ========== MOBILE RESPONSIVE ========== */
@@ -10095,7 +10538,10 @@ body.night-mode .btn-outline:hover {
   animation: keyShine 2s infinite;
 }
  
-
+@keyframes keyShine {
+  0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); }
+  50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); }
+}
 
 /* ══════════════════════════════════════════════════════════════════════════
    PAWKETPASS & BINGO UI STYLES
@@ -10259,6 +10705,11 @@ body.night-mode .btn-outline:hover {
   animation: shimmer 2s infinite;
 }
 
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
 /* ========== BINGO MODAL ========== */
 .bingo-modal .modal-content {
   max-width: 700px;
@@ -10313,6 +10764,11 @@ body.night-mode .btn-outline:hover {
 .bingo-square.completed::before {
   opacity: 1;
   animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.5); opacity: 0; }
 }
 
 /* ========== MOBILE RESPONSIVE ========== */
@@ -12171,7 +12627,15 @@ body[data-theme="dark"] .modal-content {
   }
 }
 
-/* Shop grid display is set in the main .shop-grid rule above */
+/* ══════════════════════════════════════════════════════════════════════════
+   SHOP CONTAINER VISIBILITY (FOR TESTING)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+#shop-grid,
+.shop-grid {
+  display: grid !important;
+  visibility: visible !important;
+}
 
 
 
@@ -12812,6 +13276,11 @@ body[data-theme="dark"] .modal-content {
 .founder-icon {
   font-size: 80px;
   animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
 }
 
 .founder-header h2 {
@@ -13573,6 +14042,17 @@ body[data-theme="dark"] .modal-content {
    9. ANIMATIONS
    ═══════════════════════════════════════════════════════════════════════════ */
 
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.05);
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    END OF NEW FEATURES CSS
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -13620,6 +14100,26 @@ body[data-theme="dark"] .modal-content {
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.02);
   }
 }
 
@@ -16965,12 +17465,11 @@ body.streamer-landing-active .form-card {
 .nav-group.open .nav-group-header {
   background: rgba(153,102,255,0.12);
   color: var(--purple);
-  border-radius: 10px 10px 0 0;
 }
 
 .nav-group-arrow {
   font-size: 0.9rem;
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform 0.2s;
   display: inline-block;
   color: var(--text-light);
 }
@@ -16982,22 +17481,18 @@ body.streamer-landing-active .form-card {
 .nav-group-children {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1);
-  padding-left: 0;
+  transition: max-height 0.22s ease;
+  padding-left: 10px;
 }
 .nav-group.open .nav-group-children {
-  max-height: 500px;
-  transition: max-height 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+  max-height: 300px;
 }
 
 .sidebar-nav-btn.child {
-  font-size: 0.95rem;
-  padding: 10px 16px;
-  font-weight: 600;
-  color: var(--purple-dark);
-  width: 100%;
-  border-radius: 10px;
-  margin-bottom: 2px;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  font-weight: 500;
+  color: var(--text);
 }
 .sidebar-nav-btn.child:hover {
   background: rgba(153,102,255,0.10);
@@ -17060,1453 +17555,4 @@ body.streamer-landing-active .form-card {
 @keyframes badgePop {
   from { transform: scale(0); }
   to   { transform: scale(1); }
-}
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   LANDING PAGE — Three-column layout on auth-gate
-═══════════════════════════════════════════════════════════════════════════ */
-.landing-v2 {
-  display: grid;
-  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr;
-  min-height: calc(100vh - 56px);
-  width: 100vw;
-  position: relative;
-  left: 50%;
-  transform: translateX(-50%);
-  align-items: start;
-  gap: 0;
-  overflow: hidden;
-}
-.landing-v2-screenshots {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 20px 20px 20px 20px;
-  border-right: 1px solid rgba(153,102,255,0.15);
-  position: sticky;
-  top: 56px;
-  height: calc(100vh - 56px);
-  justify-content: center;
-  box-sizing: border-box;
-  background: rgba(255,255,255,0.03);
-}
-.landing-v2-screenshots img {
-  width: 100%;
-  border-radius: 12px;
-  border: 2px solid rgba(153,102,255,0.35);
-  box-shadow: 0 6px 24px rgba(0,0,0,0.22);
-  display: block;
-  transition: transform 0.2s, box-shadow 0.2s;
-  object-fit: cover;
-  object-position: top;
-  flex: 1;
-  min-height: 0;
-  max-height: calc((100vh - 56px - 120px) / 3);
-}
-.landing-v2-screenshots img:hover {
-  transform: scale(1.04);
-  box-shadow: 0 8px 24px rgba(153,102,255,0.3);
-}
-.landing-v2-ss-label {
-  font-family: 'Chewy', cursive !important;
-  font-size: 1.5rem !important;
-  color: var(--purple-dark) !important;
-  text-align: center !important;
-  margin-top: 6px !important;
-  margin-bottom: 12px !important;
-  letter-spacing: 0.04em !important;
-  line-height: 1.2 !important;
-  text-shadow: 0 1px 0 rgba(255,255,255,0.5) !important;
-}
-.landing-v2-form {
-  padding: 24px 28px;
-  border-right: 1px solid rgba(153,102,255,0.15);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-.landing-v2-logo { display:flex; align-items:center; gap:12px; margin-bottom:20px; }
-.landing-v2-logo img { width:56px; height:56px; border-radius:12px; }
-.landing-v2-title { font-family:'Chewy',cursive; font-size:1.9rem; color:var(--purple-dark); line-height:1; }
-.landing-v2-title span { color:var(--pink); }
-.landing-v2-beta { font-size:0.75rem; color:var(--text-light); margin-top:2px; }
-.landing-v2-card { width:100%; max-width:360px; }
-.landing-v2-info { padding:24px 12px 24px 28px; }
-.landing-v2-tagline { font-family:'Chewy',cursive; font-size:1.55rem; color:var(--purple-dark); line-height:1.25; margin-bottom:8px; }
-.landing-v2-tagline strong { color:var(--pink); }
-.landing-v2-sub { font-size:0.88rem; color:var(--text-light); margin-bottom:18px; }
-.landing-v2-features { margin-bottom:16px; }
-.landing-v2-feature { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid rgba(153,102,255,0.08); }
-.landing-v2-feature:last-child { border-bottom:none; }
-.landing-v2-feature-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
-.landing-v2-perks { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
-.landing-v2-perk { background:rgba(153,102,255,0.1); border:1px solid rgba(153,102,255,0.2); border-radius:20px; padding:4px 12px; font-size:0.75rem; color:var(--purple-dark); font-weight:600; }
-.landing-v2-lore { background:rgba(0,0,0,0.04); border:1px solid rgba(153,102,255,0.12); border-left:3px solid rgba(153,102,255,0.4); border-radius:0 8px 8px 0; padding:16px 20px; margin-bottom:14px; font-size:0.78rem; color:var(--text-light); line-height:1.6; }
-.landing-v2-lore p { margin:0 0 6px; }
-.landing-v2-lore p:last-child { margin:0; }
-.landing-v2-lore-label { font-size:0.65rem; letter-spacing:2px; color:rgba(153,102,255,0.6); text-transform:uppercase; display:block; margin-bottom:6px; }
-.landing-v2-lore-fine { font-size:0.7rem; color:rgba(153,102,255,0.5); font-style:italic; }
-.landing-v2-badges { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
-.landing-v2-badges span { background:rgba(255,102,178,0.08); border:1px solid rgba(255,102,178,0.2); border-radius:20px; padding:3px 10px; font-size:0.72rem; color:var(--pink); }
-.landing-v2-discord { display:inline-flex; align-items:center; gap:8px; background:#5865F2; color:#fff !important; border-radius:10px; padding:10px 20px; font-weight:700; font-size:0.88rem; text-decoration:none; transition:background 0.15s; }
-.landing-v2-discord:hover { background:#4752C4; }
-
-/* Ad-pocalypse */
-
-/* Notification bell badge */
-.notification-badge { position:absolute; top:-4px; right:-4px; background:#e0245e; color:#fff; border-radius:10px; min-width:18px; height:18px; font-size:0.65rem; font-weight:700; display:flex; align-items:center; justify-content:center; padding:0 4px; border:2px solid var(--bg,#fff); pointer-events:none; }
-
-@media (max-width: 1100px) {
-  .landing-v2 { grid-template-columns: 300px 1fr; }
-  .landing-v2-info { display: none; }
-}
-@media (max-width: 800px) {
-  .landing-v2 { grid-template-columns: 1fr; }
-  .landing-v2-screenshots { flex-direction:row; border-right:none; border-bottom:1px solid rgba(153,102,255,0.15); padding:16px 12px; position:static; }
-  .landing-v2-screenshots img { flex:1; min-height: 80px; }
-  .landing-v2-form { border-right:none; }
-  .landing-v2-info { display: none; }
-}
-@media (max-width: 600px) {
-  .landing-v2-screenshots { display:none; }
-}
-
-
-/* ═══════════════════════════════════════════════════════════════════════════
-   GUEST / LOGGED-OUT STATE — appended last to win cascade over all other rules
-   These MUST be at the end of the file to override !important rules above
-═══════════════════════════════════════════════════════════════════════════ */
-body.guest .left-sidebar,
-body.guest .right-sidebar,
-body.guest .notification-bell,
-body.guest .pass-button,
-body.guest .bingo-button,
-body.guest .event-status-widget,
-body.guest #nav-skin-key-display,
-body.guest .news-ticker,
-body.guest #app-content {
-  display: none !important;
-  visibility: hidden !important;
-}
-
-body.guest .app-container {
-  display: block !important;
-  max-width: 100vw !important;
-  width: 100vw !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  grid-template-columns: none !important;
-}
-
-body.guest .center-content {
-  width: 100vw !important;
-  max-width: 100vw !important;
-  min-height: 0 !important;
-  padding: 0 !important;
-}
-
-body.guest #auth-gate,
-body.guest #section-login {
-  width: 100vw !important;
-  max-width: 100vw !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-
-body.guest .landing-v2 {
-  display: grid !important;
-  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr !important;
-  width: 100vw !important;
-  position: relative !important;
-  left: 0 !important;
-  transform: none !important;
-  overflow: hidden !important;
-}
-
-body.guest .landing-v2-screenshots {
-  display: flex !important;
-  flex-direction: column !important;
-  padding: 16px 16px 16px 16px !important;
-  box-sizing: border-box !important;
-  gap: 16px !important;
-}
-
-body.guest .landing-v2-screenshots img {
-  display: block !important;
-  width: 100% !important;
-  height: 230px !important;
-  min-height: 230px !important;
-  max-height: 230px !important;
-  object-fit: cover !important;
-  object-position: top center !important;
-  flex-shrink: 0 !important;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   AD-POCALYPSE POPUPS — definitive sizes, appended last
-═══════════════════════════════════════════════════════════ */
-.adpoc-popup {
-  position: fixed;
-  z-index: 88888;
-  width: min(860px, 88vw);
-  background: #d4d0c8;
-  border: 3px solid #fff;
-  border-right-color: #404040;
-  border-bottom-color: #404040;
-  box-shadow: 4px 4px 0 #000;
-  font-family: Tahoma, Arial, sans-serif;
-  opacity: 0;
-  transform: translateY(-12px) scale(0.95);
-  transition: opacity 0.25s, transform 0.25s;
-  pointer-events: none;
-}
-.adpoc-popup.adpoc-show {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: all;
-}
-.adpoc-titlebar {
-  background: linear-gradient(90deg, #000080, #1084d0);
-  padding: 12px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.adpoc-titlebar span {
-  color: #fff;
-  font-size: 30px;
-  font-weight: bold;
-}
-.adpoc-close {
-  background: #d4d0c8;
-  border: 1px solid #888;
-  color: #000;
-  font-size: 22px;
-  width: 34px;
-  height: 28px;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-.adpoc-close:hover { background: #ff4444; color: #fff; }
-.adpoc-body {
-  padding: 30px 40px 34px;
-  text-align: center;
-}
-.adpoc-headline {
-  font-size: 46px;
-  font-weight: bold;
-  color: #cc0000;
-  margin-bottom: 14px;
-  line-height: 1.2;
-}
-.adpoc-sub {
-  font-size: 30px;
-  color: #333;
-  margin-bottom: 18px;
-  line-height: 1.5;
-}
-.adpoc-btn {
-  display: inline-block;
-  background: linear-gradient(180deg, #ffff00, #ffcc00);
-  border: 3px outset #888;
-  color: #000;
-  font-size: 30px;
-  font-weight: bold;
-  padding: 14px 48px;
-  cursor: pointer;
-  margin-bottom: 12px;
-}
-.adpoc-btn:hover { background: linear-gradient(180deg, #ffcc00, #ff9900); }
-.adpoc-fine {
-  font-size: 20px;
-  color: #777;
-}
-.adpoc-horror .adpoc-titlebar { background: linear-gradient(90deg, #1a001a, #3d0050); }
-.adpoc-horror .adpoc-headline { color: #6600aa; font-family: 'Courier New', monospace; }
-.adpoc-horror .adpoc-btn { background: #2a002a; color: #cc88ff; border-color: #660088; font-family: 'Courier New', monospace; }
-
-
-/* Install screen color overrides */
-#install-screen { background: #008080 !important; }
-#install-inner { background: #d4d0c8 !important; color: #000 !important; }
-#install-congrats { color: #000080 !important; font-family: Tahoma, Arial, sans-serif !important; }
-#install-sub { color: #333 !important; font-family: Tahoma, Arial, sans-serif !important; }
-#install-fine-print { color: #666 !important; font-family: Tahoma, Arial, sans-serif !important; }
-#install-disc-label { color: #000080 !important; font-family: Tahoma, Arial, sans-serif !important; }
-#install-disc-hint { color: #555 !important; font-family: Tahoma, Arial, sans-serif !important; }
-#install-status { color: #000 !important; }
-#install-percent { color: #000080 !important; }
-.install-popup { color: #000 !important; }
-.popup-headline { color: #cc0000 !important; }
-.popup-sub { color: #333 !important; }
-.popup-fine { color: #777 !important; }
-
-
-/* ── INSTALL SCREEN & AD POPUP SPAN/FONT OVERRIDES ───────────────────────
-   These must come LAST to beat body !important rules and .navbar-logo span */
-
-/* Fix .EXE span color — beat .navbar-logo span { color: var(--yellow) !important } */
-#install-disc-label span { color: #000080 !important; font-family: 'Courier New', monospace !important; }
-
-/* Fix all install screen fine print spans */
-#install-fine-print span { color: #666 !important; }
-#install-fine-print a { color: #0000cc !important; }
-
-/* Fix ad popup font — beat body { font-family: 'Fredoka' !important } */
-.adpoc-popup,
-.adpoc-popup *,
-.adpoc-titlebar,
-.adpoc-titlebar span,
-.adpoc-body,
-.adpoc-headline,
-.adpoc-sub,
-.adpoc-btn,
-.adpoc-fine {
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-.adpoc-titlebar span { color: #fff !important; font-size: 30px !important; }
-.adpoc-headline { color: #cc0000 !important; font-size: 46px !important; }
-.adpoc-sub { color: #333 !important; font-size: 30px !important; }
-.adpoc-fine { color: #777 !important; font-size: 20px !important; }
-.adpoc-btn { color: #000 !important; font-size: 34px !important; }
-
-/* Fix install popup font same way */
-.install-popup,
-.install-popup *,
-.install-popup-titlebar,
-.install-popup-body,
-.popup-headline,
-.popup-sub,
-.popup-btn,
-.popup-fine {
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-.popup-headline { color: #cc0000 !important; }
-.popup-sub { color: #333 !important; }
-.popup-fine { color: #777 !important; }
-.popup-btn { color: #000 !important; }
-
-/* ── NAV GROUP CHILDREN — definitive final rules ───────────────────────────
-   Applied last to beat any earlier duplicates */
-.nav-group-children {
-  padding-left: 0 !important;
-  transition: max-height 0.38s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-.nav-group.open .nav-group-children {
-  max-height: 500px !important;
-}
-.sidebar-nav-btn.child {
-  font-size: 0.95rem !important;
-  padding: 10px 16px !important;
-  font-weight: 600 !important;
-  width: 100% !important;
-  border-radius: 10px !important;
-  margin-bottom: 2px !important;
-  display: block !important;
-  text-align: left !important;
-}
-
-/* ── INSTALL & AD POPUPS: Override night-mode color bleed ──────────────────
-   body.night-mode targets all div/span/p with !important
-   We need equal or higher specificity + !important to win */
-body.night-mode .install-popup,
-body.night-mode .install-popup div,
-body.night-mode .install-popup span,
-body.night-mode .install-popup p,
-body.night-mode .install-popup label,
-.install-popup,
-.install-popup div,
-.install-popup span,
-.install-popup p {
-  font-family: Tahoma, Arial, sans-serif !important;
-  color: #000 !important;
-}
-body.night-mode .install-popup-titlebar,
-body.night-mode .install-popup-titlebar span,
-body.night-mode .install-popup-titlebar div,
-.install-popup-titlebar span,
-.install-popup-titlebar div {
-  color: #fff !important;
-}
-body.night-mode .popup-headline,
-.popup-headline {
-  color: #cc0000 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-  font-size: 28px !important;
-}
-body.night-mode .popup-sub,
-.popup-sub {
-  color: #333 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-  font-size: 20px !important;
-}
-body.night-mode .popup-fine,
-.popup-fine {
-  color: #777 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-body.night-mode .popup-btn,
-.popup-btn {
-  color: #000 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-
-/* Ad-pocalypse popups */
-body.night-mode .adpoc-popup,
-body.night-mode .adpoc-popup div,
-body.night-mode .adpoc-popup span,
-body.night-mode .adpoc-popup p,
-.adpoc-popup,
-.adpoc-popup div,
-.adpoc-popup span,
-.adpoc-popup p {
-  font-family: Tahoma, Arial, sans-serif !important;
-  color: #000 !important;
-}
-body.night-mode .adpoc-titlebar span,
-.adpoc-titlebar span {
-  color: #fff !important;
-  font-size: 30px !important;
-}
-body.night-mode .adpoc-headline,
-.adpoc-headline {
-  color: #cc0000 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-  font-size: 46px !important;
-}
-body.night-mode .adpoc-sub,
-.adpoc-sub {
-  color: #333 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-  font-size: 30px !important;
-}
-body.night-mode .adpoc-fine,
-.adpoc-fine {
-  color: #777 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-  font-size: 20px !important;
-}
-body.night-mode .adpoc-btn,
-.adpoc-btn {
-  color: #000 !important;
-  font-size: 34px !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-
-/* Install screen disc label */
-body.night-mode #install-congrats,
-#install-congrats {
-  color: #000080 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-body.night-mode #install-sub,
-#install-sub {
-  color: #333 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-body.night-mode #install-fine-print,
-body.night-mode #install-fine-print span,
-body.night-mode #install-fine-print p,
-#install-fine-print,
-#install-fine-print span {
-  color: #555 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-body.night-mode #install-disc-label,
-#install-disc-label {
-  color: #000 !important;
-  font-family: 'Courier New', monospace !important;
-}
-body.night-mode #install-disc-label span,
-#install-disc-label span {
-  color: #000080 !important;
-  font-family: 'Courier New', monospace !important;
-}
-body.night-mode #install-disc-hint,
-#install-disc-hint {
-  color: #555 !important;
-  font-family: Tahoma, Arial, sans-serif !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   INSTALL SCREEN — NUCLEAR OVERRIDE
-   Defeats body.night-mode div/span/p/label { color: #e8d5ff !important }
-   by scoping every element inside #install-screen with higher specificity
-══════════════════════════════════════════════════════════════════════════ */
-#install-screen * {
-  font-family: Tahoma, Arial, sans-serif !important;
-  color: #333 !important;
-}
-
-/* Now re-apply specific colors where needed */
-#install-screen #install-header,
-#install-screen #install-header * { color: #fff !important; }
-
-#install-screen #install-header-title { color: #fff !important; font-weight: bold !important; font-size: 12px !important; }
-
-#install-screen #install-congrats { color: #000080 !important; font-size: clamp(1.1rem, 4vw, 1.5rem) !important; font-weight: bold !important; font-family: Tahoma, Arial, sans-serif !important; }
-
-#install-screen #install-sub { color: #333 !important; }
-
-#install-screen #install-disc-label { color: #000080 !important; font-family: 'Courier New', monospace !important; letter-spacing: 1px !important; }
-
-#install-screen #install-disc-label span { color: #000080 !important; font-family: 'Courier New', monospace !important; }
-
-#install-screen #install-disc-hint { color: #555 !important; }
-
-#install-screen #install-status-text { color: #000080 !important; font-size: 0.85rem !important; }
-
-#install-screen #install-error-msg { color: #cc0000 !important; }
-
-#install-screen #install-sub-status { color: #333 !important; font-size: 0.78rem !important; }
-
-#install-screen #install-fine-print,
-#install-screen #install-fine-print * { color: #555 !important; font-size: 0.65rem !important; }
-
-#install-screen #install-tester-id { color: #555 !important; }
-
-/* Popup text inside install screen */
-#install-screen .install-popup-titlebar,
-#install-screen .install-popup-titlebar * { color: #fff !important; }
-
-#install-screen .popup-headline { color: #cc0000 !important; font-size: 28px !important; font-weight: bold !important; }
-
-#install-screen .popup-sub { color: #333 !important; font-size: 20px !important; }
-
-#install-screen .popup-btn { color: #000 !important; }
-
-#install-screen .popup-fine { color: #777 !important; font-size: 0.65rem !important; }
-
-/* Creepy popup */
-#install-screen #creepy-popup-headline { color: #222 !important; font-style: italic !important; }
-#install-screen #creepy-popup-sub,
-#install-screen #creepy-popup-sub * { color: #333 !important; }
-#install-screen #creepy-date { color: #666 !important; }
-#install-screen #creepy-fine { color: #888 !important; font-style: italic !important; }
-
-/* Install screen background elements */
-#install-screen { background: #008080 !important; }
-#install-screen #install-inner { background: #d4d0c8 !important; }
-#install-screen #install-header { background: linear-gradient(90deg, #000080, #1084d0) !important; }
-#install-screen .install-popup { background: #d4d0c8 !important; color: #000 !important; }
-#install-screen .install-popup.creepy { background: #d4d0c8 !important; }
-
-/* Ad-pocalypse popups (outside install-screen, different parent) */
-body.night-mode .adpoc-popup *,
-.adpoc-popup * {
-  font-family: Tahoma, Arial, sans-serif !important;
-  color: #333 !important;
-}
-body.night-mode .adpoc-titlebar *,
-.adpoc-titlebar * { color: #fff !important; }
-body.night-mode .adpoc-headline,
-.adpoc-headline { color: #cc0000 !important; font-size: 46px !important; }
-body.night-mode .adpoc-sub,
-.adpoc-sub { color: #333 !important; font-size: 30px !important; }
-body.night-mode .adpoc-fine,
-.adpoc-fine { color: #777 !important; font-size: 20px !important; }
-body.night-mode .adpoc-btn,
-.adpoc-btn { color: #000 !important; font-size: 34px !important; }
-body.night-mode .adpoc-close,
-.adpoc-close { color: #000 !important; }
-
-/* ══════════════════════════════════════════════════════════════════════════
-   GUEST + INSTALL EXEMPTION FROM NIGHT MODE / WEATHER / THEMES
-   When body has .guest or .installing, ALL modifier classes are neutralised.
-   These rules come last so they win the cascade unconditionally.
-══════════════════════════════════════════════════════════════════════════ */
-
-/* Block night-mode color bleed on guest/install */
-body.guest.night-mode,
-body.installing.night-mode {
-  --text:          #2d1b4e !important;
-  --bg:            #fff !important;
-  --white:         #fff !important;
-  --purple-dark:   #3d1a6e !important;
-  --text-light:    #888 !important;
-}
-
-body.guest.night-mode *,
-body.installing.night-mode * {
-  /* Reset the night-mode blanket color override */
-  color: revert;
-}
-
-/* Specifically block the night-mode p/span/div/label rule */
-body.guest.night-mode p,
-body.guest.night-mode span,
-body.guest.night-mode div,
-body.guest.night-mode label,
-body.installing.night-mode p,
-body.installing.night-mode span,
-body.installing.night-mode div,
-body.installing.night-mode label {
-  color: revert !important;
-}
-
-/* Block weather background/filter effects on guest/install */
-body.guest.weather-cursed,
-body.guest.weather-foggy,
-body.guest.weather-rainy,
-body.guest.weather-starry,
-body.guest.weather-sunny,
-body.guest.weather-windy,
-body.installing.weather-cursed,
-body.installing.weather-foggy,
-body.installing.weather-rainy,
-body.installing.weather-starry,
-body.installing.weather-sunny,
-body.installing.weather-windy {
-  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
-  filter: none !important;
-}
-
-/* Block theme overrides on guest/install */
-body.guest.theme-autumn,
-body.guest.theme-winter,
-body.guest.theme-halloween,
-body.guest.theme-golden,
-body.installing.theme-autumn,
-body.installing.theme-winter,
-body.installing.theme-halloween,
-body.installing.theme-golden {
-  --purple:        #9966ff !important;
-  --pink:          #ff66cc !important;
-  --purple-dark:   #3d1a6e !important;
-  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
-}
-
-/* Install screen always gets teal desktop regardless */
-body.installing #install-screen {
-  background: #008080 !important;
-}
-body.installing #install-inner {
-  background: #d4d0c8 !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   GUEST STATE — FORCE CLEAN DAY-MODE REGARDLESS OF ANY BODY CLASSES
-   When logged out, the landing page always uses the default bright theme.
-   Placed last to win all cascade conflicts.
-══════════════════════════════════════════════════════════════════════════ */
-
-/* Override the night-mode background on guest */
-body.guest {
-  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
-  background-attachment: fixed !important;
-}
-
-/* Override night-mode CSS variables for guest so all colors revert to day defaults */
-body.guest {
-  --text:          #2d1b4e !important;
-  --text-light:    #888 !important;
-  --bg:            #fff !important;
-  --white:         #fff !important;
-  --purple:        #9966ff !important;
-  --purple-dark:   #3d1a6e !important;
-  --purple-light:  #c9a8ff !important;
-  --pink:          #ff66cc !important;
-  --yellow:        #ffd700 !important;
-  --border:        #e0d0ff !important;
-  --card-bg:       #fff !important;
-}
-
-/* Kill the night-mode blanket p/span/div/label color on guest */
-body.guest p,
-body.guest span,
-body.guest div,
-body.guest label {
-  color: revert !important;
-}
-
-/* Kill night-mode card backgrounds bleeding into landing */
-body.guest .card,
-body.guest .form-card {
-  background: rgba(255,255,255,0.85) !important;
-  border-color: rgba(153,102,255,0.2) !important;
-  color: var(--purple-dark) !important;
-}
-/* Landing columns: transparent, not white */
-body.guest .landing-v2-form,
-body.guest .landing-v2-info {
-  background: transparent !important;
-}
-body.guest .landing-v2-feature {
-  background: rgba(255,255,255,0.6) !important;
-  border-color: rgba(153,102,255,0.15) !important;
-}
-
-/* Landing text always readable */
-body.guest .landing-v2-tagline,
-body.guest .landing-v2-title,
-body.guest h1, body.guest h2, body.guest h3 {
-  color: var(--purple-dark) !important;
-}
-body.guest .landing-v2-sub,
-body.guest p {
-  color: var(--text-light) !important;
-}
-
-/* Form inputs always readable on guest */
-body.guest input[type="email"],
-body.guest input[type="password"],
-body.guest input[type="text"] {
-  background: #fff !important;
-  color: #333 !important;
-  border-color: rgba(153,102,255,0.3) !important;
-}
-body.guest input::placeholder {
-  color: #aaa !important;
-}
-
-/* Kill weather effects on guest */
-body.guest::before,
-body.guest::after {
-  display: none !important;
-}
-
-/* ── SCREENSHOT LIGHTBOX ──────────────────────────────────────────────── */
-.ss-lightbox-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 999999;
-  background: rgba(0,0,0,0.88);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.2s ease;
-  cursor: zoom-out;
-}
-.ss-lightbox-overlay.open { opacity: 1; }
-.ss-lightbox-img {
-  max-width: 92vw;
-  max-height: 90vh;
-  border-radius: 12px;
-  box-shadow: 0 8px 60px rgba(0,0,0,0.6);
-  object-fit: contain;
-  cursor: default;
-  transform: scale(0.95);
-  transition: transform 0.2s ease;
-}
-.ss-lightbox-overlay.open .ss-lightbox-img { transform: scale(1); }
-.ss-lightbox-close {
-  position: fixed;
-  top: 20px;
-  right: 24px;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: rgba(255,255,255,0.15);
-  border: 2px solid rgba(255,255,255,0.4);
-  color: #fff;
-  font-size: 1.4rem;
-  line-height: 1;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s;
-  z-index: 1000000;
-}
-.ss-lightbox-close:hover { background: rgba(255,255,255,0.3); }
-/* Make screenshots show a zoom cursor */
-.landing-v2-screenshots img {
-  cursor: zoom-in !important;
-}
-
-/* #equipment-shop-grid inherits from .shop-grid class rule above */
-
-/* ── NIGHT MODE: FISHING GAME ──────────────────────────────────────────── */
-body.night-mode .fishing-spot-btn,
-body.night-mode .fishing-bait-btn {
-  background: rgba(153,102,255,0.2) !important;
-  border-color: rgba(153,102,255,0.4) !important;
-  color: #e8d5ff !important;
-}
-body.night-mode .fishing-spot-btn.selected,
-body.night-mode .fishing-bait-btn.selected {
-  background: var(--purple) !important;
-  color: #fff !important;
-}
-body.night-mode #fishing-btn {
-  background: linear-gradient(135deg, #6644aa, #9966ff) !important;
-  color: #fff !important;
-}
-body.night-mode .pond-area {
-  background: linear-gradient(180deg, #1a1a3e 0%, #0d2137 100%) !important;
-  border-color: rgba(153,102,255,0.3) !important;
-}
-body.night-mode .fishing-session-stats {
-  background: rgba(30,20,60,0.8) !important;
-  color: #e8d5ff !important;
-}
-body.night-mode #fishing-timing-wrap {
-  background: rgba(30,20,60,0.9) !important;
-}
-
-/* ── NIGHT MODE: COMPANION CHAT BUBBLE ──────────────────────────────────── */
-body.night-mode #companion-buddy .companion-speech,
-body.night-mode .companion-speech {
-  background: rgba(30,20,60,0.95) !important;
-  color: #e8d5ff !important;
-  border-color: rgba(153,102,255,0.4) !important;
-}
-body.night-mode #companion-buddy .companion-speech * {
-  color: #e8d5ff !important;
-}
-
-/* ── NIGHT MODE: GUILD SECTION ───────────────────────────────────────────── */
-body.night-mode .guild-card,
-body.night-mode #section-guild .card,
-body.night-mode .guild-info-card {
-  background: rgba(30,20,60,0.85) !important;
-  border-color: rgba(153,102,255,0.3) !important;
-  color: #e8d5ff !important;
-}
-body.night-mode .guild-empty-state,
-body.night-mode .guild-browse-empty {
-  background: rgba(30,20,60,0.85) !important;
-  color: #e8d5ff !important;
-}
-
-/* ── NIGHT MODE: NEWS SECTION ───────────────────────────────────────────── */
-body.night-mode .news-card,
-body.night-mode .news-post,
-body.night-mode #section-news .card {
-  background: rgba(30,20,60,0.85) !important;
-  border-color: rgba(153,102,255,0.3) !important;
-  color: #e8d5ff !important;
-}
-body.night-mode .news-post h3,
-body.night-mode .news-card h3 {
-  color: var(--purple-light) !important;
-}
-
-/* ── NIGHT MODE: PET CARDS ──────────────────────────────────────────────── */
-body.night-mode .pet-card {
-  overflow: hidden !important;
-}
-body.night-mode .pet-card-banner {
-  border-radius: 12px 12px 0 0 !important;
-  overflow: hidden !important;
-}
-
-/* ── NIGHT MODE: GENERAL WHITE CARD BACKGROUNDS ─────────────────────────── */
-body.night-mode .card,
-body.night-mode .form-card,
-body.night-mode .stat-card,
-body.night-mode .info-card {
-  background: rgba(30,20,60,0.85) !important;
-  border-color: rgba(153,102,255,0.3) !important;
-}
-
-/* ── PET CARD BORDER RADIUS FIX ─────────────────────────────────────────── */
-.pet-card {
-  overflow: hidden !important;
-  border-radius: var(--radius-xl) !important;
-}
-.pet-card-banner {
-  border-radius: 0 !important;
-  margin: -1px !important;
-}
-.pet-card .pet-avatar-wrap {
-  overflow: hidden !important;
-}
-
-/* ── EXPEDITION SPEED BUTTONS ─────────────────────────────────────────────── */
-.expedition-speed-btn {
-  transition: all 0.15s ease;
-  font-family: 'Fredoka', cursive !important;
-}
-.expedition-speed-btn:hover {
-  background: rgba(153,102,255,0.15) !important;
-  border-color: var(--purple) !important;
-}
-body.night-mode .expedition-speed-btn {
-  background: rgba(30,20,60,0.6) !important;
-  color: #e8d5ff !important;
-  border-color: rgba(153,102,255,0.3) !important;
-}
-
-/* ── GUEST NAVBAR — always bright, never night-mode dark ─────────────────
-   Placed last to beat body.night-mode .navbar rule */
-body.guest .navbar,
-body.guest.night-mode .navbar {
-  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
-  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   NIGHT MODE UI FIXES — appended last to win cascade
-══════════════════════════════════════════════════════════════════════════ */
-
-/* ── LEFT NAV BUTTONS — more visible in night mode ──────────────────────── */
-body.night-mode .sidebar-nav-btn {
-  background: rgba(153,102,255,0.18) !important;
-  border-color: rgba(153,102,255,0.35) !important;
-  color: #d4b8ff !important;
-}
-body.night-mode .sidebar-nav-btn:hover {
-  background: rgba(153,102,255,0.32) !important;
-  border-color: rgba(153,102,255,0.6) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-nav-btn.active {
-  background: linear-gradient(135deg, rgba(153,102,255,0.55), rgba(255,102,204,0.45)) !important;
-  border-color: rgba(153,102,255,0.7) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-nav-btn.child {
-  background: rgba(153,102,255,0.12) !important;
-  border-color: rgba(153,102,255,0.25) !important;
-  color: #c4a8f5 !important;
-}
-body.night-mode .sidebar-nav-btn.child:hover {
-  background: rgba(153,102,255,0.28) !important;
-  color: #fff !important;
-}
-body.night-mode .nav-group-header {
-  color: #d4b8ff !important;
-}
-body.night-mode .nav-group-header:hover {
-  background: rgba(153,102,255,0.2) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-section {
-  border-color: rgba(153,102,255,0.3) !important;
-  background: rgba(20,12,40,0.6) !important;
-}
-
-/* ── TODAY IN PAWKETPETS — softer border and background ─────────────────── */
-body.night-mode .today-card,
-body.night-mode #today-card-mount > div {
-  background: rgba(28,18,52,0.92) !important;
-  border-color: rgba(153,102,255,0.35) !important;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.4) !important;
-  color: #d4b8ff !important;
-}
-body.night-mode .today-card *,
-body.night-mode #today-card-mount * {
-  border-color: rgba(153,102,255,0.2) !important;
-}
-
-/* ── MELON REQUESTS — readable in night mode ─────────────────────────────── */
-body.night-mode .melon-req-item {
-  background: rgba(28,18,52,0.85) !important;
-  border-color: rgba(153,102,255,0.25) !important;
-  color: #d4b8ff !important;
-}
-body.night-mode .melon-req-item * {
-  color: #c4a8f5 !important;
-}
-body.night-mode .melon-req-item .melon-req-reward {
-  color: #ffd700 !important;
-}
-body.night-mode .melon-requests-widget .melon-req-header {
-  color: #c4a8f5 !important;
-}
-
-/* ── DID YOU KNOW / TIP BOX — softer in night mode ─────────────────────── */
-body.night-mode .did-you-know,
-body.night-mode .tip-box {
-  background: rgba(28,18,52,0.9) !important;
-  border-color: rgba(153,102,255,0.3) !important;
-  color: #d4b8ff !important;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   NIGHT MODE UI FIXES — nav, today card, melon requests
-══════════════════════════════════════════════════════════════════════════ */
-
-/* Nav buttons — more visible in night mode */
-body.night-mode .sidebar-nav-btn {
-  background: rgba(80,50,140,0.5) !important;
-  border: 1px solid rgba(153,102,255,0.5) !important;
-  color: #ddc8ff !important;
-}
-body.night-mode .sidebar-nav-btn:hover {
-  background: rgba(120,80,200,0.65) !important;
-  border-color: rgba(180,140,255,0.7) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-nav-btn.active {
-  background: linear-gradient(135deg, rgba(153,102,255,0.7), rgba(255,102,204,0.55)) !important;
-  border-color: rgba(180,140,255,0.8) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-nav-btn.child {
-  background: rgba(60,35,110,0.6) !important;
-  border: 1px solid rgba(130,90,220,0.45) !important;
-  color: #ccb0ff !important;
-}
-body.night-mode .sidebar-nav-btn.child:hover {
-  background: rgba(100,65,180,0.7) !important;
-  border-color: rgba(180,140,255,0.65) !important;
-  color: #fff !important;
-}
-body.night-mode .sidebar-section {
-  border-color: rgba(120,80,200,0.4) !important;
-  box-shadow: 0 0 0 2px rgba(100,60,180,0.3), 0 4px 12px rgba(0,0,0,0.4) !important;
-}
-
-/* Today in PawketPets card — soften the bright border */
-body.night-mode .today-widget,
-body.night-mode #today-card-mount > div {
-  border: 1px solid rgba(100,70,180,0.4) !important;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.4) !important;
-}
-body.night-mode .today-widget-inner,
-body.night-mode .today-card {
-  border-color: rgba(100,70,180,0.3) !important;
-}
-
-/* Melon requests — dark background, legible text */
-body.night-mode .melon-req-item,
-body.night-mode .melon-request-card {
-  background: rgba(40,25,80,0.75) !important;
-  border-color: rgba(120,80,200,0.35) !important;
-  color: #ddc8ff !important;
-}
-body.night-mode .melon-req-item *,
-body.night-mode .melon-request-card * {
-  color: #ccb8f0 !important;
-}
-body.night-mode .melon-req-pp,
-body.night-mode .melon-req-reward {
-  color: #ffd700 !important;
-}
-
-/* ── PAWKETPOINT COIN ICON ───────────────────────────────────────────────── */
-#nav-points img {
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
-  animation: coinSpin 6s ease-in-out infinite;
-  transform-origin: center;
-}
-@keyframes coinSpin {
-  0%, 85%  { transform: rotateY(0deg); }
-  90%      { transform: rotateY(90deg) scale(0.7); }
-  95%      { transform: rotateY(0deg); }
-  98%      { transform: rotateY(30deg); }
-  100%     { transform: rotateY(0deg); }
-}
-/* Coin in sidebar and toasts — no animation, just clean */
-#sidebar-points img,
-.pixel-toast-message img,
-.stat-icon img {
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
-}
-/* Coin in shop balance headers */
-.shop-points-display img,
-[id$="-points"] img {
-  vertical-align: middle;
-}
-
-/* Performance: promote weather elements to GPU composite layers */
-body.weather-cursed::before, body.weather-cursed::after,
-body.weather-foggy::before, body.weather-foggy::after,
-body.weather-rainy::before, body.weather-rainy::after,
-body.weather-starry::before, body.weather-starry::after,
-body.weather-sunny::before, body.weather-sunny::after,
-body.weather-windy::before, body.weather-windy::after {
-  will-change: transform, opacity;
-  contain: strict;
-}
-/* Contain sparkle particles to avoid full-page repaints */
-.sparkle-particle {
-  will-change: transform, opacity;
-  contain: layout style;
-}
-/* Contain companion buddy to its own layer */
-#companion-buddy {
-  will-change: transform;
-  contain: layout style;
-}
-
-/* Performance: limit repaint scope for main layout areas */
-.page-section { contain: content; }
-.left-sidebar  { contain: layout style; }
-.right-sidebar { contain: layout style; }
-/* Boss battle glitch effects — isolate to their own layer */
-.boss-container, .boss-battle-screen { 
-  contain: layout style;
-  isolation: isolate;
-}
-/* Weather overlay pseudo-elements already have will-change,
-   also add contain to body for weather to limit scope */
-body.weather-cursed, body.weather-foggy, body.weather-rainy,
-body.weather-starry, body.weather-sunny, body.weather-windy {
-  isolation: isolate;
-}
-
-/* ══════════════════════════════════════════════════════════════════════════
-   MOBILE LAYOUT — max-width: 768px ONLY
-   ZERO impact on desktop. All rules scoped to ≤768px.
-══════════════════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
-
-  /* ── CORE LAYOUT ─────────────────────────────────────────────────────── */
-  .app-container {
-    display: block !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100vw !important;
-    overflow-x: hidden !important;
-  }
-
-  /* Hide sidebars — nav is via hamburger */
-  .left-sidebar,
-  .right-sidebar {
-    display: none !important;
-  }
-
-  /* Center content fills full width */
-  .center-content {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    overflow-x: hidden !important;
-  }
-
-  /* Page sections take full width */
-  .page-section,
-  .page-section.active {
-    width: 100vw !important;
-    max-width: 100vw !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
-  }
-
-  .page-wrap {
-    padding: 12px !important;
-    max-width: 100vw !important;
-    box-sizing: border-box !important;
-  }
-
-  /* ── NAVBAR ──────────────────────────────────────────────────────────── */
-  .navbar {
-    padding: 0 10px !important;
-    height: 52px !important;
-    min-height: 52px !important;
-  }
-
-  .navbar-center { display: none !important; }
-
-  /* Collapse right side — show only PP and profile */
-  .navbar-right {
-    gap: 6px !important;
-    flex-shrink: 0 !important;
-  }
-
-  /* Hide these on mobile navbar — in hamburger menu instead */
-  .navbar-right .notification-bell,
-  #nav-skin-key-display,
-  #nav-logout { display: none !important; }
-
-  /* Show hamburger */
-  .hamburger-menu-btn {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 42px !important;
-    height: 42px !important;
-    font-size: 22px !important;
-    flex-shrink: 0 !important;
-  }
-
-  /* Compact PP display */
-  #nav-points {
-    font-size: 0.8rem !important;
-    white-space: nowrap !important;
-  }
-  #nav-points img { width: 14px !important; height: 14px !important; }
-
-  /* ── MOBILE NAV DRAWER ───────────────────────────────────────────────── */
-  .mobile-nav-menu {
-    width: min(300px, 85vw) !important;
-    padding: 16px 12px !important;
-  }
-
-  .mobile-nav-menu .sidebar-nav-btn {
-    padding: 14px 16px !important;
-    font-size: 1rem !important;
-    min-height: 48px !important;
-    border-radius: 12px !important;
-    margin-bottom: 4px !important;
-    width: 100% !important;
-  }
-
-  .mobile-nav-menu .nav-group-header {
-    padding: 14px 16px !important;
-    font-size: 1rem !important;
-    min-height: 48px !important;
-  }
-
-  .mobile-nav-menu .sidebar-nav-btn.child {
-    padding: 12px 16px 12px 28px !important;
-    font-size: 0.95rem !important;
-    min-height: 44px !important;
-  }
-
-  .mobile-menu-close {
-    padding: 14px !important;
-    font-size: 1rem !important;
-    margin-bottom: 12px !important;
-    min-height: 48px !important;
-  }
-
-  /* ── TOUCH TARGETS ───────────────────────────────────────────────────── */
-  button, .btn, [role="button"] {
-    min-height: 44px !important;
-    cursor: pointer !important;
-  }
-
-  /* Bigger tap targets for nav items */
-  .sidebar-nav-btn,
-  .nav-group-header {
-    min-height: 48px !important;
-  }
-
-  /* ── HOME TAB ────────────────────────────────────────────────────────── */
-  .today-widget,
-  .welcome-panel,
-  .daily-tip-box {
-    margin: 8px !important;
-    border-radius: 12px !important;
-  }
-
-  /* Calendar day buttons - fit on screen */
-  .calendar-day-btn {
-    padding: 8px 4px !important;
-    font-size: 0.75rem !important;
-  }
-
-  /* ── SHOP ────────────────────────────────────────────────────────────── */
-  #shop-grid,
-  .shop-grid,
-  #equipment-shop-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-    padding: 8px !important;
-  }
-
-  .shop-tab-btn {
-    padding: 8px 10px !important;
-    font-size: 0.82rem !important;
-    min-height: 40px !important;
-  }
-
-  /* ── ADOPT ───────────────────────────────────────────────────────────── */
-  .adopt-grid,
-  .pets-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-    padding: 8px !important;
-  }
-
-  .pet-card {
-    min-width: unset !important;
-    max-width: 100% !important;
-  }
-
-  /* ── MY PETS ─────────────────────────────────────────────────────────── */
-  .my-pets-grid {
-    grid-template-columns: 1fr !important;
-    padding: 8px !important;
-  }
-
-  .pet-interaction-buttons {
-    display: grid !important;
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
-  }
-
-  .pet-interaction-buttons .btn {
-    font-size: 0.82rem !important;
-    padding: 10px 6px !important;
-  }
-
-  /* ── FISHING ─────────────────────────────────────────────────────────── */
-  .fishing-spot-grid,
-  .fishing-bait-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 6px !important;
-  }
-
-  .fishing-spot-btn,
-  .fishing-bait-btn {
-    padding: 10px 6px !important;
-    font-size: 0.82rem !important;
-    min-height: 52px !important;
-  }
-
-  #fishing-btn {
-    font-size: 1.1rem !important;
-    padding: 14px !important;
-    min-height: 56px !important;
-  }
-
-  .pond-area {
-    min-height: 140px !important;
-    font-size: 1rem !important;
-  }
-
-  /* ── BATTLE ──────────────────────────────────────────────────────────── */
-  .battle-grid,
-  .battle-pet-select {
-    grid-template-columns: 1fr !important;
-    gap: 8px !important;
-    padding: 8px !important;
-  }
-
-  .battle-zone-card {
-    padding: 10px !important;
-    font-size: 0.9rem !important;
-  }
-
-  /* ── EXPEDITION ──────────────────────────────────────────────────────── */
-  .expedition-zone-card,
-  .battle-exp-zone-card {
-    padding: 10px 8px !important;
-    font-size: 0.85rem !important;
-  }
-
-  .expedition-speed-btn {
-    padding: 8px 4px !important;
-    font-size: 0.75rem !important;
-  }
-
-  /* ── MINIGAMES ───────────────────────────────────────────────────────── */
-  .minigame-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-    padding: 8px !important;
-  }
-
-  /* ── RACING ──────────────────────────────────────────────────────────── */
-  .race-pets-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .race-track-area {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-
-  /* ── GUILD ───────────────────────────────────────────────────────────── */
-  .guild-card,
-  .guild-info-card {
-    padding: 12px !important;
-  }
-
-  /* ── COMMUNITY GOALS ─────────────────────────────────────────────────── */
-  .community-goal-card {
-    padding: 12px !important;
-  }
-
-  /* ── LEADERBOARD ─────────────────────────────────────────────────────── */
-  .leaderboard-entry {
-    padding: 10px 8px !important;
-    gap: 6px !important;
-  }
-
-  /* ── NEWS TICKER ─────────────────────────────────────────────────────── */
-  .news-ticker {
-    font-size: 0.78rem !important;
-    padding: 4px 0 !important;
-  }
-
-  /* ── MODALS ──────────────────────────────────────────────────────────── */
-  .modal-content,
-  .centered-modal-content {
-    width: 95vw !important;
-    max-width: 95vw !important;
-    max-height: 85vh !important;
-    overflow-y: auto !important;
-    margin: auto !important;
-    border-radius: 16px !important;
-  }
-
-  /* ── FORMS ───────────────────────────────────────────────────────────── */
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  textarea,
-  select {
-    font-size: 16px !important; /* Prevents iOS zoom on input focus */
-    min-height: 44px !important;
-    padding: 10px 12px !important;
-  }
-
-  /* ── COMPANION BUDDY ─────────────────────────────────────────────────── */
-  #companion-buddy {
-    bottom: 70px !important;
-    right: 10px !important;
-    transform: scale(0.85) !important;
-    transform-origin: bottom right !important;
-  }
-
-  /* ── BINGO ───────────────────────────────────────────────────────────── */
-  .bingo-grid {
-    gap: 3px !important;
-  }
-
-  .bingo-cell {
-    font-size: 0.62rem !important;
-    padding: 4px 2px !important;
-  }
-
-  /* ── PAGE HERO HEADERS ───────────────────────────────────────────────── */
-  .page-hero {
-    padding: 20px 12px 16px !important;
-  }
-
-  .page-hero h1 {
-    font-size: clamp(1.4rem, 6vw, 2rem) !important;
-  }
-
-  /* ── SCROLLABLE HORIZONTAL AREAS ─────────────────────────────────────── */
-  .shop-tabs,
-  .battle-tabs,
-  .sub-tabs {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    flex-wrap: nowrap !important;
-    gap: 6px !important;
-    padding-bottom: 4px !important;
-    scrollbar-width: none !important;
-  }
-  .shop-tabs::-webkit-scrollbar,
-  .battle-tabs::-webkit-scrollbar { display: none !important; }
-
-  /* ── BOTTOM SAFE AREA (iPhone home bar) ──────────────────────────────── */
-  .page-section.active {
-    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
-  }
-}
-
-/* ── VERY SMALL SCREENS ─────────────────────────────────────────────────── */
-@media (max-width: 480px) {
-  #shop-grid,
-  .shop-grid,
-  #equipment-shop-grid,
-  .adopt-grid,
-  .pets-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .minigame-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  .fishing-spot-grid,
-  .fishing-bait-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-  }
-
-  .page-hero h1 {
-    font-size: 1.3rem !important;
-  }
 }

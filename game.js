@@ -31,8 +31,8 @@ var DEBUG = false;
     if (t) show(t, t.getAttribute('data-tooltip'));
     else hide();
   }, true);
-  document.addEventListener('touchstart', hide, { passive: true, capture: true });
-  document.addEventListener('scroll', hide, { passive: true, capture: true });
+  document.addEventListener('touchstart', hide, true);
+  document.addEventListener('scroll', hide, true);
 })();
 // Refresh notification badge when user returns to this tab
 document.addEventListener('visibilitychange', function() {
@@ -725,15 +725,13 @@ var bgMusic = document.getElementById('bg-music');
 bgMusic.volume = 0.4;
 
 document.addEventListener('click', function startM() {
+  bgMusic.play().catch(function(){});
+  document.getElementById('music-play-btn').textContent = '\u23F8';
   document.removeEventListener('click', startM);
-  if (window._installMusicStarted) return;
-  bgMusic.play().catch(function(e){ dbg('upsert error:', e); });
-  var btn = document.getElementById('music-play-btn');
-  if (btn) btn.textContent = '\u23F8';
 }, { once: true });
 
 function toggleMusic() {
-  if (bgMusic.paused) { bgMusic.play().catch(function(e){ dbg('upsert error:', e); }); document.getElementById('music-play-btn').textContent = '\u23F8'; }
+  if (bgMusic.paused) { bgMusic.play().catch(function(){}); document.getElementById('music-play-btn').textContent = '\u23F8'; }
   else { bgMusic.pause(); document.getElementById('music-play-btn').textContent = '\u25B6'; }
 }
 function stopMusic() { bgMusic.pause(); bgMusic.currentTime = 0; document.getElementById('music-play-btn').textContent = '\u25B6'; }
@@ -803,11 +801,7 @@ function showNextToast() {
     default: icon = 'ⓘ'; break;
   }
   
-  var safeMsg = escapeHtml(toast.message);
-  // Replace PP amounts with coin icon for visual flair
-  safeMsg = safeMsg.replace(/(\+\d[\d,]*)\s*PP/g, '$1 <img src="images/icons/pawketpoint.png" alt="PP" style="width:14px;height:14px;vertical-align:middle;margin:0 1px;object-fit:contain;">');
-  safeMsg = safeMsg.replace(/(\d[\d,]+)\s*PP(?!\s*icon)/g, '$1 <img src="images/icons/pawketpoint.png" alt="PP" style="width:14px;height:14px;vertical-align:middle;margin:0 1px;object-fit:contain;">');
-  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + safeMsg + '</span>';
+  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + escapeHtml(toast.message) + '</span>';
   
   document.body.appendChild(toastEl);
   
@@ -1346,17 +1340,16 @@ function updateAllPoints(pts) {
   
   currentPoints = pts;
   var str = pts + ' PP';
-  var ppIconHtml = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:16px;height:16px;vertical-align:middle;margin-right:4px;object-fit:contain;"> ';
   ['adopt-points','mypets-points','shop-points','games-points','redeem-points'].forEach(function(id){
-    var e = el(id); if (e) e.innerHTML = ppIconHtml + pts.toLocaleString() + ' PP';
+    var e = el(id); if (e) e.textContent = str;
   });
   
   var navPoints = el('nav-points');
-  if (navPoints) navPoints.innerHTML = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:18px;height:18px;vertical-align:middle;margin-right:4px;object-fit:contain;"> ' + pts.toLocaleString() + ' PP';
+  if (navPoints) navPoints.innerHTML = '&#129689; ' + pts + ' PP';
   
   // Update sidebar points
   var sidebarPoints = document.getElementById('sidebar-points');
-  if (sidebarPoints) sidebarPoints.innerHTML = '<img src="images/icons/pawketpoint.png" alt="PP" style="width:16px;height:16px;vertical-align:middle;margin-right:3px;object-fit:contain;"> ' + pts.toLocaleString() + ' PP';
+  if (sidebarPoints) sidebarPoints.textContent = pts.toLocaleString() + ' PP';
 
   maybeGlitchPointsDisplay(pts);
 }
@@ -1541,367 +1534,6 @@ function initLeaderboardTab() {
 }
 
 // ── TAB NAVIGATION ───────────────────────
-
-var NAV_GROUP_MAP = {
-  adopt: 'pets', mypets: 'pets', journal: 'pets',
-  minigames: 'games', fishing: 'games', racing: 'games',
-  guild: 'community', friends: 'community', leaderboard: 'community',
-  forum: 'community', stats: 'community',
-  twitch: 'more', redeem: 'more', news: 'more', team: 'more', settings: 'more'
-};
-
-var _navGroupTimers = {};
-
-function navGroupOpen(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
-  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
-  if (g) g.classList.add('open');
-  if (gm) gm.classList.add('open');
-}
-
-function navGroupClose(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
-  var gm = document.getElementById('navgroup-' + groupId + '-mobile');
-  if (g) g.classList.remove('open');
-  if (gm) gm.classList.remove('open');
-}
-
-function navGroupToggle(groupId) {
-  var g = document.getElementById('navgroup-' + groupId);
-  if (!g) return;
-  if (g.classList.contains('open')) {
-    navGroupClose(groupId);
-  } else {
-    navGroupOpen(groupId);
-  }
-}
-
-// Hover open with delay-close so mouse can move into children
-function navGroupHover(groupId, entering) {
-  if (_navGroupTimers[groupId]) {
-    clearTimeout(_navGroupTimers[groupId]);
-    _navGroupTimers[groupId] = null;
-  }
-  if (entering) {
-    // Small delay prevents accidental triggers when mousing across nav
-    _navGroupTimers[groupId] = setTimeout(function() {
-      navGroupOpen(groupId);
-      _navGroupTimers[groupId] = null;
-    }, 80);
-  } else {
-    // Longer close delay so mouse can comfortably travel into the dropdown
-    _navGroupTimers[groupId] = setTimeout(function() {
-      navGroupClose(groupId);
-      _navGroupTimers[groupId] = null;
-    }, 800);
-  }
-}
-
-function showTab(tab) {
-  // Close mobile nav drawer if open
-  var mobileMenu = document.getElementById('mobile-nav-menu');
-  var mobileOverlay = document.querySelector('.mobile-nav-overlay');
-  if (mobileMenu && mobileMenu.classList.contains('open')) {
-    mobileMenu.classList.remove('open');
-    if (mobileOverlay) mobileOverlay.classList.remove('show');
-    document.body.style.overflow = '';
-  }
-  // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
-  cleanupAllTimers();
-
-  // WISHES: shop visit — check for any pet that has a visit_shop wish
-  if (tab === 'shop' && currentUser) {
-    Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('visit_shop', pid).catch(function(e){ dbg('upsert error:', e); });
-    });
-  }
-  // WISHES: profile visit
-  if (tab === 'profile' && currentUser) {
-    Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('view_profile', pid).catch(function(e){ dbg('upsert error:', e); });
-    });
-  }
-  
-  document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
-  var sec = el('section-' + tab); if (sec) sec.classList.add('active');
-  document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
-  var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
-  
-  // Update sidebar buttons
-  document.querySelectorAll('.sidebar-nav-btn').forEach(function(b){ b.classList.remove('active'); });
-  var sidebarBtn = el('sidebar-btn-' + tab);
-  if (sidebarBtn) sidebarBtn.classList.add('active');
-
-  // Open parent nav group if this tab belongs to one
-  var parentGroup = NAV_GROUP_MAP[tab];
-  if (parentGroup) {
-    // Close all groups first
-    ['pets','games','community','more'].forEach(function(g) {
-      var el2 = document.getElementById('navgroup-' + g);
-      var el3 = document.getElementById('navgroup-' + g + '-mobile');
-      if (el2) { el2.classList.remove('has-active'); }
-      if (el3) { el3.classList.remove('has-active'); }
-    });
-    // Mark parent as having active child
-    var parentEl = document.getElementById('navgroup-' + parentGroup);
-    var parentMobile = document.getElementById('navgroup-' + parentGroup + '-mobile');
-    if (parentEl) parentEl.classList.add('has-active');
-    if (parentMobile) parentMobile.classList.add('has-active');
-  }
-  
-  // FIX 4: Particle system cleanup - stop when leaving home, start when entering
-  if (tab !== 'home' && window.particleInterval) {
-    // Leaving home tab - clean up particles
-    safeClearInterval(window.particleInterval);
-    window.particleInterval = null;
-    // Remove all existing sparkle particles
-    document.querySelectorAll('.sparkle-particle').forEach(function(el) {
-      el.remove();
-    });
-  } else if (tab === 'home' && !window.particleInterval) {
-    // Entering home tab - start particles if not already running
-    createFloatingSparkles();
-  }
-  
-  // Special cases: some tabs need to initialize every time
-  if (tab === 'leaderboard') {
-    initLeaderboardTab();
-  } else if (tab === 'forum') {
-    // Ensure forum initializes properly
-    safeSetTimeout(function() {
-      initForum();
-    }, 100);
-  } else if (tab === 'settings') {
-    loadSettings();
-  } else if (tab === 'myprofile') {
-    loadMyProfile();
-    renderReferralWidget('referral-widget-mount');
-  } else if (tab === 'profile' && window.currentProfileUsername) {
-    loadProfile(window.currentProfileUsername);
-  } else if (tab === 'battle') {
-    // Always run both systems when battle tab opens
-    setTimeout(function() { loadBattlePets(); }, 100);
-    setTimeout(function() { battleExp_init(); }, 150);
-  } else if (!tabsLoaded[tab]) { 
-    tabsLoaded[tab] = true; 
-    loadTab(tab); 
-  }
-  
-  // Load daily tip when home tab is shown
-  if (tab === 'home') {
-    loadDailyTip();
-  }
-  
-  window.scrollTo(0, 0);
-  
-  // Update URL hash to persist tab (without triggering reload)
-  if (window.location.hash !== '#tab-' + tab) {
-    history.replaceState(null, null, '#tab-' + tab);
-  }
-}
-
-
-
-// ══════════════════════════════════════════════════════════════════════════
-// NOTIFICATION SYSTEM
-// createNotification — saves to user_notifications table + updates bell badge
-// toggleNotificationDropdown — shows/hides the dropdown
-// ══════════════════════════════════════════════════════════════════════════
-
-// ══════════════════════════════════════════════════════════════════════════
-// STATISTICS TAB
-// Shows personal stats + global community stats
-// ══════════════════════════════════════════════════════════════════════════
-
-// ══════════════════════════════════════════════════════════════════════════
-// NEWS TAB
-// Loads news_posts from DB, displays in reverse chronological order
-// ══════════════════════════════════════════════════════════════════════════
-
-async function loadNews() {
-  var container = document.getElementById('news-container');
-  if (!container) return;
-  container.innerHTML = '<div class="spinner"></div>';
-
-  try {
-    var { data, error } = await supabaseClient
-      .from('news_posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    if (error || !data || data.length === 0) {
-      container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);">No news posts yet. Check back soon! 📰</div>';
-      return;
-    }
-
-    container.innerHTML = data.map(function(post) {
-      var date = new Date(post.created_at).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
-      return '<div style="background:var(--white);border:1px solid rgba(153,102,255,0.15);border-radius:16px;padding:18px 22px;margin-bottom:14px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
-          '<span style="font-size:0.72rem;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:1px;">' + escapeHtml(post.category || 'Update') + '</span>' +
-          '<span style="font-size:0.72rem;color:var(--text-light);">' + date + '</span>' +
-        '</div>' +
-        '<div style="font-size:1.05rem;font-weight:800;color:var(--purple-dark);margin-bottom:6px;">' + escapeHtml(post.title || '') + '</div>' +
-        '<div style="font-size:0.85rem;color:var(--text);line-height:1.6;">' + (post.content || '').replace(/\n/g, '<br>') + '</div>' +
-      '</div>';
-    }).join('');
-  } catch(e) {
-    container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-light);">Could not load news.</div>';
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// FORUM — loadForumCategories + initForum
-// ══════════════════════════════════════════════════════════════════════════
-
-function initForum() {
-  loadForumCategories();
-  // Ensure categories view is shown
-  var catView = document.getElementById('forum-categories-view');
-  var threadView = document.getElementById('forum-thread-view');
-  if (catView) catView.style.display = 'block';
-  if (threadView) threadView.style.display = 'none';
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// PET MOOD DECAY
-// Runs on login — pets lose hunger/happiness while player was away
-// Creates a Melon notification if pet needs attention
-// ══════════════════════════════════════════════════════════════════════════
-
-async function applyPetDecay() {
-  if (!currentUser || !petState) return;
-
-  var now = Date.now();
-  var petsNeedingCare = [];
-
-  for (var petId in petState) {
-    var pet = petState[petId];
-    if (!pet || !pet.id) continue;
-
-    // Calculate hours since last fed / last played
-    var lastFed   = pet.last_fed   ? new Date(pet.last_fed).getTime()   : now;
-    var lastPlay  = pet.last_played ? new Date(pet.last_played).getTime() : now;
-
-    var hoursSinceFed  = Math.max(0, (now - lastFed)  / 3600000);
-    var hoursSincePlay = Math.max(0, (now - lastPlay) / 3600000);
-
-    // Hunger decays ~5 per hour away (max 24h worth)
-    var hungerLoss = Math.min(Math.floor(hoursSinceFed * 5), pet.max_hunger || 100);
-    // Happiness decays ~3 per hour away (max 12h worth)  
-    var happyLoss  = Math.min(Math.floor(hoursSincePlay * 3), pet.max_happiness || 100);
-
-    if (hungerLoss === 0 && happyLoss === 0) continue;
-
-    var newHunger  = Math.max(0, (pet.hunger  || 0) - hungerLoss);
-    var newHappy   = Math.max(0, (pet.happiness || 0) - happyLoss);
-
-    // Update local state
-    petState[petId].hunger    = newHunger;
-    petState[petId].happiness = newHappy;
-
-    // Update bars if rendered
-    updateBar(petId, 'hunger',    newHunger, pet.max_hunger    || 100);
-    updateBar(petId, 'happiness', newHappy,  pet.max_happiness || 100);
-
-    // Persist to DB (fire-and-forget, decay is approximate)
-    supabaseClient.from('user_pets')
-      .update({ hunger: newHunger, happiness: newHappy })
-      .eq('id', petId)
-      .catch(function(){});
-
-    var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your pet';
-    if (newHunger < 30 || newHappy < 30) {
-      petsNeedingCare.push(petName);
-    }
-  }
-
-  if (petsNeedingCare.length > 0) {
-    showToast('😢 ' + petsNeedingCare.slice(0,2).join(', ') + (petsNeedingCare.length > 2 ? ' and others need' : (petsNeedingCare.length > 1 ? ' need' : ' needs')) + ' attention!', 6000);
-  }
-}
-
-function loadTab(tab) {
-  if (tab === 'adopt') loadAdopt();
-  else if (tab === 'mypets') loadMyPets();
-  else if (tab === 'journal') initJournalTab();
-  else if (tab === 'shop') { loadShop(); loadInventory(); }
-  else if (tab === 'minigames') initMinigames();
-  else if (tab === 'battle') loadBattlePets();
-  else if (tab === 'news') loadNews();
-  else if (tab === 'twitch') initTwitchTab();
-  else if (tab === 'redeem') { loadRedeemHistory(); }
-  else if (tab === 'stats') loadStatistics();
-  else if (tab === 'guild') loadGuildPage();
-  else if (tab === 'fishing') { if (!tabsLoaded['fishing']) { tabsLoaded['fishing'] = true; initMinigames(); } }
-  else if (tab === 'racing') racing_init();
-  // Note: leaderboard and myprofile handled in showTab()
-}
-
-// ── AUTH GATE ────────────────────────────
-
-async function initApp() {
-  // Guard: wait for Supabase client to be ready
-  if (!supabaseClient) {
-    dbg('Waiting for Supabase client to initialize...');
-    setTimeout(initApp, 500);
-    return;
-  }
-
-  // Register auth state listener FIRST — before anything else.
-  // This ensures PASSWORD_RECOVERY event is caught even when
-  // Supabase processes the hash tokens immediately on load.
-  supabaseClient.auth.onAuthStateChange(function(event, session) {
-    dbg('Auth state changed:', event);
-    if (event === 'PASSWORD_RECOVERY') {
-      // Supabase has established a session from the reset link.
-      // Show the reset password form — updateUser() will now work.
-      el('auth-gate').style.display = 'none';
-      el('reset-password-gate').style.display = 'block';
-      el('app-content').style.display = 'none';
-    } else if (event === 'SIGNED_IN' && session) {
-      // Don't redirect if we're in the middle of a password reset
-      if (el('reset-password-gate') && el('reset-password-gate').style.display === 'block') return;
-      setTimeout(function() {
-        showApp(session.user);
-      }, 100);
-    } else if (event === 'SIGNED_OUT') {
-      showAuth();
-    }
-  });
-
-  // Check if user is coming from password reset email.
-  // Show the gate immediately for UI, but the session is established
-  // by onAuthStateChange above — don't return early.
-  var hash = window.location.hash;
-  if (hash && hash.includes('type=recovery')) {
-    dbg('Password recovery mode detected — waiting for session via onAuthStateChange');
-    el('auth-gate').style.display = 'none';
-    el('reset-password-gate').style.display = 'block';
-    el('app-content').style.display = 'none';
-    return; // onAuthStateChange will handle the rest
-  }
-  
-  var session = await requireLogin();
-  if (session) {
-    await showApp(session.user);
-  } else {
-    showAuth();
-  }
-
-  // Check for streamer landing page parameter
-  streamerLanding_init();
-}
-
-function cleanupSpookyEffects() {
-  document.querySelectorAll('.horror-overlay,.arg-overlay,.subliminal-flash').forEach(function(el){ el.remove(); });
-  document.body.classList.remove('horror-mode','arg-active','piper-watching');
-  if (window._horrorInterval) { clearInterval(window._horrorInterval); window._horrorInterval = null; }
-  if (window._argTickInterval) { clearInterval(window._argTickInterval); window._argTickInterval = null; }
-}
-
-
 function showTab(tab) {
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
@@ -1909,13 +1541,13 @@ function showTab(tab) {
   // WISHES: shop visit — check for any pet that has a visit_shop wish
   if (tab === 'shop' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('visit_shop', pid).catch(function(e){ dbg('upsert error:', e); });
+      checkPetWishes('visit_shop', pid).catch(function(){});
     });
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('view_profile', pid).catch(function(e){ dbg('upsert error:', e); });
+      checkPetWishes('view_profile', pid).catch(function(){});
     });
   }
   
@@ -1955,7 +1587,6 @@ function showTab(tab) {
     loadSettings();
   } else if (tab === 'myprofile') {
     loadMyProfile();
-    if (typeof renderReferralWidget === 'function') renderReferralWidget('referral-widget-mount');
   } else if (tab === 'profile' && window.currentProfileUsername) {
     loadProfile(window.currentProfileUsername);
   } else if (tab === 'battle') {
@@ -1998,6 +1629,16 @@ function loadTab(tab) {
 }
 
 // ── AUTH GATE ────────────────────────────
+function showAuthSection(which) {
+  document.querySelectorAll('#auth-gate .page-section').forEach(function(s){ s.classList.remove('active'); });
+  el('section-' + which).classList.add('active');
+  return false;
+}
+
+function showForgotPassword() {
+  showAuthSection('forgot');
+  return false;
+}
 
 async function initApp() {
   // Guard: wait for Supabase client to be ready
@@ -2007,28 +1648,10 @@ async function initApp() {
     return;
   }
 
-  // Register auth state listener FIRST so PASSWORD_RECOVERY is caught
-  // when Supabase processes hash tokens from the reset email link.
-  supabaseClient.auth.onAuthStateChange(function(event, session) {
-    dbg('Auth state changed:', event);
-    if (event === 'PASSWORD_RECOVERY') {
-      el('auth-gate').style.display = 'none';
-      el('reset-password-gate').style.display = 'block';
-      el('app-content').style.display = 'none';
-    } else if (event === 'SIGNED_IN' && session) {
-      if (el('reset-password-gate') && el('reset-password-gate').style.display === 'block') return;
-      setTimeout(function() {
-        showApp(session.user);
-      }, 100);
-    } else if (event === 'SIGNED_OUT') {
-      showAuth();
-    }
-  });
-
   // Check if user is coming from password reset email
   var hash = window.location.hash;
   if (hash && hash.includes('type=recovery')) {
-    dbg('Password recovery mode detected — session handled via onAuthStateChange');
+    dbg('Password recovery mode detected');
     el('auth-gate').style.display = 'none';
     el('reset-password-gate').style.display = 'block';
     el('app-content').style.display = 'none';
@@ -2044,13 +1667,26 @@ async function initApp() {
 
   // Check for streamer landing page parameter
   streamerLanding_init();
+
+  // Set up auth state listener
+  supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
+    if (event === 'PASSWORD_RECOVERY') {
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
+  });
 }
 
 async function showApp(user) {
   document.body.classList.remove('guest');
-  // Remove the synchronous guest-hide <style> block
-  var guestHideStyle = document.getElementById('guest-hide');
-  if (guestHideStyle) guestHideStyle.remove();
   dbg('showApp called with user:', user?.id || 'null');
 
   // Guard: ensure user is valid before proceeding
@@ -2070,10 +1706,8 @@ async function showApp(user) {
   var rightSidebar = document.querySelector('.right-sidebar');
   var navCenter    = document.querySelector('.navbar-center');
   var navRight     = document.querySelector('.navbar-right');
-  if (leftSidebar)  { leftSidebar.style.display  = ''; leftSidebar.style.visibility  = ''; }
-  if (rightSidebar) { rightSidebar.style.display = ''; rightSidebar.style.visibility = ''; }
-  var ticker = document.querySelector('.news-ticker');
-  if (ticker) { ticker.style.display = ''; ticker.style.visibility = ''; }
+  if (leftSidebar)  leftSidebar.style.display    = '';
+  if (rightSidebar) rightSidebar.style.display   = '';
   if (navCenter)    navCenter.style.visibility   = '';
   if (navRight)     navRight.style.visibility    = '';
   document.body.classList.remove('logged-out');
@@ -2163,8 +1797,14 @@ async function showApp(user) {
   // Check tutorial status and start if needed
   await checkTutorialStatus();
   
-  // Daily fortune disabled — caused popup conflicts with login bonus
-  // if (typeof dailyFortune !== 'undefined' && dailyFortune.init) { dailyFortune.init(); }
+  // Initialize daily fortune AFTER tutorial (only for logged-in users)
+  if (typeof dailyFortune !== 'undefined' && dailyFortune.init) {
+    // Check if tutorial is completed before showing fortune
+    var tutorialDone = playerSettings.tutorial_completed;
+    if (tutorialDone) {
+      dailyFortune.init();
+    }
+  }
   
   // Check sidebar stream status
   await checkSidebarStreamStatus();
@@ -2188,8 +1828,6 @@ async function showApp(user) {
       el('bonus-amount').textContent = bonus.amount + ' PP';
       el('bonus-modal').classList.add('show');
       localStorage.setItem(modalKey, '1');
-      // Award PassXP for daily login
-      if (typeof addPassXP === 'function') addPassXP(10, 'daily_login').catch(function(){});
     }
     updateAllPoints(bonus.newTotal);
   }
@@ -2227,11 +1865,6 @@ async function showApp(user) {
   scrapbook_init();
   community_init();
 
-  // PET DECAY: Apply hunger/happiness decay since last visit
-  safeSetTimeout(function() { applyPetDecay().catch(function(e){ dbg('upsert error:', e); }); }, 3500);
-  // AUTO-FISHER: Check for completed casts since last login
-  safeSetTimeout(function() { if(typeof autoFisherLoadState==='function'){autoFisherLoadState();} if(typeof autoFisherCheck==='function'){autoFisherCheck().catch(function(e){ dbg('upsert error:', e); });} }, 6000);
-  safeSetTimeout(function() { if(typeof checkMelonMilestones==='function') checkMelonMilestones(); }, 5000);
   // EVENT/WEATHER WIDGET: Initialize navbar widget
   initEventStatusWidget();
 
@@ -2256,7 +1889,7 @@ async function showApp(user) {
     .then(function(res) {
       var badge = document.getElementById('gift-inbox-badge');
       if (badge && res.count > 0) { badge.textContent = res.count; badge.style.display = 'inline'; }
-    }).catch(function(e){ dbg('upsert error:', e); });
+    }).catch(function(){});
   
   // PHASE 1: Initialize cosmetics, milestones, daily features
   phase1_init();
@@ -2290,7 +1923,6 @@ function showAuth() {
   if (navCenter)    navCenter.style.visibility   = 'hidden';
   if (navRight)     navRight.style.visibility    = 'hidden';
   document.body.classList.add('guest');
-
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -2539,7 +2171,7 @@ function checkMelonMilestones() {
               milestone.title,
               milestone.message,
               'tab:shop'
-            ).catch(function(e){ dbg('upsert error:', e); });
+            ).catch(function(){});
           }, 4000);
         })(m);
       }
@@ -2626,7 +2258,7 @@ async function handleLogout() {
   await supabaseClient.auth.signOut();
   location.reload();
 }
-async function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
+function closeBonusModal() { el('bonus-modal').classList.remove('show'); }
 
 // ── LOGIN / REGISTER ─────────────────────
 // ══════════════════════════════════════════════════════════════════════════
@@ -2642,18 +2274,7 @@ async function loginUser(email, password) {
   return data;
 }
 
-function getReferralFromURL() {
-  try {
-    var params = new URLSearchParams(window.location.search);
-    var ref = params.get('ref') || params.get('referral') || params.get('invite');
-    return ref ? ref.trim().toLowerCase() : null;
-  } catch(e) { return null; }
-}
-
-
 async function registerUser(email, password, username) {
-  // Capture ?ref= param before registration
-  var refUsername = (typeof getReferralFromURL === 'function') ? getReferralFromURL() : null;
   // Step 1: Create auth user with Supabase
   var { data: authData, error: authError } = await supabaseClient.auth.signUp({
     email: email,
@@ -2683,16 +2304,7 @@ async function registerUser(email, password, username) {
     console.error('Error creating player profile:', profileError);
     // Don't throw here - auth account was created, they can still log in
   }
-
-  // Increment referrer count if this player was referred
-  if (refUsername && !profileError) {
-    supabaseClient.rpc('referral_increment', {
-      p_referrer_username: refUsername
-    }).catch(function(e){ console.error('[Referral] increment failed:', e); });
-    // Give new player welcome bonus PP
-    supabaseClient.rpc('award_pp_secure', { p_amount: 50, p_reason: 'referral_welcome' }).catch(function(e){ dbg('upsert error:', e); });
-  }
-
+  
   return authData;
 }
 
@@ -3176,7 +2788,7 @@ async function confirmAdopt() {
   // Award first pet badge
   await awardBadge('first_pet');
   onPetAdopted(result.pet_id);
-  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
+  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(){});
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -3636,13 +3248,13 @@ async function useItem(petId) {
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
     melonRequests_checkProgress('feed_pet', itemId);
-    addPassXP(2, 'feed').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(2, 'feed').catch(function(){});
     community_increment('feed_pets', 1);
   }
   if (item.hap > 0 && !(item.h > 0)) {
     updateBingoProgress('use_toy', 1);
     updateBingoProgress('play_pet', 1);
-    addPassXP(2, 'play').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(2, 'play').catch(function(){});
   }
   
   // Update UI for non-healing effects
@@ -3991,8 +3603,8 @@ function makeMyPetCard(pet) {
     personality_renderWidget(pet.id);
     // Also render quest widget and try to assign one if none active
     personality_renderQuestWidget(pet.id);
-    assignQuestArc(pet.id).catch(function(e){ dbg('upsert error:', e); });
-  }).catch(function(e){ dbg('upsert error:', e); });
+    assignQuestArc(pet.id).catch(function(){});
+  }).catch(function(){});
 
   // Quest widget mount point (separate from mood widget)
   var questMount = makeEl('div', { id: 'quest-widget-' + pet.id });
@@ -4851,13 +4463,6 @@ function expedition_renderSelector() {
       '<div id="expedition-pet-selected" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-light);text-align:center;">No pet selected</div>' +
       '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px;font-size:0.9rem;">2️⃣ Choose a Zone:</div>' +
       zoneOptions +
-      '<div style="margin-top:14px;margin-bottom:4px;font-size:0.85rem;font-weight:700;color:var(--text-light);">⏱️ Expedition Speed:</div>' +
-      '<div style="display:flex;gap:8px;margin-bottom:10px;">' +
-        Object.entries(EXPEDITION_SPEED_OPTS).map(function(e){
-          var k=e[0],v=e[1];
-          return '<button class="expedition-speed-btn btn btn-sm" data-speed="'+k+'" onclick="expedition_setSpeed(this.getAttribute(\"data-speed\"))" style="flex:1;font-size:0.78rem;padding:6px 4px;border:2px solid var(--border);border-radius:10px;cursor:pointer;" title="'+v.desc+'">'+v.label+'</button>';
-        }).join('') +
-      '</div>' +
       '<button id="expedition-start-btn" class="btn btn-primary" onclick="expedition_start()" disabled style="width:100%;margin-top:14px;opacity:0.5;">Select a pet and zone</button>' +
     '</div>';
 }
@@ -4874,26 +4479,6 @@ function expedition_selectPet(petId) {
   var pet = petState[petId];
   var nameEl = document.getElementById('expedition-pet-selected');
   if (nameEl && pet) nameEl.textContent = '✅ ' + (pet.nickname || pet.pet_type || 'Pet') + ' selected';
-  expedition_updateStartBtn();
-}
-
-
-// ── EXPEDITION SPEED SELECTION ────────────────────────────────────────────
-var _expeditionSpeed = 'normal'; // 'quick', 'normal', 'thorough'
-var EXPEDITION_SPEED_OPTS = {
-  quick:    { label:'⚡ Quick',    mult:0.5,  ppMult:0.7,  xpMult:0.7,  energyMult:0.7,  desc:'Half the time, fewer rewards' },
-  normal:   { label:'🗺️ Normal',   mult:1.0,  ppMult:1.0,  xpMult:1.0,  energyMult:1.0,  desc:'Standard expedition' },
-  thorough: { label:'🔍 Thorough', mult:2.0,  ppMult:1.5,  xpMult:1.6,  energyMult:1.3,  desc:'Twice as long, better rewards' },
-};
-
-function expedition_setSpeed(speed) {
-  _expeditionSpeed = speed;
-  document.querySelectorAll('.expedition-speed-btn').forEach(function(btn) {
-    var active = btn.getAttribute('data-speed') === speed;
-    btn.style.background = active ? 'var(--purple)' : '';
-    btn.style.color = active ? '#fff' : '';
-    btn.style.borderColor = active ? 'var(--purple)' : '';
-  });
   expedition_updateStartBtn();
 }
 
@@ -4914,12 +4499,7 @@ function expedition_updateStartBtn() {
   var ready = _expeditionPetId && _expeditionZoneKey;
   btn.disabled = !ready;
   btn.style.opacity = ready ? '1' : '0.5';
-  if (zone && ready) {
-    var spd = EXPEDITION_SPEED_OPTS[_expeditionSpeed] || EXPEDITION_SPEED_OPTS.normal;
-    var actualEnergy = Math.ceil(zone.energyCost * spd.energyMult);
-    var actualTime   = Math.round(zone.duration * spd.mult);
-    btn.textContent  = '⚡ ' + actualEnergy + ' energy · ' + actualTime + 'min · Send to ' + zone.label + '!';
-  }
+  if (zone && ready) btn.textContent = '⚡ ' + zone.energyCost + ' energy. Send to ' + zone.label + '!';
 }
 
 async function expedition_start() {
@@ -4940,15 +4520,11 @@ async function expedition_start() {
     return;
   }
 
-  var _spd = EXPEDITION_SPEED_OPTS[_expeditionSpeed] || EXPEDITION_SPEED_OPTS.normal;
-  var actualDuration = Math.max(5, Math.round(zone.duration * _spd.mult));
-  var endsAt = new Date(Date.now() + actualDuration * 60000).toISOString();
+  var endsAt = new Date(Date.now() + zone.duration * 60000).toISOString();
 
   // Pre-calculate rewards with balanced economy
   var levelBonus2 = Math.min(1.5, 1 + ((pet.level || 1) / 100));
-  var _speedPPMult  = (_spd || EXPEDITION_SPEED_OPTS.normal).ppMult;
-  var _speedXPMult  = (_spd || EXPEDITION_SPEED_OPTS.normal).xpMult;
-  var rewardPP = Math.floor(_speedPPMult * (zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus2);
+  var rewardPP = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus2);
 
   // Single item drop
   var droppedItemsMG = [];
@@ -5081,7 +4657,7 @@ async function expedition_claim(expeditionId) {
     if (rewardItems[ri].id) {
       await supabaseClient.from('user_inventory').insert({
         user_id: currentUser.id, item_id: rewardItems[ri].id, quantity: 1
-      }).catch(function(e){ dbg('upsert error:', e); });
+      }).catch(function(){});
       itemNames.push(rewardItems[ri].name || '📦');
     }
   }
@@ -5121,16 +4697,16 @@ async function expedition_claim(expeditionId) {
   }
 
   // Check for secrets
-  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(e){ dbg('upsert error:', e); });
+  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
 
   // Integrations
-  addPassXP(10, 'expedition').catch(function(e){ dbg('upsert error:', e); });
+  addPassXP(10, 'expedition').catch(function(){});
   updateBingoProgress('complete_expedition', 1);
-  checkPetWishes('expedition', row.pet_id).catch(function(e){ dbg('upsert error:', e); });
-  progressQuestArc(row.pet_id, 'expedition').catch(function(e){ dbg('upsert error:', e); });
+  checkPetWishes('expedition', row.pet_id).catch(function(){});
+  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
   community_increment('expeditions', 1);
-  trackDailyStat('expeditions_completed').catch(function(e){ dbg('upsert error:', e); });
-  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(e){ dbg('upsert error:', e); });
+  trackDailyStat('expeditions_completed').catch(function(){});
+  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
 
   var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
   showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
@@ -5492,17 +5068,17 @@ async function race_start() {
 
   // Integrations
   raceState.racesLeft = Math.max(0, raceState.racesLeft - 1);
-  addPassXP(5, 'race').catch(function(e){ dbg('upsert error:', e); });
+  addPassXP(5, 'race').catch(function(){});
   if (playerWon) {
-    checkPetWishes('race', winner.pet.id).catch(function(e){ dbg('upsert error:', e); });
-    awardBadge('speed_demon').catch(function(e){ dbg('upsert error:', e); });
-    progressQuestArc(winner.pet.id, 'race').catch(function(e){ dbg('upsert error:', e); });
+    checkPetWishes('race', winner.pet.id).catch(function(){});
+    awardBadge('speed_demon').catch(function(){});
+    progressQuestArc(winner.pet.id, 'race').catch(function(){});
   }
   // Weekly leaderboard + achievement tiers
   var raceTimeMs = racerunners.length > 0 ? Math.floor(3000 + Math.random() * 2000) : null; // simulated time
   if (playerBest && !playerBest.pet.isCpu) {
-    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(e){ dbg('upsert error:', e); });
-    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(e){ dbg('upsert error:', e); });
+    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(){});
+    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(){});
   }
   community_increment('races', 1);
 
@@ -6102,16 +5678,16 @@ async function feedFree(petId) {
   await addPassXP(2, 'feed');
   
   // WISHES: check feed wish
-  checkPetWishes('feed', petId).catch(function(e){ dbg('upsert error:', e); });
-  progressQuestArc(petId, 'feed').catch(function(e){ dbg('upsert error:', e); });
-  checkAchievementTierProgress('feed_count', petId, 1).catch(function(e){ dbg('upsert error:', e); });
+  checkPetWishes('feed', petId).catch(function(){});
+  progressQuestArc(petId, 'feed').catch(function(){});
+  checkAchievementTierProgress('feed_count', petId, 1).catch(function(){});
 
   // JOURNAL: log food discovery
   if (typeof logJournalDiscovery === 'function') {
     var feedPet = petState[petId] || {};
     var feedPetType = feedPet.pet_type || (feedPet.pets && feedPet.pets.name) || null;
     if (feedPetType) {
-      logJournalDiscovery(feedPetType, 'loved', '').catch(function(e){ dbg('upsert error:', e); });  // free feed, no item name
+      logJournalDiscovery(feedPetType, 'loved', '').catch(function(){});  // free feed, no item name
     }
   }
   
@@ -6209,20 +5785,16 @@ async function feedWithItem(petId, itemId, itemName) {
   var reactionType = feedResult.reaction_type || 'normal';
   var reactionMsg = '';
   
-  var petType = (pet && pet.pet_type) ? pet.pet_type : null;
   if (reactionType === 'loved') {
     reactionMsg = '💖 ' + escapeHtml(itemName) + '! (1.75x bonus!)';
+    // SCRAPBOOK: Favorite food discovered
     scrapbook_addMemory(petId, 'favorite_food', { food: itemName });
-    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'loved', itemName).catch(function(){});
   } else if (reactionType === 'liked') {
     reactionMsg = '😊 ' + escapeHtml(itemName) + '! (1.25x bonus)';
-    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'liked', itemName).catch(function(){});
   } else if (reactionType === 'disliked') {
     reactionMsg = '😐 ' + escapeHtml(itemName) + '... (0.75x effect)';
-    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'disliked', itemName).catch(function(){});
   } else if (reactionType === 'hated') {
     reactionMsg = '😖 Ew, ' + escapeHtml(itemName) + '! (0.5x effect)';
-    if (petType && typeof logJournalDiscovery === 'function') logJournalDiscovery(petType, 'hated', itemName).catch(function(){});
   } else {
     reactionMsg = '🍽️ Ate ' + escapeHtml(itemName) + '!';
   }
@@ -6431,9 +6003,9 @@ async function playFree(petId) {
     await addPassXP(2, 'play');
 
     // WISHES: check play wish
-    checkPetWishes('play', petId).catch(function(e){ dbg('upsert error:', e); });
-    progressQuestArc(petId, 'play').catch(function(e){ dbg('upsert error:', e); });
-    checkAchievementTierProgress('play_count', petId, 1).catch(function(e){ dbg('upsert error:', e); });
+    checkPetWishes('play', petId).catch(function(){});
+    progressQuestArc(petId, 'play').catch(function(){});
+    checkAchievementTierProgress('play_count', petId, 1).catch(function(){});
     petState[petId].happiness = result.happiness;
     petState[petId].xp = result.xp;
 
@@ -6501,8 +6073,8 @@ async function playWithToy(petId, toyId, toyName) {
   await addPassXP(2, 'play');
   
   // WISHES: check play and use_toy wishes
-  checkPetWishes('play', petId).catch(function(e){ dbg('upsert error:', e); });
-  checkPetWishes('use_toy', petId).catch(function(e){ dbg('upsert error:', e); });
+  checkPetWishes('play', petId).catch(function(){});
+  checkPetWishes('use_toy', petId).catch(function(){});
   updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
   updateXpBar(petId, result.xp, pet.level);
   
@@ -6565,13 +6137,13 @@ async function checkTwitchRewards() {
       showTwitchRewardNotification(reward);
       // Also log to bell notification center
       createNotification(currentUser.id, 'twitch_reward', '🎬 Twitch Reward!',
-        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(e){ dbg('upsert error:', e); });
+        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(){});
       // Mark claimed
       await fetch(WORKER_URL + '/api/rewards/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reward_id: reward.id, twitch_id: twitchId })
-      }).catch(function(e){ dbg('upsert error:', e); });
+      }).catch(function(){});
     }
   } catch(e) { dbg('Twitch rewards check failed:', e); }
 }
@@ -6989,11 +6561,6 @@ async function loadShop() {
     return true;
   });
   
-  // Render daily shop rotation at the top
-  if (typeof renderDailyShop === 'function') {
-    renderDailyShop(deduped).catch(function(e){ dbg('upsert error:', e); });
-  }
-
   // Categorize items
   var categories = {
     food: [],
@@ -7507,14 +7074,14 @@ async function useOnPet(petId,petNickname) {
   // Track bingo + PassXP the same way feedWithItem does
   if(ef.hunger_effect>0){
     updateBingoProgress('feed_pet',1);
-    addPassXP(2,'feed').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(2,'feed').catch(function(){});
     community_increment('feed_pets',1);
   }
   if(ef.happiness_effect>0 && ef.hunger_effect<=0){
     // Toy/happiness-only item counts as play
     updateBingoProgress('use_toy',1);
     updateBingoProgress('play_pet',1);
-    addPassXP(2,'play').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(2,'play').catch(function(){});
   }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
@@ -8672,7 +8239,7 @@ function spinSlots() {
           // corruption up a little — small, frequent lever ("gambling
           // feeds the dark"), not a dominant one on its own
           if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
-            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(e){ dbg('upsert error:', e); });
+            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(){});
           }
           
           if (netProfit > 0) {
@@ -8831,2739 +8398,293 @@ var _fishCollection = {};
 var _fishingRodLevel = 1; // 1=basic(8), 2=nice(12), 3=pro(18), 4=legendary(25)
 var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra casts per rod level
 
-
-// ══ FISHING SYSTEM (full overhaul) ══
-
-var FISHING_RODS = [
-  null, // index 0 unused
-  { level:1, name:'Basic Rod',     emoji:'🎣', desc:'The starter rod.',                cost:0,    baseCasts:8  },
-  { level:2, name:'Nice Rod',      emoji:'🎣', desc:'Sturdier. Reduced junk rate.',    cost:500,  baseCasts:8  },
-  { level:3, name:'Pro Rod',       emoji:'🎣', desc:'Fishers choice. Much less junk.',cost:2000, baseCasts:8  },
-  { level:4, name:'Legendary Rod', emoji:'✨', desc:'Almost no junk. Melon-approved.',  cost:5000, baseCasts:8  },
-];
-
-var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra display casts per rod level (cosmetic)
-
-async function fishingLoadRodLevel() {
-  if (!currentUser) return;
-  try {
-    var res = await supabaseClient
-      .from('players')
-      .select('fishing_rod_level, auto_fisher_level, auto_fisher_state')
-      .eq('id', currentUser.id)
-      .single();
-    if (res.data) {
-      _fishingRodLevel  = Math.min(4, Math.max(1, res.data.fishing_rod_level || 1));
-      _autoFisherLevel  = Math.min(3, Math.max(0, res.data.auto_fisher_level || 0));
-      _autoFisherState  = res.data.auto_fisher_state || null;
-    }
-  } catch(e) { /* silent */ }
-}
-
-async function fishingSaveRodLevel() { /* rod level is written by fishing_upgrade_rod RPC */ }
-
-async function fishingLoadCollection() {
-  if (!currentUser) return;
-  try {
-    var res = await supabaseClient
-      .from('user_fish_collection')
-      .select('fish_id,catch_count,best_weight')
-      .eq('user_id', currentUser.id);
-    _fishCollection = {};
-    if (res.data) {
-      res.data.forEach(function(row) {
-        _fishCollection[row.fish_id] = {
-          count:       row.catch_count,
-          bestWeight:  row.best_weight,
-          firstCatch:  null // not needed client-side
-        };
-      });
-    }
-  } catch(e) { _fishCollection = {}; }
-  await fishingLoadRodLevel();
-}
-
-// fishingSaveCollection is now a no-op — DB is updated via fishing_record_catch RPC
-function fishingSaveCollection() { /* DB-backed now */ }
-
-function fishingUpdateAreaStatus() {
-  // Update collection count for current spot
-  var spotFish = FISH_BY_SPOT[_fishingSpot] || [];
-  var spotCollected = spotFish.filter(function(id){ return _fishCollection[id]; }).length;
-  var areaEl = document.getElementById('fishing-area-progress');
-  if (areaEl) areaEl.textContent = spotCollected + '/' + spotFish.length + ' in this area';
-}
-
-function fishingGetCatch(timingBonus) {
-  var spot    = _fishingSpot;
-  var bait    = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
-  var weather = (weatherSystem && weatherSystem.currentWeather && weatherSystem.currentWeather.id) || 'clear';
-  var rodLevel= _fishingRodLevel;
-  var powerBonus = window._castPowerBonus || { junkMult:1, rarityBoost:0 };
-
-  // Fish Frenzy weather bonus
-  if (weather === 'fish_frenzy') {
-    powerBonus = { junkMult: Math.min(powerBonus.junkMult, 0.5), rarityBoost: (powerBonus.rarityBoost || 0) + 0.20 };
-  }
-
-  // 1. Check for ITEM catch
-  var itemRate = FISHING_ITEM_RATES[_fishingBait] || 0.06;
-  if (timingBonus === 'great') itemRate *= 1.5;
-  if (Math.random() < itemRate) return { id:'__item__', rarity:'item' };
-
-  // 2. Check for JUNK
-  var junkRate = (FISHING_JUNK_RATES[rodLevel] || FISHING_JUNK_RATES[1])[_fishingBait] || 0.45;
-  junkRate *= powerBonus.junkMult;                            // power cast reduces junk
-  if (timingBonus === 'great') junkRate *= 0.5;
-  if (timingBonus === 'miss')  junkRate = Math.min(0.9, junkRate * 1.5);
-  if (Math.random() < junkRate) {
-    // Return a junk item
-    var junkPool = FISH_POOL.filter(function(f){
-      return f.rarity === 'junk' && f.spots.indexOf(spot) !== -1;
-      // weather junk only in matching weather
-    }).filter(function(f){ return !f.weather || f.weather === weather; });
-    return junkPool[Math.floor(Math.random() * junkPool.length)] || FISH_POOL[0];
-  }
-
-  // 3. Roll for actual fish
-  var pool = FISH_POOL.filter(function(f){
-    if (f.rarity === 'junk') return false;
-    if (f.id === '__item__') return false;
-    if (f.spots.indexOf(spot) === -1) return false;
-    if (f.weather && f.weather !== weather) return false;
-    return true;
-  });
-
-  var rarityBoost = (bait.rarityBoost || 0) + (powerBonus.rarityBoost || 0);
-  if (timingBonus === 'great') rarityBoost += 0.15;
-
-  var totalWeight = pool.reduce(function(s, f) {
-    var w = f.weight;
-    if (rarityBoost > 0) {
-      if (f.rarity === 'common')    w = Math.max(1, w - Math.floor(w * rarityBoost * 1.5));
-      if (f.rarity === 'rare' || f.rarity === 'epic' || f.rarity === 'legendary') w = Math.floor(w * (1 + rarityBoost));
-    }
-    return s + w;
-  }, 0);
-
-  var roll = Math.random() * totalWeight, acc = 0;
-  for (var i = 0; i < pool.length; i++) {
-    var w = pool[i].weight;
-    if (rarityBoost > 0) {
-      if (pool[i].rarity === 'common')    w = Math.max(1, w - Math.floor(w * rarityBoost * 1.5));
-      if (pool[i].rarity === 'rare' || pool[i].rarity === 'epic' || pool[i].rarity === 'legendary') w = Math.floor(w * (1 + rarityBoost));
-    }
-    acc += w;
-    if (roll < acc) return pool[i];
-  }
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// ── WEIGHT / SIZE SYSTEM ─────────────────────────────────────────────────────
-// Each catch rolls a random weight within the fish's range.
-// Weight affects PP multiplier and tracks personal/server records.
-
-var _fishingRecords = {}; // { fishId: { weight, date } } personal bests
-
-function fishingLoadRecords() {
-  try {
-    _fishingRecords = JSON.parse(localStorage.getItem('fish_records_' + currentUser.id) || '{}');
-  } catch(e) { _fishingRecords = {}; }
-}
-
-function fishingSaveRecords() {
-  try {
-    localStorage.setItem('fish_records_' + currentUser.id, JSON.stringify(_fishingRecords));
-  } catch(e) { /* silent */ }
-}
-
-function fishingRollWeight(fish) {
-  if (!fish.wMin && !fish.wMax) return null; // piper fish / junk
-  var min = fish.wMin || 0.1;
-  var max = fish.wMax || 1;
-  // Slightly weighted toward lower end (realistic distribution)
-  var raw = min + Math.pow(Math.random(), 1.5) * (max - min);
-  return Math.round(raw * 10) / 10; // 1 decimal place
-}
-
-function fishingWeightCategory(weight, fish) {
-  if (!weight || !fish.wMax) return null;
-  var range = fish.wMax - (fish.wMin || 0);
-  var pct = (weight - (fish.wMin || 0)) / range;
-  if (pct < 0.25)      return { label: 'Small',   emoji: '📏', mult: 0.7,  color: '#888' };
-  if (pct < 0.55)      return { label: 'Average',  emoji: '🐟', mult: 1.0,  color: '#5dde7a' };
-  if (pct < 0.80)      return { label: 'Large',    emoji: '💪', mult: 1.3,  color: '#4dabf7' };
-  if (pct < 0.95)      return { label: 'Trophy!',  emoji: '🏆', mult: 1.75, color: '#ffd700' };
-  return                        { label: 'MONSTER!', emoji: '🌟', mult: 2.5,  color: '#ff66cc' };
-}
-
-function fishingFormatWeight(w) {
-  if (w === null || w === undefined) return '??? lbs';
-  if (w >= 100) return Math.round(w) + ' lbs';
-  return w.toFixed(1) + ' lbs';
-}
-
-function fishingCheckRecord(fish, weight) {
-  if (!weight) return false;
-  var prev = _fishingRecords[fish.id];
-  if (!prev || weight > prev.weight) {
-    _fishingRecords[fish.id] = { weight: weight, date: Date.now() };
-    fishingSaveRecords();
-    return true; // new personal best
-  }
-  return false;
-}
-
-// Show the catch popup modal
-function fishingShowCatchPopup(fish, weight, ppEarned, isNew, isRecord) {
-  var sizeData = fishingWeightCategory(weight, fish);
-  var rarityColors = { common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700' };
-  var color = rarityColors[fish.rarity] || '#5dde7a';
-
-  // Remove any existing popup
-  var existing = document.getElementById('fishing-catch-popup');
-  if (existing) existing.remove();
-
-  var popup = document.createElement('div');
-  popup.id = 'fishing-catch-popup';
-  popup.style.cssText = [
-    'position:fixed','top:50%','left:50%',
-    'transform:translate(-50%,-50%) scale(0.8)',
-    'z-index:9500',
-    'background:var(--white)',
-    'border:3px solid ' + color,
-    'border-radius:20px',
-    'padding:24px 28px',
-    'text-align:center',
-    'min-width:260px',
-    'max-width:340px',
-    'box-shadow:0 8px 40px rgba(0,0,0,0.25)',
-    'transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1),opacity 0.2s',
-    'opacity:0',
-    'cursor:pointer'
-  ].join(';');
-
-  var sizeHtml = sizeData
-    ? '<div style="font-size:0.85rem;color:' + sizeData.color + ';font-weight:700;margin-bottom:4px;">' +
-      sizeData.emoji + ' ' + sizeData.label + '</div>'
-    : '';
-  var weightHtml = weight
-    ? '<div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:2px;">' + fishingFormatWeight(weight) + '</div>'
-    : '';
-  var newBadge = isNew ? '<div style="background:#ffd700;color:#000;border-radius:20px;padding:2px 10px;font-size:0.7rem;font-weight:700;display:inline-block;margin-bottom:6px;">✨ NEW FISH!</div><br>' : '';
-  var recordBadge = isRecord && !isNew ? '<div style="background:#9966ff;color:#fff;border-radius:20px;padding:2px 10px;font-size:0.7rem;font-weight:700;display:inline-block;margin-bottom:6px;">🏆 PERSONAL BEST!</div><br>' : '';
-
-  popup.innerHTML =
-    newBadge + recordBadge +
-    '<div style="font-size:3rem;margin-bottom:4px;">' + fish.emoji + '</div>' +
-    '<div style="font-size:1.2rem;font-weight:800;color:' + color + ';margin-bottom:4px;">' + fish.name + '</div>' +
-    '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">' + fish.rarity + '</div>' +
-    sizeHtml + weightHtml +
-    '<div style="font-size:1.3rem;font-weight:700;color:#5dde7a;margin-top:8px;">+' + ppEarned + ' PP</div>' +
-    '<div style="font-size:0.68rem;color:var(--text-light);margin-top:8px;">Click to continue</div>';
-
-  popup.addEventListener('click', function() { fishingDismissCatchPopup(); });
-  document.body.appendChild(popup);
-
-  // Animate in
-  requestAnimationFrame(function() {
-    popup.style.opacity = '1';
-    popup.style.transform = 'translate(-50%,-50%) scale(1)';
-  });
-
-  // Auto-dismiss after 4s
-  popup._autoTimer = setTimeout(function() { fishingDismissCatchPopup(); }, 4000);
-}
-
-function fishingDismissCatchPopup() {
-  var popup = document.getElementById('fishing-catch-popup');
-  if (!popup) return;
-  if (popup._autoTimer) clearTimeout(popup._autoTimer);
-  popup.style.opacity = '0';
-  popup.style.transform = 'translate(-50%,-50%) scale(0.85)';
-  setTimeout(function() { if (popup.parentNode) popup.parentNode.removeChild(popup); }, 200);
-}
-
-// ── TIMING MECHANIC ────────────────────────────────────────────────────────
-// After casting, a nibble animation plays, then a timing bar appears.
-// Player clicks when the indicator is in the "sweet spot" for a bonus.
-
-function fishingShowTimingBar() {
-  var bar = document.getElementById('fishing-timing-wrap');
-  if (!bar) return;
-  bar.style.display = 'block';
-  var indicator = document.getElementById('fishing-timing-indicator');
-  var sweetspot = document.getElementById('fishing-timing-sweet');
-  if (!indicator || !sweetspot) return;
-
-  _fishingTimingWindow = true;
-  _fishingTimingResult = 'miss'; // default if they do not click
-
-  // Animate indicator left→right over 1.8s
-  var start = null;
-  var duration = 1800;
-  var sweetLeft = 35, sweetRight = 65; // sweet spot is middle 30% of bar
-
-  indicator.style.left = '0%';
-
-  function step(ts) {
-    if (!start) start = ts;
-    var pct = Math.min(100, ((ts - start) / duration) * 100);
-    indicator.style.left = pct + '%';
-
-    if (_fishingTimingWindow) {
-      if (pct >= sweetLeft && pct <= sweetRight) {
-        indicator.style.background = '#5dde7a'; // green in sweet spot
-      } else {
-        indicator.style.background = '#ff6b6b'; // red outside
-      }
-      if (pct < 100) {
-        requestAnimationFrame(step);
-      } else {
-        // Time ran out — miss
-        _fishingTimingWindow = false;
-        fishingHideTimingBar();
-        fishingResolveCast('miss');
-      }
-    }
-  }
-  requestAnimationFrame(step);
-}
-
-function fishingTimingClick() {
-  if (!_fishingTimingWindow) return;
-  var indicator = document.getElementById('fishing-timing-indicator');
-  if (!indicator) return;
-  var pct = parseFloat(indicator.style.left) || 0;
-  _fishingTimingWindow = false;
-  var sweetLeft = 35, sweetRight = 65;
-  var result = (pct >= sweetLeft && pct <= sweetRight) ? 'great' : 'ok';
-  fishingHideTimingBar();
-  fishingResolveCast(result);
-}
-
-function fishingHideTimingBar() {
-  var bar = document.getElementById('fishing-timing-wrap');
-  if (bar) bar.style.display = 'none';
-}
-
-// Power bar state
-var _castPowerInterval = null;
-var _castPower = 0;
-var _castPressing = false;
-
-function castLineStart(e) {
-  if (e && e.preventDefault) e.preventDefault();
-  if (!currentUser || _castPressing) return;
-  _castPressing = true;
-  _castPower = 0;
-  var btn = document.getElementById('fishing-btn');
-  var powerWrap = document.getElementById('fishing-power-wrap');
-  var powerBar  = document.getElementById('fishing-power-bar');
-  var catchText = document.querySelector('.pond-text');
-  if (powerWrap) powerWrap.style.display = 'block';
-  if (btn) btn.textContent = '💪 Release to cast!';
-  if (catchText) catchText.innerHTML = '<span style="color:#4dabf7;font-weight:600;">Hold to build power, release to cast!</span>';
-  var start = Date.now();
-  _castPowerInterval = setInterval(function() {
-    _castPower = Math.min(1, (Date.now() - start) / 1500);
-    if (powerBar) {
-      var pct = _castPower * 100;
-      powerBar.style.width = pct + '%';
-      powerBar.style.background = pct < 50 ? '#5dde7a' : pct < 80 ? '#ffd700' : '#ff9f43';
-    }
-    if (_castPower >= 1) castLineRelease();
-  }, 30);
-}
-
-async function castLineRelease() {
-  if (!_castPressing) return;
-  _castPressing = false;
-  if (_castPowerInterval) { clearInterval(_castPowerInterval); _castPowerInterval = null; }
-  var power = _castPower; _castPower = 0;
-  var powerWrap = document.getElementById('fishing-power-wrap');
-  var powerBar  = document.getElementById('fishing-power-bar');
-  if (powerWrap) powerWrap.style.display = 'none';
-  if (powerBar)  powerBar.style.width = '0%';
-  var powerCat = power < 0.3 ? 'weak' : power < 0.6 ? 'ok' : power < 0.85 ? 'good' : 'perfect';
-  var powerBonuses = {
-    weak:   { junkMult:1.25, rarityBoost:0,    label:'Weak cast...'   },
-    ok:     { junkMult:1.0,  rarityBoost:0,    label:'Decent cast!'   },
-    good:   { junkMult:0.85, rarityBoost:0.05, label:'Good cast! 🎣'  },
-    perfect:{ junkMult:0.65, rarityBoost:0.12, label:'Perfect cast! ⭐'}
-  };
-  window._castPowerBonus = powerBonuses[powerCat];
-  // Deduct bait cost
-  var baitData = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
-  if (baitData.cost > 0) {
-    if (currentPoints < baitData.cost) {
-      showToast('Not enough PP for ' + baitData.name + '! Switching to worm.', 3000);
-      _fishingBait = 'worm'; fishingSelectBait('worm');
-    } else {
-      var ppRes = await supabaseClient.rpc('award_pp_secure', { p_amount: -baitData.cost, p_reason: 'fishing_bait' }).catch(function(){ return null; });
-      if (ppRes && ppRes.data !== undefined) updateAllPoints(ppRes.data);
-    }
-  }
-  var btn = document.getElementById('fishing-btn');
-  var line = document.getElementById('fishing-line');
-  var catchText = document.querySelector('.pond-text');
-  if (btn) btn.disabled = true;
-  if (line) line.style.display = 'block';
-  if (catchText) catchText.innerHTML = '<span style="color:#4dabf7;">' + powerBonuses[powerCat].label + ' Waiting for a nibble...</span>';
-  var spotDelays = { pond:600, river:900, lake:1100, ocean:1400 };
-  var nibbleDelay = (spotDelays[_fishingSpot] || 800) + Math.random() * 800;
-  setTimeout(function() {
-    if (line) line.classList.add('nibble');
-    if (catchText) catchText.innerHTML = '<span style="color:#ffd700;font-weight:700;">🐟 Something\'s biting! Click when it\'s in the zone!</span>';
-    fishingShowTimingBar();
-    if (btn) { btn.disabled = false; btn.textContent = '\u26a1 REEL IT!'; btn.onclick = fishingTimingClick; }
-  }, nibbleDelay);
-}
-
-// Legacy entry kept for compatibility
-async function castLine() { castLineStart(null); }
-
-async function fishingResolveCast(timing) {
-  var line = document.getElementById('fishing-line');
-  if (line) { line.style.display = 'none'; line.classList.remove('nibble'); }
-
-  // Reset button
-  var btn = document.getElementById('fishing-btn');
-  if (btn) { btn.textContent = '🎣 Cast Again!'; btn.onclick = castLine; btn.disabled = false; }
-
-  var caught = fishingGetCatch(timing);
-  _fishingSessionCasts++;
-
-  var catchText = document.querySelector('.pond-text');
-  var rarityColors = { junk:'#888', common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700', item:'#ff66cc' };
-
-  // ── ITEM CATCH ────────────────────────────────────────────────────────────
-  if (caught.id === '__item__') {
-    try {
-      var itemRes = await supabaseClient.from('items').select('id,name,emoji').gt('hunger_effect', 0).order('id').limit(30);
-      if (itemRes.data && itemRes.data.length > 0) {
-        var randomItem = itemRes.data[Math.floor(Math.random() * itemRes.data.length)];
-        await supabaseClient.from('user_inventory').upsert(
-          { user_id: currentUser.id, item_id: randomItem.id, quantity: 1 },
-          { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
-        if (catchText) catchText.innerHTML = '🎁 <span style="color:#ff66cc;font-weight:700;">You caught an item: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + '!</span>' +
-          (timing === 'great' ? ' <span style="color:#ffd700;font-size:0.7rem;">PERFECT TIMING!</span>' : '');
-        showToast('🎣 Found: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + ' in your tackle box! Added to inventory.', 4000);
-        addPassXP(3, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-      }
-    } catch(e) { /* silent */ }
-    fishingUpdateStats();
-    return;
-  }
-
-  // ── JUNK CATCH ───────────────────────────────────────────────────────────
-  if (caught.rarity === 'junk') {
-    if (catchText) catchText.innerHTML = caught.emoji + ' <span style="color:#888;">You caught ' + caught.name + '...</span>' +
-      (timing === 'miss' ? ' <span style="color:#ff6b6b;font-size:0.7rem;">Late click!</span>' : '');
-    fishingUpdateStats();
-    return;
-  }
-
-  // ── REAL FISH CATCH ───────────────────────────────────────────────────────
-  // Roll weight and calculate PP
-  fishingLoadRecords();
-  var weight   = fishingRollWeight(caught);
-  var sizeData = fishingWeightCategory(weight, caught);
-  var ppMult   = sizeData ? sizeData.mult : 1.0;
-  var ppEarned = Math.round(caught.pp * ppMult);
-  fishingTotal += ppEarned;
-
-  var isNew    = !_fishCollection[caught.id];
-  if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now(), bestWeight:null };
-  _fishCollection[caught.id].count++;
-
-  // Track personal best weight
-  var isRecord = false;
-  if (weight !== null) {
-    var prevBest = _fishCollection[caught.id].bestWeight || 0;
-    if (weight > prevBest) {
-      _fishCollection[caught.id].bestWeight = weight;
-      isRecord = !isNew; // only "record" if we've caught this before
-    }
-  }
-  fishingSaveCollection();
-  // Also save to records map
-  fishingCheckRecord(caught, weight);
-
-  var rarityColor = rarityColors[caught.rarity] || '#5dde7a';
-  if (catchText) catchText.innerHTML = caught.emoji + ' <span style="color:' + rarityColor + ';font-weight:700;">' + caught.name + '</span>' +
-    (isNew ? ' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>' : '') +
-    ' <span style="color:#5dde7a;">(+' + ppEarned + ' PP)</span>';
-
-  // Show catch popup (non-junk only)
-  fishingShowCatchPopup(caught, weight, ppEarned, isNew, isRecord);
-
-  // Update bingo for fish catches
-  updateBingoProgress('catch_fish', 1);
-  if (caught.rarity === 'rare' || caught.rarity === 'epic' || caught.rarity === 'legendary') {
-    updateBingoProgress('catch_rare_fish', 1);
-  }
-
-  // Record catch in DB via secure RPC (handles collection + deduplication)
-  var catchRes = await supabaseClient.rpc('fishing_record_catch', {
-    p_fish_id: caught.id,
-    p_weight:  weight,
-    p_pp:      ppEarned
-  }).catch(function(){ return null; });
-  // Use server's authoritative new_fish/new_record flags if available
-  if (catchRes && catchRes.data && !catchRes.data.error) {
-    isNew    = catchRes.data.new_fish    || isNew;
-    isRecord = catchRes.data.new_record  || isRecord;
-  }
-  // Sync local cache from DB periodically (after catch)
-  if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, bestWeight:null };
-  _fishCollection[caught.id].count++;
-  if (weight && (!_fishCollection[caught.id].bestWeight || weight > _fishCollection[caught.id].bestWeight)) {
-    _fishCollection[caught.id].bestWeight = weight;
-  }
-
-  // Award PP
-  await awardPP(ppEarned, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-
-  // Award PassXP per fish
-  var fishPassXP = caught.passXP || 2;
-  addPassXP(fishPassXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-
-  // New fish celebrations
-  if (isNew) {
-    if (caught.rarity === 'legendary') {
-      var sizeLabel2 = sizeData ? sizeData.label + ' · ' : '';
-      safeSetTimeout(function() {
-        showRareCelebration({
-          title: 'Legendary Catch!',
-          subtitle: caught.emoji + ' ' + caught.name + (weight ? ' — ' + sizeLabel2 + fishingFormatWeight(weight) : '') + ' (+' + ppEarned + ' PP)',
-          icon: caught.emoji, rarity: 'legendary',
-          shareText: 'I just caught a legendary ' + caught.name + ' in PawketPetsVT! ?? #PawketPetsVT'
-        });
-      }, 400);
-      safeSetTimeout(function() {
-        showMelonMessage(caught.id === 'piper_fish'
-          ? '...where did you catch that? Please don\'t catch it again.'
-          : 'A legendary catch! ' + caught.emoji + ' I haven\'t seen one in a long time.',
-          { displayMs: 10000, spooky: caught.id === 'piper_fish' }
-        );
-      }, 3500);
-    } else if (caught.rarity === 'epic') {
-      safeSetTimeout(function() {
-        showRareCelebration({
-          title: 'Epic Catch!',
-          subtitle: caught.emoji + ' ' + caught.name + (weight ? ' — ' + fishingFormatWeight(weight) : '') + ' (+' + ppEarned + ' PP)',
-          icon: caught.emoji, rarity: 'epic',
-          shareText: 'Just caught an epic ' + caught.name + ' in PawketPetsVT! #PawketPetsVT'
-        });
-      }, 400);
-    }
-  }
-
-  // Check area completion after every real catch
-  if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-    fishingCheckAreaComplete().catch(function(e){ dbg('upsert error:', e); });
-  }
-} // closes fishingResolveCast
-
-// ── PassXP visual toast sources ───────────────────────────────────────────────
-var PASS_XP_TOAST_SOURCES = {
-  fishing:           '🎣 Fishing',
-  battle:            '⚔️ Battle',
-  expedition:        '🗺️ Expedition',
-  minigame:          '🎮 Minigame',
-  level_up:          '⭐ Level Up',
-  quest_complete:    '📜 Quest',
-  bingo_line:        '🎯 Bingo Line',
-  bingo_blackout:    '🎯 Bingo Blackout',
-  grand_prix_winner: '🏆 Grand Prix Win',
-  grand_prix_top_10: '🏅 Grand Prix Top 10',
-  secret_discovery:  '🔍 Discovery',
-  friend_added:      '👥 New Friend',
-};
-
-// ── Calendar day bonus multiplier ─────────────────────────────────────────────
-
-// ── Fishing area completion (DB-backed, idempotent) ───────────────────────────
-async function fishingCheckAreaComplete() {
-  var spotFish = (typeof FISH_BY_SPOT !== 'undefined' && FISH_BY_SPOT[_fishingSpot]) || [];
-  if (!spotFish.length || !spotFish.every(function(id){ return _fishCollection[id]; })) return;
-  var reward = (typeof FISH_SPOT_REWARDS !== 'undefined') && FISH_SPOT_REWARDS[_fishingSpot];
-  if (!reward) return;
-  var res = await supabaseClient.rpc('fishing_claim_reward', {
-    p_reward_key: 'area_' + _fishingSpot, p_pp: reward.pp,
-    p_pass_xp: reward.passXP, p_skin_key: false
-  }).catch(function(){ return null; });
-  if (!res || (res.data && res.data.already_claimed)) return;
-  if (res.data && res.data.ok) {
-    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-    showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
-    if (typeof showMelonMessage === 'function')
-      showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
-  }
-  if (typeof FISH_POOL === 'undefined') return;
-  var allIds = FISH_POOL.filter(function(f){ return f.rarity !== 'junk'; }).map(function(f){ return f.id; });
-  if (!allIds.every(function(id){ return _fishCollection[id]; })) return;
-  var full = await supabaseClient.rpc('fishing_claim_reward', {
-    p_reward_key: 'full_collection', p_pp: (typeof FISH_FULL_COMPLETION_PP !== 'undefined' ? FISH_FULL_COMPLETION_PP : 2000),
-    p_pass_xp: (typeof FISH_FULL_COMPLETION_PASSXP !== 'undefined' ? FISH_FULL_COMPLETION_PASSXP : 300),
-    p_skin_key: true
-  }).catch(function(){ return null; });
-  if (full && full.data && full.data.ok) {
-    if (typeof showRareCelebration === 'function')
-      showRareCelebration({ title:'Master Angler!', subtitle:'Caught every fish!', icon:'🎣', rarity:'legendary',
-        shareText:'Completed the fish collection in PawketPetsVT! 🎣 #PawketPetsVT' });
-  }
-}
-
-// ── Ad-pocalypse weather ───────────────────────────────────────────────────────
-var _adpocalypseInterval = null;
-var _adpocalypseActive   = false;
-var AD_POOL = [
-  { id:'ad_free_pp', title:'💰 FREE PawketPoints!!', headline:'CLICK HERE FOR FREE PP!!',
-    sub:'Limited time! Click NOW for <strong>free 25 PP</strong>!',
-    btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
-    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); }); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
-  { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
-    sub:'PetCare Pro — <strong>only 50 PP!!</strong>',
-    btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
-    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(e){ dbg('upsert error:', e); }); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
-  { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
-    sub:'You have been pre-approved for our <strong>Exclusive Rewards Program</strong>!!',
-    btn:'✅ TELL ME MORE!!', fine:'* There is nothing more.',
-    outcome:function(){ showToast('There was nothing there. Thank you. 🙂',4000); }, weight:15 },
-  { id:'ad_horror', title:'SYSTEM — do not close', headline:'have you seen them?',
-    sub:'the other testers. from before.<br><br>it was not fine.',
-    btn:'i have not seen them', fine:'* this ad will not appear again.',
-    outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
-];
-
-// ── Melon spooky shop dialogue pool ───────────────────────────────────────────
-var MELON_SPOOKY_POOL = [
-  'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing.',
-  'Buy whatever you need! <span class="glitch-text">Piper</span> used to say that too.',
-  'Is your pet happy today? They look happy. They always look happy.',
-  'I have been here a long time. So have you. Is not that nice?',
-  'Welcome to the shop! Everything is fine. <span class="glitch-text">Everything is fine.</span>',
-  'I am not sure what happened to the last guide. I am sure it was nothing.',
-  'Your pet seems very attached to you. That is good. That is very good.',
-  'Sometimes I think the pets remember things I do not. But I am just the shopkeeper.',
-];
-
-// ── expeditionNarrativeClose helper ───────────────────────────────────────────
-function copyToken(text) {
-  if (!text) return;
-  navigator.clipboard.writeText(text).then(function() {
-    showToast('Copied to clipboard!', 2000);
-  }).catch(function() {
-    showToast('Could not copy — please copy manually.', 3000);
-  });
-}
-
-function closeCreepyPopup() {
-  var p = document.getElementById('install-popup-3');
-  if (p) p.classList.remove('show');
-}
-
-function expeditionNarrativeClose() {
-  var m = document.getElementById('expedition-narrative-modal');
-  if (m) m.remove();
-}
-
-
-// ── TWITCH ───────────────────────────────
-
-
-// ── FISH JOURNAL ──────────────────────────────────────────────────────────
-function fishingRenderJournal(spotFilter) {
-  var mount = document.getElementById('fishing-journal-mount');
-  if (!mount) return;
-  fishingLoadCollection();
-  spotFilter = spotFilter || 'all';
-  var rarityColors = { common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700' };
-  var rarityLabels = { common:'Common', uncommon:'Uncommon', rare:'Rare', epic:'Epic', legendary:'Legendary' };
-  var fishToShow = FISH_POOL.filter(function(f) {
-    if (f.rarity === 'junk' || f.id === '__item__') return false;
-    if (spotFilter !== 'all' && f.spots.indexOf(spotFilter) === -1) return false;
-    return true;
-  });
-  var rarityOrder = { common:0, uncommon:1, rare:2, epic:3, legendary:4 };
-  fishToShow.sort(function(a, b) {
-    var aCaught = !!_fishCollection[a.id], bCaught = !!_fishCollection[b.id];
-    if (aCaught !== bCaught) return bCaught ? 1 : -1;
-    return (rarityOrder[a.rarity]||0) - (rarityOrder[b.rarity]||0);
-  });
-  var collected = fishToShow.filter(function(f){ return _fishCollection[f.id]; }).length;
-  var totalInFilter = fishToShow.length;
-  var pct = totalInFilter > 0 ? Math.round(collected / totalInFilter * 100) : 0;
-
-  var html = '<div>';
-  // Spot filter tabs
-  html += '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px;">';
-  ['all','pond','river','lake','ocean'].forEach(function(spot) {
-    var label = { all:'🌊 All', pond:'🏞️ Pond', river:'🏔️ River', lake:'🌊 Lake', ocean:'🌊 Ocean' }[spot];
-    var spotFishArr = spot === 'all'
-      ? FISH_POOL.filter(function(f){ return f.rarity!=='junk'&&f.id!=='__item__'; })
-      : (FISH_BY_SPOT[spot]||[]).map(function(id){ return FISH_POOL.find(function(f){ return f.id===id; }); }).filter(Boolean);
-    var spotC = spotFishArr.filter(function(f){ return f&&_fishCollection[f.id]; }).length;
-    var active = spotFilter===spot;
-    html += '<button onclick="fishingRenderJournal(\"' + spot + '\"  )" style="padding:4px 10px;border-radius:8px;font-size:0.7rem;cursor:pointer;' +
-      'border:2px solid '+(active?'var(--purple)':'var(--border)')+';background:'+(active?'rgba(153,102,255,0.15)':'var(--white)')+';font-weight:'+(active?'700':'500')+';color:var(--text);">' +
-      label+' <span style="color:var(--text-light);">('+spotC+'/'+spotFishArr.length+')</span></button>';
-  });
-  html += '</div>';
-  // Progress bar
-  html += '<div style="background:var(--border);border-radius:8px;height:8px;overflow:hidden;margin-bottom:4px;">' +
-    '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--pink));border-radius:8px;"></div></div>';
-  html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:10px;">'+collected+' / '+totalInFilter+' discovered ('+pct+'%)</div>';
-  // Fish grid
-  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(85px,1fr));gap:6px;">';
-  fishToShow.forEach(function(fish) {
-    var isCaught = !!_fishCollection[fish.id];
-    var count = isCaught ? _fishCollection[fish.id].count : 0;
-    var color = rarityColors[fish.rarity]||'#888';
-    var weatherHint = fish.weather ? ' 🌤️' : '';
-    var spotHint = fish.spots ? fish.spots.join(', ') : '';
-    var bestW = isCaught && _fishCollection[fish.id] && _fishCollection[fish.id].bestWeight
-      ? _fishCollection[fish.id].bestWeight : null;
-    html += '<div title="'+fish.name+(fish.weather?' — '+fish.weather+' weather only':'')+' — '+spotHint+'" style="' +
-      'background:'+(isCaught?'rgba(153,102,255,0.06)':'rgba(0,0,0,0.03)')+';' +
-      'border:2px solid '+(isCaught?color+'60':'var(--border)')+';border-radius:10px;padding:8px 4px;text-align:center;opacity:'+(isCaught?'1':'0.45')+';cursor:default;">' +
-      '<div style="font-size:1.5rem;'+(isCaught?'':'filter:grayscale(1);')+'">'+(isCaught?fish.emoji:'❓')+'</div>' +
-      '<div style="font-size:0.6rem;font-weight:700;color:'+(isCaught?'var(--text)':'var(--text-light)')+';line-height:1.3;margin-top:2px;">'+(isCaught?fish.name:'???')+'</div>' +
-      '<div style="font-size:0.56rem;color:'+color+';font-weight:600;">'+rarityLabels[fish.rarity]+weatherHint+'</div>' +
-      (isCaught?'<div style="font-size:0.56rem;color:var(--text-light);">×'+count+(bestW?' · PB: '+fishingFormatWeight(bestW):'')+'</div>':'')+
-    '</div>';
-  });
-  html += '</div></div>';
-  mount.innerHTML = html;
-}
-
-// ── ROD SHOP ──────────────────────────────────────────────────────────────
-async function fishingUpgradeRod() {
-  var nextLevel = _fishingRodLevel + 1;
-  if (nextLevel > 4) { showToast('You already have the best rod! 🎣', 3000); return; }
-  var rod = FISHING_RODS[nextLevel];
-  if (!rod) return;
-  if (currentPoints < rod.cost) { showToast('Need ' + rod.cost + ' PP to buy the ' + rod.name + '!', 3000); return; }
-  if (!confirm('Buy ' + rod.emoji + ' ' + rod.name + ' for ' + rod.cost + ' PP?\n' + rod.desc)) return;
-  // Use secure RPC — validates PP server-side, will not allow skipping levels
-  var res = await supabaseClient.rpc('fishing_upgrade_rod', {
-    p_next_level: nextLevel, p_cost: rod.cost
-  }).catch(function(){ return null; });
-  if (!res || res.error || (res.data && res.data.error)) {
-    showToast('Could not purchase: ' + ((res && res.data && res.data.error) || 'try again'), 3000);
-    return;
-  }
-  _fishingRodLevel = nextLevel;
-  if (res.data && res.data.new_pp !== undefined) updateAllPoints(res.data.new_pp);
-  showToast('🎣 Upgraded to ' + rod.name + '! Junk rate reduced!', 5000);
-  showMelonMessage('Nice rod! The ' + rod.name + ' should help a lot. 🍉', { displayMs: 6000 });
-  fishingRenderRodShop();
-}
-
-function fishingRenderRodShop() {
-  var mount = document.getElementById('fishing-rod-shop');
-  if (!mount) return;
-  var current = FISHING_RODS[_fishingRodLevel];
-  var junkRate = (FISHING_JUNK_RATES[_fishingRodLevel]||FISHING_JUNK_RATES[1])[_fishingBait||'worm']||0.45;
-  var html = '<div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:4px;">🎣 Your Rod</div>';
-  html += '<div style="font-size:0.78rem;margin-bottom:4px;"><strong>'+current.emoji+' '+current.name+'</strong></div>';
-  html += '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:6px;" id="fishing-junk-rate">'+Math.round(junkRate*100)+'% junk chance with current bait</div>';
-  if (_fishingRodLevel < 4) {
-    var next = FISHING_RODS[_fishingRodLevel+1];
-    html += '<button class="btn btn-outline btn-sm" onclick="fishingUpgradeRod()" style="width:100%;font-size:0.7rem;">⬆️ '+next.name+' — '+next.cost+' PP</button>';
-  } else {
-    html += '<div style="font-size:0.7rem;color:#ffd700;">✨ Max rod level!</div>';
-  }
-  mount.innerHTML = html;
-}
-
-function fishingRenderRodShop() {
-  var mount = document.getElementById('fishing-rod-shop');
-  if (!mount) return;
-  var current = FISHING_RODS[_fishingRodLevel];
-  var junkRate = (FISHING_JUNK_RATES[_fishingRodLevel]||FISHING_JUNK_RATES[1])[_fishingBait||'worm']||0.45;
-  var html = '<div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:4px;">🎣 Your Rod</div>';
-  html += '<div style="font-size:0.78rem;margin-bottom:4px;"><strong>'+current.emoji+' '+current.name+'</strong></div>';
-  html += '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:6px;" id="fishing-junk-rate">'+Math.round(junkRate*100)+'% junk chance with current bait</div>';
-  if (_fishingRodLevel < 4) {
-    var next = FISHING_RODS[_fishingRodLevel+1];
-    html += '<button class="btn btn-outline btn-sm" onclick="fishingUpgradeRod()" style="width:100%;font-size:0.7rem;">⬆️ '+next.name+' — '+next.cost+' PP</button>';
-  } else {
-    html += '<div style="font-size:0.7rem;color:#ffd700;">✨ Max rod level!</div>';
-  }
-  mount.innerHTML = html;
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// AUTO-FISHER SYSTEM
-// Purchased upgrade, set-and-forget, completes while away.
-// No bait, no timing, slightly worse junk rate than manual fishing.
-// ══════════════════════════════════════════════════════════════════════════
-
-var AUTO_FISHER_TIERS = [
-  null,
-  { level:1, name:'Auto-Fisher I',   cost:500,  dailyCasts:10, junkPenalty:0.18, desc:'10 auto-casts/day. Set and forget!' },
-  { level:2, name:'Auto-Fisher II',  cost:1500, dailyCasts:25, junkPenalty:0.12, desc:'25 auto-casts/day.'  },
-  { level:3, name:'Auto-Fisher III', cost:4000, dailyCasts:50, junkPenalty:0.08, desc:'50 auto-casts/day.'  },
-];
-
-var _autoFisherLevel = 0;    // 0 = not purchased
-var _autoFisherState = null; // { startTime, castsTotal, castsLeft, spot, date }
-
-async function autoFisherLoadState() {
-  // Level and state are loaded with the player data in fishingLoadRodLevel()
-  // This is a no-op but kept for compatibility
-}
-
-async function autoFisherSaveState() {
-  if (!currentUser) return;
-  // Save auto_fisher_state JSON to players table via RPC
-  await supabaseClient.rpc('fishing_save_autofisher_state', {
-    p_state: _autoFisherState ? JSON.parse(JSON.stringify(_autoFisherState)) : null
-  }).catch(function(e){ dbg('upsert error:', e); });
-}
-
-async function autoFisherPurchase() {
-  var nextLevel = _autoFisherLevel + 1;
-  if (nextLevel > 3) { showToast('Auto-Fisher is maxed out! 🤖', 3000); return; }
-  var tier = AUTO_FISHER_TIERS[nextLevel];
-  if (!tier) return;
-  if (currentPoints < tier.cost) { showToast('Need ' + tier.cost + ' PP for ' + tier.name + '!', 3000); return; }
-  if (!confirm('Buy ' + tier.name + ' for ' + tier.cost + ' PP? ' + tier.desc + ' (No bait supported, slightly higher junk rate)')) return;
-  var res = await supabaseClient.rpc('fishing_upgrade_autofisher', {
-    p_next_level: nextLevel, p_cost: tier.cost
-  }).catch(function(){ return null; });
-  if (!res || res.error || (res.data && res.data.error)) {
-    showToast('Purchase failed: ' + ((res && res.data && res.data.error) || 'try again'), 3000); return;
-  }
-  _autoFisherLevel = nextLevel;
-  if (res.data && res.data.new_pp !== undefined) updateAllPoints(res.data.new_pp);
-  showToast('🤖 ' + tier.name + ' activated! ' + tier.dailyCasts + ' auto-casts available daily.', 5000);
-  showMelonMessage('Oh! You got the Auto-Fisher! I\'ll keep an eye on it for you. 🍉', { displayMs: 6000 });
-  autoFisherRenderWidget();
-}
-
-async function autoFisherStart() {
-  if (_autoFisherLevel === 0) { showToast('Purchase an Auto-Fisher first!', 3000); return; }
-  var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-  var today = new Date().toDateString();
-  // Check if already used today
-  if (_autoFisherState && _autoFisherState.date === today) {
-    if (_autoFisherState.castsLeft > 0) {
-      showToast('Auto-Fisher already running! (' + _autoFisherState.castsLeft + ' casts left)', 3000);
-    } else {
-      showToast('Auto-Fisher already used today. Come back tomorrow! 🤖', 3000);
-    }
-    return;
-  }
-  _autoFisherState = {
-    startTime: Date.now(),
-    castsTotal: tier.dailyCasts,
-    castsLeft: tier.dailyCasts,
-    spot: _fishingSpot,
-    date: today,
-    msPerCast: Math.floor((4 * 60 * 60 * 1000) / tier.dailyCasts)
-  };
-  await autoFisherSaveState();
-  showToast('🤖 Auto-Fisher started at ' + _fishingSpot + '! Will cast ' + tier.dailyCasts + ' times over ~4 hours.', 5000);
-  autoFisherRenderWidget();
-}
-
-async function autoFisherCheck() {
-  if (!currentUser || !_autoFisherState) return;
-  var today = new Date().toDateString();
-  if (_autoFisherState.date !== today) { _autoFisherState = null; autoFisherSaveState(); autoFisherRenderWidget(); return; }
-  if (_autoFisherState.castsLeft <= 0) return;
-
-  var elapsed = Date.now() - _autoFisherState.startTime;
-  var castsDone = Math.min(_autoFisherState.castsTotal, Math.floor(elapsed / _autoFisherState.msPerCast));
-  var newCasts = _autoFisherState.castsTotal - castsDone;
-
-  if (newCasts < _autoFisherState.castsLeft) {
-    // Some casts have completed — simulate them
-    var completedCount = _autoFisherState.castsLeft - newCasts;
-    var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-    var catches = [];
-    fishingLoadCollection();
-
-    for (var i = 0; i < completedCount; i++) {
-      // Auto-fisher uses no timing, no power — just base junk rate + penalty
-      var junkRate = (FISHING_JUNK_RATES[_fishingRodLevel] || FISHING_JUNK_RATES[1]).worm + (tier.junkPenalty || 0.15);
-      junkRate = Math.min(0.85, junkRate);
-      var caught;
-      if (Math.random() < junkRate) {
-        var junkPool2 = FISH_POOL.filter(function(f){ return f.rarity==='junk' && f.spots.indexOf(_autoFisherState.spot)!==-1; });
-        caught = junkPool2[Math.floor(Math.random()*junkPool2.length)] || FISH_POOL[0];
-      } else {
-        // Simple random fish from spot (no timing/power bonus)
-        caught = fishingGetCatch('ok');
-        if (caught.id === '__item__') caught = FISH_POOL.find(function(f){ return f.id==='carp'; });
-      }
-      if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-        var w = fishingRollWeight(caught);
-        var szData = fishingWeightCategory(w, caught);
-        var pp = Math.round(caught.pp * (szData ? szData.mult : 1));
-        catches.push({ name: caught.name, emoji: caught.emoji, pp: pp, rarity: caught.rarity, weight: w });
-        if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now() };
-        _fishCollection[caught.id].count++;
-        await awardPP(pp, 'auto_fishing').catch(function(e){ dbg('upsert error:', e); });
-        addPassXP(caught.passXP || 2, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-      }
-    }
-    fishingSaveCollection();
-
-    _autoFisherState.castsLeft = newCasts;
-    await autoFisherSaveState();
-
-    if (catches.length > 0) {
-      // Show summary notification
-      var summaryLines = catches.slice(0, 8).map(function(c){ return c.emoji + ' ' + c.name + ' (+' + c.pp + ' PP)'; });
-      if (catches.length > 8) summaryLines.push('...and ' + (catches.length - 8) + ' more!');
-      var totalPP = catches.reduce(function(s,c){ return s+c.pp; }, 0);
-      var msg = 'Auto-Fisher caught ' + catches.length + ' fish! (+' + totalPP + ' PP total) ' + summaryLines.join(', ');
-      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(e){ dbg('upsert error:', e); });
-      if (completedCount === _autoFisherState.castsTotal) {
-        // All done!
-        showMelonMessage('Your auto-fisher is done for the day! Caught ' + catches.length + ' fish. 🍉', { displayMs: 8000 });
-      }
-    }
-  }
-
-  autoFisherRenderWidget();
-}
-
-function autoFisherRenderWidget() {
-  var mount = document.getElementById('auto-fisher-mount');
-  if (!mount) return;
-  autoFisherLoadState();
-
-  var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-  var today = new Date().toDateString();
-  var state = (_autoFisherState && _autoFisherState.date === today) ? _autoFisherState : null;
-
-  var html = '<div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">🤖 Auto-Fisher</div>';
-
-  if (_autoFisherLevel === 0) {
-    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:6px;">Automatically catches fish while you are away!</div>';
-    html += '<button class="btn btn-outline btn-sm" onclick="autoFisherPurchase()" style="width:100%;font-size:0.72rem;">🤖 Buy Auto-Fisher I — 500 PP</button>';
-  } else {
-    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:4px;">Level ' + _autoFisherLevel + ': ' + tier.name + ' — ' + tier.dailyCasts + ' casts/day</div>';
-    if (state) {
-      var done = state.castsTotal - state.castsLeft;
-      var pct  = Math.round(done / state.castsTotal * 100);
-      html += '<div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden;margin-bottom:4px;">' +
-        '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--pink));border-radius:6px;"></div></div>';
-      html += '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:6px;">' + done + '/' + state.castsTotal + ' casts done ('+pct+'%)</div>';
-      if (state.castsLeft <= 0) {
-        html += '<div style="font-size:0.72rem;color:#5dde7a;">✅ Done for today! Come back tomorrow.</div>';
-      }
-    } else {
-      html += '<div style="font-size:0.72rem;margin-bottom:6px;">Spot: auto-fishes at current selected spot.</div>';
-      html += '<button class="btn btn-outline btn-sm" onclick="autoFisherStart()" style="width:100%;font-size:0.72rem;">🤖 Start Auto-Fishing</button>';
-    }
-    if (_autoFisherLevel < 3) {
-      var nextT = AUTO_FISHER_TIERS[_autoFisherLevel+1];
-      html += '<button class="btn btn-sm" onclick="autoFisherPurchase()" style="width:100%;margin-top:4px;font-size:0.68rem;background:none;border:1px solid var(--border);">⬆️ Upgrade to Level ' + (_autoFisherLevel+1) + ' — ' + nextT.cost + ' PP</button>';
-    }
-  }
-  mount.innerHTML = html;
-}
-
-
-async function awardPP(amount, reason) {
-  if(!currentUser) return;
-  if (!reason) reason = 'unknown';
-  
-  var { data, error } = await supabaseClient.rpc('award_pp_secure', {
-    p_amount: amount,
-    p_reason: reason
-  });
-  
-  if (error) {
-    console.error('PP award error:', error.message);
-    showPixelToast('Error awarding points!', 'error');
-    return;
-  }
-  
-  currentPoints = data;
-  updateAllPoints(data);
-  await checkTop10Badge();
-}
-
-async function checkTop10Badge() {
-  if (!currentUser) return;
-  
-  var rankRes = await supabaseClient
-    .from('players')
-    .select('id')
-    .order('pawketpoints', { ascending: false })
-    .limit(10);
-  
-  if (rankRes.data) {
-    var top10Ids = rankRes.data.map(function(p) { return p.id; });
-    if (top10Ids.includes(currentUser.id)) {
-      await awardBadge('top_10');
-    }
-  }
-}
-
-var diceFaces=['&#9856;','&#9857;','&#9858;','&#9859;','&#9860;','&#9861;'];
-// Dice state for Double or Nothing
-var _diceCurrentEarned = 0;
-var _diceDoubleOrNothingActive = false;
-var _diceRollCount = 0;
-
-async function rollDice() {
-  if(isCD('dice'))return;
-  _diceCurrentEarned = 0;
-  _diceDoubleOrNothingActive = false;
-  _diceRollCount = 0;
-  _diceDoRoll();
-}
-
-function _diceDoRoll() {
-  var btn = el('roll-btn'); if(btn) btn.disabled = true;
-  var d1=el('die1'); var d2=el('die2');
-  var res=el('dice-result'); res.textContent=''; res.style.opacity='0';
-  d1.classList.add('rolling'); d2.classList.add('rolling');
-  var ri=setInterval(function(){d1.innerHTML=diceFaces[Math.floor(Math.random()*6)];d2.innerHTML=diceFaces[Math.floor(Math.random()*6)];},100);
-  setTimeout(async function(){
-    clearInterval(ri); d1.classList.remove('rolling'); d2.classList.remove('rolling');
-    var v1=Math.floor(Math.random()*6)+1; var v2=Math.floor(Math.random()*6)+1;
-    d1.innerHTML=diceFaces[v1-1]; d2.innerHTML=diceFaces[v2-1];
-    var total=v1+v2; var isDouble=v1===v2;
-    _diceRollCount++;
-
-    // Bust condition: rolled a 1 on either die after first roll during Double or Nothing
-    if (_diceDoubleOrNothingActive && (v1===1||v2===1)) {
-      res.style.opacity='1';
-      res.textContent='💀 Rolled a 1! Lost everything! +0 PP';
-      res.style.color='#ff4444';
-      _diceCurrentEarned=0;
-      await awardBadge('dice_first_play');
-      setCD('dice'); onMinigameComplete(0);
-      el('dice-don-btns') && (el('dice-don-btns').style.display='none');
-      el('dice-cooldown').style.display='block';
-      return;
-    }
-
-    var earned = isDouble ? total*3 : total;
-    if(_diceDoubleOrNothingActive) earned = _diceCurrentEarned * 2;
-    _diceCurrentEarned = earned;
-
-    await awardBadge('dice_first_play');
-    if(isDouble){
-      await awardBadge('lucky_doubles');
-      if(v1===1) await awardBadge('snake_eyes');
-      if(v1===6) await awardBadge('boxcars');
-    }
-
-    res.style.opacity='1';
-    var rollDesc = isDouble ? 'DOUBLE '+v1+'s!' : v1+'+'+v2+'='+total;
-    res.textContent = rollDesc + ' | Bank: '+earned+' PP';
-    res.style.color = isDouble?'#b06aff':'#5dde7a';
-
-    // Show Double or Nothing buttons (up to 4 times max)
-    var donBtns = el('dice-don-btns');
-    if(donBtns && _diceRollCount < 4) {
-      donBtns.style.display='flex';
-      donBtns.innerHTML =
-        '<button class="btn btn-primary" style="flex:1;font-size:0.8rem;" onclick="_diceTakeIt()">💰 Take '+earned+' PP</button>' +
-        '<button class="btn" style="flex:1;font-size:0.8rem;background:#cc0000;color:#fff;" onclick="_diceDoubleOrNothing()">🎲 Double or Nothing!</button>';
-      _diceDoubleOrNothingActive = true;
-    } else {
-      // Auto-collect on 4th roll
-      await _diceTakeIt();
-    }
-  },1200);
-}
-
-async function _diceTakeIt() {
-  var donBtns = el('dice-don-btns');
-  if(donBtns) donBtns.style.display='none';
-  await awardPP(_diceCurrentEarned, 'dice_roll');
-  setCD('dice'); onMinigameComplete(_diceCurrentEarned);
-  var res=el('dice-result');
-  res.textContent='Collected! +'+_diceCurrentEarned+' PP! 💰';
-  res.style.color='#5dde7a';
-  el('dice-cooldown').style.display='block';
-  var rollBtn=el('roll-btn'); if(rollBtn) rollBtn.style.display='none';
-}
-
-async function _diceDoubleOrNothing() {
-  var res=el('dice-result');
-  res.textContent='Going for double! 🎲';
-  var donBtns = el('dice-don-btns');
-  if(donBtns) donBtns.style.display='none';
-  _diceDoubleOrNothingActive = true;
-  setTimeout(function(){ _diceDoRoll(); }, 400);
-}
-
-var guessAttempts = 0; // Track attempts for badge
-
-function initGuess(){
-  secretNumber=Math.floor(Math.random()*100)+1;  // 1-100
-  guessesLeft=6;
-  guessAttempts=0;
-  el('guess-input').value='';
-  el('guess-result').textContent='';
-  el('attempts-left').textContent='6 guesses remaining';
-  el('guess-input').placeholder='1 - 100';
-  el('guess-input').max='100';
-  // Reset hot/cold indicator
-  var hc=el('guess-hotcold'); if(hc) hc.textContent='';
-}
-
-async function makeGuess() {
-  if(isCD('guess'))return;
-  var input=el('guess-input'); var guess=parseInt(input.value);
-  var result=el('guess-result'); var attEl=el('attempts-left');
-  var hc=el('guess-hotcold');
-  if(!guess||guess<1||guess>100){result.textContent='Enter a number 1-100!';result.style.color='#ff6eb4';return;}
-  
-  guessesLeft--;
-  guessAttempts++;
-  
-  if(guess===secretNumber){
-    // Reward gradient: fewer guesses = more PP
-    var ppRewards=[100,70,50,35,25,20];
-    var earned=ppRewards[Math.min(guessAttempts-1,5)];
-    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete(earned);
-    
-    await awardBadge('guess_first_play');
-    if(guessAttempts===1){
-      await awardBadge('first_try');
-      var playerRes=await supabaseClient.from('players').select('first_try_wins').eq('id',currentUser.id).maybeSingle();
-      var newCount=((playerRes.data&&playerRes.data.first_try_wins)||0)+1;
-      await supabaseClient.from('players').update({first_try_wins:newCount}).eq('id',currentUser.id);
-      if(newCount>=5) await awardBadge('mind_reader');
-    }
-    
-    if(hc) hc.textContent='';
-    result.textContent='Correct in '+guessAttempts+' guess'+(guessAttempts===1?'':'es')+'! +'+earned+' PP! 🎯';
-    result.style.color='#5dde7a';
-    el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
-    
-    if(typeof CompanionBuddy!=='undefined'&&CompanionBuddy.currentCompanionId){
-      setTimeout(function(){
-        var msgs=["You got it! 🌟","Amazing guess! 🎯","You\'re so smart! 💡","Perfect! ✨"];
-        CompanionBuddy.showMessage(msgs[Math.floor(Math.random()*msgs.length)]);
-      },500);
-    }
-  } else if(guessesLeft===0){
-    setCD('guess');
-    await awardBadge('guess_first_play');
-    await awardPP(5,'guess_consolation');
-    if(hc) hc.textContent='';
-    result.textContent='The number was '+secretNumber+'. +5 PP consolation.'; result.style.color='#ff6eb4';
-    el('guess-play').style.display='none'; el('guess-cooldown').style.display='block';
-  } else {
-    var diff=Math.abs(guess-secretNumber);
-    var direction=guess<secretNumber?'Too low! ⬆️':'Too high! ⬇️';
-    var temp=diff<=5?'🔥 Hot!':diff<=15?'♨️ Warm':diff<=30?'🌡️ Cool':'🧊 Cold';
-    if(hc){ hc.textContent=temp; hc.style.color=diff<=5?'#ff4444':diff<=15?'#ff9900':diff<=30?'#5dde7a':'#88bbff'; }
-    result.textContent=direction+' '+guessesLeft+' left.'; result.style.color='#ff9f43';
-    attEl.textContent=guessesLeft+' guess'+(guessesLeft===1?'':'es')+' remaining';
-    input.value=''; input.focus();
-  }
-}
-
-function shuffle(arr){var a=arr.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
-// Memory combo tracking
-var memoryCombo=0; var memoryLastMatchTime=0;
-
-function initMemory(difficulty) {
-  if(isCD('memory'))return;
-  difficulty = difficulty || 'easy';
-  var pairCounts={easy:6,medium:8,hard:12};
-  var tryCounts={easy:15,medium:18,hard:24};
-  var pairs=pairCounts[difficulty]||6;
-  var emojiSet=memoryEmojis.slice(0,pairs);
-  memoryCards=shuffle(emojiSet.concat(emojiSet));
-  flippedCards=[]; matchedPairs=0; triesLeft=tryCounts[difficulty]||15;
-  memoryEarned=0; memoryLocked=false; memoryCombo=0; memoryLastMatchTime=0;
-  el('match-count').textContent='0'; el('tries-left').textContent=triesLeft;
-  el('memory-earned').textContent='0'; el('memory-result').textContent='';
-  el('memory-total-pairs') && (el('memory-total-pairs').textContent=pairs);
-  el('memory-difficulty') && (el('memory-difficulty').textContent=difficulty.toUpperCase());
-  var grid=el('memory-grid'); grid.innerHTML='';
-  memoryCards.forEach(function(em,idx){
-    var btn=document.createElement('button'); btn.className='memory-card';
-    btn.dataset.idx=idx; btn.dataset.emoji=em; btn.innerHTML='';
-    btn.onclick=function(){flipCard(this);}; grid.appendChild(btn);
-  });
-}
-function flipCard(btn) {
-  if(memoryLocked||btn.classList.contains('flipped')||btn.classList.contains('matched')||flippedCards.length>=2)return;
-  btn.innerHTML=btn.dataset.emoji; btn.classList.add('flipped'); flippedCards.push(btn);
-  if(flippedCards.length===2){
-    memoryLocked=true; triesLeft--; el('tries-left').textContent=triesLeft;
-    if(flippedCards[0].dataset.emoji===flippedCards[1].dataset.emoji){
-      flippedCards[0].classList.add('matched'); flippedCards[1].classList.add('matched');
-      flippedCards[0].classList.remove('flipped'); flippedCards[1].classList.remove('flipped');
-      matchedPairs++; memoryEarned+=5;
-      el('match-count').textContent=matchedPairs; el('memory-earned').textContent=memoryEarned;
-      flippedCards=[]; memoryLocked=false;
-      // Combo: consecutive matches within 3 seconds
-      var now=Date.now();
-      if(now-memoryLastMatchTime<3000){ memoryCombo++; } else { memoryCombo=1; }
-      memoryLastMatchTime=now;
-      if(memoryCombo>1){
-        var comboBonus=memoryCombo*3;
-        memoryEarned+=comboBonus;
-        el('memory-earned').textContent=memoryEarned;
-        showFlash('memory-result','🔥 Combo x'+memoryCombo+'! +'+comboBonus+' bonus PP!','#ff9f43');
-      }
-      
-      var totalPairs=memoryCards.length/2;
-      if(matchedPairs===totalPairs){
-        // Game complete!
-        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete(memoryEarned);
-        
-        // Award badges
-        awardBadge('memory_first_play'); // First time playing
-        var usedTries = 15 - triesLeft;
-        if (usedTries === 6) {
-          awardBadge('perfect_memory'); // Perfect game (no mistakes)
-        }
-        if (usedTries <= 10) {
-          awardBadge('speed_matcher'); // Completed in 10 tries or less
-        }
-        
-        var r=el('memory-result');r.textContent='All matched! +'+memoryEarned+' PP!';r.style.color='#5dde7a';el('memory-cooldown').style.display='block';
-      }
-    } else {
-      setTimeout(function(){
-        flippedCards[0].innerHTML=''; flippedCards[0].classList.remove('flipped');
-        flippedCards[1].innerHTML=''; flippedCards[1].classList.remove('flipped');
-        flippedCards=[]; memoryLocked=false;
-        if(triesLeft===0&&matchedPairs<6){
-          awardPP(memoryEarned, 'memory_match');setCD('memory'); onMinigameComplete(memoryEarned);
-          awardBadge('memory_first_play'); // Award badge even if lost
-          var r=el('memory-result');r.textContent='Out of tries! Earned '+memoryEarned+' PP.';r.style.color='#ff9f43';el('memory-cooldown').style.display='block';document.querySelectorAll('.memory-card:not(.matched)').forEach(function(c){c.innerHTML=c.dataset.emoji;c.disabled=true;});
-        }
-      },900);
-    }
-  }
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// NEW MINIGAMES
-// ══════════════════════════════════════════════════════════════════════════
-
-// ── TREASURE WHEEL ──────────────────────────────
-var wheelSpinning = false;
-var wheelPrizes = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
-
-function drawWheel() {
-  var canvas = el('wheel-canvas');
-  if (!canvas) return;
-  var ctx = canvas.getContext('2d');
-  var centerX = 150, centerY = 150, radius = 140;
-  var sliceAngle = (2 * Math.PI) / wheelPrizes.length;
-  
-  wheelPrizes.forEach(function(prize, i) {
-    var startAngle = i * sliceAngle;
-    var endAngle = startAngle + sliceAngle;
-    
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.arc(centerX, centerY, radius, startAngle, endAngle);
-    ctx.closePath();
-    ctx.fillStyle = i % 2 === 0 ? '#9966ff' : '#ff66cc';
-    ctx.fill();
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    // Draw text
-    ctx.save();
-    ctx.translate(centerX, centerY);
-    ctx.rotate(startAngle + sliceAngle / 2);
-    ctx.textAlign = 'center';
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 18px Fredoka';
-    ctx.fillText(prize + ' PP', radius - 40, 5);
-    ctx.restore();
-  });
-  
-  // Draw pointer
-  ctx.beginPath();
-  ctx.moveTo(centerX, 10);
-  ctx.lineTo(centerX - 10, 30);
-  ctx.lineTo(centerX + 10, 30);
-  ctx.closePath();
-  ctx.fillStyle = '#ffdd00';
-  ctx.fill();
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-}
-
-function spinWheel() {
-  if (wheelSpinning || isCD('wheel')) return;
-  wheelSpinning = true;
-  
-  var btn = el('wheel-btn');
-  btn.disabled = true;
-  btn.textContent = 'Spinning...';
-  
-  var canvas = el('wheel-canvas');
-  var winningIndex = Math.floor(Math.random() * wheelPrizes.length);
-  var winningPrize = wheelPrizes[winningIndex];
-  var rotations = 5 + Math.random() * 3;
-  
-  // Calculate angle so the winning slice ends up at the TOP (12 o'clock position where pointer is)
-  // Each slice is (360 / wheelPrizes.length) degrees
-  var degreesPerSlice = 360 / wheelPrizes.length;
-  var targetAngle = (degreesPerSlice * winningIndex) + (degreesPerSlice / 2);
-  
-  // We want to rotate so this angle ends up at the top (0 degrees)
-  // So we rotate to (360 - targetAngle) to position it correctly
-  var finalPosition = 360 - targetAngle;
-  var totalRotation = (rotations * 360) + finalPosition;
-  
-  var startTime = Date.now();
-  var duration = 4000;
-  
-  function animate() {
-    var elapsed = Date.now() - startTime;
-    var progress = Math.min(elapsed / duration, 1);
-    var easeOut = 1 - Math.pow(1 - progress, 3);
-    var currentRotation = totalRotation * easeOut;
-    
-    // Only rotate the canvas (wheel), NOT the pointer
-    canvas.style.transform = 'rotate(' + currentRotation + 'deg)';
-    
-    if (progress < 1) {
-      requestAnimationFrame(animate);
-    } else {
-      wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete(winningPrize);
-      setCD('wheel');
-      var r = el('wheel-result');
-      r.textContent = 'You won ' + winningPrize + ' PP!';
-      r.style.color = '#5dde7a';
-      el('wheel-cooldown').style.display = 'block';
-      btn.textContent = 'Spin the Wheel!';
-    }
-  }
-  animate();
-}
-
-// ── WHACK-A-MOLE ──────────────────────────────
-var whackScore = 0;
-var whackTimer = null;
-var whackInterval = null;
-
-// Whack combo tracking
-var whackCombo=0; var whackPPperHit=5;
-
-function startWhack() {
-  if (isCD('whack')) return;
-  whackScore = 0; whackCombo=0; whackPPperHit=5;
-  var timeLeft = 30;
-  
-  el('whack-score').textContent = '0';
-  el('whack-earned').textContent = '0';
-  el('whack-time').textContent = timeLeft;
-  el('whack-btn').disabled = true;
-  el('whack-result').textContent = '';
-  
-  // Pop moles randomly — 10% chance of golden mole (3x points)
-  whackInterval = setInterval(function() {
-    var moleId = Math.floor(Math.random() * 6);
-    var mole = el('mole-' + moleId);
-    if (!mole.classList.contains('active')) {
-      var isGolden = Math.random() < 0.10;
-      mole.classList.add('active');
-      if(isGolden){ mole.classList.add('golden'); mole.dataset.golden='1'; }
-      else { mole.classList.remove('golden'); mole.dataset.golden=''; }
-      setTimeout(function() {
-        mole.classList.remove('active','golden');
-        mole.dataset.golden='';
-      }, isGolden ? 600 : 800);
-    }
-  }, 600);
-  
-  // Timer countdown
-  whackTimer = setInterval(function() {
-    timeLeft--;
-    el('whack-time').textContent = timeLeft;
-    if (timeLeft <= 0) {
-      endWhack();
-    }
-  }, 1000);
-}
-
-function whackMole(id) {
-  var mole = el('mole-' + id);
-  if (mole.classList.contains('active')) {
-    var isGolden = mole.dataset.golden==='1';
-    mole.classList.add('hit');
-    mole.classList.remove('active','golden');
-    mole.dataset.golden='';
-    whackScore++;
-    whackCombo++;
-    // Combo scaling: 5->10->15 PP per hit at 5/10/20 combo
-    if(whackCombo>=20) whackPPperHit=15;
-    else if(whackCombo>=10) whackPPperHit=10;
-    else whackPPperHit=5;
-    var hitPP = isGolden ? whackPPperHit*3 : whackPPperHit;
-    fishingTotal = (fishingTotal||0); // do not touch
-    var totalEarned = parseInt(el('whack-earned').textContent||'0') + hitPP;
-    el('whack-score').textContent = whackScore;
-    el('whack-earned').textContent = totalEarned;
-    // Flash combo
-    if(whackCombo>=5){
-      var flash=el('whack-combo-flash');
-      if(flash){ flash.textContent=(isGolden?'✨ GOLDEN! ':'')+'x'+whackCombo+' combo! +'+hitPP+' PP';
-        flash.style.opacity='1';
-        setTimeout(function(){flash.style.opacity='0';},700);
-      }
-    }
-    setTimeout(function() {
-      mole.classList.remove('hit');
-      mole.style.bottom = '-60px';
-    }, 300);
-  } else {
-    // Miss resets combo
-    whackCombo=0; whackPPperHit=5;
-  }
-}
-
-function endWhack() {
-  clearInterval(whackTimer);
-  clearInterval(whackInterval);
-  var earned = parseInt(el('whack-earned').textContent||'0');
-  awardPP(earned, 'whack_a_mole'); onMinigameComplete(earned);
-  setCD('whack');
-  var r = el('whack-result');
-  r.textContent = 'Game over! Whacked '+whackScore+'! +' + earned + ' PP!';
-  r.style.color = '#5dde7a';
-  el('whack-cooldown').style.display = 'block';
-  el('whack-btn').disabled = true;
-  document.querySelectorAll('.mole').forEach(function(m) {
-    m.classList.remove('active','golden');
-    m.dataset.golden='';
-  });
-}
-
-// ── SHELL GAME ──────────────────────────────
-var shellRound = 0;
-var shellCorrect = 0;
-var shellWinningPos = 0;
-var shellShuffling = false;
-
-function startShellGame() {
-  if (isCD('shell')) return;
-  shellRound = 1;
-  shellCorrect = 0;
-  el('shell-round').textContent = '1';
-  el('shell-result').textContent = '';
-  el('shell-btn').style.display = 'none';
-  shuffleShells();
-}
-
-function shuffleShells() {
-  if (shellShuffling) return;
-  shellShuffling = true;
-  shellWinningPos = Math.floor(Math.random() * 3);
-  
-  // Show egg under winning shell briefly
-  for (var i = 0; i < 3; i++) {
-    el('shell-' + i).textContent = i === shellWinningPos ? '🥚✨' : '🥚';
-  }
-  
-  setTimeout(function() {
-    // Hide all eggs
-    for (var i = 0; i < 3; i++) {
-      el('shell-' + i).textContent = '🥚';
-    }
-    
-    // Now perform actual visual swaps
-    var shells = [el('shell-0'), el('shell-1'), el('shell-2')];
-    var positions = [0, 1, 2]; // Track logical positions
-    var swapCount = 8; // Number of swaps to perform
-    var swapDelay = 400; // Time between swaps
-    var currentSwap = 0;
-    
-    function performSwap() {
-      if (currentSwap >= swapCount) {
-        shellShuffling = false;
-        return;
-      }
-      
-      // Pick two random positions to swap
-      var pos1 = Math.floor(Math.random() * 3);
-      var pos2 = Math.floor(Math.random() * 3);
-      while (pos1 === pos2) {
-        pos2 = Math.floor(Math.random() * 3);
-      }
-      
-      // Animate the swap visually
-      var shell1 = shells[pos1];
-      var shell2 = shells[pos2];
-      
-      // Get current positions
-      var rect1 = shell1.getBoundingClientRect();
-      var rect2 = shell2.getBoundingClientRect();
-      var deltaX = rect2.left - rect1.left;
-      
-      // Apply transform to swap
-      shell1.style.transition = 'transform 0.4s ease';
-      shell2.style.transition = 'transform 0.4s ease';
-      shell1.style.transform = 'translateX(' + deltaX + 'px)';
-      shell2.style.transform = 'translateX(' + (-deltaX) + 'px)';
-      
-      setTimeout(function() {
-        // Reset transforms
-        shell1.style.transition = 'none';
-        shell2.style.transition = 'none';
-        shell1.style.transform = '';
-        shell2.style.transform = '';
-        
-        // Actually swap in DOM (so they stay in new positions)
-        var parent = shell1.parentNode;
-        var shell1Next = shell1.nextSibling;
-        var shell2Next = shell2.nextSibling;
-        
-        if (shell1Next === shell2) {
-          parent.insertBefore(shell2, shell1);
-        } else if (shell2Next === shell1) {
-          parent.insertBefore(shell1, shell2);
-        } else {
-          parent.insertBefore(shell2, shell1Next);
-          parent.insertBefore(shell1, shell2Next);
-        }
-        
-        // Swap in arrays
-        var temp = shells[pos1];
-        shells[pos1] = shells[pos2];
-        shells[pos2] = temp;
-        
-        var tempPos = positions[pos1];
-        positions[pos1] = positions[pos2];
-        positions[pos2] = tempPos;
-        
-        // Track where winning position moved to
-        if (positions[pos1] === shellWinningPos) {
-          shellWinningPos = pos1;
-        } else if (positions[pos2] === shellWinningPos) {
-          shellWinningPos = pos2;
-        }
-        
-        currentSwap++;
-        setTimeout(performSwap, 100);
-      }, swapDelay);
-    }
-    
-    performSwap();
-  }, 1000);
-}
-
-function guessShell(pos) {
-  if (shellShuffling) return;
-  
-  // Reveal
-  el('shell-' + pos).textContent = pos === shellWinningPos ? '🥚✨' : '❌';
-  
-  if (pos === shellWinningPos) {
-    shellCorrect++;
-    setTimeout(function() {
-      if (shellRound < 3) {
-        shellRound++;
-        el('shell-round').textContent = shellRound;
-        shuffleShells();
-      } else {
-        // Won all 3 rounds!
-        awardPP(30, 'shell_game'); onMinigameComplete(30);
-        setCD('shell');
-        var r = el('shell-result');
-        r.textContent = 'Perfect! +30 PP!';
-        r.style.color = '#5dde7a';
-        el('shell-cooldown').style.display = 'block';
-      }
-    }, 1500);
-  } else {
-    // Lost
-    setTimeout(function() {
-      setCD('shell');
-      var r = el('shell-result');
-      r.textContent = 'Wrong! Better luck tomorrow!';
-      r.style.color = '#ff6eb4';
-      el('shell-cooldown').style.display = 'block';
-    }, 1500);
-  }
-}
-
-// ── SLOT MACHINE ──────────────────────────────────
-var slotSpinning = false;
-var slotSymbols = ['🍒', '🍋', '🍊', '🍇', '💎', '7️⃣', '🎰'];
-var slotReels = [0, 0, 0]; // Current symbol index for each reel
-var selectedSlotBet = 50; // Default bet amount
-
-function selectSlotBet(amount) {
-  if (slotSpinning) return;
-  selectedSlotBet = amount;
-  
-  // Update button states
-  var buttons = document.querySelectorAll('.bet-btn');
-  buttons.forEach(function(btn) {
-    btn.classList.remove('active');
-    if (parseInt(btn.getAttribute('data-bet')) === amount) {
-      btn.classList.add('active');
-    }
-  });
-  
-  // Update spin button text
-  var spinBtn = el('slot-spin-btn');
-  if (spinBtn) {
-    spinBtn.textContent = '🎰 Spin! (' + amount + ' PP)';
-  }
-}
-
-function spinSlots() {
-  if (slotSpinning) return;
-  
-  // Check if user has enough PP
-  if (currentPoints < selectedSlotBet) {
-    var result = el('slot-result');
-    if (result) {
-      result.textContent = 'Not enough PP! Need ' + selectedSlotBet + ' PP to play.';
-      result.style.color = '#ff6eb4';
-    }
-    return;
-  }
-  
-  // Deduct bet amount to play
-  deductPP(selectedSlotBet);
-  
-  slotSpinning = true;
-  
-  var btn = el('slot-spin-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.textContent = 'Spinning...';
-  }
-  
-  // Clear previous result
-  var result = el('slot-result');
-  if (result) {
-    result.textContent = '';
-  }
-  
-  var reel1 = el('slot-reel-1');
-  var reel2 = el('slot-reel-2');
-  var reel3 = el('slot-reel-3');
-  
-  // Random final positions
-  var final = [
-    Math.floor(Math.random() * slotSymbols.length),
-    Math.floor(Math.random() * slotSymbols.length),
-    Math.floor(Math.random() * slotSymbols.length)
-  ];
-  
-  var spins = 0;
-  var maxSpins = 20;
-  var spinInterval = setInterval(function() {
-    // Spin all reels rapidly
-    slotReels[0] = Math.floor(Math.random() * slotSymbols.length);
-    slotReels[1] = Math.floor(Math.random() * slotSymbols.length);
-    slotReels[2] = Math.floor(Math.random() * slotSymbols.length);
-    
-    if (reel1) reel1.textContent = slotSymbols[slotReels[0]];
-    if (reel2) reel2.textContent = slotSymbols[slotReels[1]];
-    if (reel3) reel3.textContent = slotSymbols[slotReels[2]];
-    
-    spins++;
-    
-    // Stop reels one by one
-    if (spins === 15 && reel1) {
-      slotReels[0] = final[0];
-      reel1.textContent = slotSymbols[final[0]];
-    }
-    if (spins === 18 && reel2) {
-      slotReels[1] = final[1];
-      reel2.textContent = slotSymbols[final[1]];
-    }
-    if (spins >= maxSpins) {
-      clearInterval(spinInterval);
-      slotReels[2] = final[2];
-      if (reel3) reel3.textContent = slotSymbols[final[2]];
-      
-      // Calculate prizes based on bet amount
-      // Match 2 = get bet back (break even)
-      // Match 3 = 4x bet (3x profit)
-      var grossPrize = 0;
-      var netProfit = 0;
-      
-      if (final[0] === final[1] && final[1] === final[2]) {
-        // All three match! 4x payout
-        grossPrize = selectedSlotBet * 4;
-        netProfit = selectedSlotBet * 3; // 3x profit after cost
-      } else if (final[0] === final[1] || final[1] === final[2] || final[0] === final[2]) {
-        // Two match - break even
-        grossPrize = selectedSlotBet;
-        netProfit = 0; // Got bet back
-      }
-      
-      slotSpinning = false;
-      
-      var result = el('slot-result');
-      if (result) {
-        if (grossPrize > 0) {
-          // Award the gross prize
-          awardPP(grossPrize, 'slot_machine');
-          
-          // WORLD STATE: a real win (not just breaking even) nudges
-          // corruption up a little — small, frequent lever ("gambling
-          // feeds the dark"), not a dominant one on its own
-          if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
-            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(e){ dbg('upsert error:', e); });
-          }
-          
-          if (netProfit > 0) {
-            result.textContent = '🎉 Triple Match! Won ' + netProfit + ' PP profit! (Paid ' + grossPrize + ' PP total)';
-            result.style.color = '#5dde7a';
-          } else {
-            result.textContent = '🎯 Two Match! Break even - got your ' + selectedSlotBet + ' PP back!';
-            result.style.color = '#ffdd57';
-          }
-        } else {
-          // Already deducted bet - show loss
-          result.textContent = '❌ No match! Lost ' + selectedSlotBet + ' PP. Try again!';
-          result.style.color = '#ff6eb4';
-        }
-      }
-      
-      if (btn) {
-        btn.textContent = '🎰 Spin! (' + selectedSlotBet + ' PP)';
-        btn.disabled = false;
-      }
-    }
-  }, 100);
-}
-
-// Helper function to deduct PP
-async function deductPP(amount) {
-  if (!currentUser) return;
-  
-  var { data: newPoints, error } = await supabaseClient.rpc('deduct_pp_secure', {
-    p_amount: amount,
-    p_reason: 'slot_machine'
-  });
-  
-  if (error) {
-    console.error('Deduct PP error:', error.message);
-    showToast('Error processing bet!', 'error');
-    return;
-  }
-  
-  currentPoints = newPoints;
-  updateAllPoints(currentPoints);
-}
-
-// ── TYPING CHALLENGE ──────────────────────────────
-var typingWords = ['Ember', 'Pyxie', 'Embertail', 'Pyxshuul', 'Firefox', 'Sparkle', 'Panda', 'Koala', 'Dragon', 'Phoenix', 'Tiger', 'Leopard', 'Cheetah', 'Panther', 'Wolf', 'Bear', 'Raccoon', 'Otter', 'Seal'];
-var typingScore = 0;
-var typingTimer = null;
-var currentWord = '';
-
-function startTyping() {
-  if (isCD('typing')) return;
-  typingScore = 0;
-  var timeLeft = 60;
-  
-  el('typing-score').textContent = '0';
-  el('typing-earned').textContent = '0';
-  el('typing-time').textContent = timeLeft;
-  el('typing-input').disabled = false;
-  el('typing-input').value = '';
-  el('typing-input').focus();
-  el('typing-btn').disabled = true;
-  el('typing-result').textContent = '';
-  
-  nextWord();
-  
-  typingTimer = setInterval(function() {
-    timeLeft--;
-    el('typing-time').textContent = timeLeft;
-    if (timeLeft <= 0) {
-      endTyping();
-    }
-  }, 1000);
-}
-
-function nextWord() {
-  currentWord = typingWords[Math.floor(Math.random() * typingWords.length)];
-  el('typing-target').textContent = currentWord;
-}
-
-el('typing-input').addEventListener('input', function() {
-  if (el('typing-input').value === currentWord) {
-    typingScore++;
-    var earned = typingScore * 3;
-    el('typing-score').textContent = typingScore;
-    el('typing-earned').textContent = earned;
-    el('typing-input').value = '';
-    nextWord();
-  }
-});
-
-function endTyping() {
-  clearInterval(typingTimer);
-  var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge'); onMinigameComplete(earned);
-  setCD('typing');
-  var r = el('typing-result');
-  r.textContent = 'Time\'s up! +' + earned + ' PP!';
-  r.style.color = '#5dde7a';
-  el('typing-cooldown').style.display = 'block';
-  el('typing-input').disabled = true;
-  el('typing-btn').disabled = true;
-}
-
-// ── FISHING GAME — OVERHAULED ──────────────────────────────
-// Spots, bait, 24-fish collection, weather modifiers, rod upgrades
-
-var FISH_SPOTS = {
-  pond:  { name: '🏞️ Pond',  baseCasts: 8,  baitSlots: ['worm','bread'], description: 'Calm water. Common fish.' },
-  river: { name: '🏔️ River', baseCasts: 10, baitSlots: ['bread','lure'], description: 'Fast current. Uncommon fish.' },
-  lake:  { name: '🌊 Lake',  baseCasts: 10, baitSlots: ['lure','golden'], description: 'Deep water. Rare fish.' },
-  ocean: { name: '🌊 Ocean', baseCasts: 8,  baitSlots: ['lure','golden'], description: 'Legendary catches possible.' }
-};
-
-var FISH_BAIT = {
-  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    description: 'Free! Catches common fish.' },
-  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.05, description: '+5% rare chance.' },
-  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.12, description: '+12% rare chance.' },
-  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.25, description: '+25% rare chance.' }
-};
-
-// Fish pool — spot:rarity:weather-bonus
-var FISH_POOL = [
-  // ── JUNK (0 PP, high base weight, reduced by rod/bait) ──────────────────
-  { id:'boot',       name:'Old Boot',          emoji:'👢', pp:0,  rarity:'junk', spots:['pond','river','lake','ocean'], weight:40 , wMin:0.5, wMax:2},
-  { id:'seaweed',    name:'Seaweed Clump',      emoji:'🌿', pp:0,  rarity:'junk', spots:['pond','river','lake','ocean'], weight:35 , wMin:0.1, wMax:0.5},
-  { id:'pebble',     name:'Sparkly Pebble',     emoji:'💎', pp:0,  rarity:'junk', spots:['pond','river'],               weight:28 , wMin:0.05, wMax:0.3},
-  { id:'tin_can',    name:'Old Tin Can',         emoji:'🥫', pp:0,  rarity:'junk', spots:['pond','river','lake'],        weight:22 , wMin:0.2, wMax:0.8},
-  { id:'lost_sock',  name:'Lost Sock',           emoji:'🧦', pp:0,  rarity:'junk', spots:['pond','river','lake','ocean'], weight:20 , wMin:0.05, wMax:0.2},
-  { id:'junk_ad',    name:'Sponsored Content',   emoji:'📢', pp:0,  rarity:'junk', spots:['pond','river','lake','ocean'], weather:'adpocalypse', weight:30 , wMin:0, wMax:0},
-
-  // ── POND ─────────────────────────────────────────────────────────────────
-  { id:'carp',       name:'Carp',               emoji:'🐟', pp:4,  rarity:'common',   spots:['pond','river'],             weight:22, passXP:2 , wMin:0.5, wMax:8},
-  { id:'bluegill',   name:'Bluegill',            emoji:'🐠', pp:5,  rarity:'common',   spots:['pond','lake'],              weight:20, passXP:2 , wMin:0.2, wMax:2},
-  { id:'perch',      name:'Yellow Perch',        emoji:'🐡', pp:6,  rarity:'common',   spots:['pond','river','lake'],      weight:18, passXP:2 , wMin:0.3, wMax:3},
-  { id:'sunfish',    name:'Sunfish',             emoji:'☀️', pp:5,  rarity:'common',   spots:['pond'],                    weight:16, passXP:2 , wMin:0.3, wMax:2.5},
-  { id:'tadpole',    name:'Giant Tadpole',       emoji:'🐸', pp:3,  rarity:'common',   spots:['pond'],                    weight:14, passXP:2 , wMin:0.02, wMax:0.1},
-  { id:'golden_carp',name:'Golden Carp',         emoji:'✨', pp:100,rarity:'legendary', spots:['pond'],                    weight:1,  passXP:30 , wMin:5, wMax:25},
-
-  // ── RIVER ────────────────────────────────────────────────────────────────
-  { id:'trout',      name:'Rainbow Trout',       emoji:'🌈', pp:10, rarity:'uncommon', spots:['river'],                   weight:14, passXP:5 , wMin:0.5, wMax:6},
-  { id:'catfish',    name:'Catfish',             emoji:'🐈', pp:8,  rarity:'uncommon', spots:['river','lake'],            weight:16, passXP:4 , wMin:1, wMax:20},
-  { id:'bass',       name:'Largemouth Bass',     emoji:'🎣', pp:12, rarity:'uncommon', spots:['lake','river'],            weight:12, passXP:5 , wMin:1, wMax:12},
-  { id:'salmon',     name:'Atlantic Salmon',     emoji:'🐟', pp:18, rarity:'rare',     spots:['river','ocean'],           weight:7,  passXP:10 , wMin:3, wMax:30},
-  { id:'mudskipper', name:'Mudskipper',          emoji:'🦎', pp:9,  rarity:'uncommon', spots:['river'],                   weight:10, passXP:4 , wMin:0.1, wMax:0.8},
-  { id:'river_otter',name:'Confused River Otter',emoji:'🦦', pp:15, rarity:'rare',     spots:['river'],                   weight:5,  passXP:10 , wMin:10, wMax:30},
-
-  // ── LAKE ─────────────────────────────────────────────────────────────────
-  { id:'pike',       name:'Northern Pike',       emoji:'⚡', pp:14, rarity:'uncommon', spots:['lake'],                    weight:10, passXP:5 , wMin:2, wMax:25},
-  { id:'eel',        name:'Electric Eel',        emoji:'⚡', pp:20, rarity:'rare',     spots:['lake','ocean'],            weight:6,  passXP:10 , wMin:1, wMax:8},
-  { id:'turtle',     name:'Ancient Turtle',      emoji:'🐢', pp:30, rarity:'epic',     spots:['lake','ocean'],            weight:3,  passXP:18 , wMin:10, wMax:80},
-  { id:'pike_king',  name:'Lake King Pike',      emoji:'👑', pp:25, rarity:'rare',     spots:['lake'],                    weight:4,  passXP:12 , wMin:15, wMax:60},
-  { id:'blob_fish',  name:'Blobfish',            emoji:'😞', pp:22, rarity:'rare',     spots:['lake','ocean'],            weight:5,  passXP:10 , wMin:1, wMax:9},
-  { id:'ghost_fish', name:'Ghost Fish',          emoji:'👻', pp:50, rarity:'legendary', spots:['pond','lake'], weather:'foggy',  weight:4,  passXP:25 , wMin:0.5, wMax:4},
-  { id:'void_fish',  name:'Void Fish',           emoji:'🌑', pp:60, rarity:'legendary', spots:['lake','ocean'],weather:'cursed', weight:3,  passXP:25 , wMin:2, wMax:15},
-
-  // ── OCEAN ────────────────────────────────────────────────────────────────
-  { id:'swordfish',  name:'Swordfish',           emoji:'🗡️',  pp:25, rarity:'rare',     spots:['ocean'],                   weight:5,  passXP:12 , wMin:50, wMax:400},
-  { id:'pufferfish', name:'Pufferfish',          emoji:'🐡', pp:22, rarity:'rare',     spots:['ocean'],                   weight:6,  passXP:10 , wMin:0.5, wMax:5},
-  { id:'shark',      name:'Baby Shark',          emoji:'🦈', pp:35, rarity:'epic',     spots:['ocean'],                   weight:3,  passXP:18 , wMin:20, wMax:200},
-  { id:'manta',      name:'Manta Ray',           emoji:'🦅', pp:40, rarity:'epic',     spots:['ocean'],                   weight:2,  passXP:20 , wMin:50, wMax:300},
-  { id:'octopus',    name:'Octopus',             emoji:'🐙', pp:28, rarity:'rare',     spots:['ocean'],                   weight:4,  passXP:12 , wMin:2, wMax:15},
-  { id:'anglerfish', name:'Anglerfish',          emoji:'💡', pp:45, rarity:'epic',     spots:['ocean'],                   weight:2,  passXP:22 , wMin:1, wMax:40},
-  { id:'whale',      name:'Tiny Whale',          emoji:'🐋', pp:55, rarity:'epic',     spots:['ocean'],                   weight:1,  passXP:25 , wMin:200, wMax:2000},
-  { id:'storm_eel',  name:'Storm Eel',           emoji:'⛈️',  pp:45, rarity:'legendary', spots:['ocean','river'],weather:'windy',  weight:3,  passXP:25 , wMin:5, wMax:50},
-  { id:'aurora_cod', name:'Aurora Cod',          emoji:'🌌', pp:55, rarity:'legendary', spots:['ocean'],       weather:'starry', weight:3,  passXP:25 , wMin:2, wMax:20},
-
-  // ── ALL SPOTS ─────────────────────────────────────────────────────────────
-  { id:'piper_fish', name:'Unfamiliar Fish',     emoji:'❓', pp:75, rarity:'legendary', spots:['lake','ocean'],            weight:1,  passXP:40 , wMin:0, wMax:0},
-
-  // ── ITEM CATCHES (special, not tracked in collection) ────────────────────
-  // These are handled separately in castLine() — listed here for reference only
-];
-
-// Fish that can appear in each area's collection journal
-var FISH_BY_SPOT = {
-  pond:  ['carp','bluegill','perch','sunfish','tadpole','golden_carp','ghost_fish'],
-  river: ['carp','perch','trout','catfish','bass','salmon','mudskipper','river_otter','storm_eel'],
-  lake:  ['bluegill','perch','catfish','bass','pike','eel','turtle','pike_king','blob_fish','ghost_fish','void_fish'],
-  ocean: ['salmon','eel','swordfish','pufferfish','shark','manta','octopus','anglerfish','whale','storm_eel','aurora_cod','void_fish','piper_fish']
-};
-
-// Completion rewards per area
-var FISH_SPOT_REWARDS = {
-  pond:  { pp: 300,  passXP: 50,  label: 'Pond Master' },
-  river: { pp: 500,  passXP: 75,  label: 'River Guide' },
-  lake:  { pp: 750,  passXP: 100, label: 'Lake Legend' },
-  ocean: { pp: 1000, passXP: 150, label: 'Ocean Sovereign' }
-};
-
-// Full collection completion
-var FISH_FULL_COMPLETION_PP = 2000;
-var FISH_FULL_COMPLETION_PASSXP = 300;
-var fishingCasts   = 0;   // unlimited now — reset each cast, used for display
-var fishingTotal   = 0;   // PP earned this session
-var _fishingSpot   = 'pond';
-var _fishingBait   = 'worm';
-var _fishCollection = {};
-var _fishingRodLevel = 1;
-var _fishingSessionCasts = 0; // casts this session (for stats display)
-var _fishingTimingWindow = false; // true when timing click is active
-var _fishingTimingTimer  = null;
-var _fishingTimingResult = null; // 'great'|'ok'|'miss'
-
-// Junk rate table [rodLevel][baitKey] → fraction (0-1) chance of junk
-var FISHING_JUNK_RATES = {
-  1: { worm:0.45, bread:0.30, lure:0.18, golden:0.08 },
-  2: { worm:0.35, bread:0.22, lure:0.12, golden:0.05 },
-  3: { worm:0.25, bread:0.15, lure:0.08, golden:0.03 },
-  4: { worm:0.15, bread:0.09, lure:0.05, golden:0.01 }
-};
-
-// Item catch rates [baitKey] → fraction chance of catching an item instead of fish
-var FISHING_ITEM_RATES = {
-  worm:0.06, bread:0.09, lure:0.11, golden:0.15
-};
-
-var FISHING_RODS = [
-  null, // index 0 unused
-  { level:1, name:'Basic Rod',     emoji:'🎣', desc:'The starter rod.',                cost:0,    baseCasts:8  },
-  { level:2, name:'Nice Rod',      emoji:'🎣', desc:'Sturdier. Reduced junk rate.',    cost:500,  baseCasts:8  },
-  { level:3, name:'Pro Rod',       emoji:'🎣', desc:'Fishers choice. Much less junk.',cost:2000, baseCasts:8  },
-  { level:4, name:'Legendary Rod', emoji:'✨', desc:'Almost no junk. Melon-approved.',  cost:5000, baseCasts:8  },
-];
-
-var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra display casts per rod level (cosmetic)
-
-async function fishingLoadRodLevel() {
-  if (!currentUser) return;
-  try {
-    var res = await supabaseClient
-      .from('players')
-      .select('fishing_rod_level, auto_fisher_level, auto_fisher_state')
-      .eq('id', currentUser.id)
-      .single();
-    if (res.data) {
-      _fishingRodLevel  = Math.min(4, Math.max(1, res.data.fishing_rod_level || 1));
-      _autoFisherLevel  = Math.min(3, Math.max(0, res.data.auto_fisher_level || 0));
-      _autoFisherState  = res.data.auto_fisher_state || null;
-    }
-  } catch(e) { /* silent */ }
-}
-
-async function fishingSaveRodLevel() { /* rod level is written by fishing_upgrade_rod RPC */ }
-
 function fishingGetRodCasts() {
-  // Kept for compatibility but no longer limits — returns display cast count
-  var base = (FISH_SPOTS[_fishingSpot] && FISH_SPOTS[_fishingSpot].baseCasts) || 8;
+  var base = FISH_SPOTS[_fishingSpot] ? FISH_SPOTS[_fishingSpot].baseCasts : 8;
   return base + (_rodCastsBonus[_fishingRodLevel] || 0);
 }
 
 function fishingSelectSpot(spot) {
   _fishingSpot = spot;
+  fishingCasts = fishingGetRodCasts();
+  el('fishing-casts').textContent = fishingCasts;
+  // Update spot UI
   document.querySelectorAll('.fishing-spot-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.spot === spot);
+    b.classList.toggle('active', b.dataset.spot===spot);
   });
-  fishingUpdateAreaStatus();
 }
 
 function fishingSelectBait(bait) {
   _fishingBait = bait;
   document.querySelectorAll('.fishing-bait-btn').forEach(function(b){
-    b.classList.toggle('active', b.dataset.bait === bait);
+    b.classList.toggle('active', b.dataset.bait===bait);
   });
-  // Show junk rate for current selection
-  var rate = (FISHING_JUNK_RATES[_fishingRodLevel] || FISHING_JUNK_RATES[1])[_fishingBait] || 0.45;
-  var junkEl = document.getElementById('fishing-junk-rate');
-  if (junkEl) junkEl.textContent = Math.round(rate * 100) + '% junk chance';
 }
 
-async function fishingLoadCollection() {
-  if (!currentUser) return;
+function fishingLoadCollection() {
   try {
-    var res = await supabaseClient
-      .from('user_fish_collection')
-      .select('fish_id,catch_count,best_weight')
-      .eq('user_id', currentUser.id);
-    _fishCollection = {};
-    if (res.data) {
-      res.data.forEach(function(row) {
-        _fishCollection[row.fish_id] = {
-          count:       row.catch_count,
-          bestWeight:  row.best_weight,
-          firstCatch:  null // not needed client-side
-        };
-      });
-    }
-  } catch(e) { _fishCollection = {}; }
-  await fishingLoadRodLevel();
+    _fishCollection = JSON.parse(localStorage.getItem('fish_collection_'+currentUser.id)||'{}');
+  } catch(e){ _fishCollection={}; }
 }
 
-// fishingSaveCollection is now a no-op — DB is updated via fishing_record_catch RPC
-function fishingSaveCollection() { /* DB-backed now */ }
-
-function fishingUpdateAreaStatus() {
-  // Update collection count for current spot
-  var spotFish = FISH_BY_SPOT[_fishingSpot] || [];
-  var spotCollected = spotFish.filter(function(id){ return _fishCollection[id]; }).length;
-  var areaEl = document.getElementById('fishing-area-progress');
-  if (areaEl) areaEl.textContent = spotCollected + '/' + spotFish.length + ' in this area';
+function fishingSaveCollection() {
+  try {
+    localStorage.setItem('fish_collection_'+currentUser.id, JSON.stringify(_fishCollection));
+  } catch(e){}
 }
 
-function fishingGetCatch(timingBonus) {
-  var spot    = _fishingSpot;
-  var bait    = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
-  var weather = (weatherSystem && weatherSystem.currentWeather && weatherSystem.currentWeather.id) || 'clear';
-  var rodLevel= _fishingRodLevel;
-  var powerBonus = window._castPowerBonus || { junkMult:1, rarityBoost:0 };
+function fishingGetCatch() {
+  var spot = _fishingSpot;
+  var bait = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
+  var weather = (weatherSystem&&weatherSystem.currentWeather&&weatherSystem.currentWeather.id)||'clear';
 
-  // Fish Frenzy weather bonus
-  if (weather === 'fish_frenzy') {
-    powerBonus = { junkMult: Math.min(powerBonus.junkMult, 0.5), rarityBoost: (powerBonus.rarityBoost || 0) + 0.20 };
-  }
-
-  // 1. Check for ITEM catch
-  var itemRate = FISHING_ITEM_RATES[_fishingBait] || 0.06;
-  if (timingBonus === 'great') itemRate *= 1.5;
-  if (Math.random() < itemRate) return { id:'__item__', rarity:'item' };
-
-  // 2. Check for JUNK
-  var junkRate = (FISHING_JUNK_RATES[rodLevel] || FISHING_JUNK_RATES[1])[_fishingBait] || 0.45;
-  junkRate *= powerBonus.junkMult;                            // power cast reduces junk
-  if (timingBonus === 'great') junkRate *= 0.5;
-  if (timingBonus === 'miss')  junkRate = Math.min(0.9, junkRate * 1.5);
-  if (Math.random() < junkRate) {
-    // Return a junk item
-    var junkPool = FISH_POOL.filter(function(f){
-      return f.rarity === 'junk' && f.spots.indexOf(spot) !== -1;
-      // weather junk only in matching weather
-    }).filter(function(f){ return !f.weather || f.weather === weather; });
-    return junkPool[Math.floor(Math.random() * junkPool.length)] || FISH_POOL[0];
-  }
-
-  // 3. Roll for actual fish
+  // Build candidate pool for this spot
   var pool = FISH_POOL.filter(function(f){
-    if (f.rarity === 'junk') return false;
-    if (f.id === '__item__') return false;
-    if (f.spots.indexOf(spot) === -1) return false;
-    if (f.weather && f.weather !== weather) return false;
+    if(f.spots.indexOf(spot)===-1) return false;
+    // Weather-exclusive: only appears in that weather
+    if(f.weather && f.weather!==weather) return false;
     return true;
   });
 
-  var rarityBoost = (bait.rarityBoost || 0) + (powerBonus.rarityBoost || 0);
-  if (timingBonus === 'great') rarityBoost += 0.15;
-
-  var totalWeight = pool.reduce(function(s, f) {
-    var w = f.weight;
-    if (rarityBoost > 0) {
-      if (f.rarity === 'common')    w = Math.max(1, w - Math.floor(w * rarityBoost * 1.5));
-      if (f.rarity === 'rare' || f.rarity === 'epic' || f.rarity === 'legendary') w = Math.floor(w * (1 + rarityBoost));
-    }
-    return s + w;
-  }, 0);
-
-  var roll = Math.random() * totalWeight, acc = 0;
-  for (var i = 0; i < pool.length; i++) {
-    var w = pool[i].weight;
-    if (rarityBoost > 0) {
-      if (pool[i].rarity === 'common')    w = Math.max(1, w - Math.floor(w * rarityBoost * 1.5));
-      if (pool[i].rarity === 'rare' || pool[i].rarity === 'epic' || pool[i].rarity === 'legendary') w = Math.floor(w * (1 + rarityBoost));
-    }
-    acc += w;
-    if (roll < acc) return pool[i];
-  }
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-// ── WEIGHT / SIZE SYSTEM ─────────────────────────────────────────────────────
-// Each catch rolls a random weight within the fish's range.
-// Weight affects PP multiplier and tracks personal/server records.
-
-var _fishingRecords = {}; // { fishId: { weight, date } } personal bests
-
-function fishingLoadRecords() {
-  try {
-    _fishingRecords = JSON.parse(localStorage.getItem('fish_records_' + currentUser.id) || '{}');
-  } catch(e) { _fishingRecords = {}; }
-}
-
-function fishingSaveRecords() {
-  try {
-    localStorage.setItem('fish_records_' + currentUser.id, JSON.stringify(_fishingRecords));
-  } catch(e) { /* silent */ }
-}
-
-function fishingRollWeight(fish) {
-  if (!fish.wMin && !fish.wMax) return null; // piper fish / junk
-  var min = fish.wMin || 0.1;
-  var max = fish.wMax || 1;
-  // Slightly weighted toward lower end (realistic distribution)
-  var raw = min + Math.pow(Math.random(), 1.5) * (max - min);
-  return Math.round(raw * 10) / 10; // 1 decimal place
-}
-
-function fishingWeightCategory(weight, fish) {
-  if (!weight || !fish.wMax) return null;
-  var range = fish.wMax - (fish.wMin || 0);
-  var pct = (weight - (fish.wMin || 0)) / range;
-  if (pct < 0.25)      return { label: 'Small',   emoji: '📏', mult: 0.7,  color: '#888' };
-  if (pct < 0.55)      return { label: 'Average',  emoji: '🐟', mult: 1.0,  color: '#5dde7a' };
-  if (pct < 0.80)      return { label: 'Large',    emoji: '💪', mult: 1.3,  color: '#4dabf7' };
-  if (pct < 0.95)      return { label: 'Trophy!',  emoji: '🏆', mult: 1.75, color: '#ffd700' };
-  return                        { label: 'MONSTER!', emoji: '🌟', mult: 2.5,  color: '#ff66cc' };
-}
-
-function fishingFormatWeight(w) {
-  if (w === null || w === undefined) return '??? lbs';
-  if (w >= 100) return Math.round(w) + ' lbs';
-  return w.toFixed(1) + ' lbs';
-}
-
-function fishingCheckRecord(fish, weight) {
-  if (!weight) return false;
-  var prev = _fishingRecords[fish.id];
-  if (!prev || weight > prev.weight) {
-    _fishingRecords[fish.id] = { weight: weight, date: Date.now() };
-    fishingSaveRecords();
-    return true; // new personal best
-  }
-  return false;
-}
-
-// Show the catch popup modal
-function fishingShowCatchPopup(fish, weight, ppEarned, isNew, isRecord) {
-  var sizeData = fishingWeightCategory(weight, fish);
-  var rarityColors = { common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700' };
-  var color = rarityColors[fish.rarity] || '#5dde7a';
-
-  // Remove any existing popup
-  var existing = document.getElementById('fishing-catch-popup');
-  if (existing) existing.remove();
-
-  var popup = document.createElement('div');
-  popup.id = 'fishing-catch-popup';
-  popup.style.cssText = [
-    'position:fixed','top:50%','left:50%',
-    'transform:translate(-50%,-50%) scale(0.8)',
-    'z-index:9500',
-    'background:var(--white)',
-    'border:3px solid ' + color,
-    'border-radius:20px',
-    'padding:24px 28px',
-    'text-align:center',
-    'min-width:260px',
-    'max-width:340px',
-    'box-shadow:0 8px 40px rgba(0,0,0,0.25)',
-    'transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1),opacity 0.2s',
-    'opacity:0',
-    'cursor:pointer'
-  ].join(';');
-
-  var sizeHtml = sizeData
-    ? '<div style="font-size:0.85rem;color:' + sizeData.color + ';font-weight:700;margin-bottom:4px;">' +
-      sizeData.emoji + ' ' + sizeData.label + '</div>'
-    : '';
-  var weightHtml = weight
-    ? '<div style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:2px;">' + fishingFormatWeight(weight) + '</div>'
-    : '';
-  var newBadge = isNew ? '<div style="background:#ffd700;color:#000;border-radius:20px;padding:2px 10px;font-size:0.7rem;font-weight:700;display:inline-block;margin-bottom:6px;">✨ NEW FISH!</div><br>' : '';
-  var recordBadge = isRecord && !isNew ? '<div style="background:#9966ff;color:#fff;border-radius:20px;padding:2px 10px;font-size:0.7rem;font-weight:700;display:inline-block;margin-bottom:6px;">🏆 PERSONAL BEST!</div><br>' : '';
-
-  popup.innerHTML =
-    newBadge + recordBadge +
-    '<div style="font-size:3rem;margin-bottom:4px;">' + fish.emoji + '</div>' +
-    '<div style="font-size:1.2rem;font-weight:800;color:' + color + ';margin-bottom:4px;">' + fish.name + '</div>' +
-    '<div style="font-size:0.7rem;color:var(--text-light);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">' + fish.rarity + '</div>' +
-    sizeHtml + weightHtml +
-    '<div style="font-size:1.3rem;font-weight:700;color:#5dde7a;margin-top:8px;">+' + ppEarned + ' PP</div>' +
-    '<div style="font-size:0.68rem;color:var(--text-light);margin-top:8px;">Click to continue</div>';
-
-  popup.addEventListener('click', function() { fishingDismissCatchPopup(); });
-  document.body.appendChild(popup);
-
-  // Animate in
-  requestAnimationFrame(function() {
-    popup.style.opacity = '1';
-    popup.style.transform = 'translate(-50%,-50%) scale(1)';
+  // Add weather-exclusive fish at boosted weight if weather matches
+  var weatherPool = FISH_POOL.filter(function(f){
+    return f.weather && f.weather===weather && f.spots.indexOf(spot)!==-1;
+  });
+  weatherPool.forEach(function(f){
+    if(pool.indexOf(f)===-1) pool.push(f);
   });
 
-  // Auto-dismiss after 4s
-  popup._autoTimer = setTimeout(function() { fishingDismissCatchPopup(); }, 4000);
-}
-
-function fishingDismissCatchPopup() {
-  var popup = document.getElementById('fishing-catch-popup');
-  if (!popup) return;
-  if (popup._autoTimer) clearTimeout(popup._autoTimer);
-  popup.style.opacity = '0';
-  popup.style.transform = 'translate(-50%,-50%) scale(0.85)';
-  setTimeout(function() { if (popup.parentNode) popup.parentNode.removeChild(popup); }, 200);
-}
-
-// ── TIMING MECHANIC ────────────────────────────────────────────────────────
-// After casting, a nibble animation plays, then a timing bar appears.
-// Player clicks when the indicator is in the "sweet spot" for a bonus.
-
-function fishingShowTimingBar() {
-  var bar = document.getElementById('fishing-timing-wrap');
-  if (!bar) return;
-  bar.style.display = 'block';
-  var indicator = document.getElementById('fishing-timing-indicator');
-  var sweetspot = document.getElementById('fishing-timing-sweet');
-  if (!indicator || !sweetspot) return;
-
-  _fishingTimingWindow = true;
-  _fishingTimingResult = 'miss'; // default if they do not click
-
-  // Animate indicator left→right over 1.8s
-  var start = null;
-  var duration = 1800;
-  var sweetLeft = 35, sweetRight = 65; // sweet spot is middle 30% of bar
-
-  indicator.style.left = '0%';
-
-  function step(ts) {
-    if (!start) start = ts;
-    var pct = Math.min(100, ((ts - start) / duration) * 100);
-    indicator.style.left = pct + '%';
-
-    if (_fishingTimingWindow) {
-      if (pct >= sweetLeft && pct <= sweetRight) {
-        indicator.style.background = '#5dde7a'; // green in sweet spot
-      } else {
-        indicator.style.background = '#ff6b6b'; // red outside
-      }
-      if (pct < 100) {
-        requestAnimationFrame(step);
-      } else {
-        // Time ran out — miss
-        _fishingTimingWindow = false;
-        fishingHideTimingBar();
-        fishingResolveCast('miss');
-      }
+  // Apply bait rarity boost (shifts probability toward rarer fish)
+  var totalWeight = pool.reduce(function(s,f){
+    var w = f.weight;
+    // Bait boost reduces weight of junk/common and boosts rare+
+    if(bait.rarityBoost>0){
+      if(f.rarity==='junk'||f.rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
+      if(f.rarity==='rare'||f.rarity==='epic'||f.rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
     }
+    return s+w;
+  }, 0);
+
+  var roll = Math.random()*totalWeight;
+  var acc = 0;
+  for(var i=0;i<pool.length;i++){
+    var w=pool[i].weight;
+    if(bait.rarityBoost>0){
+      if(pool[i].rarity==='junk'||pool[i].rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
+      if(pool[i].rarity==='rare'||pool[i].rarity==='epic'||pool[i].rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
+    }
+    acc+=w;
+    if(roll<acc) return pool[i];
   }
-  requestAnimationFrame(step);
+  return pool[0];
 }
 
-function fishingTimingClick() {
-  if (!_fishingTimingWindow) return;
-  var indicator = document.getElementById('fishing-timing-indicator');
-  if (!indicator) return;
-  var pct = parseFloat(indicator.style.left) || 0;
-  _fishingTimingWindow = false;
-  var sweetLeft = 35, sweetRight = 65;
-  var result = (pct >= sweetLeft && pct <= sweetRight) ? 'great' : 'ok';
-  fishingHideTimingBar();
-  fishingResolveCast(result);
-}
-
-function fishingHideTimingBar() {
-  var bar = document.getElementById('fishing-timing-wrap');
-  if (bar) bar.style.display = 'none';
-}
-
-// Power bar state
-var _castPowerInterval = null;
-var _castPower = 0;
-var _castPressing = false;
-
-function castLineStart(e) {
-  if (e && e.preventDefault) e.preventDefault();
-  if (!currentUser || _castPressing) return;
-  _castPressing = true;
-  _castPower = 0;
-  var btn = document.getElementById('fishing-btn');
-  var powerWrap = document.getElementById('fishing-power-wrap');
-  var powerBar  = document.getElementById('fishing-power-bar');
-  var catchText = document.querySelector('.pond-text');
-  if (powerWrap) powerWrap.style.display = 'block';
-  if (btn) btn.textContent = '💪 Release to cast!';
-  if (catchText) catchText.innerHTML = '<span style="color:#4dabf7;font-weight:600;">Hold to build power, release to cast!</span>';
-  var start = Date.now();
-  _castPowerInterval = setInterval(function() {
-    _castPower = Math.min(1, (Date.now() - start) / 1500);
-    if (powerBar) {
-      var pct = _castPower * 100;
-      powerBar.style.width = pct + '%';
-      powerBar.style.background = pct < 50 ? '#5dde7a' : pct < 80 ? '#ffd700' : '#ff9f43';
-    }
-    if (_castPower >= 1) castLineRelease();
-  }, 30);
-}
-
-async function castLineRelease() {
-  if (!_castPressing) return;
-  _castPressing = false;
-  if (_castPowerInterval) { clearInterval(_castPowerInterval); _castPowerInterval = null; }
-  var power = _castPower; _castPower = 0;
-  var powerWrap = document.getElementById('fishing-power-wrap');
-  var powerBar  = document.getElementById('fishing-power-bar');
-  if (powerWrap) powerWrap.style.display = 'none';
-  if (powerBar)  powerBar.style.width = '0%';
-  var powerCat = power < 0.3 ? 'weak' : power < 0.6 ? 'ok' : power < 0.85 ? 'good' : 'perfect';
-  var powerBonuses = {
-    weak:   { junkMult:1.25, rarityBoost:0,    label:'Weak cast...'   },
-    ok:     { junkMult:1.0,  rarityBoost:0,    label:'Decent cast!'   },
-    good:   { junkMult:0.85, rarityBoost:0.05, label:'Good cast! 🎣'  },
-    perfect:{ junkMult:0.65, rarityBoost:0.12, label:'Perfect cast! ⭐'}
-  };
-  window._castPowerBonus = powerBonuses[powerCat];
+async function castLine() {
+  if (isCD('fishing') || fishingCasts <= 0) return;
+  
   // Deduct bait cost
-  var baitData = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
-  if (baitData.cost > 0) {
-    if (currentPoints < baitData.cost) {
-      showToast('Not enough PP for ' + baitData.name + '! Switching to worm.', 3000);
-      _fishingBait = 'worm'; fishingSelectBait('worm');
-    } else {
-      var ppRes = await supabaseClient.rpc('award_pp_secure', { p_amount: -baitData.cost, p_reason: 'fishing_bait' }).catch(function(){ return null; });
-      if (ppRes && ppRes.data !== undefined) updateAllPoints(ppRes.data);
-    }
+  var baitData=FISH_BAIT[_fishingBait]||FISH_BAIT.worm;
+  if(baitData.cost>0 && currentPoints<baitData.cost){
+    showToast('Not enough PP for '+baitData.name+'! Switching to worm.', 3000);
+    _fishingBait='worm';
+    fishingSelectBait('worm');
   }
-  var btn = document.getElementById('fishing-btn');
-  var line = document.getElementById('fishing-line');
-  var catchText = document.querySelector('.pond-text');
-  if (btn) btn.disabled = true;
-  if (line) line.style.display = 'block';
-  if (catchText) catchText.innerHTML = '<span style="color:#4dabf7;">' + powerBonuses[powerCat].label + ' Waiting for a nibble...</span>';
-  var spotDelays = { pond:600, river:900, lake:1100, ocean:1400 };
-  var nibbleDelay = (spotDelays[_fishingSpot] || 800) + Math.random() * 800;
-  setTimeout(function() {
-    if (line) line.classList.add('nibble');
-    if (catchText) catchText.innerHTML = '<span style="color:#ffd700;font-weight:700;">🐟 Something\'s biting! Click when it\'s in the zone!</span>';
-    fishingShowTimingBar();
-    if (btn) { btn.disabled = false; btn.textContent = '\u26a1 REEL IT!'; btn.onclick = fishingTimingClick; }
-  }, nibbleDelay);
-}
-
-// Legacy entry kept for compatibility
-async function castLine() { castLineStart(null); }
-
-async function fishingResolveCast(timing) {
-  var line = document.getElementById('fishing-line');
-  if (line) { line.style.display = 'none'; line.classList.remove('nibble'); }
-
-  // Reset button
-  var btn = document.getElementById('fishing-btn');
-  if (btn) { btn.textContent = '🎣 Cast Again!'; btn.onclick = castLine; btn.disabled = false; }
-
-  var caught = fishingGetCatch(timing);
-  _fishingSessionCasts++;
-
-  var catchText = document.querySelector('.pond-text');
-  var rarityColors = { junk:'#888', common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700', item:'#ff66cc' };
-
-  // ── ITEM CATCH ────────────────────────────────────────────────────────────
-  if (caught.id === '__item__') {
-    try {
-      var itemRes = await supabaseClient.from('items').select('id,name,emoji').gt('hunger_effect', 0).order('id').limit(30);
-      if (itemRes.data && itemRes.data.length > 0) {
-        var randomItem = itemRes.data[Math.floor(Math.random() * itemRes.data.length)];
-        await supabaseClient.from('user_inventory').upsert(
-          { user_id: currentUser.id, item_id: randomItem.id, quantity: 1 },
-          { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
-        if (catchText) catchText.innerHTML = '🎁 <span style="color:#ff66cc;font-weight:700;">You caught an item: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + '!</span>' +
-          (timing === 'great' ? ' <span style="color:#ffd700;font-size:0.7rem;">PERFECT TIMING!</span>' : '');
-        showToast('🎣 Found: ' + (randomItem.emoji||'📦') + ' ' + randomItem.name + ' in your tackle box! Added to inventory.', 4000);
-        addPassXP(3, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-      }
-    } catch(e) { /* silent */ }
-    fishingUpdateStats();
-    return;
+  if(baitData.cost>0){
+    var ppRes=await supabaseClient.rpc('award_pp_secure',{p_amount:-baitData.cost,p_reason:'fishing_bait'}).catch(function(){return null;});
+    if(ppRes&&ppRes.data!==undefined) updateAllPoints(ppRes.data);
   }
 
-  // ── JUNK CATCH ───────────────────────────────────────────────────────────
-  if (caught.rarity === 'junk') {
-    if (catchText) catchText.innerHTML = caught.emoji + ' <span style="color:#888;">You caught ' + caught.name + '...</span>' +
-      (timing === 'miss' ? ' <span style="color:#ff6b6b;font-size:0.7rem;">Late click!</span>' : '');
-    fishingUpdateStats();
-    return;
-  }
+  var btn = el('fishing-btn');
+  btn.disabled = true;
+  btn.textContent = 'Casting...';
+  
+  var line = el('fishing-line');
+  if(line) line.style.display = 'block';
+  
+  setTimeout(async function() {
+    if(line) line.style.display = 'none';
+    
+    var caught = fishingGetCatch();
+    fishingCasts--;
+    fishingTotal += caught.pp;
+    
+    el('fishing-casts').textContent = fishingCasts;
+    el('fishing-earned').textContent = fishingTotal;
 
-  // ── REAL FISH CATCH ───────────────────────────────────────────────────────
-  // Roll weight and calculate PP
-  fishingLoadRecords();
-  var weight   = fishingRollWeight(caught);
-  var sizeData = fishingWeightCategory(weight, caught);
-  var ppMult   = sizeData ? sizeData.mult : 1.0;
-  var ppEarned = Math.round(caught.pp * ppMult);
-  fishingTotal += ppEarned;
-
-  var isNew    = !_fishCollection[caught.id];
-  if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now(), bestWeight:null };
-  _fishCollection[caught.id].count++;
-
-  // Track personal best weight
-  var isRecord = false;
-  if (weight !== null) {
-    var prevBest = _fishCollection[caught.id].bestWeight || 0;
-    if (weight > prevBest) {
-      _fishCollection[caught.id].bestWeight = weight;
-      isRecord = !isNew; // only "record" if we've caught this before
-    }
-  }
-  fishingSaveCollection();
-  // Also save to records map
-  fishingCheckRecord(caught, weight);
-
-  var rarityColor = rarityColors[caught.rarity] || '#5dde7a';
-  if (catchText) catchText.innerHTML = caught.emoji + ' <span style="color:' + rarityColor + ';font-weight:700;">' + caught.name + '</span>' +
-    (isNew ? ' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>' : '') +
-    ' <span style="color:#5dde7a;">(+' + ppEarned + ' PP)</span>';
-
-  // Show catch popup (non-junk only)
-  fishingShowCatchPopup(caught, weight, ppEarned, isNew, isRecord);
-
-  // Update bingo for fish catches
-  updateBingoProgress('catch_fish', 1);
-  if (caught.rarity === 'rare' || caught.rarity === 'epic' || caught.rarity === 'legendary') {
-    updateBingoProgress('catch_rare_fish', 1);
-  }
-
-  // Record catch in DB via secure RPC (handles collection + deduplication)
-  var catchRes = await supabaseClient.rpc('fishing_record_catch', {
-    p_fish_id: caught.id,
-    p_weight:  weight,
-    p_pp:      ppEarned
-  }).catch(function(){ return null; });
-  // Use server's authoritative new_fish/new_record flags if available
-  if (catchRes && catchRes.data && !catchRes.data.error) {
-    isNew    = catchRes.data.new_fish    || isNew;
-    isRecord = catchRes.data.new_record  || isRecord;
-  }
-  // Sync local cache from DB periodically (after catch)
-  if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, bestWeight:null };
-  _fishCollection[caught.id].count++;
-  if (weight && (!_fishCollection[caught.id].bestWeight || weight > _fishCollection[caught.id].bestWeight)) {
-    _fishCollection[caught.id].bestWeight = weight;
-  }
-
-  // Award PP
-  await awardPP(ppEarned, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-
-  // Award PassXP per fish
-  var fishPassXP = caught.passXP || 2;
-  addPassXP(fishPassXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-
-  // New fish celebrations
-  if (isNew) {
-    if (caught.rarity === 'legendary') {
-      var sizeLabel2 = sizeData ? sizeData.label + ' · ' : '';
-      safeSetTimeout(function() {
-        showRareCelebration({
-          title: 'Legendary Catch!',
-          subtitle: caught.emoji + ' ' + caught.name + (weight ? ' — ' + sizeLabel2 + fishingFormatWeight(weight) : '') + ' (+' + ppEarned + ' PP)',
-          icon: caught.emoji, rarity: 'legendary',
-          shareText: 'I just caught a legendary ' + caught.name + ' in PawketPetsVT! ?? #PawketPetsVT'
-        });
-      }, 400);
-      safeSetTimeout(function() {
-        showMelonMessage(caught.id === 'piper_fish'
-          ? '...where did you catch that? Please don\'t catch it again.'
-          : 'A legendary catch! ' + caught.emoji + ' I haven\'t seen one in a long time.',
-          { displayMs: 10000, spooky: caught.id === 'piper_fish' }
-        );
-      }, 3500);
-    } else if (caught.rarity === 'epic') {
-      safeSetTimeout(function() {
-        showRareCelebration({
-          title: 'Epic Catch!',
-          subtitle: caught.emoji + ' ' + caught.name + (weight ? ' — ' + fishingFormatWeight(weight) : '') + ' (+' + ppEarned + ' PP)',
-          icon: caught.emoji, rarity: 'epic',
-          shareText: 'Just caught an epic ' + caught.name + ' in PawketPetsVT! #PawketPetsVT'
-        });
-      }, 400);
-    }
-  }
-
-  // Check area completion after every real catch
-  if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-    fishingCheckAreaComplete().catch(function(e){ dbg('upsert error:', e); });
-  }
-} // closes fishingResolveCast
-
-// ── PassXP visual toast sources ───────────────────────────────────────────────
-var PASS_XP_TOAST_SOURCES = {
-  fishing:           '🎣 Fishing',
-  battle:            '⚔️ Battle',
-  expedition:        '🗺️ Expedition',
-  minigame:          '🎮 Minigame',
-  level_up:          '⭐ Level Up',
-  quest_complete:    '📜 Quest',
-  bingo_line:        '🎯 Bingo Line',
-  bingo_blackout:    '🎯 Bingo Blackout',
-  grand_prix_winner: '🏆 Grand Prix Win',
-  grand_prix_top_10: '🏅 Grand Prix Top 10',
-  secret_discovery:  '🔍 Discovery',
-  friend_added:      '👥 New Friend',
-};
-
-// ── Calendar day bonus multiplier ─────────────────────────────────────────────
-
-// ── Fishing area completion (DB-backed, idempotent) ───────────────────────────
-async function fishingCheckAreaComplete() {
-  var spotFish = (typeof FISH_BY_SPOT !== 'undefined' && FISH_BY_SPOT[_fishingSpot]) || [];
-  if (!spotFish.length || !spotFish.every(function(id){ return _fishCollection[id]; })) return;
-  var reward = (typeof FISH_SPOT_REWARDS !== 'undefined') && FISH_SPOT_REWARDS[_fishingSpot];
-  if (!reward) return;
-  var res = await supabaseClient.rpc('fishing_claim_reward', {
-    p_reward_key: 'area_' + _fishingSpot, p_pp: reward.pp,
-    p_pass_xp: reward.passXP, p_skin_key: false
-  }).catch(function(){ return null; });
-  if (!res || (res.data && res.data.already_claimed)) return;
-  if (res.data && res.data.ok) {
-    if (typeof addPassXP === 'function') addPassXP(reward.passXP, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-    showToast('🏆 ' + reward.label + '! +' + reward.pp + ' PP +' + reward.passXP + ' Pass XP!', 7000);
-    if (typeof showMelonMessage === 'function')
-      showMelonMessage('You caught every fish in the ' + _fishingSpot + '! 🍉', { displayMs: 10000 });
-  }
-  if (typeof FISH_POOL === 'undefined') return;
-  var allIds = FISH_POOL.filter(function(f){ return f.rarity !== 'junk'; }).map(function(f){ return f.id; });
-  if (!allIds.every(function(id){ return _fishCollection[id]; })) return;
-  var full = await supabaseClient.rpc('fishing_claim_reward', {
-    p_reward_key: 'full_collection', p_pp: (typeof FISH_FULL_COMPLETION_PP !== 'undefined' ? FISH_FULL_COMPLETION_PP : 2000),
-    p_pass_xp: (typeof FISH_FULL_COMPLETION_PASSXP !== 'undefined' ? FISH_FULL_COMPLETION_PASSXP : 300),
-    p_skin_key: true
-  }).catch(function(){ return null; });
-  if (full && full.data && full.data.ok) {
-    if (typeof showRareCelebration === 'function')
-      showRareCelebration({ title:'Master Angler!', subtitle:'Caught every fish!', icon:'🎣', rarity:'legendary',
-        shareText:'Completed the fish collection in PawketPetsVT! 🎣 #PawketPetsVT' });
-  }
-}
-
-// ── Ad-pocalypse weather ───────────────────────────────────────────────────────
-var _adpocalypseInterval = null;
-var _adpocalypseActive   = false;
-var AD_POOL = [
-  { id:'ad_free_pp', title:'💰 FREE PawketPoints!!', headline:'CLICK HERE FOR FREE PP!!',
-    sub:'Limited time! Click NOW for <strong>free 25 PP</strong>!',
-    btn:'✨ CLAIM NOW — FREE!!', fine:'* One per ad.',
-    outcome:function(){ awardPP(25,'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); }); showToast('🎉 +25 PP from an ad!',4000); }, weight:25 },
-  { id:'ad_pp_loss', title:'🔥 FLASH SALE!!', headline:'BUY NOW!!',
-    sub:'PetCare Pro — <strong>only 50 PP!!</strong>',
-    btn:'💸 BUY NOW — 50 PP!!', fine:'* The timer was not real.',
-    outcome:function(){ supabaseClient.rpc('award_pp_secure',{p_amount:-50,p_reason:'adpocalypse_scam'}).then(function(r){if(r.data)updateAllPoints(r.data);}).catch(function(e){ dbg('upsert error:', e); }); showToast('😈 -50 PP. PetCare Pro does not exist.',5000); }, weight:15 },
-  { id:'ad_nothing', title:'🎉 YOU QUALIFY!!', headline:'EXCLUSIVE OFFER!!',
-    sub:'You have been pre-approved for our <strong>Exclusive Rewards Program</strong>!!',
-    btn:'✅ TELL ME MORE!!', fine:'* There is nothing more.',
-    outcome:function(){ showToast('There was nothing there. Thank you. 🙂',4000); }, weight:15 },
-  { id:'ad_horror', title:'SYSTEM — do not close', headline:'have you seen them?',
-    sub:'the other testers. from before.<br><br>it was not fine.',
-    btn:'i have not seen them', fine:'* this ad will not appear again.',
-    outcome:function(){ showToast('...noted. please continue playing.',5000); }, weight:10 }
-];
-
-// ── Melon spooky shop dialogue pool ───────────────────────────────────────────
-var MELON_SPOOKY_POOL = [
-  'I have to run the shop now that <span class="glitch-text">Piper</span> has gone missing.',
-  'Buy whatever you need! <span class="glitch-text">Piper</span> used to say that too.',
-  'Is your pet happy today? They look happy. They always look happy.',
-  'I have been here a long time. So have you. Is not that nice?',
-  'Welcome to the shop! Everything is fine. <span class="glitch-text">Everything is fine.</span>',
-  'I am not sure what happened to the last guide. I am sure it was nothing.',
-  'Your pet seems very attached to you. That is good. That is very good.',
-  'Sometimes I think the pets remember things I do not. But I am just the shopkeeper.',
-];
-
-// ── expeditionNarrativeClose helper ───────────────────────────────────────────
-function expeditionNarrativeClose() {
-  var m = document.getElementById('expedition-narrative-modal');
-  if (m) m.remove();
-}
-// ══════════════════════════════════════════════════════════════════════════
-// AUTO-FISHER SYSTEM
-// Purchased upgrade, set-and-forget, completes while away.
-// No bait, no timing, slightly worse junk rate than manual fishing.
-// ══════════════════════════════════════════════════════════════════════════
-
-var AUTO_FISHER_TIERS = [
-  null,
-  { level:1, name:'Auto-Fisher I',   cost:500,  dailyCasts:10, junkPenalty:0.18, desc:'10 auto-casts/day. Set and forget!' },
-  { level:2, name:'Auto-Fisher II',  cost:1500, dailyCasts:25, junkPenalty:0.12, desc:'25 auto-casts/day.'  },
-  { level:3, name:'Auto-Fisher III', cost:4000, dailyCasts:50, junkPenalty:0.08, desc:'50 auto-casts/day.'  },
-];
-
-var _autoFisherLevel = 0;    // 0 = not purchased
-var _autoFisherState = null; // { startTime, castsTotal, castsLeft, spot, date }
-
-async function autoFisherLoadState() {
-  // Level and state are loaded with the player data in fishingLoadRodLevel()
-  // This is a no-op but kept for compatibility
-}
-
-async function autoFisherSaveState() {
-  if (!currentUser) return;
-  // Save auto_fisher_state JSON to players table via RPC
-  await supabaseClient.rpc('fishing_save_autofisher_state', {
-    p_state: _autoFisherState ? JSON.parse(JSON.stringify(_autoFisherState)) : null
-  }).catch(function(e){ dbg('upsert error:', e); });
-}
-
-async function autoFisherPurchase() {
-  var nextLevel = _autoFisherLevel + 1;
-  if (nextLevel > 3) { showToast('Auto-Fisher is maxed out! 🤖', 3000); return; }
-  var tier = AUTO_FISHER_TIERS[nextLevel];
-  if (!tier) return;
-  if (currentPoints < tier.cost) { showToast('Need ' + tier.cost + ' PP for ' + tier.name + '!', 3000); return; }
-  if (!confirm('Buy ' + tier.name + ' for ' + tier.cost + ' PP? ' + tier.desc + ' (No bait supported, slightly higher junk rate)')) return;
-  var res = await supabaseClient.rpc('fishing_upgrade_autofisher', {
-    p_next_level: nextLevel, p_cost: tier.cost
-  }).catch(function(){ return null; });
-  if (!res || res.error || (res.data && res.data.error)) {
-    showToast('Purchase failed: ' + ((res && res.data && res.data.error) || 'try again'), 3000); return;
-  }
-  _autoFisherLevel = nextLevel;
-  if (res.data && res.data.new_pp !== undefined) updateAllPoints(res.data.new_pp);
-  showToast('🤖 ' + tier.name + ' activated! ' + tier.dailyCasts + ' auto-casts available daily.', 5000);
-  showMelonMessage('Oh! You got the Auto-Fisher! I\'ll keep an eye on it for you. 🍉', { displayMs: 6000 });
-  autoFisherRenderWidget();
-}
-
-async function autoFisherStart() {
-  if (_autoFisherLevel === 0) { showToast('Purchase an Auto-Fisher first!', 3000); return; }
-  var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-  var today = new Date().toDateString();
-  // Check if already used today
-  if (_autoFisherState && _autoFisherState.date === today) {
-    if (_autoFisherState.castsLeft > 0) {
-      showToast('Auto-Fisher already running! (' + _autoFisherState.castsLeft + ' casts left)', 3000);
-    } else {
-      showToast('Auto-Fisher already used today. Come back tomorrow! 🤖', 3000);
-    }
-    return;
-  }
-  _autoFisherState = {
-    startTime: Date.now(),
-    castsTotal: tier.dailyCasts,
-    castsLeft: tier.dailyCasts,
-    spot: _fishingSpot,
-    date: today,
-    msPerCast: Math.floor((4 * 60 * 60 * 1000) / tier.dailyCasts)
-  };
-  await autoFisherSaveState();
-  showToast('🤖 Auto-Fisher started at ' + _fishingSpot + '! Will cast ' + tier.dailyCasts + ' times over ~4 hours.', 5000);
-  autoFisherRenderWidget();
-}
-
-async function autoFisherCheck() {
-  if (!currentUser || !_autoFisherState) return;
-  var today = new Date().toDateString();
-  if (_autoFisherState.date !== today) { _autoFisherState = null; autoFisherSaveState(); autoFisherRenderWidget(); return; }
-  if (_autoFisherState.castsLeft <= 0) return;
-
-  var elapsed = Date.now() - _autoFisherState.startTime;
-  var castsDone = Math.min(_autoFisherState.castsTotal, Math.floor(elapsed / _autoFisherState.msPerCast));
-  var newCasts = _autoFisherState.castsTotal - castsDone;
-
-  if (newCasts < _autoFisherState.castsLeft) {
-    // Some casts have completed — simulate them
-    var completedCount = _autoFisherState.castsLeft - newCasts;
-    var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-    var catches = [];
+    // Collection tracking
     fishingLoadCollection();
-
-    for (var i = 0; i < completedCount; i++) {
-      // Auto-fisher uses no timing, no power — just base junk rate + penalty
-      var junkRate = (FISHING_JUNK_RATES[_fishingRodLevel] || FISHING_JUNK_RATES[1]).worm + (tier.junkPenalty || 0.15);
-      junkRate = Math.min(0.85, junkRate);
-      var caught;
-      if (Math.random() < junkRate) {
-        var junkPool2 = FISH_POOL.filter(function(f){ return f.rarity==='junk' && f.spots.indexOf(_autoFisherState.spot)!==-1; });
-        caught = junkPool2[Math.floor(Math.random()*junkPool2.length)] || FISH_POOL[0];
-      } else {
-        // Simple random fish from spot (no timing/power bonus)
-        caught = fishingGetCatch('ok');
-        if (caught.id === '__item__') caught = FISH_POOL.find(function(f){ return f.id==='carp'; });
-      }
-      if (caught.rarity !== 'junk' && caught.id !== '__item__') {
-        var w = fishingRollWeight(caught);
-        var szData = fishingWeightCategory(w, caught);
-        var pp = Math.round(caught.pp * (szData ? szData.mult : 1));
-        catches.push({ name: caught.name, emoji: caught.emoji, pp: pp, rarity: caught.rarity, weight: w });
-        if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now() };
-        _fishCollection[caught.id].count++;
-        await awardPP(pp, 'auto_fishing').catch(function(e){ dbg('upsert error:', e); });
-        addPassXP(caught.passXP || 2, 'fishing').catch(function(e){ dbg('upsert error:', e); });
-      }
-    }
+    var isNew = !_fishCollection[caught.id];
+    if(!_fishCollection[caught.id]) _fishCollection[caught.id]={count:0,firstCatch:Date.now()};
+    _fishCollection[caught.id].count++;
     fishingSaveCollection();
 
-    _autoFisherState.castsLeft = newCasts;
-    await autoFisherSaveState();
-
-    if (catches.length > 0) {
-      // Show summary notification
-      var summaryLines = catches.slice(0, 8).map(function(c){ return c.emoji + ' ' + c.name + ' (+' + c.pp + ' PP)'; });
-      if (catches.length > 8) summaryLines.push('...and ' + (catches.length - 8) + ' more!');
-      var totalPP = catches.reduce(function(s,c){ return s+c.pp; }, 0);
-      var msg = 'Auto-Fisher caught ' + catches.length + ' fish! (+' + totalPP + ' PP total) ' + summaryLines.join(', ');
-      createNotification(currentUser.id, 'auto_fisher', '🤖 Auto-Fisher Update!', msg, 'tab:fishing').catch(function(e){ dbg('upsert error:', e); });
-      if (completedCount === _autoFisherState.castsTotal) {
-        // All done!
-        showMelonMessage('Your auto-fisher is done for the day! Caught ' + catches.length + ' fish. 🍉', { displayMs: 8000 });
-      }
+    // Display catch
+    var catchEl=document.querySelector('.pond-text');
+    var rarityColors={junk:'#888',common:'#5dde7a',uncommon:'#4dabf7',rare:'#9966ff',epic:'#ff9f43',legendary:'#ffd700'};
+    var rarityColor=rarityColors[caught.rarity]||'#5dde7a';
+    if(catchEl){
+      catchEl.innerHTML=caught.emoji+' <span style="color:'+rarityColor+';font-weight:700;">'+caught.name+'</span>'+
+        (isNew?' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>':'')+
+        ' (+'+caught.pp+' PP)';
     }
-  }
 
-  autoFisherRenderWidget();
-}
+    // New fish celebration
+    if(isNew && (caught.rarity==='epic'||caught.rarity==='legendary')){
+      showToast('🎣 NEW '+caught.rarity.toUpperCase()+' CATCH: '+caught.name+'! '+caught.emoji, 5000);
+    }
 
-function autoFisherRenderWidget() {
-  var mount = document.getElementById('auto-fisher-mount');
-  if (!mount) return;
-  autoFisherLoadState();
+    // Piper fish ARG easter egg
+    if(caught.id==='piper_fish'){
+      setTimeout(function(){
+        showToast('...you caught something that shouldn\'t be here. It looked at you.', 6000);
+      },2000);
+    }
 
-  var tier = AUTO_FISHER_TIERS[_autoFisherLevel];
-  var today = new Date().toDateString();
-  var state = (_autoFisherState && _autoFisherState.date === today) ? _autoFisherState : null;
+    // Junk ad — Ad-pocalypse fish
+    if(caught.id==='junk_ad'){
+      setTimeout(function(){
+        showToast('📢 You caught: Sponsored Content. It was not worth it.', 4000);
+      },500);
+    }
 
-  var html = '<div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">🤖 Auto-Fisher</div>';
-
-  if (_autoFisherLevel === 0) {
-    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:6px;">Automatically catches fish while you are away!</div>';
-    html += '<button class="btn btn-outline btn-sm" onclick="autoFisherPurchase()" style="width:100%;font-size:0.72rem;">🤖 Buy Auto-Fisher I — 500 PP</button>';
-  } else {
-    html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:4px;">Level ' + _autoFisherLevel + ': ' + tier.name + ' — ' + tier.dailyCasts + ' casts/day</div>';
-    if (state) {
-      var done = state.castsTotal - state.castsLeft;
-      var pct  = Math.round(done / state.castsTotal * 100);
-      html += '<div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden;margin-bottom:4px;">' +
-        '<div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,var(--purple),var(--pink));border-radius:6px;"></div></div>';
-      html += '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:6px;">' + done + '/' + state.castsTotal + ' casts done ('+pct+'%)</div>';
-      if (state.castsLeft <= 0) {
-        html += '<div style="font-size:0.72rem;color:#5dde7a;">✅ Done for today! Come back tomorrow.</div>';
+    // Collection progress
+    var totalFish=FISH_POOL.filter(function(f){return f.rarity!=='junk';}).length;
+    var collected=Object.keys(_fishCollection).filter(function(k){
+      var f=FISH_POOL.find(function(ff){return ff.id===k;});
+      return f&&f.rarity!=='junk';
+    }).length;
+    var collEl=el('fishing-collection');
+    if(collEl) collEl.textContent=collected+'/'+totalFish+' fish found';
+    
+    if (fishingCasts <= 0) {
+      awardPP(fishingTotal, 'fishing'); onMinigameComplete(fishingTotal);
+      setCD('fishing');
+      // Check collection bonus
+      if(collected>=totalFish){
+        awardPP(200,'fishing_collection_complete');
+        showToast('🏆 Complete collection! +200 PP bonus!',5000);
       }
+      setTimeout(function() {
+        var r = el('fishing-result');
+        if(r){
+          r.textContent = 'All casts used! +' + fishingTotal + ' PP total! ('+collected+'/'+totalFish+' fish)';
+          r.style.color = '#5dde7a';
+        }
+        el('fishing-cooldown').style.display = 'block';
+      }, 2000);
     } else {
-      html += '<div style="font-size:0.72rem;margin-bottom:6px;">Spot: auto-fishes at current selected spot.</div>';
-      html += '<button class="btn btn-outline btn-sm" onclick="autoFisherStart()" style="width:100%;font-size:0.72rem;">🤖 Start Auto-Fishing</button>';
+      btn.disabled = false;
+      btn.textContent = '🎣 Cast Again!';
     }
-    if (_autoFisherLevel < 3) {
-      var nextT = AUTO_FISHER_TIERS[_autoFisherLevel+1];
-      html += '<button class="btn btn-sm" onclick="autoFisherPurchase()" style="width:100%;margin-top:4px;font-size:0.68rem;background:none;border:1px solid var(--border);">⬆️ Upgrade to Level ' + (_autoFisherLevel+1) + ' — ' + nextT.cost + ' PP</button>';
-    }
-  }
-  mount.innerHTML = html;
+  }, 1500);
 }
 
+// ── DAILY BONUS ──────────────────────────────
+async function checkDailyBonus(userId) {
+  // Check if daily bonus was already claimed today
+  var lastClaim = localStorage.getItem('daily_bonus_' + userId + '_' + today);
+  
+  if (lastClaim === 'claimed') {
+    // Update sidebar button to show claimed status
+    var btn = document.querySelector('.daily-bonus-btn');
+    if (btn) {
+      btn.textContent = '✅ Claimed Today!';
+      btn.disabled = true;
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+    }
+    return { awarded: false };
+  }
+  
+  // Award daily bonus
+  var bonusAmount = 50;
+  var { data: newTotal, error: bonusErr } = await supabaseClient.rpc('award_pp_secure', {
+    p_amount: bonusAmount, p_reason: 'daily_login_bonus'
+  });
+  if (bonusErr) { dbg('Daily bonus award failed:', bonusErr); return { awarded: false }; }
+  
+  // Mark as claimed
+  localStorage.setItem('daily_bonus_' + userId + '_' + today, 'claimed');
+  
+  // Update sidebar button
+  var btn = document.querySelector('.daily-bonus-btn');
+  if (btn) {
+    btn.textContent = '✅ Claimed Today!';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    btn.style.cursor = 'not-allowed';
+  }
+  
+  return { awarded: true, amount: bonusAmount, newTotal: newTotal };
+}
 
+async function claimDailyBonus() {
+  if (!currentUser) {
+    showToast('Please log in to claim daily bonus!');
+    return;
+  }
+  
+  var result = await checkDailyBonus(currentUser.id);
+  if (result.awarded) {
+    showToast('🎉 Daily Bonus! +' + result.amount + ' PP!');
+    updateAllPoints(result.newTotal);
+  } else {
+    showToast('Daily bonus already claimed today!');
+  }
+}
 
+// ── NEWS ─────────────────────────────────
+async function loadSidebarNews() {
+  var widget = el('sidebar-news-container');
+  if (!widget) {
+    console.error('[loadSidebarNews] Widget not found!');
+    return;
+  }
+  
+  dbg('[loadSidebarNews] Loading news...');
+  var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
+  
+  dbg('[loadSidebarNews] Result:', res);
+  
+  if (res.error || !res.data || !res.data.length) {
+    widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
+    return;
+  }
+  
+  widget.innerHTML = '';
+  res.data.forEach(function(post){
+    var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    var item = makeEl('div', {class:'news-item'});
+    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.content || 'No content') + '</div>';
+    widget.appendChild(item);
+  });
+}
+
+async function loadNews() {
+  var container = el('news-container');
+  if (!container) return;
+  try {
+    var res = await supabaseClient.from('news').select('*').eq('is_published', true).order('published_at', { ascending: false });
+    if (res.error || !res.data || !res.data.length) {
+      container.innerHTML = '<div class="card" style="text-align:center;padding:56px 36px;"><div style="font-size:2.8rem;margin-bottom:14px;">&#128235;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No news yet!</h2><p style="color:var(--text-light)">Check back soon!</p></div>';
+      return;
+    }
+    container.innerHTML = '';
+    res.data.forEach(function(post) {
+      var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      var div = makeEl('div', { class: 'news-post news-card' });
+      div.appendChild(makeEl('div', { class: 'news-post-date news-date' }, date));
+      div.appendChild(makeEl('h3', {}, post.title || 'Untitled'));
+      div.appendChild(makeEl('p', {}, post.content || ''));
+      if (post.author) div.appendChild(makeEl('div', { class: 'news-author' }, '- ' + post.author));
+      container.appendChild(div);
+    });
+  } catch(err) {
+    dbg('loadNews error:', err);
+    if (container) container.innerHTML = '<div class="empty-state"><p>Could not load news.</p></div>';
+  }
+}
+
+// ── TWITCH ───────────────────────────────
 
 function linkTwitch() {
   var scope = 'user:read:email user:read:follows';
@@ -11635,7 +8756,7 @@ async function initTwitchTab() {
   }
   await checkTwitchLinked();
   // Load Twitch stats from worker (silent if worker not reachable)
-  loadTwitchStats().catch(function(e){ dbg('upsert error:', e); });
+  loadTwitchStats().catch(function(){});
   // Poll for pending worker rewards every 2 minutes
   safeSetInterval(function() { checkTwitchRewards(); }, 120000);
 }
@@ -11941,7 +9062,7 @@ async function checkTwitchLinked() {
     el('twitch-not-linked').style.display='none';
     el('twitch-linked').style.display='block';
     el('twitch-username').textContent=res.data.twitch_username;
-    loadTwitchStats().catch(function(e){ dbg('upsert error:', e); });
+    loadTwitchStats().catch(function(){});
     var rewards=res.data.twitch_follow_rewards||{};
     if(rewards.embertail){var b=el('follow-ember-badge');b.textContent='Claimed';b.className='status-badge status-done';b.style.display='inline-block';}
     if(rewards.pyxshuul){var b2=el('follow-pyxs-badge');b2.textContent='Claimed';b2.className='status-badge status-done';b2.style.display='inline-block';}
@@ -12578,9 +9699,7 @@ async function loadLeaderboard(type) {
         // Fallback if RPC doesn't exist
         var levelsRes = await supabaseClient
           .from('user_pets')
-          .select('user_id, level, players(username)')
-          .order('level', { ascending: false })
-          .limit(500); // top pets only — enough for leaderboard
+          .select('user_id, level, players(username)');
         
         if (levelsRes.error) throw levelsRes.error;
         
@@ -12616,8 +9735,7 @@ async function loadLeaderboard(type) {
       // Query both tables separately to avoid foreign key issues
       var badgesRes = await supabaseClient
         .from('user_badges')
-        .select('user_id')
-        .limit(5000); // cap: enough for any real leaderboard
+        .select('user_id');
       
       if (badgesRes.error) throw badgesRes.error;
       
@@ -12717,7 +9835,7 @@ async function loadLeaderboard(type) {
 
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + escapeHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + err.message + '</p></div>';
   }
 }
 
@@ -12869,8 +9987,7 @@ async function loadProfile(username) {
     var rankRes = await supabaseClient
       .from('players')
       .select('pawketpoints')
-      .order('pawketpoints', { ascending: false })
-      .limit(500);
+      .order('pawketpoints', { ascending: false });
     
     if (!rankRes.error && rankRes.data) {
       var rank = rankRes.data.findIndex(function(p) { return p.pawketpoints <= profile.pawketpoints; }) + 1;
@@ -12932,11 +10049,11 @@ async function loadProfile(username) {
     // Update profile action buttons (add/remove friend, block, etc.)
     // Set the profile user ID first so updateProfileButtons knows whose profile this is
     window.currentProfileUserId = profile.id;
-    updateProfileButtons().catch(function(e){ dbg('upsert error:', e); });
+    updateProfileButtons().catch(function(){});
     
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
-    el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + escapeHtml(err.message) + '</p></div>';
+    el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + err.message + '</p></div>';
   }
 }
 
@@ -13030,8 +10147,7 @@ async function loadMyProfile() {
     var rankRes = await supabaseClient
       .from('players')
       .select('id, pawketpoints')
-      .order('pawketpoints', { ascending: false })
-      .limit(10);
+      .order('pawketpoints', { ascending: false });
     
     if (rankRes.data) {
       var rank = rankRes.data.findIndex(function(p) { return p.id === currentUser.id; }) + 1;
@@ -14436,9 +11552,9 @@ async function executeBattle(playerStats, enemyStats, petId) {
       await awardBadge('badge_comeback');
     }
     // WISHES: battle win
-    checkPetWishes('win_battle', petId).catch(function(e){ dbg('upsert error:', e); });
-    trackDailyStat('battles_won').catch(function(e){ dbg('upsert error:', e); });
-    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(e){ dbg('upsert error:', e); });
+    checkPetWishes('win_battle', petId).catch(function(){});
+    trackDailyStat('battles_won').catch(function(){});
+    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
   }
 
   // CRITICAL: Force reload pet data AFTER HP is saved
@@ -14551,7 +11667,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         if (weatherXPBonus > 0) expGained += weatherXPBonus;
       }
     }
-    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(){});
     var hpUpdate = await supabaseClient
       .from('user_pets')
       .update({ current_hp: battleResult.playerFinalHP })
@@ -14579,7 +11695,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     });
     
     // Increment global boss kill stat (read by Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(){});
 
     // Track boss kill for Melon milestone
     try {
@@ -14668,7 +11784,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     community_increment('battle_wins', 1);
     updateBingoProgress('win_battle', 1);
     // Increment global community stat (read by the Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(e){ dbg('upsert error:', e); });
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(){});
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -15556,7 +12672,7 @@ function battleExp_updateBtn() {
     supabaseClient.from('user_pets').select('id, energy, level, nickname').eq('id', petId).single()
       .then(function(res) {
         if (res.data) { petState[petId] = res.data; battleExp_updateBtn(); }
-      }).catch(function(e){ dbg('upsert error:', e); });
+      }).catch(function(){});
     return;
   }
 
@@ -15661,18 +12777,18 @@ async function battleExp_claim(expeditionId) {
     var bonusPP = Math.floor(pp * (expMult - 1));
     if (bonusPP > 0) { await awardPP(bonusPP, 'streak_bonus'); showToast('🔥 Streak bonus: +' + bonusPP + ' PP!', 3000); }
   }
-  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(e){ dbg('upsert error:', e); });
+  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(){});
 
   // Award item drops
   for (var i = 0; i < items.length; i++) {
     if (items[i].id) {
-      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(e){ dbg('upsert error:', e); });
+      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(){});
     }
   }
 
-  addPassXP(10, 'expedition').catch(function(e){ dbg('upsert error:', e); });
-  checkPetWishes('expedition', row.pet_id).catch(function(e){ dbg('upsert error:', e); });
-  progressQuestArc(row.pet_id, 'expedition').catch(function(e){ dbg('upsert error:', e); });
+  addPassXP(10, 'expedition').catch(function(){});
+  checkPetWishes('expedition', row.pet_id).catch(function(){});
+  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
   community_increment('expeditions', 1);
 
   // Show rewards modal
@@ -17274,7 +14390,7 @@ async function loadFriendsList() {
     document.getElementById('friends-count-badge').textContent = friends.length;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + escapeHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + err.message + '</p></div>';
     console.error('Error loading friends:', err);
   }
 }
@@ -17344,7 +14460,7 @@ async function loadFriendRequests() {
     container.innerHTML = html;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + escapeHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + err.message + '</p></div>';
     console.error('Error loading friend requests:', err);
   }
 }
@@ -17396,7 +14512,7 @@ async function loadBlockedUsers() {
     document.getElementById('blocked-count-badge').style.display = 'inline';
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + escapeHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + err.message + '</p></div>';
     console.error('Error loading blocked users:', err);
   }
 }
@@ -17558,7 +14674,7 @@ async function searchPlayers() {
     resultsContainer.innerHTML = html;
     
   } catch (err) {
-    resultsContainer.innerHTML = '<p style="text-align:center;color:var(--red);padding:16px;">Error: ' + escapeHtml(err.message) + '</p>';
+    resultsContainer.innerHTML = '<p style="text-align:center;color:var(--red);padding:16px;">Error: ' + err.message + '</p>';
     console.error('Error searching players:', err);
   }
 }
@@ -17582,7 +14698,7 @@ async function sendFriendRequestToUser(userId, username) {
     searchPlayers(); // Refresh search results
     
   } catch (err) {
-    showToast('Error sending friend request: ' + escapeHtml(err.message));
+    showToast('Error sending friend request: ' + err.message);
     console.error('Error sending friend request:', err);
   }
 }
@@ -17606,7 +14722,7 @@ async function sendFriendRequest() {
     updateProfileButtons(); // Refresh button state
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error sending friend request:', err);
   }
 }
@@ -17626,7 +14742,7 @@ async function acceptFriendRequest(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error accepting friend request:', err);
   }
 }
@@ -17646,7 +14762,7 @@ async function declineFriendRequest(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error declining friend request:', err);
   }
 }
@@ -17671,7 +14787,7 @@ async function removeFriendById(friendshipId) {
     loadFriendsList();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error removing friend:', err);
   }
 }
@@ -17721,7 +14837,7 @@ async function blockUser() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error blocking user:', err);
   }
 }
@@ -17743,7 +14859,7 @@ async function unblockUser() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error unblocking user:', err);
   }
 }
@@ -17768,7 +14884,7 @@ async function unblockById(blockId) {
     loadBlockedUsers();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error unblocking user:', err);
   }
 }
@@ -18022,7 +15138,7 @@ var newsTicker = {
     this.updateTicker();
     this.startScrollDetection();
     // Pre-load today's stats for dynamic headlines (non-blocking)
-    this.loadDailyStats().catch(function(e){ dbg('upsert error:', e); });
+    this.loadDailyStats().catch(function(){});
   },
   
   shuffle: function() {
@@ -18073,10 +15189,12 @@ var newsTicker = {
       if (!parentEl) return;
       var parent = parentEl.getBoundingClientRect();
       
+      // If the right edge of the message is past the left edge of the container
+      // (fully scrolled off screen to the left)
       if (rect.right < parent.left) {
         newsTicker.updateTicker();
       }
-    }, 250);  // 250ms is plenty — ticker is 40s long
+    }, 100);
   },
   
   // Cache for today's stats — loaded once and reused
@@ -18359,11 +15477,6 @@ var dayNightCycle = {
   },
   
   checkTimeAndApplyTheme: function() {
-    // Never apply night mode on the guest/landing page
-    if (document.body.classList.contains('guest')) {
-      this.enableDayMode();
-      return;
-    }
     var hour = new Date().getHours();
     var shouldBeNight = hour >= 18 || hour < 6; // 6 PM to 6 AM
     
@@ -18375,8 +15488,6 @@ var dayNightCycle = {
   },
   
   enableNightMode: function() {
-    // Never apply night mode on the guest/landing page
-    if (document.body.classList.contains('guest')) return;
     document.body.classList.add('night-mode');
     this.isNightMode = true;
     dbg('🌙 Night mode enabled');
@@ -18407,14 +15518,14 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
     dayNightCycle.init();
-    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(e){ dbg('upsert error:', e); });
-    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(e){ dbg('upsert error:', e); });
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
+    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
   });
 } else {
   newsTicker.init();
   dayNightCycle.init();
-  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(e){ dbg('upsert error:', e); });
-  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(e){ dbg('upsert error:', e); });
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
+  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
 }
 
 // WORLD STATE: periodically check for a newly-triggered celebration buff
@@ -19099,7 +16210,7 @@ async function postGuestbookMessage() {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error posting message: ' + escapeHtml(err.message));
+    showToast('Error posting message: ' + err.message);
     console.error('Error posting guestbook message:', err);
   }
 }
@@ -19161,7 +16272,7 @@ async function loadGuestbookEntries(profileUserId) {
     container.innerHTML = html;
     
   } catch (err) {
-    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + escapeHtml(err.message) + '</p></div>';
+    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + err.message + '</p></div>';
     console.error('Error loading guestbook entries:', err);
   }
 }
@@ -19182,7 +16293,7 @@ async function deleteGuestbookEntry(entryId) {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error deleting guestbook entry:', err);
   }
 }
@@ -19443,6 +16554,15 @@ var notificationDropdownOpen = false;
 var currentNotifications = [];
 
 // Toggle notification dropdown
+function toggleNotificationDropdown() {
+  var dropdown = document.getElementById('notification-dropdown');
+  
+  if (notificationDropdownOpen) {
+    closeNotificationDropdown();
+  } else {
+    openNotificationDropdown();
+  }
+}
 
 // Open notification dropdown
 async function openNotificationDropdown() {
@@ -19591,6 +16711,23 @@ async function markNotificationRead(notificationId) {
 }
 
 // Mark all notifications as read
+async function markAllNotificationsRead() {
+  if (!currentUser) return;
+  
+  try {
+    await supabaseClient
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false);
+    
+    await loadNotifications();
+    await updateNotificationBadge();
+    
+  } catch (err) {
+    console.error('Error marking all as read:', err);
+  }
+}
 
 // Update notification badge count
 async function updateNotificationBadge() {
@@ -20081,8 +17218,8 @@ async function guild_checkUserStatus() {
 
     // Orphaned guild_members row (guild_id points nowhere) — auto-clean
     if (data && !data.guilds) {
-      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(e){ dbg('upsert error:', e); });
-      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(e){ dbg('upsert error:', e); });
+      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(){});
+      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(){});
     }
 
     guildState.myGuild = null;
@@ -20326,12 +17463,12 @@ async function guild_join(guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(e){ dbg('upsert error:', e); });
+      ).catch(function(){});
     }
 
     showToast('✅ Joined the guild!', 3000);
     await loadGuildPage();
-    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
+    loadActiveGuildPerks().catch(function(){});
   } catch(err) {
     showToast('Could not join: ' + err.message, 3000);
   }
@@ -20671,7 +17808,7 @@ async function guild_acceptInvite(inviteId, guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(e){ dbg('upsert error:', e); });
+      ).catch(function(){});
     }
 
     showToast('🏛️ Joined the guild!', 3000);
@@ -20913,7 +18050,7 @@ async function guild_donate() {
     if (rpcErr) {
       // Treasury RPC failed — refund the player rather than silently losing their donation
       // (direct client writes to guild_treasury are blocked at the database level)
-      await awardPP(amount, 'guild_donation_refund').catch(function(e){ dbg('upsert error:', e); });
+      await awardPP(amount, 'guild_donation_refund').catch(function(){});
       showToast('Could not process donation. Refunded. Please try again later.', 3500);
       return;
     }
@@ -20925,7 +18062,7 @@ async function guild_donate() {
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
 
-    awardBadge('treasury_donor').catch(function(e){ dbg('upsert error:', e); });
+    awardBadge('treasury_donor').catch(function(){});
     updateBingoProgress('donate_guild', 1);
     showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
     loadGuildPage();
@@ -21050,7 +18187,7 @@ async function guild_renderTreasury() {
       '<div>' + logHtml + '</div>';
 
     // Load any newly passed votes
-    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
+    loadActiveGuildPerks().catch(function(){});
   } catch(err) {
     mount.innerHTML = '<div class="empty-state"><p>Error loading treasury: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
   }
@@ -21123,7 +18260,7 @@ async function guild_createProposal() {
     });
     if (error) throw error;
 
-    addPassXP(10, 'guild_proposal').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(10, 'guild_proposal').catch(function(){});
     closeModal();
     showToast('📊 Proposal created! Guild members can now vote.', 4000);
     guild_renderTreasury();
@@ -21147,7 +18284,7 @@ async function guild_castVote(voteId, inFavor) {
     if (updateErr) throw updateErr;
 
     updateBingoProgress('vote_in_guild', 1);
-    addPassXP(5, 'guild_vote').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(5, 'guild_vote').catch(function(){});
     showToast(inFavor ? '👍 Voted Yes!' : '👎 Voted No!', 2500);
 
     // Check if this vote just passed (simple majority, 3+ votes for, more for than against)
@@ -21664,9 +18801,9 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
 
     if (ppReward > 0) await awardPP(ppReward, 'guild_dungeon');
     if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
-    addPassXP(15, 'guild_dungeon').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(15, 'guild_dungeon').catch(function(){});
     updateBingoProgress('guild_dungeon', 1);
-    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(e){ dbg('upsert error:', e); });
+    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(){});
 
     // Log run
     await supabaseClient.from('guild_dungeon_runs').insert({
@@ -21675,7 +18812,7 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
       party: party.map(function(p) { return { pet_id: p.id, owner: p.ownerName }; }),
       enemies_defeated: wavesCleared, victory: victory, rewards_claimed: true,
       completed_at: new Date().toISOString()
-    }).catch(function(e){ dbg('upsert error:', e); });
+    }).catch(function(){});
 
     // Show result
     var survivalSummary = party.map(function(p) {
@@ -21787,7 +18924,7 @@ async function checkExplorationStreak(petId, zone) {
   var bonusMsg = '';
   if (streak >= 10) {
     bonusMsg = '🔥×10 Streak! +100% rewards & guaranteed rare item!';
-    awardPlayerTitle('forest_friend').catch(function(e){ dbg('upsert error:', e); });
+    awardPlayerTitle('forest_friend').catch(function(){});
   } else if (streak >= 5) {
     bonusMsg = '🔥×5 Streak! +50% rewards!';
   } else if (streak >= 3) {
@@ -21848,9 +18985,9 @@ async function checkSecretDiscovery(petId, zone, streak) {
         '</div>';
       openModal(modal);
 
-      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(e){ dbg('upsert error:', e); });
-      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(e){ dbg('upsert error:', e); });
-      addPassXP(20, 'secret_discovery').catch(function(e){ dbg('upsert error:', e); });
+      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(){});
+      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(){});
+      addPassXP(20, 'secret_discovery').catch(function(){});
     });
   } catch(e) { dbg('checkSecretDiscovery error:', e); }
 }
@@ -21922,19 +19059,19 @@ async function checkAchievementTierProgress(achievementKey, petId, currentValue)
       // Grant tier reward
       var reward = tierRewards[newTier - 1];
       if (reward) {
-        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(e){ dbg('upsert error:', e); });
-        if (reward.badge) await awardBadge(reward.badge).catch(function(e){ dbg('upsert error:', e); });
-        if (reward.title) await awardPlayerTitle(reward.title).catch(function(e){ dbg('upsert error:', e); });
+        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(){});
+        if (reward.badge) await awardBadge(reward.badge).catch(function(){});
+        if (reward.title) await awardPlayerTitle(reward.title).catch(function(){});
       }
 
       // Tier milestone badges
-      if (newTier >= 5) awardBadge('gold_collector').catch(function(e){ dbg('upsert error:', e); });
-      else if (newTier >= 4) awardBadge('silver_collector').catch(function(e){ dbg('upsert error:', e); });
-      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(e){ dbg('upsert error:', e); });
+      if (newTier >= 5) awardBadge('gold_collector').catch(function(){});
+      else if (newTier >= 4) awardBadge('silver_collector').catch(function(){});
+      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(){});
 
       // Show notification
       showToast('🏆 ' + escapeHtml(achievement.name || achievementKey) + ' reached Tier ' + newTier + '!', 4000);
-      addPassXP(10 * newTier, 'tier_unlock').catch(function(e){ dbg('upsert error:', e); });
+      addPassXP(10 * newTier, 'tier_unlock').catch(function(){});
 
       // ACTIVITY FEED: Log so friend feeds + OBS live alerts pick it up
       logActivity('achievement_unlocked', { achievement_name: (achievement.name || achievementKey) + ' (Tier ' + newTier + ')' });
@@ -22008,8 +19145,8 @@ async function progressQuestArc(petId, actionKey) {
 
   // Day reward
   var dayReward = arc['day' + (newDay - 1) + '_reward'] || 25;
-  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(e){ dbg('upsert error:', e); });
-  addPassXP(10, 'quest_progress').catch(function(e){ dbg('upsert error:', e); });
+  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(){});
+  addPassXP(10, 'quest_progress').catch(function(){});
   updateBingoProgress('complete_quest', 1);
 
   var pet = petState[petId] || {};
@@ -22019,10 +19156,10 @@ async function progressQuestArc(petId, actionKey) {
     // Quest complete!
     questData.completed = true;
     var finalReward = arc.completion_reward || 100;
-    await awardPP(finalReward, 'quest_complete').catch(function(e){ dbg('upsert error:', e); });
-    addPassXP(50, 'quest_complete').catch(function(e){ dbg('upsert error:', e); });
-    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(e){ dbg('upsert error:', e); });
-    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(e){ dbg('upsert error:', e); });
+    await awardPP(finalReward, 'quest_complete').catch(function(){});
+    addPassXP(50, 'quest_complete').catch(function(){});
+    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(){});
+    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(){});
 
     // Celebration modal
     var modal = makeModal();
@@ -22351,7 +19488,7 @@ async function gp_load() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
     }).catch(function(e) { dbg('GP auto-check failed:', e); });
-  }).catch(function(e){ dbg('upsert error:', e); });
+  }).catch(function(){});
 
   try {
     // Fetch current event — RPC first, fallback to direct query if RPC missing
@@ -22591,7 +19728,7 @@ async function gp_enter() {
     if (result && result.success === false) throw new Error(result.error || 'Failed');
 
     updateAllPoints((currentPoints||0) - 100);
-    addPassXP(25, 'grand_prix_entry').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(25, 'grand_prix_entry').catch(function(){});
     updateBingoProgress('enter_grand_prix', 1);
     showToast('🏁 Entered the Grand Prix! Train your pet to boost your score!', 5000);
     gp_load();
@@ -22753,10 +19890,10 @@ async function gp_train(trainingType) {
       var upd = {};
       if (t.energyCost > 0 || t.energyGain > 0) upd.energy = petState[petId].energy;
       if (t.happinessCost > 0) upd.happiness = petState[petId].happiness;
-      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(e){ dbg('upsert error:', e); });
+      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(){});
     }
 
-    addPassXP(10, 'grand_prix_training').catch(function(e){ dbg('upsert error:', e); });
+    addPassXP(10, 'grand_prix_training').catch(function(){});
     updateBingoProgress('train_grand_prix', 1);
     showToast('🎯 Training complete! +' + addedBonus + ' race score! (' + (currentBonus + addedBonus) + '/15)', 3000);
     gp_load();
@@ -22914,7 +20051,7 @@ async function simulateGrandPrix(eventId) {
       await supabaseClient.from('grand_prix_replays').upsert({
         event_id: eventId, user_id: te.user_id,
         replay_text: text, finish_time_ms: finishMs, rank: trnk
-      }, { onConflict: 'event_id,user_id' }).catch(function(e){ dbg('upsert error:', e); });
+      }, { onConflict: 'event_id,user_id' }).catch(function(){});
     }
 
     // Mark event complete
@@ -22931,7 +20068,7 @@ async function simulateGrandPrix(eventId) {
         '🏁 Grand Prix Results Ready!',
         uname + ' placed #' + ne._rank + '! Claim your rewards now!',
         'tab:racing'
-      ).catch(function(e){ dbg('upsert error:', e); });
+      ).catch(function(){});
     });
 
     showToast('🏆 Grand Prix simulation complete! ' + entries.length + ' entries ranked.', 5000);
@@ -22972,7 +20109,7 @@ async function gp_simulateMyScore() {
     await supabaseClient.from('grand_prix_replays').upsert({
       event_id: gpState.event.id, user_id: currentUser.id,
       replay_text: replay_text, finish_time_ms: finishMs, rank: 1
-    }, { onConflict: 'event_id,user_id' }).catch(function(e){ dbg('upsert error:', e); });
+    }, { onConflict: 'event_id,user_id' }).catch(function(){});
   }
 }
 
@@ -23016,13 +20153,13 @@ async function gp_claimRewards() {
       : 25;
 
     await awardPP(ppReward, 'grand_prix_reward');
-    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(e){ dbg('upsert error:', e); });
-    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(e){ dbg('upsert error:', e); });
+    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(){});
+    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(){});
 
     // Pass XP
-    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(e){ dbg('upsert error:', e); });
-    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(e){ dbg('upsert error:', e); });
-    else                 addPassXP(25, 'grand_prix_entry').catch(function(e){ dbg('upsert error:', e); });
+    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(){});
+    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(){});
+    else                 addPassXP(25, 'grand_prix_entry').catch(function(){});
 
     // Bingo
     updateBingoProgress('grand_prix_top_10', rank <= 10 ? 1 : 0);
@@ -23036,13 +20173,13 @@ async function gp_claimRewards() {
     await supabaseClient.from('grand_prix_leaderboard').upsert({
       user_id: currentUser.id, week_number: ev.week_number, year: ev.year,
       rank: rank, pet_level: (petState[entry.pet_id]||{}).level || 1
-    }, { onConflict: 'user_id,week_number,year' }).catch(function(e){ dbg('upsert error:', e); });
+    }, { onConflict: 'user_id,week_number,year' }).catch(function(){});
 
     showToast('🎉 Grand Prix rewards claimed! +' + ppReward + ' PP!', 5000);
     createNotification(
       currentUser.id, 'grand_prix_claimed', '🏆 Grand Prix Rewards Claimed!',
       'You placed #' + rank + ' and earned ' + ppReward + ' PP!', 'tab:racing'
-    ).catch(function(e){ dbg('upsert error:', e); });
+    ).catch(function(){});
     gp_load();
   } catch(err) {
     showToast('Failed: ' + err.message, 3000);
@@ -23189,7 +20326,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: cookieRes.data.id, quantity: 3 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
+        ).catch(function(){});
         streakBonusItem = '3x Honey Cookies';
       }
     } else if (streak === 5) {
@@ -23208,7 +20345,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: faerieRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
+        ).catch(function(){});
         streakBonusItem = '1x Faerie Dust Delight';
       }
       var kr2 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23221,7 +20358,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: toyRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
+        ).catch(function(){});
         streakBonusItem = '1x Squeaky Toy';
       }
       var kr3 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23234,7 +20371,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: crownRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(e){ dbg('upsert error:', e); });
+        ).catch(function(){});
         streakBonusItem = '1x Golden Crown Roast';
       }
       var kr4 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23274,9 +20411,9 @@ async function checkDailyLogin() {
     dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
 
     // Apply furniture room happiness bonuses (non-blocking)
-    furniture_applyDailyBonus().catch(function(e){ dbg('upsert error:', e); });
+    furniture_applyDailyBonus().catch(function(){});
     // Load guild perks (non-blocking)
-    loadActiveGuildPerks().catch(function(e){ dbg('upsert error:', e); });
+    loadActiveGuildPerks().catch(function(){});
 
   } catch (err) {
     console.error('[DailyLogin] Error:', err);
@@ -23779,7 +20916,7 @@ sendFriendRequest = async function() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error sending friend request:', err);
   }
 };
@@ -23825,7 +20962,7 @@ acceptFriendRequest = async function(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + escapeHtml(err.message));
+    showToast('Error: ' + err.message);
     console.error('Error accepting friend request:', err);
   }
 };
@@ -23885,7 +21022,7 @@ postGuestbookMessage = async function() {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error posting message: ' + escapeHtml(err.message));
+    showToast('Error posting message: ' + err.message);
     console.error('Error posting guestbook message:', err);
   }
 };
@@ -24803,27 +21940,27 @@ async function grantReferralMilestone(userId, newCount) {
 
   // Award badge
   if (milestone.badge) {
-    await awardBadge(milestone.badge).catch(function(e){ dbg('upsert error:', e); });
+    await awardBadge(milestone.badge).catch(function(){});
   }
 
   // Award player title
   if (milestone.title) {
-    await awardPlayerTitle(milestone.title, userId).catch(function(e){ dbg('upsert error:', e); });
+    await awardPlayerTitle(milestone.title, userId).catch(function(){});
   }
 
   // Award skin keys
   if (milestone.skinKeys > 0) {
-    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(e){ dbg('upsert error:', e); });
+    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
   }
 
   // Unlock cosmetic frame
   if (milestone.frame) {
-    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(e){ dbg('upsert error:', e); });
+    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(){});
   }
 
   // Bonus PP for milestone
   var bonusPP = newCount * 10; // 10 PP per referral as milestone bonus
-  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(e){ dbg('upsert error:', e); });
+  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(){});
 
   // Show celebration if it's the current user
   if (currentUser && currentUser.id === userId) {
@@ -25164,9 +22301,6 @@ function shareBattleVictoryToBluesky(enemyName) {
 // ══════════════════════════════════════════════════════════════
 
 var currentCategoryId = null;
-var forumPage = 0;           // current page (0-indexed)
-var forumPageSize = 20;      // threads per page
-var forumHasMore = false;    // whether more pages exist
 var currentThreadId = null;
 var isModerator = false;
 
@@ -25284,7 +22418,7 @@ async function loadForumCategories() {
     dbg('✅ Forum categories displayed successfully!');
   } catch (err) {
     console.error('❌ Exception in loadForumCategories:', err);
-    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + escapeHtml(err.message) + '</p></div>';
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + err.message + '</p></div>';
   }
 }
 
@@ -25305,7 +22439,6 @@ async function showForumCategory(categoryId, categoryName) {
  * Load threads in category
  */
 async function loadForumThreads(categoryId) {
-  if (categoryId !== currentCategoryId) forumPage = 0; // reset on category change
   var list = el('forum-threads-list');
   list.innerHTML = '<div class="spinner"></div>';
   
@@ -25323,29 +22456,25 @@ async function loadForumThreads(categoryId) {
     }
   }
   
-  var offset = forumPage * forumPageSize;
   var { data: threads, error } = await supabaseClient
     .from('forum_threads')
     .select('*, players!forum_threads_author_id_fkey(username)')
     .eq('category_id', categoryId)
     .order('is_pinned', { ascending: false })
     .order('last_reply_at', { ascending: false })
-    .range(offset, offset + forumPageSize);  // fetch one extra to detect more
+    .limit(50);
   
   if (error) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading threads</p></div>';
     return;
   }
   
-  forumHasMore = threads.length > forumPageSize;
-  if (forumHasMore) threads = threads.slice(0, forumPageSize); // trim the extra
-  
-  if (forumPage === 0 && threads.length === 0) {
+  if (threads.length === 0) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📝</div><p>No threads yet. Be the first to post!</p></div>';
     return;
   }
   
-  if (forumPage === 0) list.innerHTML = '';
+  list.innerHTML = '';
   
   for (var i = 0; i < threads.length; i++) {
     var thread = threads[i];
@@ -25385,21 +22514,6 @@ async function loadForumThreads(categoryId) {
     `;
     
     list.appendChild(row);
-  }
-
-  // Load More button
-  if (forumHasMore) {
-    var loadMoreBtn = document.createElement('button');
-    loadMoreBtn.className = 'btn btn-outline forum-load-more';
-    loadMoreBtn.style.cssText = 'width:100%;margin-top:12px;padding:12px;font-size:0.9rem;';
-    loadMoreBtn.textContent = '⬇️ Load More Threads';
-    loadMoreBtn.onclick = function() {
-      forumPage++;
-      loadMoreBtn.textContent = 'Loading...';
-      loadMoreBtn.disabled = true;
-      loadForumThreads(currentCategoryId);
-    };
-    list.appendChild(loadMoreBtn);
   }
 }
 
@@ -27827,7 +24941,7 @@ var AD_POOL = [
     btn: '✨ CLAIM NOW — FREE!!',
     fine: '* One per ad. While supplies last. Melon Interactive not responsible for emotional attachment.',
     outcome: function() {
-      awardPP(25, 'adpocalypse_ad').catch(function(e){ dbg('upsert error:', e); });
+      awardPP(25, 'adpocalypse_ad').catch(function(){});
       showToast('🎉 You got 25 free PP from an ad! Melon is feeling generous.', 4000);
     },
     weight: 25,
@@ -27890,7 +25004,7 @@ var AD_POOL = [
         var newHap = Math.max(0, (p.happiness || 0) - 10);
         petState[pid].happiness = newHap;
         updateBar(pid, 'happiness', newHap, p.max_happiness || 100);
-        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(e){ dbg('upsert error:', e); });
+        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(){});
       });
       showToast('😢 The guilt ad worked. All your pets lost 10 happiness.', 5000);
     },
@@ -27921,7 +25035,7 @@ var AD_POOL = [
       showToast('...noted. please continue playing.', 5000);
       // Subtle: slightly nudge corruption
       if (typeof nudgeWorldState === 'function') {
-        nudgeWorldState('corruption_level', 0.5).catch(function(e){ dbg('upsert error:', e); });
+        nudgeWorldState('corruption_level', 0.5).catch(function(){});
       }
     },
     weight: 10,
@@ -28245,7 +25359,7 @@ async function melonRequests_complete(requestId, reward) {
   _melonRequestsCompleted[requestId] = { completedAt: Date.now(), reward: reward };
   try { localStorage.setItem(savedKey, JSON.stringify(_melonRequestsCompleted)); } catch(e){}
   
-  await awardPP(reward, 'melon_request').catch(function(e){ dbg('upsert error:', e); });
+  await awardPP(reward, 'melon_request').catch(function(){});
   showToast('🍉 Melon\'s Request complete! +' + reward + ' PP', 4000);
   showMelonMessage('Thank you! That really helps. Here\'s ' + reward + ' PP. 🍉', { displayMs: 6000 });
   melonRequests_renderWidget('melon-requests-mount');
@@ -28310,7 +25424,7 @@ var weatherSystem = {
     this.currentDate = new Date().toISOString().slice(0, 10);
     // Fire-and-forget warm-up so getWorldStateValueSync() below has a
     // better chance of a fresh value by the time generateWeather() runs
-    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(e){ dbg('upsert error:', e); });
+    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(){});
     // Try DB first, fall back to localStorage, then generate
     var loaded = await this.loadFromDailyFeatures();
     if (!loaded) {
@@ -28322,7 +25436,7 @@ var weatherSystem = {
     }
     if (!loaded || !this.currentWeather) {
       this.generateWeather();
-      this.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
+      this.syncToDailyFeatures().catch(function(){});
     }
     this.applyWeather();
     this.startRotationChecker();
@@ -28468,7 +25582,7 @@ var weatherSystem = {
 
       if (dateChanged || rotationDue) {
         self.generateWeather();
-        self.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
+        self.syncToDailyFeatures().catch(function(){});
       }
     }, 60000); // check every minute, but only acts when a rotation window has actually elapsed
   },
@@ -28530,7 +25644,7 @@ var weatherSystem = {
       localStorage.setItem('currentWeather', JSON.stringify(weather));
       localStorage.setItem('weatherSetAt', Date.now().toString());
       this.applyWeather();
-      this.syncToDailyFeatures().catch(function(e){ dbg('upsert error:', e); });
+      this.syncToDailyFeatures().catch(function(){});
     }
   }
 };
@@ -29551,7 +26665,7 @@ function applySettings() {
     // Resume music if available
     if (typeof bgMusic !== 'undefined' && bgMusic) {
       bgMusic.volume = playerSettings.music_volume / 100;
-      bgMusic.play().catch(function(e){ dbg('upsert error:', e); }); // Ignore autoplay errors
+      bgMusic.play().catch(function(){}); // Ignore autoplay errors
     }
   } else {
     // Pause music
@@ -30312,7 +27426,7 @@ function generateDailyBingo() {
 }
 
 // Save bingo to localStorage
-async function saveDailyBingo() {
+function saveDailyBingo() {
   localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo));
   // Also persist to DB so progress survives localStorage clears
   if (currentUser) {
@@ -30361,7 +27475,7 @@ async function updateBingoProgress(taskType, amount) {
       
       // Award points — use awardPP which has its own fallback, not award_pp_secure directly
       updateAllPoints(currentPoints + square.rewardPoints);
-      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(e){ dbg('upsert error:', e); });
+      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(){});
       
       // Award Pass XP
       await addPassXP(15, 'bingo_square');
@@ -30622,18 +27736,17 @@ function onPetLevelUp(petId) {
 // Hook for adoption - call this when adopting a pet
 function onPetAdopted(petId) {
   updateBingoProgress('adopt_pet', 1);
-  trackDailyStat('pets_adopted').catch(function(e){ dbg('upsert error:', e); });
+  trackDailyStat('pets_adopted').catch(function(){});
 }
 
 // Hook for minigame completion
 function onMinigameComplete(baseReward) {
   updateBingoProgress('complete_minigame', 1);
-  if (typeof addPassXP === 'function') addPassXP(5, 'minigame').catch(function(e){ dbg('upsert error:', e); });
   // Minigame Monday: award bonus PP on top of what the minigame already paid
   var bonus = getCalendarBonus('minigame_pp');
   if (bonus > 1 && baseReward > 0) {
     var extra = Math.floor(baseReward * (bonus - 1));
-    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(e){ dbg('upsert error:', e); });
+    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(){});
     showToast('🎮 Minigame Monday! +' + extra + ' bonus PP!', 3000);
   }
 }
@@ -31507,8 +28620,169 @@ function community_init() {
 // MOBILE-ONLY MENU SYSTEM (DESKTOP COMPLETELY UNTOUCHED)
 // ════════════════════════════════════════════════════════════════════════════
 
-
-// Mobile menu is handled by the DOMContentLoaded listener above (mobile-nav-menu system)
+(function() {
+  // CRITICAL: Only run on mobile devices
+  function isMobile() {
+    return window.innerWidth <= 768;
+  }
+  
+  // Exit immediately if desktop
+  if (!isMobile()) {
+    dbg('Desktop mode - mobile menu disabled');
+    return;
+  }
+  
+  dbg('Mobile mode - initializing mobile menu');
+  
+  // Initialize mobile menu on DOM ready
+  function initMobileMenu() {
+    // Exit if already initialized
+    if (document.getElementById('mobile-menu')) {
+      return;
+    }
+    
+    // Create hamburger button
+    var hamburger = document.createElement('button');
+    hamburger.id = 'hamburger-btn';
+    hamburger.className = 'hamburger-btn';
+    hamburger.innerHTML = '☰';
+    hamburger.setAttribute('aria-label', 'Open menu');
+    document.body.appendChild(hamburger);
+    
+    // Create overlay
+    var overlay = document.createElement('div');
+    overlay.id = 'mobile-overlay';
+    overlay.className = 'mobile-overlay';
+    document.body.appendChild(overlay);
+    
+    // Create mobile menu
+    var menu = document.createElement('div');
+    menu.id = 'mobile-menu';
+    menu.className = 'mobile-menu';
+    
+    // Menu items
+    var menuItems = [
+      { icon: '🏠', text: 'Home', tab: 'home' },
+      { icon: '🐾', text: 'My Pets', tab: 'mypets' },
+      { icon: '🐣', text: 'Adopt', tab: 'adopt' },
+      { icon: '⚔️', text: 'Battle', tab: 'battle' },
+      { icon: '🛒', text: 'Shop', tab: 'shop' },
+      { icon: '🎯', text: 'Pass', action: 'showPassModal' },
+      { icon: '🎲', text: 'Bingo', action: 'showBingoModal' },
+      { icon: '🌍', text: 'Community', tab: 'community-goals' },
+      { icon: '📊', text: 'Statistics', tab: 'statistics' },
+      { icon: '👤', text: 'Profile', tab: 'profile' },
+      { icon: '🚪', text: 'Logout', action: 'logout' }
+    ];
+    
+    menuItems.forEach(function(item) {
+      var menuItem = document.createElement('div');
+      menuItem.className = 'mobile-menu-item mobile-nav-item';
+      menuItem.innerHTML = '<span class="mobile-nav-icon">' + item.icon + '</span>' +
+                           '<span class="mobile-nav-text mobile-menu-text">' + item.text + '</span>';
+      
+      menuItem.addEventListener('click', function() {
+        if (item.tab) {
+          if (typeof showTab === 'function') {
+            showTab(item.tab);
+          }
+        } else if (item.action === 'showPassModal') {
+          if (typeof showPassModal === 'function') {
+            showPassModal();
+          }
+        } else if (item.action === 'showBingoModal') {
+          if (typeof showBingoModal === 'function') {
+            showBingoModal();
+          }
+        } else if (item.action === 'logout') {
+          if (typeof logout === 'function') {
+            logout();
+          }
+        }
+        
+        // Close menu after selection
+        closeMobileMenu();
+      });
+      
+      menu.appendChild(menuItem);
+    });
+    
+    document.body.appendChild(menu);
+    
+    // Toggle menu function
+    function toggleMobileMenu() {
+      var isActive = menu.classList.contains('active');
+      if (isActive) {
+        closeMobileMenu();
+      } else {
+        openMobileMenu();
+      }
+    }
+    
+    function openMobileMenu() {
+      menu.classList.add('active');
+      overlay.classList.add('active');
+      hamburger.innerHTML = '✕';
+      document.body.style.overflow = 'hidden';
+    }
+    
+    function closeMobileMenu() {
+      menu.classList.remove('active');
+      overlay.classList.remove('active');
+      hamburger.innerHTML = '☰';
+      document.body.style.overflow = '';
+    }
+    
+    // Event listeners
+    hamburger.addEventListener('click', toggleMobileMenu);
+    overlay.addEventListener('click', closeMobileMenu);
+    
+    // Close menu on escape key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && menu.classList.contains('active')) {
+        closeMobileMenu();
+      }
+    });
+    
+    dbg('Mobile menu initialized');
+  }
+  
+  // Initialize when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileMenu);
+  } else {
+    initMobileMenu();
+  }
+  
+  // Handle window resize - reinitialize or cleanup
+  // Store reference so it can be removed if needed (prevent duplicate listeners)
+  if (window._mobileResizeHandler) {
+    window.removeEventListener('resize', window._mobileResizeHandler);
+  }
+  window._mobileResizeHandler = function() {
+    if (!isMobile()) {
+      // Desktop mode - remove mobile elements
+      var menu = document.getElementById('mobile-menu');
+      var hamburger = document.getElementById('hamburger-menu-btn');
+      var overlay = document.getElementById('mobile-overlay');
+      
+      if (menu) menu.style.display = 'none';
+      // Only hide/show via JS on mobile — CSS handles desktop hiding
+      if (hamburger && window.innerWidth <= 768) hamburger.style.display = 'none';
+      if (overlay) overlay.style.display = 'none';
+      document.body.style.overflow = '';
+    } else {
+      // Mobile mode - ensure elements visible
+      var menu = document.getElementById('mobile-menu');
+      var hamburger = document.getElementById('hamburger-menu-btn');
+      
+      if (menu) menu.style.display = '';
+      if (hamburger && window.innerWidth <= 768) hamburger.style.display = '';
+    }
+  };
+  window.addEventListener('resize', window._mobileResizeHandler);
+  
+})();
 
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -31576,7 +28850,7 @@ async function newFeatures_init() {
           }
           // After 48h absence, add a quiet scrapbook memory
           if (hoursGone >= 48 && p.id) {
-            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(e){ dbg('upsert error:', e); });
+            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(){});
           }
         });
         if (missedPets.length > 0) {
@@ -33760,8 +31034,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(e){ dbg('upsert error:', e); });
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(e){ dbg('upsert error:', e); });
+  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(){});
+  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(){});
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -34938,419 +32212,6 @@ dbg('✅ Gifting & Polls systems loaded');
 // ═══════════════════════════════════════════════════════════════════════════
 // GRAND PRIX ADMIN PANEL
 // Only accessible to admin UUID — checked at start of every function
-
-
-// ══ ADDITIONAL FEATURES (added this session) ══
-
-function showRareCelebration(data) {
-  var color = data.color || RARITY_COLORS[data.rarity] || '#9966ff';
-  var rarityLabel = data.rarity ? data.rarity.toUpperCase() + '!' : 'UNLOCKED!';
-
-  // Remove any existing celebration
-  var existing = document.getElementById('rare-celebration-modal');
-  if (existing) existing.remove();
-
-  var modal = document.createElement('div');
-  modal.id = 'rare-celebration-modal';
-  modal.style.cssText = [
-    'position:fixed', 'top:50%', 'left:50%',
-    'transform:translate(-50%,-52%) scale(0.85)',
-    'z-index:9800',
-    'background:var(--white)',
-    'border:3px solid ' + color,
-    'border-radius:24px',
-    'padding:28px 32px 24px',
-    'text-align:center',
-    'min-width:300px',
-    'max-width:420px',
-    'width:90vw',
-    'box-shadow:0 12px 48px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.1)',
-    'opacity:0',
-    'transition:transform 0.35s cubic-bezier(0.34,1.56,0.64,1),opacity 0.25s ease'
-  ].join(';');
-
-  var shareText = data.shareText ||
-    'I just got a ' + data.rarity + ' moment in PawketPetsVT! ' + (data.icon || '✨') +
-    ' ' + data.title + ' — ' + data.subtitle + ' 🐾 #PawketPetsVT';
-
-  modal.innerHTML =
-    '<button onclick="rareCelebrationDismiss()" style="position:absolute;top:10px;right:14px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--text-light);">✕</button>' +
-    // Rarity badge
-    '<div style="display:inline-block;background:' + color + '22;color:' + color + ';border:2px solid ' + color + ';border-radius:20px;padding:3px 14px;font-size:0.7rem;font-weight:800;letter-spacing:2px;margin-bottom:12px;">' + rarityLabel + '</div>' +
-    // Main icon
-    '<div style="font-size:3.5rem;line-height:1;margin-bottom:8px;" id="rare-cel-icon">' + (data.icon || '✨') + '</div>' +
-    // Title
-    '<div style="font-size:1.3rem;font-weight:800;color:var(--purple-dark);margin-bottom:4px;">' + escapeHtml(data.title) + '</div>' +
-    // Subtitle
-    '<div style="font-size:0.9rem;color:' + color + ';font-weight:600;margin-bottom:16px;">' + escapeHtml(data.subtitle) + '</div>' +
-    // Share buttons
-    '<div style="margin-bottom:6px;">' +
-      '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:6px;">Share for <strong style=\"color:#5dde7a;\">+100 PP</strong> + <strong style=\"color:#9966ff;\">+10 Pass XP</strong></div>' +
-      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">' +
-        '<button class="btn-social-mini btn-twitter" onclick="shareToTwitter(' + JSON.stringify(shareText) + ', true)" style="font-size:0.78rem;padding:6px 14px;">🐦 Tweet</button>' +
-        '<button class="btn-social-mini btn-bluesky" onclick="shareToBluesky(' + JSON.stringify(shareText) + ', true)" style="font-size:0.78rem;padding:6px 14px;">🦋 Post</button>' +
-      '</div>' +
-    '</div>' +
-    '<button class="btn btn-outline btn-sm" onclick="rareCelebrationDismiss()" style="width:100%;font-size:0.82rem;">Continue</button>';
-
-  document.body.appendChild(modal);
-
-  // Animate in
-  requestAnimationFrame(function() {
-    modal.style.opacity = '1';
-    modal.style.transform = 'translate(-50%,-50%) scale(1)';
-  });
-
-  // Confetti burst
-  if (data.rarity === 'legendary' || data.rarity === 'epic') {
-    if (typeof startConfetti === 'function') {
-      startConfetti();
-      setTimeout(function() { if (typeof stopConfetti === 'function') stopConfetti(); }, 2500);
-    }
-  }
-
-  // Auto-dismiss after 15s
-  modal._autoDismiss = setTimeout(rareCelebrationDismiss, 15000);
-}
-
-
-
-function rareCelebrationDismiss() {
-  var modal = document.getElementById('rare-celebration-modal');
-  if (!modal) return;
-  if (modal._autoDismiss) clearTimeout(modal._autoDismiss);
-  modal.style.opacity = '0';
-  modal.style.transform = 'translate(-50%,-50%) scale(0.9)';
-  setTimeout(function() { if (modal.parentNode) modal.parentNode.removeChild(modal); }, 300);
-}
-
-
-async function renderDailyShop(allItems) {
-  var mount = document.getElementById('daily-shop-mount');
-  if (!mount) return;
-
-  var seed = getDailyShopSeed();
-  var boughtIds = getDailyBoughtItems();
-
-  // Build category pools from all available items
-  var foodItems  = allItems.filter(function(i) { return i.food_category || (i.tags && i.tags.includes('food')); });
-  var equipItems = allItems.filter(function(i) { return i.equipment_type || (i.tags && i.tags.includes('equipment')); });
-  var miscItems  = allItems.filter(function(i) { return !i.food_category && !i.equipment_type && i.price > 0; });
-
-  // Seed-shuffle each pool and pick slots
-  var daily = [];
-  var shuffledFood  = seededShuffle(foodItems, seed);
-  var shuffledEquip = seededShuffle(equipItems, seed + 1);
-  var shuffledMisc  = seededShuffle(miscItems, seed + 2);
-  var shuffledAll   = seededShuffle(allItems, seed + 3);
-
-  if (shuffledFood[0])  daily.push({ item: shuffledFood[0],  slot: 'food'      });
-  if (shuffledFood[1])  daily.push({ item: shuffledFood[1],  slot: 'food'      });
-  if (shuffledEquip[0]) daily.push({ item: shuffledEquip[0], slot: 'equipment' });
-  if (shuffledMisc[0])  daily.push({ item: shuffledMisc[0],  slot: 'misc'      });
-  // Wildcard: any item not already picked
-  var pickedIds = daily.map(function(d) { return d.item.id; });
-  var wildcard = shuffledAll.find(function(i) { return pickedIds.indexOf(i.id) === -1; });
-  if (wildcard) daily.push({ item: wildcard, slot: 'wildcard' });
-
-  if (daily.length === 0) { mount.innerHTML = ''; return; }
-
-  var DISCOUNT = 0.85; // 15% off
-
-  var html =
-    '<div style="background:linear-gradient(135deg,rgba(255,140,0,0.08),rgba(255,200,0,0.05));' +
-    'border:2px solid rgba(255,165,0,0.3);border-radius:16px;padding:14px 16px;margin-bottom:20px;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-        '<div>' +
-          '<span style="font-size:0.9rem;font-weight:800;color:#e8a000;">🌟 Daily Deals</span>' +
-          '<span style="font-size:0.72rem;color:var(--text-light);margin-left:8px;">15% off — same for everyone today</span>' +
-        '</div>' +
-        '<div style="font-size:0.7rem;color:var(--text-light);text-align:right;">' +
-          'Resets in <span id="daily-shop-countdown" style="color:#e8a000;font-weight:700;">--:--:--</span>' +
-        '</div>' +
-      '</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;">' +
-        daily.map(function(d) {
-          var item     = d.item;
-          var fullPrice = item.price || 0;
-          var salePrice = Math.max(1, Math.round(fullPrice * DISCOUNT));
-          var isBought  = boughtIds.indexOf(item.id) !== -1;
-          var icon      = item.emoji || item.icon || '📦';
-          return '<div style="background:var(--white);border:2px solid ' + (isBought ? '#ccc' : 'rgba(255,165,0,0.4)') + ';' +
-            'border-radius:12px;padding:10px;text-align:center;position:relative;opacity:' + (isBought ? '0.6' : '1') + ';">' +
-            '<div style="position:absolute;top:-8px;left:50%;transform:translateX(-50%);' +
-            'background:#e8a000;color:#fff;border-radius:10px;padding:1px 8px;font-size:0.6rem;font-weight:800;">DAILY</div>' +
-            '<div style="font-size:1.6rem;margin:6px 0 4px;">' + icon + '</div>' +
-            '<div style="font-size:0.72rem;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.3;">' + escapeHtml(item.name) + '</div>' +
-            '<div style="font-size:0.68rem;margin-bottom:6px;">' +
-              '<span style="text-decoration:line-through;color:#aaa;">' + fullPrice + ' PP</span> ' +
-              '<span style="color:#e8a000;font-weight:800;">' + salePrice + ' PP</span>' +
-            '</div>' +
-            '<button class="btn btn-sm" onclick="buyDailyItem(' + JSON.stringify(item.id) + ',' + salePrice + ',this)" ' +
-            'style="width:100%;font-size:0.72rem;padding:4px 6px;' + (isBought ? 'background:#eee;color:#999;' : 'background:linear-gradient(135deg,#e8a000,#ffcc00);color:#fff;border:none;') + '"' +
-            (isBought ? ' disabled' : '') + '>' +
-            (isBought ? '✓ Bought' : 'Buy') +
-            '</button>' +
-          '</div>';
-        }).join('') +
-      '</div>' +
-    '</div>';
-
-  mount.innerHTML = html;
-
-  // Start countdown ticker
-  clearInterval(window._dailyCountdownInterval);
-  window._dailyCountdownInterval = setInterval(function() {
-    var el = document.getElementById('daily-shop-countdown');
-    if (el) el.textContent = getDailyShopCountdown();
-    else clearInterval(window._dailyCountdownInterval);
-  }, 1000);
-}
-
-
-
-async function buyDailyItem(itemId, salePrice, btn) {
-  if (!currentUser) return;
-  var boughtIds = getDailyBoughtItems();
-  if (boughtIds.indexOf(itemId) !== -1) {
-    showToast('Already bought this daily deal today!', 3000);
-    return;
-  }
-  if (currentPoints < salePrice) {
-    showToast('Not enough PP! Need ' + salePrice + ' PP.', 3000);
-    return;
-  }
-  if (btn) { btn.disabled = true; btn.textContent = 'Buying...'; }
-
-  // Deduct PP
-  var ppRes = await supabaseClient.rpc('award_pp_secure', {
-    p_amount: -salePrice, p_reason: 'daily_shop'
-  }).catch(function(){ return null; });
-
-  if (!ppRes || ppRes.error) {
-    showToast('Purchase failed — try again.', 3000);
-    if (btn) { btn.disabled = false; btn.textContent = 'Buy'; }
-    return;
-  }
-  updateAllPoints(ppRes.data);
-
-  // Add to inventory
-  var invRes = await supabaseClient.from('user_inventory').upsert(
-    { user_id: currentUser.id, item_id: itemId, quantity: 1 },
-    { onConflict: 'user_id,item_id' }
-  ).catch(function(){ return null; });
-
-  markDailyItemBought(itemId);
-  showToast('✅ Daily deal purchased! Check your inventory.', 4000);
-  updateBingoProgress('purchase_item', 1);
-  addPassXP(3, 'shop').catch(function(e){ dbg('upsert error:', e); });
-
-  if (btn) { btn.textContent = '✓ Bought'; btn.style.background = '#eee'; btn.style.color = '#999'; }
-}
-
-
-
-function renderReferralWidget(mountId) {
-  var mount = document.getElementById(mountId);
-  if (!mount || !currentUser || !currentUsername) return;
-
-  var refLink = 'https://pawketpets.net?ref=' + encodeURIComponent(currentUsername);
-  var count   = 0; // pulled from DB on render
-
-  supabaseClient.from('players').select('referral_count').eq('id', currentUser.id).single()
-    .then(function(res) {
-      count = (res.data && res.data.referral_count) || 0;
-
-      // Find next unclaimed tier
-      var nextTier = REFERRAL_TIERS.find(function(t) { return t.count > count; });
-
-      var html =
-        '<div style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.2);border-radius:14px;padding:14px 16px;">' +
-          '<div style="font-size:0.82rem;font-weight:700;color:var(--purple-dark);margin-bottom:8px;">🌟 Refer a Friend</div>' +
-          '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;">Share your link — earn PP, Skin Keys, and exclusive titles!</div>' +
-          // Referral link box
-          '<div style="display:flex;gap:6px;margin-bottom:10px;">' +
-            '<input readonly value="' + escapeHtml(refLink) + '" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:0.72rem;background:var(--bg);color:var(--text);min-width:0;" id="referral-link-input" />' +
-            '<button class="btn btn-outline btn-sm" onclick="referralCopyLink()" style="flex-shrink:0;font-size:0.72rem;padding:6px 10px;">📋 Copy</button>' +
-          '</div>' +
-          // Count
-          '<div style="font-size:0.78rem;margin-bottom:8px;">Referrals so far: <strong style="color:var(--purple);">' + count + '</strong>' +
-            (nextTier ? ' <span style="color:var(--text-light);">(' + (nextTier.count - count) + ' more for next reward)</span>' : ' <span style="color:#ffd700;">✨ All tiers claimed!</span>') +
-          '</div>' +
-          // Tier list
-          '<div style="display:grid;gap:4px;">' +
-            REFERRAL_TIERS.map(function(t) {
-              var done = count >= t.count;
-              return '<div style="display:flex;align-items:center;gap:8px;font-size:0.72rem;opacity:' + (done ? '1' : '0.55') + ';">' +
-                '<span>' + (done ? '✅' : '⬜') + '</span>' +
-                '<span style="color:' + (done ? 'var(--purple)' : 'var(--text)') + ';font-weight:' + (done ? '700' : '400') + ';">' +
-                  t.count + ' referral' + (t.count > 1 ? 's' : '') + ' — ' + t.pp + ' PP' +
-                  (t.skinKeys > 0 ? ' + ' + t.skinKeys + ' Skin Key' + (t.skinKeys > 1 ? 's' : '') : '') +
-                  (t.title ? ' + <em>' + t.title.replace(/_/g,' ') + '</em> title' : '') +
-                '</span>' +
-              '</div>';
-            }).join('') +
-          '</div>' +
-        '</div>';
-
-      mount.innerHTML = html;
-    }).catch(function(e){ dbg('upsert error:', e); });
-}
-
-
-
-async function toggleNotificationDropdown() {
-  var dropdown = document.getElementById('notification-dropdown');
-  if (!dropdown) {
-    // Create dropdown dynamically
-    dropdown = document.createElement('div');
-    dropdown.id = 'notification-dropdown';
-    dropdown.style.cssText = [
-      'position:fixed','top:52px','right:120px',
-      'width:320px','max-height:420px',
-      'background:var(--white)','border-radius:16px',
-      'box-shadow:0 8px 32px rgba(0,0,0,0.18)',
-      'border:1px solid rgba(153,102,255,0.2)',
-      'z-index:8000','overflow:hidden',
-      'display:flex','flex-direction:column'
-    ].join(';');
-    document.body.appendChild(dropdown);
-    // Close on outside click
-    setTimeout(function() {
-      document.addEventListener('click', function closeDD(e) {
-        if (!dropdown.contains(e.target) && e.target.id !== 'notification-bell') {
-          dropdown.remove();
-          document.removeEventListener('click', closeDD);
-        }
-      });
-    }, 10);
-  } else {
-    dropdown.remove();
-    return;
-  }
-
-  dropdown.innerHTML = '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.1);display:flex;justify-content:space-between;align-items:center;">' +
-    '<span style="font-weight:700;color:var(--purple-dark);">🔔 Notifications</span>' +
-    '<button onclick="markAllNotificationsRead()" style="background:none;border:none;font-size:0.72rem;color:var(--purple);cursor:pointer;">Mark all read</button>' +
-  '</div>' +
-  '<div id="notification-list" style="overflow-y:auto;flex:1;"><div style="padding:20px;text-align:center;color:var(--text-light);">Loading...</div></div>';
-
-  // Load notifications
-  try {
-    var res = await supabaseClient
-      .from('user_notifications')
-      .select('*')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false })
-      .limit(20);
-
-    var list = document.getElementById('notification-list');
-    if (!list) return;
-
-    if (!res.data || res.data.length === 0) {
-      list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-light);">No notifications yet! 🌸</div>';
-      return;
-    }
-
-    // Set up click delegation for notification rows
-    list.addEventListener('click', function(e) {
-      var row = e.target.closest('[data-action]');
-      if (row) {
-        var action = row.getAttribute('data-action').replace('tab:', '');
-        showTab(action);
-        var dd = document.getElementById('notification-dropdown');
-        if (dd) dd.remove();
-      }
-    });
-
-    list.innerHTML = res.data.map(function(n) {
-      var timeAgo = notifTimeAgo(n.created_at);
-      return '<div style="padding:12px 16px;border-bottom:1px solid rgba(153,102,255,0.07);opacity:' + (n.is_read ? '0.6' : '1') + ';cursor:' + (n.action_tab ? 'pointer' : 'default') + ';transition:background 0.15s;" ' +
-        (n.action_tab ? (' data-action="' + n.action_tab + '"') : '') +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
-          '<div>' +
-            '<div style="font-size:0.82rem;font-weight:' + (n.is_read ? '400' : '700') + ';color:var(--text);margin-bottom:2px;">' + escapeHtml(n.title || '') + '</div>' +
-            '<div style="font-size:0.74rem;color:var(--text-light);line-height:1.4;">' + escapeHtml((n.message || '').substring(0, 100)) + '</div>' +
-          '</div>' +
-          '<div style="font-size:0.65rem;color:var(--text-light);white-space:nowrap;flex-shrink:0;">' + timeAgo + '</div>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    // Mark all as read
-    await supabaseClient
-      .from('user_notifications')
-      .update({ is_read: true })
-      .eq('user_id', currentUser.id)
-      .eq('is_read', false);
-    await updateNotificationBadge();
-  } catch(e) {
-    var list2 = document.getElementById('notification-list');
-    if (list2) list2.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-light);">Could not load notifications.</div>';
-  }
-}
-
-
-
-async function markAllNotificationsRead() {
-  if (!currentUser) return;
-  await supabaseClient.from('user_notifications').update({ is_read: true }).eq('user_id', currentUser.id);
-  await updateNotificationBadge();
-  var dropdown = document.getElementById('notification-dropdown');
-  if (dropdown) dropdown.remove();
-}
-
-
-
-function notifNavClick(el) {
-  var tab = el && el.getAttribute ? el.getAttribute('onclick') : null;
-  // Extract tab name from onclick string
-  var match = (el.outerHTML || '').match(/notifNavClick.*?'([^']+)'/);
-  // Simpler: use data approach — just close dropdown and navigate
-  var dropdown = document.getElementById('notification-dropdown');
-  if (dropdown) dropdown.remove();
-}
-
-
-
-function notifTimeAgo(isoStr) {
-  if (!isoStr) return '';
-  var diff = Date.now() - new Date(isoStr).getTime();
-  var mins = Math.floor(diff / 60000);
-  if (mins < 1)   return 'just now';
-  if (mins < 60)  return mins + 'm ago';
-  var hrs = Math.floor(mins / 60);
-  if (hrs < 24)   return hrs + 'h ago';
-  return Math.floor(hrs / 24) + 'd ago';
-}
-
-// ══════════════════════════════════════════════════════════════════════════
-// STATISTICS TAB
-// Shows personal stats + global community stats
-// ══════════════════════════════════════════════════════════════════════════
-
-
-var REFERRAL_TIERS = [
-  { count:1,  pp:100,  skinKeys:0, badge:'first_recruit',       title:null,              label:'First Recruit!' },
-  { count:3,  pp:200,  skinKeys:0, badge:'recruiter',           title:null,              label:'Recruiter' },
-  { count:5,  pp:300,  skinKeys:1, badge:'dedicated_recruiter', title:null,              label:'Dedicated Recruiter' },
-  { count:10, pp:500,  skinKeys:2, badge:'talent_scout',        title:'the_recruiter',   label:'Talent Scout' },
-  { count:25, pp:1000, skinKeys:3, badge:'legendary_recruiter', title:'the_legendary',   label:'Legend Maker' },
-];
-
-
-
-var SHARE_BADGE_THRESHOLDS = [
-  { count: 1,  badge: 'first_share',   title: null,              label: 'First Share!' },
-  { count: 5,  badge: 'word_spreader', title: null,              label: 'Word Spreader' },
-  { count: 10, badge: 'hype_machine',  title: 'the_broadcaster', label: 'Hype Machine' },
-  { count: 25, badge: 'viral_moment',  title: 'the_viral',       label: 'Viral Moment' },
-];
-
-
-
-
-
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function gp_adminRecalcScores() {
@@ -35384,7 +32245,7 @@ async function gp_adminRecalcScores() {
     updated++;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(){});
   restore();
   showToast('Recalculated scores for ' + updated + ' entries', 3000);
   await gp_adminRefresh();
@@ -35412,7 +32273,7 @@ async function gp_adminFixRankings() {
     prevScore = entries[i].race_score;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(){});
   showToast('Rankings fixed for ' + entries.length + ' entries', 3000);
   await gp_adminRefresh();
 }
@@ -35435,7 +32296,7 @@ async function gp_adminSetWinner(entryId, username) {
   // Give the winner a score high enough to justify rank 1
   await supabaseClient.from('grand_prix_entries').update({ final_rank: 1, race_score: 200 }).eq('id', entryId);
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(){});
   showToast(username + ' set as winner!', 3000);
   await gp_adminRefresh();
 }
@@ -35670,7 +32531,7 @@ async function gp_adminForceSimulate() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 3000); return; }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(){});
   await simulateGrandPrix(events[0].id);
   restore();
   await gp_adminRefresh();
@@ -35683,7 +32544,7 @@ async function gp_adminAdjustPrize(delta) {
   var ev = events[0];
   var newPool = Math.max(0, (ev.prize_pool||0) + delta);
   await supabaseClient.from('grand_prix_events').update({ prize_pool: newPool }).eq('id', ev.id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(){});
   showToast('Prize pool: ' + newPool.toLocaleString() + ' PP', 2000);
   await gp_adminRefresh();
 }
@@ -35696,7 +32557,7 @@ async function gp_adminSetPrize() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   await supabaseClient.from('grand_prix_events').update({ prize_pool: amount }).eq('id', events[0].id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(){});
   showToast('Prize pool set to ' + amount.toLocaleString() + ' PP', 2500);
   await gp_adminRefresh();
 }
@@ -35707,7 +32568,7 @@ async function gp_adminEditTraining(entryId, currentBonus) {
   if (input === null) return;
   var val = Math.min(15, Math.max(0, parseInt(input)||0));
   await supabaseClient.from('grand_prix_entries').update({ training_bonus: val }).eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(){});
   showToast('Training bonus updated to ' + val, 2000);
   await gp_adminRefresh();
 }
@@ -35716,7 +32577,7 @@ async function gp_adminRemoveEntry(entryId, username) {
   if (!await isAdmin()) return;
   if (!confirm('Remove entry for ' + username + '? This cannot be undone.')) return;
   await supabaseClient.from('grand_prix_entries').delete().eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(){});
   showToast('Entry removed', 2500);
   await gp_adminRefresh();
 }
@@ -35736,10 +32597,10 @@ async function gp_adminSendNotif() {
 
   var sent = 0;
   for (var i = 0; i < (targets||[]).length; i++) {
-    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(e){ dbg('upsert error:', e); });
+    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(){});
     sent++;
   }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(){});
   showToast('Sent to ' + sent + ' players', 3000);
 }
 
@@ -35767,7 +32628,7 @@ async function gp_adminCreateEvent() {
   });
 
   if (error) { showToast('Error: ' + error.message, 3500); return; }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(e){ dbg('upsert error:', e); });
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(){});
   showToast('Event created!', 3000);
   await gp_adminRefresh();
 }
@@ -36111,346 +32972,21 @@ async function adminUpdateReportStatus(reportId, newStatus) {
   } catch(err) { showToast('Failed: ' + err.message, 3000); }
 }
 
-
-// ══ REMAINING ADDITIONS ══
-
-function referralCopyLink() {
-  var inp = document.getElementById('referral-link-input');
-  if (!inp) return;
-  try {
-    navigator.clipboard.writeText(inp.value).then(function() {
-      showToast('📋 Referral link copied!', 3000);
-    }).catch(function() {
-      inp.select(); document.execCommand('copy');
-      showToast('📋 Referral link copied!', 3000);
-    });
-  } catch(e) {
-    inp.select(); document.execCommand('copy');
-    showToast('📋 Referral link copied!', 3000);
-  }
-}
-
-
-function getSocialShareCount() {
-  try {
-    return parseInt(localStorage.getItem('share_count_' + (currentUser && currentUser.id)) || '0');
-  } catch(e) { return 0; }
-}
-
-function incrementSocialShareCount() {
-  try {
-    var count = getSocialShareCount() + 1;
-    localStorage.setItem('share_count_' + currentUser.id, count);
-    return count;
-  } catch(e) { return 0; }
-}
-
-async function applyPetDecay() {
-  if (!currentUser || !petState) return;
-
-  var now = Date.now();
-  var petsNeedingCare = [];
-
-  for (var petId in petState) {
-    var pet = petState[petId];
-    if (!pet || !pet.id) continue;
-
-    // Calculate hours since last fed / last played
-    var lastFed   = pet.last_fed   ? new Date(pet.last_fed).getTime()   : now;
-    var lastPlay  = pet.last_played ? new Date(pet.last_played).getTime() : now;
-
-    var hoursSinceFed  = Math.max(0, (now - lastFed)  / 3600000);
-    var hoursSincePlay = Math.max(0, (now - lastPlay) / 3600000);
-
-    // Hunger decays ~5 per hour away (max 24h worth)
-    var hungerLoss = Math.min(Math.floor(hoursSinceFed * 5), pet.max_hunger || 100);
-    // Happiness decays ~3 per hour away (max 12h worth)  
-    var happyLoss  = Math.min(Math.floor(hoursSincePlay * 3), pet.max_happiness || 100);
-
-    if (hungerLoss === 0 && happyLoss === 0) continue;
-
-    var newHunger  = Math.max(0, (pet.hunger  || 0) - hungerLoss);
-    var newHappy   = Math.max(0, (pet.happiness || 0) - happyLoss);
-
-    // Update local state
-    petState[petId].hunger    = newHunger;
-    petState[petId].happiness = newHappy;
-
-    // Update bars if rendered
-    updateBar(petId, 'hunger',    newHunger, pet.max_hunger    || 100);
-    updateBar(petId, 'happiness', newHappy,  pet.max_happiness || 100);
-
-    // Persist to DB (fire-and-forget, decay is approximate)
-    supabaseClient.from('user_pets')
-      .update({ hunger: newHunger, happiness: newHappy })
-      .eq('id', petId)
-      .catch(function(){});
-
-    var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your pet';
-    if (newHunger < 30 || newHappy < 30) {
-      petsNeedingCare.push(petName);
+// Throttle cursor trail to max 30fps (every 33ms) to reduce DOM churn
+(function() {
+  var _lastTrail = 0;
+  var _origMousemove = null;
+  document.addEventListener('DOMContentLoaded', function() {
+    // Patch any existing mousemove listeners on the trail system
+    // by rate-limiting sparkle creation
+    if (window.createCursorParticle) {
+      var orig = window.createCursorParticle;
+      window.createCursorParticle = function(x, y) {
+        var now = Date.now();
+        if (now - _lastTrail < 33) return; // ~30fps
+        _lastTrail = now;
+        orig(x, y);
+      };
     }
-  }
-
-  if (petsNeedingCare.length > 0) {
-    showToast('😢 ' + petsNeedingCare.slice(0,2).join(', ') + (petsNeedingCare.length > 2 ? ' and others need' : (petsNeedingCare.length > 1 ? ' need' : ' needs')) + ' attention!', 6000);
-  }
-}
-
-function loadTab(tab) {
-  if (tab === 'adopt') loadAdopt();
-  else if (tab === 'mypets') loadMyPets();
-  else if (tab === 'journal') initJournalTab();
-  else if (tab === 'shop') { loadShop(); loadInventory(); }
-  else if (tab === 'minigames') initMinigames();
-  else if (tab === 'battle') loadBattlePets();
-  else if (tab === 'news') loadNews();
-  else if (tab === 'twitch') initTwitchTab();
-  else if (tab === 'redeem') { loadRedeemHistory(); }
-  else if (tab === 'stats') loadStatistics();
-  else if (tab === 'guild') loadGuildPage();
-  else if (tab === 'fishing') {
-    if (!tabsLoaded['fishing']) {
-      tabsLoaded['fishing'] = true;
-      initMinigames();
-      // Initialize fishing system
-      if (typeof fishingLoadCollection === 'function') {
-        fishingLoadCollection().then(function() {
-          if (typeof fishingRenderRodShop === 'function') fishingRenderRodShop();
-          if (typeof fishingRenderJournal === 'function') fishingRenderJournal();
-          if (typeof fishingUpdateAreaStatus === 'function') fishingUpdateAreaStatus();
-          if (typeof autoFisherRenderWidget === 'function') { autoFisherRenderWidget(); }
-        }).catch(function(e){ dbg('upsert error:', e); });
-      }
-    }
-  }
-  else if (tab === 'racing') racing_init();
-  // Note: leaderboard and myprofile handled in showTab()
-}
-
-// ── AUTH GATE ────────────────────────────
-function showAuthSection(which) {
-  document.querySelectorAll('#auth-gate .page-section').forEach(function(s){ s.classList.remove('active'); });
-  el('section-' + which).classList.add('active');
-  return false;
-}
-
-function showForgotPassword() {
-  showAuthSection('forgot');
-  return false;
-}
-
-
-
-// ══ FINAL MISSING FUNCTIONS ══
-
-function expedition_buildNarrative(zone, petName, row, finalPP, itemNames) {
-  var events = zone.events || [];
-  var sentences = [];
-
-  // Opening sentence
-  var openings = [
-    petName + ' set off into ' + zone.label + ' with a determined look.',
-    'Off went ' + petName + ', disappearing into ' + zone.label + '.',
-    petName + ' headed out to explore the ' + zone.label + '.',
-  ];
-  sentences.push(openings[Math.floor(Math.random() * openings.length)]);
-
-  // Middle events — pick 1-2 from the zone's event table
-  var shuffled = events.slice().sort(function() { return Math.random() - 0.5; });
-  var picked = shuffled.slice(0, 1 + Math.floor(Math.random() * 2));
-  picked.forEach(function(ev) {
-    if (ev.text) sentences.push(ev.text.replace(/\{pet\}/g, petName));
   });
-
-  // Item discovery sentence
-  if (itemNames.length > 0) {
-    sentences.push('They came back carrying: ' + itemNames.join(', ') + '.');
-  }
-
-  // Closing sentence with PP
-  var closings = [
-    'All in all, a productive outing. (+' + finalPP + ' PP)',
-    'Back home safe with ' + finalPP + ' PP worth of findings.',
-    petName + ' returned tired but satisfied. (+' + finalPP + ' PP)',
-  ];
-  sentences.push(closings[Math.floor(Math.random() * closings.length)]);
-
-  return sentences;
-}
-
-function expedition_showNarrativeModal(zone, petName, finalPP, itemNames, sentences) {
-  // Remove any existing
-  var existing = document.getElementById('expedition-narrative-modal');
-  if (existing) existing.remove();
-
-  var modal = document.createElement('div');
-  modal.id = 'expedition-narrative-modal';
-  modal.style.cssText = [
-    'position:fixed','top:50%','left:50%',
-    'transform:translate(-50%,-52%) scale(0.9)',
-    'z-index:9700',
-    'background:var(--white)',
-    'border:2px solid rgba(153,102,255,0.4)',
-    'border-radius:20px',
-    'padding:22px 26px',
-    'max-width:400px','width:90vw',
-    'box-shadow:0 10px 40px rgba(0,0,0,0.2)',
-    'opacity:0',
-    'transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1)'
-  ].join(';');
-
-  modal.innerHTML =
-    '<div style="text-align:center;margin-bottom:12px;">' +
-      '<div style="font-size:2.2rem;">' + zone.emoji + '</div>' +
-      '<div style="font-weight:800;color:var(--purple-dark);font-size:1rem;margin-top:4px;">' +
-        petName + ' returned from ' + zone.label + '!' +
-      '</div>' +
-    '</div>' +
-    '<div style="background:rgba(153,102,255,0.05);border-radius:12px;padding:12px 14px;margin-bottom:14px;">' +
-      sentences.map(function(s) {
-        return '<p style="font-size:0.82rem;color:var(--text);line-height:1.6;margin:0 0 6px;">' + escapeHtml(s) + '</p>';
-      }).join('') +
-    '</div>' +
-    '<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:14px;">' +
-      '<div style="text-align:center;background:rgba(255,215,0,0.12);border-radius:10px;padding:8px 16px;">' +
-        '<div style="font-size:1.3rem;font-weight:800;color:#e8a000;">💰 +' + finalPP + ' PP</div>' +
-        (itemNames.length > 0 ? '<div style="font-size:0.72rem;color:var(--text-light);">' + itemNames.join(', ') + '</div>' : '') +
-      '</div>' +
-    '</div>' +
-    '<button class="btn btn-primary" onclick="expeditionNarrativeClose()"' +
-    'style="width:100%;">Continue</button>';
-
-  document.body.appendChild(modal);
-  requestAnimationFrame(function() {
-    modal.style.opacity = '1';
-    modal.style.transform = 'translate(-50%,-50%) scale(1)';
-  });
-  // Auto-dismiss after 15s
-  setTimeout(function() { if (modal.parentNode) modal.parentNode.removeChild(modal); }, 15000);
-}
-
-
-
-async function claimDailyBonus() {
-  if (!currentUser) { showToast('Please log in to claim daily bonus!'); return; }
-  var result = await checkDailyBonus(currentUser.id);
-  if (result && result.awarded) {
-    showToast('🎉 Daily Bonus! +' + result.amount + ' PP!');
-    if (result.newTotal !== undefined) updateAllPoints(result.newTotal);
-  } else {
-    showToast('Daily bonus already claimed today! Come back tomorrow 🌟');
-  }
-}
-
-
-async function onSocialShare(platform) {
-  if (!currentUser) return;
-
-  // Cooldown check — prevent rapid button mashing for PP
-  var now = Date.now();
-  if (now - _lastShareTime < SHARE_COOLDOWN_MS) {
-    showToast('Thanks for sharing! Reward available again in a moment.', 3000);
-    return;
-  }
-  _lastShareTime = now;
-
-  // Award PP + PassXP
-  var ppRes = await supabaseClient.rpc('award_pp_secure', {
-    p_amount: SHARE_REWARD_PP,
-    p_reason: 'social_share_' + platform
-  }).catch(function(){ return null; });
-  if (ppRes && ppRes.data !== undefined) updateAllPoints(ppRes.data);
-
-  addPassXP(SHARE_REWARD_PASS_XP, 'social_share').catch(function(e){ dbg('upsert error:', e); });
-
-  showToast('🎉 Thanks for sharing! +' + SHARE_REWARD_PP + ' PP +' + SHARE_REWARD_PASS_XP + ' Pass XP!', 4000);
-
-  // Increment share count and check milestones
-  var newCount = incrementSocialShareCount();
-  await checkShareMilestones(newCount);
-
-  // Track in community stats
-  community_increment('social_shares', 1);
-}
-
-async function checkDailyBonus(userId) {
-  // Check if daily bonus was already claimed today
-  var lastClaim = localStorage.getItem('daily_bonus_' + userId + '_' + today);
-  
-  if (lastClaim === 'claimed') {
-    // Update sidebar button to show claimed status
-    var btn = document.querySelector('.daily-bonus-btn');
-    if (btn) {
-      btn.textContent = '✅ Claimed Today!';
-      btn.disabled = true;
-      btn.style.opacity = '0.6';
-      btn.style.cursor = 'not-allowed';
-    }
-    return { awarded: false };
-  }
-  
-  // Award daily bonus
-  var bonusAmount = 50;
-  var { data: newTotal, error: bonusErr } = await supabaseClient.rpc('award_pp_secure', {
-    p_amount: bonusAmount, p_reason: 'daily_login_bonus'
-  });
-  if (bonusErr) { dbg('Daily bonus award failed:', bonusErr); return { awarded: false }; }
-  
-  // Mark as claimed
-  localStorage.setItem('daily_bonus_' + userId + '_' + today, 'claimed');
-  
-  // Update sidebar button
-  var btn = document.querySelector('.daily-bonus-btn');
-  if (btn) {
-    btn.textContent = '✅ Claimed Today!';
-    btn.disabled = true;
-    btn.style.opacity = '0.6';
-    btn.style.cursor = 'not-allowed';
-  }
-  
-  return { awarded: true, amount: bonusAmount, newTotal: newTotal };
-}
-
-
-
-async function loadSidebarNews() {
-  var widget = el('sidebar-news-container');
-  if (!widget) {
-    console.error('[loadSidebarNews] Widget not found!');
-    return;
-  }
-  
-  dbg('[loadSidebarNews] Loading news...');
-  var res = await supabaseClient.from('news').select('*').eq('is_published',true).order('published_at',{ascending:false}).limit(3);
-  
-  dbg('[loadSidebarNews] Result:', res);
-  
-  if (res.error || !res.data || !res.data.length) {
-    widget.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No news yet!</div>';
-    return;
-  }
-  
-  widget.innerHTML = '';
-  res.data.forEach(function(post){
-    var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
-    var item = makeEl('div', {class:'news-item'});
-    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.content || 'No content') + '</div>';
-    widget.appendChild(item);
-  });
-}
-
-
-// ── PawketPass level check (fires after XP is added) ─────────────────────────
-function checkPassLevel(newXP) {
-  // Pass levels: 100xp per level, rewards at each level
-  var newLevel = Math.floor(newXP / 100) + 1;
-  var oldLevel = parseInt(localStorage.getItem('passLevel_' + currentUser.id) || '1');
-  if (newLevel > oldLevel) {
-    localStorage.setItem('passLevel_' + currentUser.id, newLevel);
-    showToast('🎫 PawketPass Level ' + newLevel + '! New rewards available!', 5000, 'var(--purple)');
-    updateBingoProgress('level_up_pet', 1);
-    // Claim any pending pass rewards
-    if (typeof loadPassProgress === 'function') loadPassProgress();
-  }
-}
+})();
