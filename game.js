@@ -12578,7 +12578,9 @@ async function loadLeaderboard(type) {
         // Fallback if RPC doesn't exist
         var levelsRes = await supabaseClient
           .from('user_pets')
-          .select('user_id, level, players(username)');
+          .select('user_id, level, players(username)')
+          .order('level', { ascending: false })
+          .limit(500); // top pets only — enough for leaderboard
         
         if (levelsRes.error) throw levelsRes.error;
         
@@ -12614,7 +12616,8 @@ async function loadLeaderboard(type) {
       // Query both tables separately to avoid foreign key issues
       var badgesRes = await supabaseClient
         .from('user_badges')
-        .select('user_id');
+        .select('user_id')
+        .limit(5000); // cap: enough for any real leaderboard
       
       if (badgesRes.error) throw badgesRes.error;
       
@@ -12714,7 +12717,7 @@ async function loadLeaderboard(type) {
 
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + escapeHtml(err.message) + '</p></div>';
   }
 }
 
@@ -12866,7 +12869,8 @@ async function loadProfile(username) {
     var rankRes = await supabaseClient
       .from('players')
       .select('pawketpoints')
-      .order('pawketpoints', { ascending: false });
+      .order('pawketpoints', { ascending: false })
+      .limit(500);
     
     if (!rankRes.error && rankRes.data) {
       var rank = rankRes.data.findIndex(function(p) { return p.pawketpoints <= profile.pawketpoints; }) + 1;
@@ -12932,7 +12936,7 @@ async function loadProfile(username) {
     
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
-    el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + err.message + '</p></div>';
+    el('profile-pets-grid').innerHTML = '<div class="empty-state"><p>' + escapeHtml(err.message) + '</p></div>';
   }
 }
 
@@ -13026,7 +13030,8 @@ async function loadMyProfile() {
     var rankRes = await supabaseClient
       .from('players')
       .select('id, pawketpoints')
-      .order('pawketpoints', { ascending: false });
+      .order('pawketpoints', { ascending: false })
+      .limit(10);
     
     if (rankRes.data) {
       var rank = rankRes.data.findIndex(function(p) { return p.id === currentUser.id; }) + 1;
@@ -17269,7 +17274,7 @@ async function loadFriendsList() {
     document.getElementById('friends-count-badge').textContent = friends.length;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + escapeHtml(err.message) + '</p></div>';
     console.error('Error loading friends:', err);
   }
 }
@@ -17339,7 +17344,7 @@ async function loadFriendRequests() {
     container.innerHTML = html;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + escapeHtml(err.message) + '</p></div>';
     console.error('Error loading friend requests:', err);
   }
 }
@@ -17391,7 +17396,7 @@ async function loadBlockedUsers() {
     document.getElementById('blocked-count-badge').style.display = 'inline';
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + escapeHtml(err.message) + '</p></div>';
     console.error('Error loading blocked users:', err);
   }
 }
@@ -17553,7 +17558,7 @@ async function searchPlayers() {
     resultsContainer.innerHTML = html;
     
   } catch (err) {
-    resultsContainer.innerHTML = '<p style="text-align:center;color:var(--red);padding:16px;">Error: ' + err.message + '</p>';
+    resultsContainer.innerHTML = '<p style="text-align:center;color:var(--red);padding:16px;">Error: ' + escapeHtml(err.message) + '</p>';
     console.error('Error searching players:', err);
   }
 }
@@ -17577,7 +17582,7 @@ async function sendFriendRequestToUser(userId, username) {
     searchPlayers(); // Refresh search results
     
   } catch (err) {
-    showToast('Error sending friend request: ' + err.message);
+    showToast('Error sending friend request: ' + escapeHtml(err.message));
     console.error('Error sending friend request:', err);
   }
 }
@@ -17601,7 +17606,7 @@ async function sendFriendRequest() {
     updateProfileButtons(); // Refresh button state
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error sending friend request:', err);
   }
 }
@@ -17621,7 +17626,7 @@ async function acceptFriendRequest(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error accepting friend request:', err);
   }
 }
@@ -17641,7 +17646,7 @@ async function declineFriendRequest(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error declining friend request:', err);
   }
 }
@@ -17666,7 +17671,7 @@ async function removeFriendById(friendshipId) {
     loadFriendsList();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error removing friend:', err);
   }
 }
@@ -17716,7 +17721,7 @@ async function blockUser() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error blocking user:', err);
   }
 }
@@ -17738,7 +17743,7 @@ async function unblockUser() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error unblocking user:', err);
   }
 }
@@ -17763,7 +17768,7 @@ async function unblockById(blockId) {
     loadBlockedUsers();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error unblocking user:', err);
   }
 }
@@ -19094,7 +19099,7 @@ async function postGuestbookMessage() {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error posting message: ' + err.message);
+    showToast('Error posting message: ' + escapeHtml(err.message));
     console.error('Error posting guestbook message:', err);
   }
 }
@@ -19156,7 +19161,7 @@ async function loadGuestbookEntries(profileUserId) {
     container.innerHTML = html;
     
   } catch (err) {
-    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + escapeHtml(err.message) + '</p></div>';
     console.error('Error loading guestbook entries:', err);
   }
 }
@@ -19177,7 +19182,7 @@ async function deleteGuestbookEntry(entryId) {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error deleting guestbook entry:', err);
   }
 }
@@ -23774,7 +23779,7 @@ sendFriendRequest = async function() {
     updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error sending friend request:', err);
   }
 };
@@ -23820,7 +23825,7 @@ acceptFriendRequest = async function(friendshipId) {
     loadFriendRequests();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Error: ' + escapeHtml(err.message));
     console.error('Error accepting friend request:', err);
   }
 };
@@ -23880,7 +23885,7 @@ postGuestbookMessage = async function() {
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error posting message: ' + err.message);
+    showToast('Error posting message: ' + escapeHtml(err.message));
     console.error('Error posting guestbook message:', err);
   }
 };
@@ -25159,6 +25164,9 @@ function shareBattleVictoryToBluesky(enemyName) {
 // ══════════════════════════════════════════════════════════════
 
 var currentCategoryId = null;
+var forumPage = 0;           // current page (0-indexed)
+var forumPageSize = 20;      // threads per page
+var forumHasMore = false;    // whether more pages exist
 var currentThreadId = null;
 var isModerator = false;
 
@@ -25276,7 +25284,7 @@ async function loadForumCategories() {
     dbg('✅ Forum categories displayed successfully!');
   } catch (err) {
     console.error('❌ Exception in loadForumCategories:', err);
-    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + err.message + '</p></div>';
+    list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error: ' + escapeHtml(err.message) + '</p></div>';
   }
 }
 
@@ -25297,6 +25305,7 @@ async function showForumCategory(categoryId, categoryName) {
  * Load threads in category
  */
 async function loadForumThreads(categoryId) {
+  if (categoryId !== currentCategoryId) forumPage = 0; // reset on category change
   var list = el('forum-threads-list');
   list.innerHTML = '<div class="spinner"></div>';
   
@@ -25314,25 +25323,29 @@ async function loadForumThreads(categoryId) {
     }
   }
   
+  var offset = forumPage * forumPageSize;
   var { data: threads, error } = await supabaseClient
     .from('forum_threads')
     .select('*, players!forum_threads_author_id_fkey(username)')
     .eq('category_id', categoryId)
     .order('is_pinned', { ascending: false })
     .order('last_reply_at', { ascending: false })
-    .limit(50);
+    .range(offset, offset + forumPageSize);  // fetch one extra to detect more
   
   if (error) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading threads</p></div>';
     return;
   }
   
-  if (threads.length === 0) {
+  forumHasMore = threads.length > forumPageSize;
+  if (forumHasMore) threads = threads.slice(0, forumPageSize); // trim the extra
+  
+  if (forumPage === 0 && threads.length === 0) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">📝</div><p>No threads yet. Be the first to post!</p></div>';
     return;
   }
   
-  list.innerHTML = '';
+  if (forumPage === 0) list.innerHTML = '';
   
   for (var i = 0; i < threads.length; i++) {
     var thread = threads[i];
@@ -25372,6 +25385,21 @@ async function loadForumThreads(categoryId) {
     `;
     
     list.appendChild(row);
+  }
+
+  // Load More button
+  if (forumHasMore) {
+    var loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'btn btn-outline forum-load-more';
+    loadMoreBtn.style.cssText = 'width:100%;margin-top:12px;padding:12px;font-size:0.9rem;';
+    loadMoreBtn.textContent = '⬇️ Load More Threads';
+    loadMoreBtn.onclick = function() {
+      forumPage++;
+      loadMoreBtn.textContent = 'Loading...';
+      loadMoreBtn.disabled = true;
+      loadForumThreads(currentCategoryId);
+    };
+    list.appendChild(loadMoreBtn);
   }
 }
 
