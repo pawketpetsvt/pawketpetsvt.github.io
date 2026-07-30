@@ -1812,8 +1812,8 @@ async function showApp(user) {
   // Saves ~1500ms vs sequential on a 150ms-latency connection.
   setTimeout(loadDailyTip, 100);
   checkReferralCode();
-  safeSetInterval(checkSidebarStreamStatus, 120000);
-  safeSetInterval(updateNotificationBadge, 120000);
+  safeSetInterval(function() { if (!document.hidden) checkSidebarStreamStatus().catch(function(){}); }, 300000);
+  safeSetInterval(function() { if (!document.hidden) updateNotificationBadge().catch(function(){}); }, 120000);
 
   // Wave 1: Load caches that other functions depend on
   await Promise.all([
@@ -12533,7 +12533,7 @@ async function battleExp_init() {
   await battleExp_renderForm();
   await battleExp_renderHistory();
   // Re-check every 30s for completions
-  safeSetInterval(battleExp_refreshActive, 30000);
+  safeSetInterval(function() { if (!document.hidden) battleExp_refreshActive().catch(function(){}); }, 60000);
 }
 
 async function battleExp_refreshActive() {
@@ -16381,7 +16381,7 @@ tabsLoaded.friends = function() {
 };
 
 // Poll for friend requests every 30 seconds
-safeSetInterval(updateFriendRequestBadge, 30000);
+safeSetInterval(updateFriendRequestBadge, 300000);
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -28357,7 +28357,7 @@ function community_increment(metricKey, amount, metadata) {
     
     // Schedule sync (every 10 seconds or after 10 increments)
     if (!community_syncInterval) {
-        community_syncInterval = setInterval(community_syncToDatabase, 10000);
+        community_syncInterval = setInterval(community_syncToDatabase, 60000);
     }
     var totalPending = Object.keys(community_pendingUpdates).reduce(function(sum, key) {
         return sum + community_pendingUpdates[key];
