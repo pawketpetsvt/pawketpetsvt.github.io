@@ -1763,6 +1763,7 @@ async function showApp(user) {
 
   // Check if player exists, create if missing (auto-recovery from database issues)
   var pr = await supabaseClient.from('players').select('username, pawketpoints').eq('id', user.id).maybeSingle();
+  if (pr.data) { window._cachedPlayerData = pr.data; window._cachedPlayerDataTime = Date.now(); }
   
   if (!pr.data) {
     dbg('🚨 Player not found! Auto-creating fresh player account...');
@@ -1945,6 +1946,14 @@ function showAuth() {
 
 async function updateSidebarStats() {
   if (!currentUser) return;
+  // Skip re-query if player data was just fetched (within 30 seconds of login)
+  if (window._cachedPlayerData && window._cachedPlayerDataTime &&
+      Date.now() - window._cachedPlayerDataTime < 30000) {
+    if (window._cachedPlayerData.username) currentUsername = window._cachedPlayerData.username;
+    if (window._cachedPlayerData.pawketpoints !== undefined) updateAllPoints(window._cachedPlayerData.pawketpoints);
+    window._cachedPlayerData = null;
+    return;
+  }
   
   try {
     // Get player data (use maybeSingle to avoid errors if missing)
@@ -24066,22 +24075,14 @@ async function checkPlayerTitleUnlocks() {
     // Get pet count
     var petsRes = await supabaseClient
       .from('user_pets')
-      .select('id')
+      .select('id, level')
       .eq('user_id', currentUser.id);
     
     var petCount = petsRes.data?.length || 0;
-    
-    // Get total levels
-    var totalLevelRes = await supabaseClient
-      .from('user_pets')
-      .select('level')
-      .eq('user_id', currentUser.id);
-    
     var totalLevel = 0;
-    if (totalLevelRes.data) {
-      totalLevelRes.data.forEach(function(pet) {
-        totalLevel += pet.level || 1;
-      });
+    if (petsRes.data) {
+      petsRes.data.forEach(function(pet) { totalLevel += (pet.level || 1); });
+    });
     }
     
     // Get badge count
