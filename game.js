@@ -24082,7 +24082,6 @@ async function checkPlayerTitleUnlocks() {
     var totalLevel = 0;
     if (petsRes.data) {
       petsRes.data.forEach(function(pet) { totalLevel += (pet.level || 1); });
-    });
     }
     
     // Get badge count

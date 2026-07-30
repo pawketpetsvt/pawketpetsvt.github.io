@@ -8591,12 +8591,12 @@ body.weather-foggy::before {
   top: 0; left: 0; width: 100%; height: 100%;
   pointer-events: none;
   z-index: 9998;
-  background: linear-gradient(
-    135deg,
-    rgba(200,210,220,0.38) 0%, rgba(180,190,200,0.28) 30%,
-    rgba(200,210,220,0.38) 60%, rgba(180,190,200,0.28) 100%
-  );
-  animation: fogDrift 8s ease-in-out infinite;
+  /* Soft radial blobs only — no rectangle effect */
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(200,210,220,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 80% 70%, rgba(180,190,200,0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(190,200,215,0.12) 0%, transparent 70%);
+  animation: fogDrift 12s ease-in-out infinite;
 }
 @keyframes fogDrift {
   0%   { transform: translateX(-8%) scaleX(1);   opacity: 0.5; }
@@ -8622,82 +8622,30 @@ body.weather-foggy::after {
 
 /* WINDY - Leaves drifting across screen */
 body.weather-windy::before {
-  content: '🍃 🍂 🍃 🍂 🍃';
+  content: '🍃';
   position: fixed;
-  top: 15%;
-  left: -150px;
-  width: 200%;
-  font-size: 26px;
+  top: 20%;
+  left: -60px;
+  width: auto;
+  font-size: 22px;
   pointer-events: none;
   z-index: 9999;
   white-space: nowrap;
-  letter-spacing: 55px;
-  opacity: 0.75;
-  animation: windLeaves 7s linear infinite;
+  letter-spacing: normal;
+  opacity: 0.8;
+  animation: windLeaves 8s linear infinite;
 }
 @keyframes windLeaves {
-  0%   { transform: translateX(0)    translateY(0)   rotate(0deg); }
-  25%  { transform: translateX(25%)  translateY(28px) rotate(12deg); }
-  50%  { transform: translateX(50%)  translateY(8px)  rotate(-8deg); }
-  75%  { transform: translateX(75%)  translateY(36px) rotate(18deg); }
-  100% { transform: translateX(100%) translateY(15px) rotate(0deg); }
-}
-body.weather-windy::after {
-  content: '🍂 🍃 🍂 🍃 🍂';
-  position: fixed;
-  bottom: 10%;
-  right: -150px;
-  width: 200%;
-  font-size: 20px;
-  pointer-events: none;
-  z-index: 9998;
-  white-space: nowrap;
-  letter-spacing: 75px;
-  opacity: 0.5;
-  animation: windLeavesReverse 9s linear infinite;
+  0%   { transform: translateX(0)     translateY(0)    rotate(-5deg); opacity: 0; }
+  8%   { opacity: 0.8; }
+  50%  { transform: translateX(55vw)  translateY(35px) rotate(20deg); opacity: 0.7; }
+  92%  { opacity: 0.5; }
+  100% { transform: translateX(115vw) translateY(15px) rotate(-3deg); opacity: 0; }
 }
 @keyframes windLeavesReverse {
-  0%   { transform: translateX(0)     translateY(0)    rotate(0deg); }
-  100% { transform: translateX(-100%) translateY(-45px) rotate(360deg); }
-}
-
-/* STARRY - Twinkling stars, many particles, no scan band */
-body.weather-starry::before {
-  content: '';
-  position: fixed;
-  top: 0; left: 0; width: 100%; height: 100%;
-  pointer-events: none;
-  z-index: 9998;
-  background-image:
-    radial-gradient(3px 3px at 12% 18%, #fff, transparent),
-    radial-gradient(2px 2px at 32% 42%, #ffd700, transparent),
-    radial-gradient(4px 4px at 53% 12%, #fff, transparent),
-    radial-gradient(2px 2px at 70% 63%, #ffd700, transparent),
-    radial-gradient(3px 3px at 84% 32%, #fff, transparent),
-    radial-gradient(2px 2px at 22% 78%, #ffd700, transparent),
-    radial-gradient(3px 3px at 44% 52%, #fff, transparent),
-    radial-gradient(4px 4px at 63% 83%, #ffd700, transparent),
-    radial-gradient(2px 2px at 8%  52%, #fff, transparent),
-    radial-gradient(3px 3px at 91% 78%, #ffd700, transparent),
-    radial-gradient(2px 2px at 49% 8%,  #fff, transparent),
-    radial-gradient(3px 3px at 77% 48%, #ffd700, transparent),
-    radial-gradient(1.5px 1.5px at 5%  35%, #fff, transparent),
-    radial-gradient(2px   2px   at 17% 64%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 28% 22%, #ffd700, transparent),
-    radial-gradient(2.5px 2.5px at 38% 90%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 46% 30%, #fff, transparent),
-    radial-gradient(2px   2px   at 58% 70%, #ffd700, transparent),
-    radial-gradient(1.5px 1.5px at 66% 18%, #fff, transparent),
-    radial-gradient(2.5px 2.5px at 73% 92%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 80% 8%,  #ffd700, transparent),
-    radial-gradient(2px   2px   at 88% 58%, #fff, transparent),
-    radial-gradient(1.5px 1.5px at 95% 28%, #fff, transparent),
-    radial-gradient(2.5px 2.5px at 96% 88%, #ffd700, transparent),
-    radial-gradient(1.5px 1.5px at 3%  88%, #fff, transparent),
-    radial-gradient(2px   2px   at 14% 6%,  #fff, transparent);
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  animation: starTwinkle 3s ease-in-out infinite;
+  0%   { transform: translateX(0)      translateY(0)    rotate(5deg); opacity: 0; }
+  8%   { opacity: 0.65; }
+  100% { transform: translateX(-115vw) translateY(-25px) rotate(-8deg); opacity: 0; }
 }
 @keyframes starTwinkle {
   0%, 100% { opacity: 0.45; }
