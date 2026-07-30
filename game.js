@@ -1814,24 +1814,25 @@ async function showApp(user) {
   safeSetInterval(checkSidebarStreamStatus, 120000);
   safeSetInterval(updateNotificationBadge, 120000);
 
+  // Wave 1: Load caches that other functions depend on
   await Promise.all([
-    loadUserBadges().catch(function(){}),
     loadAllPetTitles().catch(function(){}),
     loadAllPlayerTitles().catch(function(){}),
-    checkPlayerTitleUnlocks().catch(function(){}),
+    loadPlayerTitles().catch(function(){}),       // MUST complete before checkPlayerTitleUnlocks
+    loadUserBadges().catch(function(){}),
+    loadPassProgress().catch(function(){}),
+  ]);
+
+  // Wave 2: Now that caches are populated, run checks and remaining parallel work
+  await Promise.all([
+    loadActivePlayerTitle().catch(function(){}),
+    checkPlayerTitleUnlocks().catch(function(){}), // Safe now — playerTitlesCache is populated
     awardBadge('welcome').catch(function(){}),
     initReferralSystem(user.id).catch(function(){}),
     checkTutorialStatus().catch(function(){}),
     checkSidebarStreamStatus().catch(function(){}),
     checkDailyLogin().catch(function(){}),
     updateNotificationBadge().catch(function(){}),
-    loadPassProgress().catch(function(){}),
-  ]);
-
-  // These need results from the parallel block
-  await Promise.all([
-    loadPlayerTitles().catch(function(){}),
-    loadActivePlayerTitle().catch(function(){}),
   ]);
 
   var bonus = await checkDailyBonus(user.id);
