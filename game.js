@@ -31884,7 +31884,7 @@ var giftSystem = {
   BLOCKED_ITEM_TYPES: ['skin_key', 'pass_key', 'premium'],
 
   // Check all anti-abuse rules before allowing a gift
-  async canSendGift(toUserId) {
+  canSendGift: async function(toUserId) {
     if (!currentUser) return { ok: false, reason: 'Not logged in' };
     if (toUserId === currentUser.id) return { ok: false, reason: "You can't gift yourself!" };
 
@@ -32211,7 +32211,7 @@ var pollSystem = {
   activePolls: [],
   userVotes: {},   // pollId -> optionIndex
 
-  async load() {
+  load: async function() {
     try {
       // Load active polls
       var { data: polls } = await supabaseClient
@@ -32285,7 +32285,7 @@ var pollSystem = {
     mount.innerHTML = html;
   },
 
-  async castVote(pollId, optionIndex) {
+  castVote: async function(pollId, optionIndex) {
     if (this.userVotes[pollId] !== undefined) { showToast('You already voted on this poll!', 2000); return; }
 
     // Rate limit — prevent double-click spam
