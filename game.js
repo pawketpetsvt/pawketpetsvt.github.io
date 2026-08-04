@@ -1923,6 +1923,7 @@ async function showApp(user) {
 
 function showAuth() {
   currentUser = null;
+  window._cachedPlayerData = null;
   el('auth-gate').style.display = 'block';
   el('app-content').style.display = 'none';
   el('nav-logout').style.display = 'none';
@@ -2934,36 +2935,46 @@ async function loadMyPets() {
     return;
   }
   
-  // Process pets and calculate decay for DISPLAY ONLY (don't save back to DB!)
+  // Hunger/happiness/energy decay is now handled server-side by pg_cron (hourly).
+  // Use DB values directly — do NOT apply client-side decay on top or it double-counts.
+  // HP regen has no cron job so we still calculate that client-side.
   res.data.forEach(function(pet) {
-    var decayedEnergy = calculateEnergyRegen(pet.energy, pet.max_energy, pet.last_played);
-    var decayedHunger = calculateHungerDecay(pet.hunger, pet.last_fed);
-    var decayedHappiness = calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played);
-    
-    // HP regenerates over time (3 HP per hour) - BUT respect 0 HP (fainted)!
-    // user_pets has no updated_at column — use last_played as the regen reference
-    // (battle sets current_hp directly; last_played is the closest proxy for "last activity")
     var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 25);
     var maxHP = pet.max_hp || pet.base_hp || 25;
     var hpRegenRef = pet.last_played || pet.last_fed || null;
-    
-    // Only regenerate if HP > 0 (don't auto-revive fainted pets!)
+
+    // Only regen HP if > 0 (don't auto-revive fainted pets)
     var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, hpRegenRef) : 0;
-    
-    petState[pet.id] = Object.assign({}, pet, {
-      energy: decayedEnergy,
-      hunger: decayedHunger,
-      happiness: decayedHappiness,
-      current_hp: regenedHP
-    });
-    
-    // OPTIMIZATION 2: Cache titles from joined query (already loaded above)
+
+    petState[pet.id] = Object.assign({}, pet, { current_hp: regenedHP });
+
+    // Cache titles from joined query
     if (pet.user_pet_titles && pet.user_pet_titles.length > 0) {
       petTitlesCache[pet.id] = pet.user_pet_titles.map(function(upt) {
         return upt.pet_titles;
       });
     } else {
       petTitlesCache[pet.id] = [];
+    }
+  });
+
+  // Check decay-triggered titles for each pet (fire-and-forget, non-blocking)
+  Object.values(petState).forEach(function(pet) {
+    if (!pet || !pet.id) return;
+    var hunger    = pet.hunger    || 0;
+    var happiness = pet.happiness || 0;
+    var energy    = pet.energy    || 0;
+    if (hunger === 0 && !petHasTitle(pet.id, 'the_hungry')) {
+      awardPetTitle(pet.id, 'the_hungry', 'Starving!').catch(function(){});
+    }
+    if (energy === 0 && !petHasTitle(pet.id, 'the_lazy')) {
+      awardPetTitle(pet.id, 'the_lazy', 'Fell asleep').catch(function(){});
+    }
+    if (happiness <= 20 && !petHasTitle(pet.id, 'the_grumpy')) {
+      awardPetTitle(pet.id, 'the_grumpy', 'Permanently grumpy').catch(function(){});
+    }
+    if (happiness >= 90 && !petHasTitle(pet.id, 'the_happy')) {
+      awardPetTitle(pet.id, 'the_happy', 'Pure joy!').catch(function(){});
     }
   });
   
@@ -15433,7 +15444,6 @@ var newsTicker = {
   SPOOKY_TICKER_CHANCE: 0.12, // ~12% chance per rotation
   
   currentIndex: 0,
-  rotationInterval: null,
   isScrolling: false,
   usedIndices: [],
   
@@ -15478,27 +15488,13 @@ var newsTicker = {
   },
   
   startScrollDetection: function() {
-    if (!document.querySelector('.news-ticker-inner')) return;
-    
-    // Re-query the element each tick — updateTicker() cloneNodes it so the
-    // original reference goes stale and rect coords become 0, breaking rotation.
-    this.rotationInterval = setInterval(function() {
-      if (newsTicker.isScrolling) return;
-      
-      var tickerElement = document.querySelector('.news-ticker-inner');
-      if (!tickerElement) return;
-      
-      var rect = tickerElement.getBoundingClientRect();
-      var parentEl = tickerElement.parentElement;
-      if (!parentEl) return;
-      var parent = parentEl.getBoundingClientRect();
-      
-      // If the right edge of the message is past the left edge of the container
-      // (fully scrolled off screen to the left)
-      if (rect.right < parent.left) {
-        newsTicker.updateTicker();
-      }
-    }, 100);
+    var ticker = document.querySelector('.news-ticker-inner');
+    if (!ticker) return;
+    // Event-driven: advance to next message when animation completes.
+    // updateTicker() clones the element so the listener is re-attached there.
+    ticker.addEventListener('animationend', function() {
+      newsTicker.updateTicker();
+    });
   },
   
   // Cache for today's stats — loaded once and reused
@@ -15570,7 +15566,12 @@ var newsTicker = {
       var clone = tickerElement.cloneNode(true);
       parent.removeChild(tickerElement);
       parent.appendChild(clone);
-      
+
+      // Re-attach animationend listener to the new clone (cloneNode doesn't copy listeners)
+      clone.addEventListener('animationend', function() {
+        newsTicker.updateTicker();
+      });
+
       // Mark as not scrolling after animation restarts
       setTimeout(function() {
         newsTicker.isScrolling = false;
@@ -15579,9 +15580,7 @@ var newsTicker = {
   },
   
   stop: function() {
-    if (this.rotationInterval) {
-      clearInterval(this.rotationInterval);
-    }
+    // No interval to clear — rotation is now driven by animationend events
   }
 };
 
