@@ -1685,14 +1685,40 @@ async function initApp() {
     return;
   }
 
-  // Check if user is coming from password reset email
+  // CRITICAL: Register auth state listener FIRST — before ANY hash check or return.
+  // Supabase processes the recovery hash immediately and fires PASSWORD_RECOVERY
+  // via onAuthStateChange. If we return early before registering, we miss the event
+  // and the reset form never shows.
+  supabaseClient.auth.onAuthStateChange(function(event, session) {
+    dbg('Auth state changed:', event);
+    if (event === 'PASSWORD_RECOVERY') {
+      // Supabase has validated the token and created a session.
+      // Show the reset form — updateUser() will now work.
+      el('auth-gate').style.display = 'none';
+      el('reset-password-gate').style.display = 'block';
+      el('app-content').style.display = 'none';
+    } else if (event === 'SIGNED_IN' && session) {
+      // Don't redirect if we're showing the password reset form
+      var resetGate = el('reset-password-gate');
+      if (resetGate && resetGate.style.display === 'block') return;
+      setTimeout(function() {
+        showApp(session.user);
+      }, 100);
+    } else if (event === 'SIGNED_OUT') {
+      showAuth();
+    }
+  });
+
+  // Check if user is coming from password reset email.
+  // Show the gate immediately for fast UI, but the actual session
+  // is established by onAuthStateChange above.
   var hash = window.location.hash;
   if (hash && hash.includes('type=recovery')) {
-    dbg('Password recovery mode detected');
+    dbg('Password recovery mode — waiting for session via onAuthStateChange');
     el('auth-gate').style.display = 'none';
     el('reset-password-gate').style.display = 'block';
     el('app-content').style.display = 'none';
-    return;
+    return; // onAuthStateChange will handle establishing the session
   }
   
   var session = await requireLogin();
@@ -1704,22 +1730,6 @@ async function initApp() {
 
   // Check for streamer landing page parameter
   streamerLanding_init();
-
-  // Set up auth state listener
-  supabaseClient.auth.onAuthStateChange(function(event, session) {
-    dbg('Auth state changed:', event);
-    if (event === 'PASSWORD_RECOVERY') {
-      el('auth-gate').style.display = 'none';
-      el('reset-password-gate').style.display = 'block';
-      el('app-content').style.display = 'none';
-    } else if (event === 'SIGNED_IN' && session) {
-      setTimeout(function() {
-        showApp(session.user);
-      }, 100);
-    } else if (event === 'SIGNED_OUT') {
-      showAuth();
-    }
-  });
 }
 
 async function showApp(user) {
@@ -2310,6 +2320,12 @@ async function registerUser(email, password, username) {
   });
   
   if (authError) throw authError;
+
+  // Supabase returns success even for existing emails (security by design)
+  // but the user object has empty identities — detect and throw a clear error
+  if (authData.user && authData.user.identities && authData.user.identities.length === 0) {
+    throw new Error('That email address already has an account. Try logging in, or use a different email.');
+  }
   
   // Step 2: Create player profile in database
   var userId = authData.user.id;
@@ -2524,7 +2540,20 @@ async function handleRegister() {
     btn.textContent='Done!';
     setTimeout(function(){ showAuthSection('login'); }, 2000);
   } catch(e) {
-    err.textContent=e.message||'Registration failed.';
+    var rawMsg = e.message || '';
+    var friendlyMsg = 'Registration failed. Please try again.';
+    if (rawMsg.includes('already registered') || rawMsg.includes('already been registered')) {
+      friendlyMsg = 'That email address already has an account. Try logging in, or use a different email.';
+    } else if (rawMsg.includes('invalid') && rawMsg.includes('email')) {
+      friendlyMsg = 'Please enter a valid email address.';
+    } else if (rawMsg.includes('password') && rawMsg.includes('least')) {
+      friendlyMsg = 'Password must be at least 6 characters.';
+    } else if (rawMsg.includes('Username') || rawMsg.includes('username')) {
+      friendlyMsg = rawMsg; // Pass username errors through directly
+    } else if (rawMsg) {
+      friendlyMsg = rawMsg;
+    }
+    err.textContent = friendlyMsg;
     err.classList.add('show');
     btn.textContent='Create Account';
     btn.disabled=false;
