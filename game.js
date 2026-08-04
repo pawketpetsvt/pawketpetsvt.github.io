@@ -801,7 +801,10 @@ function showNextToast() {
     default: icon = 'ⓘ'; break;
   }
   
-  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + escapeHtml(toast.message) + '</span>';
+  var safeMsg = escapeHtml(toast.message);
+  // Replace PP amounts with coin icon
+  safeMsg = safeMsg.replace(/(\+?\d[\d,]*)\s*PP\b/g, '$1 <img src="images/icons/pawketpoint.png" alt="PP" style="width:13px;height:13px;vertical-align:middle;margin:0 1px;object-fit:contain;">');
+  toastEl.innerHTML = '<span class="pixel-toast-icon">' + icon + '</span><span class="pixel-toast-message">' + safeMsg + '</span>';
   
   document.body.appendChild(toastEl);
   
@@ -1308,16 +1311,6 @@ function openModal(modalElement) {
   }
   document.body.appendChild(overlay);
   document.body.style.overflow = 'hidden';
-}
-
-function closeModal() {
-  var overlays = document.querySelectorAll('.modal-overlay-custom');
-  overlays.forEach(function(overlay) {
-    if (overlay.parentElement) {
-      overlay.parentElement.removeChild(overlay);
-    }
-  });
-  document.body.style.overflow = ''; // Restore scroll
 }
 
 function updateAllPoints(pts) {
@@ -4554,6 +4547,22 @@ function expedition_updateStartBtn() {
   if (zone && ready) btn.textContent = '⚡ ' + zone.energyCost + ' energy. Send to ' + zone.label + '!';
 }
 
+
+// ── EXPEDITION SPEED ──────────────────────────────────────────────────────────
+var _expeditionSpeed = 'normal';
+var EXPEDITION_SPEED_OPTS = {
+  quick:    { label:'⚡ Quick',    timeMult:0.5, ppMult:0.7,  xpMult:0.7,  desc:'Half the time, fewer rewards' },
+  normal:   { label:'🗺️ Normal',   timeMult:1.0, ppMult:1.0,  xpMult:1.0,  desc:'Standard expedition' },
+  thorough: { label:'🔍 Thorough', timeMult:2.0, ppMult:1.5,  xpMult:1.6,  desc:'Twice as long, better rewards' },
+};
+function expedition_setSpeed(speed) {
+  _expeditionSpeed = speed;
+  document.querySelectorAll('.expedition-speed-btn').forEach(function(btn) {
+    btn.style.background = btn.dataset.speed === speed ? 'var(--purple)' : '';
+    btn.style.color = btn.dataset.speed === speed ? '#fff' : '';
+  });
+}
+
 async function expedition_start() {
   if (raceState && raceState.racing) return; // belt-and-braces
   if (!canPerformAction('expedition_start', 5000)) return;
@@ -6557,8 +6566,8 @@ async function performCorruptionRitual(direction) {
     var data = res.data;
     updateAllPoints(data.new_pp);
     _worldStateCache = null; // force a fresh read so the UI reflects the new value
-    var directionText = direction === 'purify' ? '🕯️ You purified the forest a little!' : '🌑 You fed the corruption a little!';
-    showToast(directionText + ' World corruption is now ' + Math.round(data.new_value) + '%.', 'success', true);
+        var directionText = direction === 'purify' ? '🛠️ You debugged the beta a little! Integrity restored.' : '💀 You broke the beta further! Integrity decreased.'
+    showToast(directionText + ' Beta Integrity is now ' + Math.round(100 - data.new_value) + '%.', 'success', true);
     if (typeof todayCard_render === 'function') todayCard_render();
   } catch (e) {
     console.error('[CorruptionRitual] error:', e);
@@ -8530,7 +8539,7 @@ function fishingGetCatch() {
   return pool[0];
 }
 
-async async function castLine() {
+async function castLine() {
   if (isCD('fishing') || fishingCasts <= 0) return;
   
   // Deduct bait cost
@@ -21952,7 +21961,39 @@ showTab = function(tabName) {
  * - Check URL for referral parameter
  * - Display referral card
  */
+
+// ── REFERRAL SYSTEM ───────────────────────────────────────────────────────────
+function getReferralFromURL() {
+  var m = location.search.match(/[?&]ref=([^&]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
 async function initReferralSystem(userId) {
+  if (!userId) return;
+  var ref = getReferralFromURL();
+  if (ref && ref !== currentUsername) {
+    supabaseClient.rpc('referral_increment', { p_referrer_username: ref }).catch(function(){});
+  }
+}
+function renderReferralWidget(mountId) {
+  var mount = document.getElementById(mountId);
+  if (!mount || !currentUser) return;
+  var link = location.origin + '?ref=' + encodeURIComponent(currentUsername);
+  mount.innerHTML = '<div style="padding:12px;background:rgba(153,102,255,0.08);border-radius:12px">' +
+    '<div style="font-weight:700;margin-bottom:6px">🔗 Referral Link</div>' +
+    '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:8px">Share this link to invite friends!</div>' +
+    '<input id="referral-link-input" value="' + link + '" readonly style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);font-size:0.78rem;margin-bottom:6px">' +
+    '<button class="btn btn-sm btn-primary" onclick="referralCopyLink()">📋 Copy Link</button>' +
+    '</div>';
+}
+function referralCopyLink() {
+  var inp = document.getElementById('referral-link-input');
+  if (inp) {
+    navigator.clipboard.writeText(inp.value).then(function() { showToast('Referral link copied! 🎉'); });
+  }
+}
+
+
+async function initReferralSystem_old(userId) {
   dbg('🔗 Initializing referral system...');
   
   // Check if new user arrived via referral link
@@ -22599,6 +22640,9 @@ function shareBattleVictoryToBluesky(enemyName) {
 // ══════════════════════════════════════════════════════════════
 
 var currentCategoryId = null;
+var forumPage = 0;
+var forumPageSize = 20;
+var forumHasMore = false;
 var currentThreadId = null;
 var isModerator = false;
 
@@ -22760,7 +22804,7 @@ async function loadForumThreads(categoryId) {
     .eq('category_id', categoryId)
     .order('is_pinned', { ascending: false })
     .order('last_reply_at', { ascending: false })
-    .limit(50);
+    .range(forumPage * forumPageSize, forumPage * forumPageSize + forumPageSize)
   
   if (error) {
     list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">😞</div><p>Error loading threads</p></div>';
@@ -22812,6 +22856,20 @@ async function loadForumThreads(categoryId) {
     `;
     
     list.appendChild(row);
+  }
+  // Load More button
+  if (threads && threads.length > forumPageSize) {
+    var loadMoreBtn = document.createElement('button');
+    loadMoreBtn.className = 'btn btn-outline forum-load-more';
+    loadMoreBtn.style.cssText = 'width:100%;margin-top:12px;padding:12px;';
+    loadMoreBtn.textContent = '⬇️ Load More Threads';
+    loadMoreBtn.onclick = function() {
+      forumPage++;
+      loadMoreBtn.disabled = true;
+      loadMoreBtn.textContent = 'Loading...';
+      loadForumThreads(currentCategoryId);
+    };
+    list.appendChild(loadMoreBtn);
   }
 }
 
@@ -24329,91 +24387,6 @@ function showPlayerTitleUnlockNotification(title, reason) {
 }
 
 // Check and award player titles based on achievements
-async function checkPlayerTitleUnlocks() {
-  if (!currentUser) return;
-  
-  try {
-    // Get player stats
-    var playerRes = await supabaseClient
-      .from('players')
-      .select('pawketpoints, created_at')
-      .eq('id', currentUser.id)
-      .single();
-    
-    if (!playerRes.data) return;
-    
-    var player = playerRes.data;
-    
-    // Get pet count
-    var petsRes = await supabaseClient
-      .from('user_pets')
-      .select('id, level')
-      .eq('user_id', currentUser.id);
-    
-    var petCount = petsRes.data?.length || 0;
-    var totalLevel = 0;
-    if (petsRes.data) {
-      petsRes.data.forEach(function(pet) { totalLevel += (pet.level || 1); });
-    }
-    
-    // Get badge count
-    var badgesRes = await supabaseClient
-      .from('user_badges')
-      .select('id')
-      .eq('user_id', currentUser.id);
-    
-    var badgeCount = badgesRes.data?.length || 0;
-    
-    // Check title unlocks
-    
-    // Newcomer (automatic on join)
-    if (!hasPlayerTitle('newcomer')) {
-      await awardPlayerTitle('newcomer', 'Joined PawketPets VT');
-    }
-    
-    // Point-based titles
-    if (player.pawketpoints >= 10000 && !hasPlayerTitle('point_hoarder')) {
-      await awardPlayerTitle('point_hoarder', 'Earned 10,000 PP total');
-    }
-    if (player.pawketpoints >= 50000 && !hasPlayerTitle('whale')) {
-      await awardPlayerTitle('whale', 'Earned 50,000 PP total');
-    }
-    if (player.pawketpoints >= 1000000 && !hasPlayerTitle('millionaire')) {
-      await awardPlayerTitle('millionaire', 'Earned 1,000,000 PP total');
-    }
-    
-    // Pet collection titles
-    if (petCount >= 3 && !hasPlayerTitle('pet_lover')) {
-      await awardPlayerTitle('pet_lover', 'Own 3 pets');
-    }
-    if (petCount >= 10 && !hasPlayerTitle('collector')) {
-      await awardPlayerTitle('collector', 'Own 10 pets');
-    }
-    if (petCount >= 25 && !hasPlayerTitle('hoarder')) {
-      await awardPlayerTitle('hoarder', 'Own 25 pets');
-    }
-    
-    // Level titles
-    if (totalLevel >= 100 && !hasPlayerTitle('trainer')) {
-      await awardPlayerTitle('trainer', 'Total pet levels reached 100');
-    }
-    if (totalLevel >= 500 && !hasPlayerTitle('master_trainer')) {
-      await awardPlayerTitle('master_trainer', 'Total pet levels reached 500');
-    }
-    
-    // Badge titles
-    if (badgeCount >= 10 && !hasPlayerTitle('badge_collector')) {
-      await awardPlayerTitle('badge_collector', 'Earned 10 badges');
-    }
-    if (badgeCount >= 25 && !hasPlayerTitle('badge_master')) {
-      await awardPlayerTitle('badge_master', 'Earned 25 badges');
-    }
-    
-  } catch (err) {
-    console.error('[Player Titles] Error checking unlocks:', err);
-  }
-}
-
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE UNLOCK TRACKING
 // ═══════════════════════════════════════════════════════════════════════
@@ -29015,13 +28988,6 @@ function community_init() {
       document.body.style.overflow = 'hidden';
     }
     
-    function closeMobileMenu() {
-      menu.classList.remove('active');
-      overlay.classList.remove('active');
-      hamburger.innerHTML = '☰';
-      document.body.style.overflow = '';
-    }
-    
     // Event listeners
     hamburger.addEventListener('click', toggleMobileMenu);
     overlay.addEventListener('click', closeMobileMenu);
@@ -30638,15 +30604,19 @@ async function todayCard_render() {
   var worldStateHtml = '';
   try {
     var corruptionLevel = await getWorldStateValue('corruption_level', 50);
-    var corruptionDesc = corruptionLevel >= 75 ? 'The corruption is spreading fast. The forest needs heroes.'
-      : corruptionLevel >= 50 ? 'The corruption lingers, held at bay by every trainer\'s effort.'
-      : corruptionLevel >= 25 ? 'The world feels a little safer today, thanks to recent boss kills.'
-      : 'The corruption has been pushed back significantly. Well done, everyone.';
+    // Display as Beta Integrity (inverted: high integrity = good)
+    var integrityLevel = Math.round(100 - corruptionLevel);
+    var integrityDesc = integrityLevel >= 75 ? 'The beta is running stable. Integrity is high.'
+      : integrityLevel >= 50 ? 'The beta is holding together, thanks to recent boss defeats.'
+      : integrityLevel >= 25 ? 'The beta feels a little more stable today, thanks to recent boss kills.'
+      : 'Critical instability detected. The beta is failing. Defeat bosses to restore integrity.';
+    var tooltipHtml = '<span class="beta-integrity-tooltip" title="" onclick="showBetaIntegrityInfo()">❓</span>';
     worldStateHtml = '<div class="today-card-worldstate">' +
-      '🌍 World Corruption: ' + Math.round(corruptionLevel) + '%. ' + corruptionDesc +
+      '🖥️ Beta Integrity: ' + integrityLevel + '%. ' + integrityDesc + ' ' + tooltipHtml +
       '<div class="today-card-ritual-buttons">' +
-        '<button class="today-card-ritual-btn purify" onclick="performCorruptionRitual(\'purify\')">🕯️ Purify (100 PP)</button>' +
-        '<button class="today-card-ritual-btn corrupt" onclick="performCorruptionRitual(\'corrupt\')">🌑 Feed Corruption (100 PP)</button>' +
+        '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:4px">Each ritual shifts integrity by ~1%</div>' +
+        '<button class="today-card-ritual-btn purify" onclick="performCorruptionRitual(\'purify\')" title="Spend 100 PP to raise Beta Integrity by ~1%">🛠️ Debug (+1% · 100 PP)</button>' +
+        '<button class="today-card-ritual-btn corrupt" onclick="performCorruptionRitual(\'corrupt\')" title="Spend 100 PP to lower Beta Integrity by ~1%">💀 Break It (−1% · 100 PP)</button>' +
       '</div>' +
     '</div>';
   } catch (e) { worldStateHtml = ''; }
@@ -33279,3 +33249,29 @@ async function adminUpdateReportStatus(reportId, newStatus) {
     }
   });
 })();
+
+// ── DAILY SHOP ROTATION ───────────────────────────────────────────────────────
+function getDailyShopSeed() {
+  var d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth()+1) * 100 + d.getDate();
+}
+async function renderDailyShop(allItems) {
+  var mount = document.getElementById('daily-shop-mount');
+  if (!mount || !allItems || !allItems.length) return;
+  // Seed daily selection - same 4 items for everyone each day
+  var seed = getDailyShopSeed();
+  var items = allItems.slice().sort(function(a,b){ return ((a.id * seed) % 997) - ((b.id * seed) % 997); }).slice(0,4);
+  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px">⭐ Today's Deals</div>';
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">';
+  items.forEach(function(item) {
+    html += '<div style="padding:10px;border-radius:12px;background:rgba(153,102,255,0.08);text-align:center">';
+    html += '<div style="font-size:1.5rem">' + (item.emoji || '🎁') + '</div>';
+    html += '<div style="font-weight:700;font-size:0.85rem">' + escapeHtml(item.name) + '</div>';
+    html += '<div style="color:var(--text-light);font-size:0.75rem;margin:2px 0">' + (item.hunger_effect ? '+' + item.hunger_effect + ' hunger' : '') + '</div>';
+    html += '<button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="buyItem(' + item.id + ','' + escapeHtml(item.name) + '')">' + (item.cost || 50) + ' PP</button>';
+    html += '</div>';
+  });
+  html += '</div>';
+  mount.innerHTML = html;
+}
+
