@@ -8530,7 +8530,7 @@ function fishingGetCatch() {
   return pool[0];
 }
 
-async function castLine() {
+async async function castLine() {
   if (isCD('fishing') || fishingCasts <= 0) return;
   
   // Deduct bait cost
@@ -8629,6 +8629,249 @@ async function castLine() {
     }
   }, 1500);
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ENHANCED FISHING SYSTEM
+// ══════════════════════════════════════════════════════════════════════════
+
+var FISHING_RODS = [
+  null, // index 0 unused
+  { level:1, name:'Basic Rod',     emoji:'🎣', desc:'The starter rod.',                cost:0,    baseCasts:8 },
+  { level:2, name:'Nice Rod',      emoji:'🎣', desc:'A step up. Less junk.',           cost:500,  baseCasts:8 },
+  { level:3, name:'Pro Rod',       emoji:'🎣', desc:'Fishers choice. Much less junk.', cost:2000, baseCasts:8 },
+  { level:4, name:'Legendary Rod', emoji:'✨', desc:'Almost no junk. Melon-approved.', cost:5000, baseCasts:8 },
+];
+
+var _rodLevel = 1;
+var _fishingRecords = {};
+
+async function fishingLoadRodLevel() {
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient.from('players').select('fishing_rod_level').eq('id', currentUser.id).single();
+    if (!res.error && res.data) _rodLevel = res.data.fishing_rod_level || 1;
+  } catch(e) {}
+  fishingUpdateRodUI();
+}
+
+function fishingUpdateRodUI() {
+  var rod = FISHING_RODS[_rodLevel] || FISHING_RODS[1];
+  var el1 = document.getElementById('fishing-rod-display');
+  if (el1) el1.textContent = rod.emoji + ' ' + rod.name;
+}
+
+async function fishingUpgradeRod() {
+  if (!currentUser) return;
+  var nextLevel = _rodLevel + 1;
+  var nextRod = FISHING_RODS[nextLevel];
+  if (!nextRod) { showToast('Max rod level reached!'); return; }
+  if (currentPoints < nextRod.cost) { showToast('Not enough PP! Need ' + nextRod.cost + ' PP.'); return; }
+  try {
+    await supabaseClient.rpc('award_pp_secure', { p_amount: -nextRod.cost, p_reason: 'rod_upgrade' });
+    await supabaseClient.from('players').update({ fishing_rod_level: nextLevel }).eq('id', currentUser.id);
+    _rodLevel = nextLevel;
+    updateAllPoints(currentPoints - nextRod.cost);
+    showToast('🎣 Upgraded to ' + nextRod.name + '!');
+    fishingUpdateRodUI();
+    fishingRenderRodShop();
+  } catch(e) { showToast('Upgrade failed. Try again.'); }
+}
+
+// ── ROD SHOP ─────────────────────────────────────────────────────────────────
+function fishingRenderRodShop() {
+  var mount = document.getElementById('fishing-rod-shop');
+  if (!mount) return;
+  var html = '<div style="font-weight:700;margin-bottom:8px;color:var(--purple-dark);">🎣 Upgrade Your Rod</div>';
+  FISHING_RODS.slice(1).forEach(function(rod) {
+    if (!rod) return;
+    var owned = _rodLevel >= rod.level;
+    var current = _rodLevel === rod.level;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;margin-bottom:6px;background:' + (current ? 'rgba(153,102,255,0.15)' : 'rgba(0,0,0,0.03)') + '">';
+    html += '<span style="font-size:1.4rem">' + rod.emoji + '</span>';
+    html += '<div style="flex:1"><div style="font-weight:700">' + rod.name + '</div><div style="font-size:0.8rem;color:var(--text-light)">' + rod.desc + '</div></div>';
+    if (owned) {
+      html += '<span style="color:var(--purple);font-size:0.8rem">' + (current ? '✅ Equipped' : '✅ Owned') + '</span>';
+    } else {
+      html += '<button class="btn btn-sm btn-primary" onclick="fishingUpgradeRod()" style="font-size:0.8rem">' + rod.cost + ' PP</button>';
+    }
+    html += '</div>';
+  });
+  mount.innerHTML = html;
+}
+
+// ── AUTO-FISHER ───────────────────────────────────────────────────────────────
+var AUTO_FISHER_TIERS = [
+  { level:1, name:'Basic',   cost:1000,  interval:3600, desc:'Catches 1 fish/hour' },
+  { level:2, name:'Advanced',cost:5000,  interval:1800, desc:'Catches 1 fish/30min' },
+  { level:3, name:'Elite',   cost:15000, interval:600,  desc:'Catches 1 fish/10min' },
+];
+var _autoFisherLevel = 0;
+var _autoFisherLastCatch = null;
+
+async function autoFisherLoadState() {
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient.from('players').select('auto_fisher_level,auto_fisher_last_catch').eq('id', currentUser.id).single();
+    if (!res.error && res.data) {
+      _autoFisherLevel = res.data.auto_fisher_level || 0;
+      _autoFisherLastCatch = res.data.auto_fisher_last_catch;
+    }
+  } catch(e) {}
+  autoFisherRenderWidget();
+}
+
+async function autoFisherCheck() {
+  if (!currentUser || _autoFisherLevel === 0) return;
+  var tier = AUTO_FISHER_TIERS[_autoFisherLevel - 1];
+  if (!tier) return;
+  var now = Date.now();
+  var last = _autoFisherLastCatch ? new Date(_autoFisherLastCatch).getTime() : 0;
+  var elapsed = Math.floor((now - last) / 1000);
+  var catches = Math.floor(elapsed / tier.interval);
+  if (catches <= 0) return;
+  catches = Math.min(catches, 10); // cap at 10 offline catches
+  try {
+    var ppGain = catches * 5;
+    await supabaseClient.rpc('award_pp_secure', { p_amount: ppGain, p_reason: 'auto_fisher' });
+    await supabaseClient.from('players').update({ auto_fisher_last_catch: new Date().toISOString() }).eq('id', currentUser.id);
+    _autoFisherLastCatch = new Date().toISOString();
+    updateAllPoints(currentPoints + ppGain);
+    showToast('🤖 Auto-fisher caught ' + catches + ' fish while you were away! +' + ppGain + ' PP');
+  } catch(e) {}
+  autoFisherRenderWidget();
+}
+
+function autoFisherRenderWidget() {
+  var mount = document.getElementById('fishing-autofisher');
+  if (!mount) return;
+  if (_autoFisherLevel === 0) {
+    var html = '<div style="font-weight:700;margin-bottom:8px;color:var(--purple-dark);">🤖 Auto-Fisher</div>';
+    AUTO_FISHER_TIERS.forEach(function(tier, i) {
+      html += '<div style="padding:6px 0"><b>' + tier.name + '</b> — ' + tier.desc + ' <button class="btn btn-sm" onclick="autoFisherPurchase(' + (i+1) + ')">' + tier.cost + ' PP</button></div>';
+    });
+    mount.innerHTML = html;
+  } else {
+    var tier = AUTO_FISHER_TIERS[_autoFisherLevel - 1];
+    mount.innerHTML = '<div style="color:var(--purple-dark);font-weight:700">🤖 ' + tier.name + ' Auto-Fisher active</div><div style="font-size:0.8rem;color:var(--text-light)">' + tier.desc + '</div>';
+  }
+}
+
+async function autoFisherPurchase(level) {
+  var tier = AUTO_FISHER_TIERS[level - 1];
+  if (!tier || currentPoints < tier.cost) { showToast('Not enough PP!'); return; }
+  try {
+    await supabaseClient.rpc('award_pp_secure', { p_amount: -tier.cost, p_reason: 'auto_fisher_purchase' });
+    await supabaseClient.from('players').update({ auto_fisher_level: level }).eq('id', currentUser.id);
+    _autoFisherLevel = level;
+    updateAllPoints(currentPoints - tier.cost);
+    showToast('🤖 Auto-Fisher activated!');
+    autoFisherRenderWidget();
+  } catch(e) { showToast('Purchase failed.'); }
+}
+
+// ── CAST LINE (HOLD TO CAST) ──────────────────────────────────────────────────
+var _castPressing = false;
+var _castStartTime = 0;
+var _castTimer = null;
+
+function castLineStart(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  if (!currentUser || _castPressing) return;
+  if (fishingCasts !== undefined && fishingCasts <= 0) { showToast('No casts left today!'); return; }
+  _castPressing = true;
+  _castStartTime = Date.now();
+  var pond = document.getElementById('fishing-pond-text');
+  if (pond) { pond.textContent = '🎣 Hold to build power... Release to cast!'; pond.style.color = 'var(--purple)'; }
+  var btn = document.getElementById('fishing-btn');
+  if (btn) btn.textContent = '⚡ Casting... Release!';
+  // Power bar fill
+  var bar = document.getElementById('fishing-power-fill');
+  if (bar) {
+    bar.style.width = '0%';
+    _castTimer = setInterval(function() {
+      if (!_castPressing) { clearInterval(_castTimer); return; }
+      var pct = Math.min(100, ((Date.now() - _castStartTime) / 2000) * 100);
+      bar.style.width = pct + '%';
+      bar.style.background = pct > 70 ? '#ff4444' : pct > 40 ? '#ffaa00' : '#44bb44';
+    }, 50);
+  }
+}
+
+async function castLineRelease(e) {
+  if (!_castPressing) return;
+  _castPressing = false;
+  if (_castTimer) { clearInterval(_castTimer); _castTimer = null; }
+  var power = Math.min(1.0, (Date.now() - _castStartTime) / 2000);
+  var bar = document.getElementById('fishing-power-fill');
+  if (bar) bar.style.width = '0%';
+  var pond = document.getElementById('fishing-pond-text');
+  if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
+  var btn = document.getElementById('fishing-btn');
+  if (btn) { btn.textContent = '⏳ Waiting...'; btn.disabled = true; }
+  // Run the catch
+  await castLine();
+  if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+}
+
+// ── FISH JOURNAL ──────────────────────────────────────────────────────────────
+function fishingRenderJournal(spotFilter) {
+  var mount = document.getElementById('fishing-journal-mount');
+  if (!mount) return;
+  var collected = Object.keys(_fishCollection || {}).filter(function(k) {
+    var f = FISH_POOL.find(function(ff) { return ff.id === k; });
+    return f && f.rarity !== 'junk';
+  });
+  var totalFish = FISH_POOL.filter(function(f) { return f.rarity !== 'junk'; }).length;
+  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:12px;">📖 Fish Journal — ' + collected.length + '/' + totalFish + ' discovered</div>';
+  var spots = ['pond','river','lake','ocean'];
+  var showSpots = spotFilter ? [spotFilter] : spots;
+  showSpots.forEach(function(spot) {
+    var spotFish = FISH_POOL.filter(function(f) { return f.spots.indexOf(spot) !== -1 && f.rarity !== 'junk'; });
+    if (!spotFish.length) return;
+    html += '<div style="font-weight:700;margin:10px 0 6px;text-transform:capitalize">' + spot + '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">';
+    spotFish.forEach(function(fish) {
+      var caught = (_fishCollection || {})[fish.id];
+      html += '<div style="padding:8px;border-radius:10px;background:' + (caught ? 'rgba(153,102,255,0.12)' : 'rgba(0,0,0,0.04)') + ';text-align:center;opacity:' + (caught ? '1' : '0.45') + '">';
+      html += '<div style="font-size:1.5rem">' + (caught ? fish.emoji : '❓') + '</div>';
+      html += '<div style="font-size:0.75rem;font-weight:700">' + (caught ? fish.name : '???') + '</div>';
+      html += '<div style="font-size:0.7rem;color:var(--text-light)">' + fish.rarity + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  });
+  mount.innerHTML = html;
+}
+
+function fishingShowJournal() {
+  var section = document.getElementById('fishing-journal-section');
+  if (!section) return;
+  var isVisible = section.style.display !== 'none' && section.style.display !== '';
+  section.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) fishingRenderJournal();
+}
+
+// ── FISHING TAB INIT ──────────────────────────────────────────────────────────
+async function initFishingTab() {
+  if (!currentUser) return;
+  fishingCasts = fishingCasts || 10;
+  await Promise.all([
+    fishingLoadRodLevel().catch(function(){}),
+    autoFisherLoadState().catch(function(){}),
+    fishingLoadCollection ? fishingLoadCollection() : Promise.resolve(),
+  ]);
+  fishingRenderRodShop();
+  var collEl = document.getElementById('fishing-collection');
+  if (collEl) {
+    var collected = Object.keys(_fishCollection || {}).filter(function(k) {
+      var f = FISH_POOL.find(function(ff) { return ff.id === k; });
+      return f && f.rarity !== 'junk';
+    }).length;
+    var total = FISH_POOL.filter(function(f) { return f.rarity !== 'junk'; }).length;
+    collEl.textContent = collected + '/' + total + ' fish found';
+  }
+}
+
 
 // ── DAILY BONUS ──────────────────────────────
 async function checkDailyBonus(userId) {
