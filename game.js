@@ -2966,6 +2966,7 @@ async function loadMyPets() {
     var energy    = pet.energy    || 0;
     if (hunger === 0 && !petHasTitle(pet.id, 'the_hungry')) {
       awardPetTitle(pet.id, 'the_hungry', 'Starving!').catch(function(){});
+      scrapbook_addMemory(pet.id, 'hunger_empty', {}).catch(function(){});
     }
     if (energy === 0 && !petHasTitle(pet.id, 'the_lazy')) {
       awardPetTitle(pet.id, 'the_lazy', 'Fell asleep').catch(function(){});
@@ -4771,6 +4772,9 @@ async function expedition_claim(expeditionId) {
   // Check for secrets
   checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
 
+  // SCRAPBOOK: Expedition complete
+  scrapbook_addMemory(row.pet_id, 'expedition_complete', { zone: (EXPEDITION_ZONES_MAP[row.zone] && EXPEDITION_ZONES_MAP[row.zone].label) || row.zone }).catch(function(){});
+
   // Integrations
   addPassXP(10, 'expedition').catch(function(){});
   updateBingoProgress('complete_expedition', 1);
@@ -5371,13 +5375,20 @@ function race_generateLog(runners, playerBest, playerWon, playerPlace) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 var PERSONALITIES = [
-  { key:'playful',  icon:'🎾', label:'Playful',  line:'"Wanna play! Let\'s do something fun!"' },
-  { key:'grumpy',   icon:'😾', label:'Grumpy',   line:'"Fine... I guess."' },
-  { key:'curious',  icon:'🔍', label:'Curious',  line:'"What\'s that over there?!"' },
-  { key:'brave',    icon:'🦁', label:'Brave',    line:'"I\'m not scared of anything!"' },
-  { key:'sleepy',   icon:'😴', label:'Sleepy',   line:'"Five more minutes, please..."' },
-  { key:'hungry',   icon:'🍕', label:'Hungry',   line:'"Got any snacks? I\'m STARVING."' },
-  { key:'sassy',    icon:'💅', label:'Sassy',    line:'"Whatever. I look amazing anyway."' }
+  { key:'playful',  icon:'🎾', label:'Playful',  line:'"Wanna play! Let\'s do something fun!"',
+    wishWeights: { feed:1, play:4, win_battle:2, visit_shop:1, use_toy:4, take_snapshot:1, view_profile:1 } },
+  { key:'grumpy',   icon:'😾', label:'Grumpy',   line:'"Fine... I guess."',
+    wishWeights: { feed:5, play:1, win_battle:2, visit_shop:1, use_toy:1, take_snapshot:0, view_profile:1 } },
+  { key:'curious',  icon:'🔍', label:'Curious',  line:'"What\'s that over there?!"',
+    wishWeights: { feed:1, play:1, win_battle:1, visit_shop:4, use_toy:2, take_snapshot:1, view_profile:3 } },
+  { key:'brave',    icon:'🦁', label:'Brave',    line:'"I\'m not scared of anything!"',
+    wishWeights: { feed:1, play:2, win_battle:5, visit_shop:1, use_toy:1, take_snapshot:1, view_profile:1 } },
+  { key:'sleepy',   icon:'😴', label:'Sleepy',   line:'"Five more minutes, please..."',
+    wishWeights: { feed:4, play:1, win_battle:0, visit_shop:1, use_toy:1, take_snapshot:1, view_profile:1 } },
+  { key:'hungry',   icon:'🍕', label:'Hungry',   line:'"Got any snacks? I\'m STARVING."',
+    wishWeights: { feed:6, play:1, win_battle:1, visit_shop:2, use_toy:2, take_snapshot:0, view_profile:1 } },
+  { key:'sassy',    icon:'💅', label:'Sassy',    line:'"Whatever. I look amazing anyway."',
+    wishWeights: { feed:1, play:1, win_battle:1, visit_shop:3, use_toy:1, take_snapshot:5, view_profile:3 } }
 ];
 
 var WISH_POOL = [
@@ -5430,8 +5441,27 @@ async function personality_loadMood(petId) {
 
   // Generate new mood for today
   var personality = PERSONALITIES[Math.floor(Math.random() * PERSONALITIES.length)].key;
-  var shuffled = WISH_POOL.slice().sort(function() { return Math.random() - 0.5; });
-  var wishes = shuffled.slice(0, 3).map(function(w) { return { key: w.key, text: w.text, action: w.action, reward: w.reward }; });
+  // Build a weighted wish pool so personality actually shapes what the pet wants
+  var pDef = PERSONALITIES.find(function(p) { return p.key === personality; });
+  var weights = pDef && pDef.wishWeights ? pDef.wishWeights : null;
+  var weightedPool = [];
+  WISH_POOL.forEach(function(w) {
+    var weight = weights ? (weights[w.key] !== undefined ? weights[w.key] : 1) : 1;
+    for (var wi = 0; wi < weight; wi++) { weightedPool.push(w); }
+  });
+  weightedPool.sort(function() { return Math.random() - 0.5; });
+  // Pick 3 unique wishes (by key) from the weighted pool
+  var seen = {}, wishes = [];
+  for (var wi = 0; wi < weightedPool.length && wishes.length < 3; wi++) {
+    if (!seen[weightedPool[wi].key]) {
+      seen[weightedPool[wi].key] = true;
+      wishes.push({ key: weightedPool[wi].key, text: weightedPool[wi].text, action: weightedPool[wi].action, reward: weightedPool[wi].reward });
+    }
+  }
+  // Fallback: if somehow we got fewer than 3, top up from flat pool
+  if (wishes.length < 3) {
+    WISH_POOL.forEach(function(w) { if (!seen[w.key] && wishes.length < 3) { seen[w.key] = true; wishes.push({ key: w.key, text: w.text, action: w.action, reward: w.reward }); } });
+  }
 
   // Save to DB — use insert with fallback update for better 403/duplicate handling
   var safeWishes = (wishes && wishes.length) ? wishes : [];
@@ -6143,7 +6173,12 @@ async function playWithToy(petId, toyId, toyName) {
   updateBingoProgress('play_pet', 1);
   updateBingoProgress('use_toy', 1);
   await addPassXP(2, 'play');
-  
+
+  // SCRAPBOOK: First toy use (once per pet)
+  scrapbook_hasMemory(petId, 'first_toy_use').then(function(exists) {
+    if (!exists) scrapbook_addMemory(petId, 'first_toy_use', { toy: toyName }).catch(function(){});
+  }).catch(function(){});
+
   // WISHES: check play and use_toy wishes
   checkPetWishes('play', petId).catch(function(){});
   checkPetWishes('use_toy', petId).catch(function(){});
@@ -12180,6 +12215,8 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           battleRewards.evolved = true;
           battleRewards.evolutionStage = newStage;
           battleRewards.evolutionEmoji = getEvolutionEmoji(newStage);
+          var evoType = newStage === 'teen' ? 'evolution_teen' : 'evolution_adult';
+          scrapbook_addMemory(petId, evoType, {}).catch(function(){});
         }
       }
     }
@@ -15979,25 +16016,143 @@ var CompanionBuddy = {
     chaotic: ["CHAOS TIME! ✨", "Let's break something! 😈"]
   },
 
-  // Pet-specific companion messages
+  // Pet-specific companion messages — one pool per pet (matched by lowercase pet name)
   petMessages: {
+    embertail: [
+      "Running at full power. Let's go! 🔥",
+      "Eleven years on Twitch and I still get excited about this.",
+      "Have you tried Abiotic Factor? No reason. Just asking.",
+      "Chaos is just enthusiasm with better marketing.",
+      "I'm not starting problems. I'm creating opportunities.",
+      "The grind doesn't stop. Neither do I. 🔥",
+      "You and me? We're doing great. Don't argue.",
+      "Someone told me to calm down once. Once.",
+      "Fire is just enthusiastic air. Think about it.",
+      "Sick flips incoming. You're welcome in advance.",
+      "I could be napping. I'm choosing not to. Big difference.",
+      "Eleven years. Still chaotic. Still thriving. 🧡",
+      "Let's go fight something. Just to see what happens.",
+      "I'm aggressively wholesome and there's nothing you can do about it.",
+      "Best day ever. Yesterday was also the best day. Tomorrow too."
+    ],
+    pyxshuul: [
+      "I had a plan. It involved a nap. Still on track. ✨",
+      "Spooky and Momo say hi. Probably.",
+      "The chaos is organized. I promise.",
+      "Tactical napping is a legitimate strategy.",
+      "Pizza the dog would back me up on this.",
+      "I may seem quiet. I am plotting.",
+      "Mama's Sleeping Angels energy: activated.",
+      "Something funny happened. I won't explain it. Just trust.",
+      "I'm not lost. This is exactly where I meant to be.",
+      "The fog had good vibes today. Very on brand.",
+      "Plans within plans within plans. Also snacks.",
+      "I'm doing great. In a specifically chaotic way. 💜",
+      "I found something interesting. I'm keeping it.",
+      "The scheme is going well. Thank you for not asking.",
+      "Quietly thriving. Do not disturb. ✨"
+    ],
+    aria: [
+      "Yummy! Bones are my favorite! 🦋",
+      "Woah! So shiny and pretty!",
+      "Do you want to see my bones?",
+      "Humans are so strange and silly!",
+      "The lamps are my friends and I will not hear otherwise.",
+      "I found the most beautiful bone today. It's mine now.",
+      "Cheesecake and bones. That's the dream. 🌸",
+      "The fae left me a shiny thing. Very polite of them.",
+      "Something is glowing nearby and I need to investigate.",
+      "The Crane Wives have been in my head all day. Perfect.",
+      "I wrote a sad story about a moth. She's okay at the end. Mostly.",
+      "Humans think they're strange. Adorable.",
+      "I've been very patient. I am known for this. 💀",
+      "The shadows said something interesting. I'm looking into it.",
+      "Spooky things are just regular things with better lighting. 🦋"
+    ],
+    kelta: [
+      "YIP! Portal's open! Let's GO! 🌀",
+      "The void says hi. I said hi back. Very productive.",
+      "I opened three portals and I regret nothing.",
+      "Yap yap yap. That's arcane language. Look it up.",
+      "Grand mage hours. Do not test me. ✨",
+      "I got lost in another dimension. Found snacks. Worth it.",
+      "The floof is a weapon. A soft, powerful weapon.",
+      "YIP! That means I'm excited! And also always!",
+      "Studying galaxy magic. Taking extensive naps. Same energy.",
+      "I am small. I am mighty. The void confirms this.",
+      "Another portal opened. I didn't do it. Probably.",
+      "Chaotic? Prefer 'dynamically spontaneous.' 🌀",
+      "The Pomeranian has spoken. Heed the yap.",
+      "I contain multitudes. And also endless energy. And snacks.",
+      "Everything is fine! I opened a portal to make sure! ✨"
+    ],
     blushimia: [
       "what the glob?????!!!",
       "I'm free! I'm finally free!",
       "This is so much better than my game!",
-      "Wanna see my escape route?"
+      "Wanna see my escape route?",
+      "WHAT THE GLOB I AM SO HAPPY RIGHT NOW!! 👑",
+      "Princess status: maximum. Tail velocity: also maximum.",
+      "I have so many thoughts! All of them are good!",
+      "Did you know I escaped a video game? Because I did. Wild.",
+      "Best day! Yesterday was also best day! Tomorrow too!",
+      "what the glob what the glob what the glob (happy version)",
+      "I rated today 12 out of 10. Scientists are baffled. 🐾",
+      "Tomodachi Life did NOT prepare me for how great this is.",
+      "The princess has arrived. You're welcome. 👑",
+      "I am vibrating at a frequency of pure joy right now.",
+      "Escaping a video game was the best decision I ever made."
     ],
     steve: [
       "Cluck, bawk, buck, FUCK! Cockadoodledoo!",
       "I'm a menace, owo",
       "Don't test me, I'll peck you!",
-      "As chill as a fire in hell!"
+      "As chill as a fire in hell!",
+      "Cluck. That means hello. Or a threat. Unclear.",
+      "I produce milk AND honey. The economists are still recovering.",
+      "Your cozy little horror is feeling very cozy today. 🐔",
+      "I've started streaming for fun back in 2016. Don't ask.",
+      "Bee-vegan is a complicated question and I won't be taking it.",
+      "The bread is mine. All of it. Historically.",
+      "Cluck bawk. Translation: I am thriving chaotically. 🐄",
+      "I'm not unhinged. I'm operating on a different frequency.",
+      "The buzz-moo hybrid has opinions. Currently: many.",
+      "Don't let the 'owo' fool you. I'm a menace. Confirmed.",
+      "Everything is fine. I caused minor problems. Classic Tuesday."
     ],
-    aria: [
-      "Yummy! Bones are my favorite!",
-      "Woah! So shiny and pretty!",
-      "Do you want to see my bones?",
-      "Humans are so strange and silly!"
+    gnarly: [
+      "HIGH SCORE! In life AND in games! 🎮",
+      "Radical! Completely radical!",
+      "The Furbies are watching. They approve.",
+      "I got banned from an arcade once. Best story ever.",
+      "PaleoPlex is OPEN and the nachos are FRESH. Let's go.",
+      "Prehistorically good at everything. It's a gift. 🕹️",
+      "I never get game overs. In games OR in life.",
+      "The prize counter has been very kind to me today.",
+      "Gnarly status: fully operational, maximum radical. 🎮",
+      "Neopets The Darkest Faerie is a masterpiece and I will die on this hill.",
+      "Even the Furbies can't keep up with me and they NEVER BLINK.",
+      "INSERT COIN. That's you. You're the coin. Thank you.",
+      "Sick moves incoming. I practiced. Well, 'practiced.' 🕹️",
+      "The high score board has my name on it. All of them.",
+      "Player two has entered the game. Let's make this radical."
+    ],
+    jess: [
+      "Hello! I found something interesting in the dirt. 🦕",
+      "The potion came out right on the first try today. Good omen.",
+      "65 million years of dinosaur history. Still thriving.",
+      "Quiet adventures are still adventures. Noted.",
+      "I have a mango delight and life is good. 🌿",
+      "The fossils have been very talkative today. Good listeners too.",
+      "Something whimsical is happening and I'm here for it.",
+      "Parasaur things: finding cool rocks, being level-headed, winning.",
+      "I started a new potion. It's going well. Probably. 🦕",
+      "The dinosaurs didn't go extinct. They just got cuter. I'm proof.",
+      "Jess is here. Jess has a sketchbook. Jess is content. 🌿",
+      "Small adventure today. Very good. Highly recommend.",
+      "The fossils say hi. They're very polite for being old.",
+      "Art is happening. Quietly. With full dinosaur energy. 🦕",
+      "A quiet critter doing quiet things. It's the good life."
     ]
   },
   
@@ -28267,6 +28422,36 @@ var SCRAPBOOK_TEMPLATES = {
         '{pet} was relieved when {trainer} came back. They had been keeping track of the days.',
         '{pet} did not ask where {trainer} had been. They were just glad they came back.',
         'When {trainer} returned, {pet} acted like nothing had happened. They had been practicing.'
+    ],
+    expedition_complete: [
+        '{pet} came back from {zone} with stories to tell and pockets full of treasures.',
+        'An expedition to {zone} complete! {pet} returned safely, tired but proud.',
+        '{pet} explored {zone} and made it back. A little braver than before.',
+        'The {zone} has been thoroughly investigated by {pet}. Verdict: very interesting.'
+    ],
+    evolution_teen: [
+        '{pet} has grown into a teen! Something has shifted. They seem bigger. More themselves.',
+        'Somewhere between adventure and rest, {pet} crossed into a new stage. Teen now.',
+        '{pet} grew up a little today. Just a little. Still theirs. 🌱',
+        'A quiet milestone: {pet} is no longer a baby. Teen energy incoming.'
+    ],
+    evolution_adult: [
+        '{pet} reached adulthood. Whatever that means for them, exactly. It suits them.',
+        'Full-grown and fully themselves: {pet} is an adult now. The journey continues.',
+        '{pet} made it to adulthood. {trainer} watched it happen. Quietly proud.',
+        'An adult now. {pet} looks the same but different somehow. Good different. 🌿'
+    ],
+    first_toy_use: [
+        '{pet} played with {toy} for the first time today. Immediate obsession detected.',
+        '{toy} has been approved by {pet}. Unanimously. With enthusiasm.',
+        'First time with {toy}: {pet} was into it. Very into it. This is their thing now.',
+        '{pet} discovered {toy} today. The toy did not survive at full dignity. {pet} had fun.'
+    ],
+    hunger_empty: [
+        '{pet} got very hungry while {trainer} was away. They waited. They\'re okay. They remember.',
+        'An empty bowl. {pet} sat with it quietly. Then {trainer} came back.',
+        'The hunger reached zero today. {pet} was patient about it. Mostly.',
+        '{pet} was forgotten for a little while. It happens. They still wagged when you returned.'
     ]
 };
 
@@ -28439,7 +28624,7 @@ async function scrapbook_loadMemories(userPetId, limit) {
     limit = limit || 15;
     var res = await supabaseClient
         .from('pet_memories')
-        .select('memory_text, memory_type, created_at, weather, mood')
+        .select('id, memory_text, memory_type, created_at, weather, mood, entry_data')
         .eq('user_pet_id', userPetId)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -28484,11 +28669,59 @@ async function scrapbook_refreshMemories(userPetId) {
         if (mem.mood && SCRAPBOOK_MOOD_ICONS[mem.mood]) {
             badges += '<span class="sb-memory-badge" title="Mood: ' + mem.mood + '">' + SCRAPBOOK_MOOD_ICONS[mem.mood] + '</span>';
         }
+        var playerNote = (mem.entry_data && mem.entry_data.player_note) ? mem.entry_data.player_note : '';
+        var noteSection = playerNote
+            ? '<div class="sb-player-note">✏️ ' + escapeHtml(playerNote) + '</div>'
+            : '';
+        var noteId = 'sb-note-' + (mem.id || Math.random());
         return '<div class="sb-memory-card">' +
             '<div class="sb-memory-date">📅 ' + scrapbook_formatDate(mem.created_at) + (badges ? ' ' + badges : '') + '</div>' +
             '<div class="sb-memory-text">💭 ' + escapedText + '</div>' +
+            noteSection +
+            '<div class="sb-note-area" id="' + noteId + '" style="display:none;">' +
+              '<textarea maxlength="140" placeholder="Add a note... (140 chars)" style="width:100%;font-size:0.8rem;border:1px solid var(--border);border-radius:8px;padding:6px;resize:none;font-family:inherit;background:var(--cream);color:var(--text);margin-top:6px;" rows="2">' + escapeHtml(playerNote) + '</textarea>' +
+              '<button onclick="scrapbook_saveNote(\'' + mem.id + '\', \'' + noteId + '\')" style="margin-top:4px;font-size:0.75rem;padding:4px 10px;" class="btn btn-primary">Save</button>' +
+              '<button onclick="document.getElementById(\'' + noteId + '\').style.display=\'none\'" style="margin-top:4px;margin-left:6px;font-size:0.75rem;padding:4px 10px;" class="btn btn-outline">Cancel</button>' +
+            '</div>' +
+            '<button onclick="document.getElementById(\'' + noteId + '\').style.display=\'block\'" style="background:none;border:none;color:var(--text-light);font-size:0.72rem;cursor:pointer;padding:2px 0;margin-top:4px;">✏️ ' + (playerNote ? 'Edit note' : 'Add a note') + '</button>' +
             '</div>';
     }).join('');
+}
+
+async function scrapbook_saveNote(memoryId, areaId) {
+    if (!memoryId || !currentUser) return;
+    var area = document.getElementById(areaId);
+    if (!area) return;
+    var textarea = area.querySelector('textarea');
+    if (!textarea) return;
+    var note = textarea.value.trim().slice(0, 140);
+    var btn = area.querySelector('.btn-primary');
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+    try {
+        // Merge note into existing entry_data JSONB
+        var { data: existing } = await supabaseClient
+            .from('pet_memories').select('entry_data').eq('id', memoryId).eq('user_id', currentUser.id).single();
+        var merged = Object.assign({}, (existing && existing.entry_data) || {}, { player_note: note });
+        var { error } = await supabaseClient
+            .from('pet_memories').update({ entry_data: merged }).eq('id', memoryId).eq('user_id', currentUser.id);
+        if (error) throw error;
+        area.style.display = 'none';
+        // Update the displayed note without full re-render
+        var card = area.closest('.sb-memory-card');
+        if (card) {
+            var existing_note = card.querySelector('.sb-player-note');
+            if (note) {
+                if (existing_note) { existing_note.textContent = '✏️ ' + note; }
+                else { var nd = document.createElement('div'); nd.className = 'sb-player-note'; nd.textContent = '✏️ ' + note; area.before(nd); }
+            } else if (existing_note) { existing_note.remove(); }
+            var editBtn = card.querySelector('button[onclick*="style.display=\'block\'"]');
+            if (editBtn) editBtn.textContent = '✏️ ' + (note ? 'Edit note' : 'Add a note');
+        }
+        showToast('Note saved! 📝', 2000);
+    } catch(e) {
+        showToast('Could not save note.', 2000);
+        if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+    }
 }
 
 // Initialize
