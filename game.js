@@ -12618,13 +12618,24 @@ function initManualBattle(playerStats, enemyStats, petId) {
     pSprite.textContent = '';
   }
 
-  // Enemy sprite
+  // Enemy sprite — map species name to emoji since enemy_pets has no emoji column
+  var ENEMY_EMOJI_MAP = {
+    bird:'🐦', bunny:'🐰', rabbit:'🐰', squirrel:'🐿️', rat:'🐭', mouse:'🐭',
+    cat:'🐱', dog:'🐕', fox:'🦊', raccoon:'🦝', boar:'🐗', pig:'🐷',
+    deer:'🦌', wolf:'🐺', bear:'🐻', mushroom:'🍄', slime:'🫧',
+    bat:'🦇', spider:'🕷️', crab:'🦀', fish:'🐟', frog:'🐸',
+    crystal:'💎', ghost:'👻', spirit:'👻', shadow:'🌑', void:'🌑',
+    corrupted:'💀', piper:'🎵', boss:'⚠️', default:'🐾'
+  };
   var eSprite = el('enemy-battle-sprite');
   if (eSprite) {
     var filterMap = { corrupted: 'hue-rotate(270deg) saturate(2.5)', golden: 'sepia(1) brightness(1.6) saturate(2.5)', shiny: 'hue-rotate(180deg) saturate(1.8) brightness(1.1)', glitched: 'hue-rotate(120deg) contrast(1.4)' };
     if (enemyStats.specialVariant && filterMap[enemyStats.specialVariant]) eSprite.style.filter = filterMap[enemyStats.specialVariant];
-    eSprite.textContent = enemyStats.species ? (enemyStats.species.length <= 2 ? enemyStats.species : '🐾') : '🐾';
-    if (enemyStats.is_boss) { eSprite.style.fontSize = '3.5rem'; }
+    var speciesKey = (enemyStats.species || '').toLowerCase().replace(/\s+.*/, '');
+    var enemyEmoji = ENEMY_EMOJI_MAP[speciesKey] || ENEMY_EMOJI_MAP.default;
+    eSprite.textContent = enemyEmoji;
+    eSprite.style.fontSize = enemyStats.is_boss ? '3.5rem' : '2.5rem';
+    eSprite.style.lineHeight = '1';
   }
 
   el('player-battle-name').textContent = playerStats.name;
@@ -12632,6 +12643,44 @@ function initManualBattle(playerStats, enemyStats, petId) {
   el('enemy-hp-text').textContent = enemyStats.is_boss ? '???/???' : enemyStats.hp + '/' + enemyStats.hp;
   if (enemyStats.is_boss) el('enemy-hp-fill').style.background = 'linear-gradient(90deg,#ff4444,#ff0000)';
 
+  // ── SPIRIT + LUCK + ARCHIVE LORE BUFFS ─────────────────────────────────
+  // Spirit: reduces Piper influence, amplifies healing, resists statuses
+  // Luck: already boosts crits in calculateDamage; also added dodge chance
+  // Archive: tester logs found grant passive combat bonuses
+  var pStats = playerStats.stats;
+  var spiritVal = pStats.spirit || 0;
+  var luckVal   = pStats.luck   || 0;
+
+  // Archive lore bonuses (non-blocking — uses cached _foundLogs)
+  var archiveBonus = manualBattle_getArchiveBonus();
+  manualBattleState.archiveBonus = archiveBonus;
+
+  // Beta Integrity battle modifier — corruption level affects fight conditions
+  var corruption = getWorldStateValueSync('corruption_level', 50);
+  var betaIntegrity = 100 - corruption; // 0-100, higher = more stable
+  var integrityMod = { type: 'stable', label: null };
+  if (betaIntegrity <= 10) {
+    integrityMod = { type: 'void',      label: '🌌 Beta: BREAKING', skillFailChance: 0.35, glitchDmg: 8 };
+  } else if (betaIntegrity <= 25) {
+    integrityMod = { type: 'breaking',  label: '💀 Beta: Critical', skillFailChance: 0.20, glitchDmg: 5 };
+  } else if (betaIntegrity <= 50) {
+    integrityMod = { type: 'corrupted', label: '🟣 Beta: Corrupted', skillFailChance: 0.10, glitchDmg: 2 };
+  } else if (betaIntegrity <= 79) {
+    integrityMod = { type: 'unstable',  label: '⚠️ Beta: Unstable',  skillFailChance: 0.05, glitchDmg: 0 };
+  }
+  manualBattleState.integrityMod = integrityMod;
+
+  // Show integrity banner if not stable
+  if (integrityMod.label && el('battle-zone-banner')) {
+    var banner = el('battle-zone-banner');
+    var existing = banner.textContent;
+    banner.textContent = existing ? existing + ' | ' + integrityMod.label : integrityMod.label;
+    banner.style.display = 'block';
+  }
+
+  // Show Piper's Influence meter
+  var piperContainer = el('piper-influence-container');
+  if (piperContainer) piperContainer.style.display = 'block';
   manualBattle_render();
   manualBattle_setNarrative('<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>What will you do?');
 }
@@ -12738,6 +12787,7 @@ async function _manualBattle_doTurn(type, skillIdx) {
     // ── PLAYER ACTS ───────────────────────────────────────────────────
     var playerNarrative = manualBattle_resolvePlayerAction(type, skillIdx, s);
     lines.push(playerNarrative);
+    if (s.fled) { manualBattle_setNarrative(playerNarrative); return; }
     if (s.enemyHP <= 0) { s.enemyHP = 0; manualBattle_render(); await manualBattle_endBattle(true); return; }
   }
 
@@ -12748,10 +12798,19 @@ async function _manualBattle_doTurn(type, skillIdx) {
     lines.push(mod.label + ': Enemy recovered ' + (mod.amount || 3) + ' HP!');
   }
   if (mod.type === 'corruption') {
-    var corrDmg = mod.damage || 2;
+    // Spirit reduces corruption damage
+    var spiritVal = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+    var corrDmg = Math.max(0, (mod.damage || 2) - Math.floor(spiritVal / 3));
     s.playerHP = Math.max(0, s.playerHP - corrDmg);
     s.totalDamageTaken += corrDmg;
-    lines.push(mod.label + ': You took ' + corrDmg + ' corruption damage!');
+    lines.push(mod.label + ': ' + corrDmg + ' corruption damage!' + (spiritVal > 0 ? ' (Spirit resisted!)' : ''));
+    if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
+  }
+
+  // Beta Integrity glitch damage each turn (void/breaking states)
+  var integrityLine = manualBattle_applyIntegrityEffects(s);
+  if (integrityLine) {
+    lines.push(integrityLine);
     if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
   }
 
@@ -12789,6 +12848,17 @@ async function _manualBattle_doTurn(type, skillIdx) {
     if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
   }
 
+  // ── PIPER'S INFLUENCE — passive gain + possible event ─────────────────
+  var piperEvent = manualBattle_tickInfluence(3);
+  if (piperEvent) {
+    lines.push(piperEvent);
+    if (s.playerHP <= 0 || s.enemyHP <= 0) {
+      manualBattle_render();
+      await manualBattle_endBattle(s.playerHP > 0);
+      return;
+    }
+  }
+
   // Max turns safety valve
   if (s.turn >= 50) { await manualBattle_endBattle(false); return; }
 
@@ -12799,29 +12869,43 @@ async function _manualBattle_doTurn(type, skillIdx) {
 
 function manualBattle_resolvePlayerAction(type, skillIdx, s) {
   if (type === 'flee') {
-    // 40% chance to flee successfully
     if (Math.random() < 0.4) {
-      s.victory = false;
-      s.playerHP = s.playerHP; // preserve HP on flee
-      setTimeout(function() { manualBattle_endBattle('flee'); }, 200);
+      s.fled = true;
+      setTimeout(function() { manualBattle_endBattle('flee'); }, 400);
       return '🏃 ' + s.playerStats.name + ' fled from battle!';
     } else {
       return '🏃 Tried to flee... but couldn\'t escape!';
     }
   }
 
+  if (type === 'item') {
+    // skillIdx is actually the item object here
+    return manualBattle_resolveItemUse(skillIdx, s);
+  }
+
   if (type === 'attack') {
     s.attackUseCount++;
-    var dmgResult = calculateDamage(s.playerStats.stats.attack + (s.playerAtkBuff || 0), s.enemyStats.base_defense - (s.enemyDefDebuff || 0), false, s.playerStats.stats.luck || 0);
-    s.enemyHP = Math.max(0, s.enemyHP - dmgResult.damage);
-    var line = (dmgResult.isCrit ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + dmgResult.damage + ' damage!';
+    manualBattle_tickInfluence(8);
+    // Beta Integrity: low integrity can cause attacks to glitch
+    var intMod = s.integrityMod || {};
+    if (intMod.skillFailChance && Math.random() < intMod.skillFailChance) {
+      return '⚡ Beta glitch! Attack misfires!';
+    }
+    var dmgResult = calculateDamage(s.playerStats.stats.attack + (s.playerAtkBuff || 0), Math.max(0, s.enemyStats.base_defense - (s.enemyDefDebuff || 0)), false, s.playerStats.stats.luck || 0);
+    // Archive damage bonus
+    var isCorrEnemy = !!(s.enemyStats.specialVariant === 'corrupted' || s.enemyStats.is_boss);
+    var archMult = manualBattle_dmgMultiplier(s, isCorrEnemy);
+    var finalDmg = Math.round(dmgResult.damage * archMult);
+    s.enemyHP = Math.max(0, s.enemyHP - finalDmg);
+    var line = (dmgResult.isCrit ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + finalDmg + ' damage!';
+    if (archMult > 1.05) line += ' (Archive boost!)';
 
     // Equipment attack passives
-    var passiveLines = manualBattle_applyEquipPassives(s, dmgResult.damage);
+    var passiveLines = manualBattle_applyEquipPassives(s, finalDmg);
     if (passiveLines.length) line += ' ' + passiveLines.join(' ');
 
     s.playerEvasionBuff = false;
-    s.playerAtkBuff = 0; // consume one-turn buffs
+    s.playerAtkBuff = 0;
     return line;
   }
 
@@ -12830,8 +12914,14 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
     var skill = skills[skillIdx];
     if (!skill) return 'No skill found!';
     if ((s.skillCooldowns[skill.id] || 0) > 0) return 'Skill not ready!';
-
     s.skillUseCount++;
+    manualBattle_tickInfluence(5);
+    // Beta Integrity: low integrity can cause skills to fail
+    var intMod = s.integrityMod || {};
+    if (intMod.skillFailChance && Math.random() < intMod.skillFailChance) {
+      if (skill.cooldown > 0) s.skillCooldowns[skill.id] = skill.cooldown;
+      return '⚡ Beta glitch! ' + skill.name + ' misfires! (cooldown still applied)';
+    }
     if (skill.cooldown > 0) s.skillCooldowns[skill.id] = skill.cooldown;
     return manualBattle_applySkill(skill, s);
   }
@@ -12852,8 +12942,8 @@ function manualBattle_applySkill(skill, s) {
 
   // Healing / utility
   if (skill.healPct && skill.healPct > 0) {
-    var healAmt = Math.floor(s.playerMaxHP * skill.healPct);
-    s.playerHP = Math.min(s.playerMaxHP, s.playerHP + healAmt);
+    var healBase = Math.floor(s.playerMaxHP * skill.healPct);
+    var healAmt = manualBattle_applyHeal(healBase, s);
     lines.push('Restored ' + healAmt + ' HP!');
   }
 
@@ -12893,11 +12983,15 @@ function manualBattle_applySkill(skill, s) {
         manualBattle_applyStatus('fear', s.enemyStatuses);
         lines.push('Success! The enemy loses their next turn!');
       } else {
-        manualBattle_applyStatus('stun', s.playerStatuses);
+        manualBattle_applyStatusToPlayer('stun', s); // spirit can resist even your own failed escape
         lines.push('Failed! ' + s.playerStats.name + ' loses next turn!');
       }
       baseDmg = 0;
     }
+
+    // Scale damage by archive bonus
+    var corruptedEnemy = !!(s.enemyStats.specialVariant === 'corrupted' || s.enemyStats.is_boss);
+    baseDmg = Math.round(baseDmg * manualBattle_dmgMultiplier(s, corruptedEnemy));
 
     // Conditional bonus (Pyxshuul Mama's Grace, Jess Mesozoic Rage, Steve Chill Menace)
     if (skill.condBonus && skill.condBonus.ifStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
@@ -12924,16 +13018,16 @@ function manualBattle_applySkill(skill, s) {
 
     // Lifesteal from skill (Moth's Embrace)
     if (skill.lifeSteal && baseDmg > 0) {
-      var lsAmt = Math.floor(baseDmg * skill.lifeSteal);
-      s.playerHP = Math.min(s.playerMaxHP, s.playerHP + lsAmt);
-      lines.push('Drained ' + lsAmt + ' HP!');
+      var lsBase = Math.floor(baseDmg * skill.lifeSteal);
+      manualBattle_applyHeal(lsBase, s);
+      lines.push('Drained ' + lsBase + ' HP!');
     }
 
     // Lifesteal chance (Cinnabon Explosion)
     if (skill.lifeStealChance && Math.random() < skill.lifeStealChance.chance && baseDmg > 0) {
-      var lsAmt2 = Math.floor(baseDmg * skill.lifeStealChance.pct);
-      s.playerHP = Math.min(s.playerMaxHP, s.playerHP + lsAmt2);
-      lines.push('Recovered ' + lsAmt2 + ' HP!');
+      var lsBase2 = Math.floor(baseDmg * skill.lifeStealChance.pct);
+      manualBattle_applyHeal(lsBase2, s);
+      lines.push('Recovered ' + lsBase2 + ' HP!');
     }
   }
 
@@ -12975,7 +13069,7 @@ function manualBattle_applyEquipPassives(s, baseDamage) {
     if (fx.doubleDamage) { s.enemyHP = Math.max(0, s.enemyHP - baseDamage); lines.push(fx.icon + ' Double hit!'); }
     if (fx.extraHitPct) { var ex = Math.max(1, Math.floor(baseDamage * fx.extraHitPct)); s.enemyHP = Math.max(0, s.enemyHP - ex); lines.push(fx.icon + ' Extra strike: ' + ex + '!'); }
     if (fx.forceCrit) { var crit = Math.floor(baseDamage * 0.5); s.enemyHP = Math.max(0, s.enemyHP - crit); lines.push(fx.icon + ' Fated crit!'); }
-    if (fx.healPct) { var h = Math.floor(baseDamage * fx.healPct); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push(fx.icon + ' Healed ' + h + '!'); }
+    if (fx.healPct) { var h = Math.floor(baseDamage * fx.healPct); manualBattle_applyHeal(h, s); lines.push(fx.icon + ' Healed ' + h + '!'); }
     if (fx.defenseShred) { s.enemyDefDebuff = (s.enemyDefDebuff || 0) + fx.defenseShred; }
     if (fx.stunEnemy) { manualBattle_applyStatus('stun', s.enemyStatuses); lines.push(fx.icon + ' Stunned!'); }
   });
@@ -12993,7 +13087,7 @@ function manualBattle_applyDefendPassives(s, incomingDamage) {
     if (fx.fullBlock) { finalDmg = 0; lines.push(fx.icon + ' Blocked!'); }
     if (fx.flatReduction) { finalDmg = Math.max(0, finalDmg - fx.flatReduction); }
     if (fx.reflectPct) { var ref = Math.floor(incomingDamage * fx.reflectPct); s.enemyHP = Math.max(0, s.enemyHP - ref); lines.push(fx.icon + ' Reflected ' + ref + '!'); }
-    if (fx.healMaxPct) { var h = Math.floor(s.playerMaxHP * fx.healMaxPct); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push(fx.icon + ' Healed ' + h + '!'); }
+    if (fx.healMaxPct) { var h = Math.floor(s.playerMaxHP * fx.healMaxPct); manualBattle_applyHeal(h, s); lines.push(fx.icon + ' Healed ' + h + '!'); }
     if (fx.selfDamage) { s.playerHP = Math.max(0, s.playerHP - fx.selfDamage); }
   });
   return { finalDmg: finalDmg, lines: lines };
@@ -13002,7 +13096,7 @@ function manualBattle_applyDefendPassives(s, incomingDamage) {
 function manualBattle_enemyTurn(s) {
   var enemy = s.enemyStats;
 
-  // Stun / fear check
+  // Stun / fear check on enemy
   if (s.enemyStatuses.stun || s.enemyStatuses.fear) {
     var sk = s.enemyStatuses.stun ? 'stun' : 'fear';
     s.enemyStatuses[sk].turns--;
@@ -13026,13 +13120,12 @@ function manualBattle_enemyTurn(s) {
   // Enemy attack
   var atkResult = calculateDamage(enemy.base_attack, s.playerStats.stats.defense, false, 0);
   var dmg = atkResult.damage;
-
   // Apply defend passives
   var defend = manualBattle_applyDefendPassives(s, dmg);
   dmg = defend.finalDmg;
-
   s.playerHP = Math.max(0, s.playerHP - dmg);
   s.totalDamageTaken += dmg;
+  manualBattle_tickInfluence(10); // taking damage raises Piper's influence
 
   var line = enemy.name + ' attacks for ' + dmg + ' damage!';
   if (defend.lines.length) line += ' ' + defend.lines.join(' ');
@@ -13068,6 +13161,170 @@ function manualBattle_tickDOT(statuses, side, s) {
   return lines;
 }
 
+// Archive lore bonuses — tester logs found grant passive combat boosts
+function manualBattle_getArchiveBonus() {
+  var found = Object.keys(_foundLogs || {});
+  var bonus = { dmgPct: 0, healPct: 0, statusResist: 0, corruptedDmgPct: 0 };
+  // Each log found: +1% damage
+  bonus.dmgPct += found.length * 0.01;
+  // LOG-007 (hearing the flute): fear/confuse resistance
+  if (_foundLogs['LOG-007']) bonus.statusResist += 0.10;
+  // LOG-013 (pets aren't simulated): healing amplification
+  if (_foundLogs['LOG-013']) bonus.healPct += 0.10;
+  // LOG-016 (integrity system): bonus damage vs corrupted
+  if (_foundLogs['LOG-016']) bonus.corruptedDmgPct += 0.10;
+  // Complete archive (all 20): big bonus
+  if (found.length >= 20) { bonus.dmgPct += 0.15; bonus.healPct += 0.10; }
+  return bonus;
+}
+
+// Spirit-amplified healing — called by all heal sources
+function manualBattle_applyHeal(baseHeal, s) {
+  var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+  var archHeal = (s.archiveBonus && s.archiveBonus.healPct) || 0;
+  var amplified = Math.floor(baseHeal * (1 + spirit * 0.05 + archHeal));
+  s.playerHP = Math.min(s.playerMaxHP, s.playerHP + amplified);
+  return amplified;
+}
+
+// Spirit/Luck status resistance — returns true if status was resisted
+function manualBattle_resistStatus(s) {
+  var luck   = (s.playerStats.stats && s.playerStats.stats.luck)   || 0;
+  var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+  var archResist = (s.archiveBonus && s.archiveBonus.statusResist) || 0;
+  var resistChance = Math.min(0.50, luck * 0.04 + spirit * 0.03 + archResist);
+  return Math.random() < resistChance;
+}
+
+// Archive-boosted + spirit-amplified damage multiplier
+function manualBattle_dmgMultiplier(s, isCorruptedEnemy) {
+  var archDmg = (s.archiveBonus && s.archiveBonus.dmgPct) || 0;
+  var archCorr = (s.archiveBonus && s.archiveBonus.corruptedDmgPct) || 0;
+  var mult = 1 + archDmg + (isCorruptedEnemy ? archCorr : 0);
+  return mult;
+}
+
+// Beta Integrity: apply skill fail chance + glitch damage to player each turn
+function manualBattle_applyIntegrityEffects(s) {
+  var mod = s.integrityMod;
+  if (!mod || mod.type === 'stable' || mod.type === 'unstable') return null;
+  var results = [];
+  if (mod.glitchDmg > 0) {
+    var gDmg = mod.glitchDmg;
+    s.playerHP = Math.max(0, s.playerHP - gDmg);
+    s.totalDamageTaken += gDmg;
+    results.push('⚡ Beta glitch: ' + gDmg + ' integrity damage!');
+  }
+  return results.length ? results.join(' ') : null;
+}
+
+// Spirit: reduce status duration on player when applying
+function manualBattle_applyStatusToPlayer(type, s) {
+  var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+  // Luck/spirit chance to resist entirely
+  if (manualBattle_resistStatus(s)) return false; // resisted
+  var def = STATUS_EFFECTS[type];
+  if (!def) return true;
+  // Spirit reduces duration by 1 per 3 spirit points
+  var durationReduction = Math.floor(spirit / 3);
+  var finalDuration = Math.max(1, def.duration - durationReduction);
+  if (!s.playerStatuses[type]) {
+    s.playerStatuses[type] = { turns: finalDuration };
+  } else {
+    s.playerStatuses[type].turns = Math.max(s.playerStatuses[type].turns, finalDuration);
+  }
+  return true; // applied
+}
+
+function manualBattle_getUsableItems() {
+  return (inventoryItems || []).filter(function(item) {
+    return (item.quantity || 0) > 0 && (
+      item.item_type === 'medicine' ||
+      (item.item_type === 'food' && (item.hunger_effect || 0) > 0)
+    );
+  }).slice(0, 8);
+}
+
+function manualBattle_resolveItemUse(item, s) {
+  var hpGain = item.item_type === 'medicine'
+    ? (item.hp_effect || Math.round((item.hunger_effect || 10) * 3))
+    : Math.round((item.hunger_effect || 0) * 2);
+  if (hpGain <= 0) hpGain = 15;
+  var actualHeal = manualBattle_applyHeal(hpGain, s);
+  if (item.quantity > 0) item.quantity--;
+  manualBattle_tickInfluence(6);
+  return '🧪 Used ' + item.name + '! Restored ' + actualHeal + ' HP!';
+}
+
+function manualBattle_showItemPicker() {
+  var s = manualBattleState;
+  if (!s || s.victory !== null || s.fled) return;
+  var usable = manualBattle_getUsableItems();
+  if (!usable.length) { showToast('No usable items!', 2000); return; }
+
+  var existing = document.getElementById('battle-item-overlay');
+  if (existing) { existing.remove(); return; } // toggle
+
+  var overlay = document.createElement('div');
+  overlay.id = 'battle-item-overlay';
+  overlay.style.cssText = 'background:var(--white);border:2px solid var(--purple);border-radius:14px;padding:10px;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);';
+  overlay.innerHTML = '<div style="font-weight:700;font-size:0.82rem;margin-bottom:8px;color:var(--purple-dark);">🎒 Use an Item (costs your turn)</div>' +
+    usable.map(function(item, idx) {
+      var hpEst = item.item_type === 'medicine'
+        ? (item.hp_effect || Math.round((item.hunger_effect || 10) * 3))
+        : Math.round((item.hunger_effect || 0) * 2);
+      return '<button onclick="manualBattle_useItem(' + idx + ')" style="display:block;width:100%;text-align:left;padding:7px 10px;margin-bottom:5px;border-radius:10px;border:1px solid var(--border);background:rgba(153,102,255,0.06);cursor:pointer;font-family:\'Fredoka\',sans-serif;font-size:0.82rem;">' +
+        '<strong>' + escapeHtml(item.name) + '</strong>' +
+        ' <span style="color:var(--green);font-size:0.75rem;">+' + hpEst + ' HP</span>' +
+        ' <span style="color:var(--text-light);font-size:0.72rem;">×' + (item.quantity || 0) + '</span></button>';
+    }).join('') +
+    '<button onclick="document.getElementById(\'battle-item-overlay\').remove()" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer;font-size:0.78rem;color:var(--text-light);font-family:\'Fredoka\',sans-serif;">Cancel</button>';
+
+  var skillRow = el('battle-skill-row');
+  if (skillRow) skillRow.before(overlay);
+  else el('manual-battle-actions').prepend(overlay);
+}
+
+function manualBattle_useItem(idx) {
+  var existing = document.getElementById('battle-item-overlay');
+  if (existing) existing.remove();
+  var usable = manualBattle_getUsableItems();
+  var item = usable[idx];
+  if (!item) return;
+  manualBattle_playerAction('item', item);
+}
+
+// ── PIPER'S INFLUENCE METER ────────────────────────────────────────────────
+
+var PIPER_EVENTS = [
+  { fn: function(s) { var d=Math.floor(5+Math.random()*10); s.playerHP=Math.max(1,s.playerHP-d); s.enemyHP=Math.max(0,s.enemyHP-d); return '👁️ Piper\'s Echo: both sides take '+d+' damage!'; }},
+  { fn: function(s) { var sts=['confuse','fear']; var st=sts[Math.floor(Math.random()*sts.length)]; var applied=manualBattle_applyStatusToPlayer(st,s); return '👁️ Piper\'s Curse:'+(applied?' '+(STATUS_EFFECTS[st]&&STATUS_EFFECTS[st].icon||'')+' '+st+' applied!':' Resisted by Spirit!'); }},
+  { fn: function(s) { manualBattle_applyStatus('fear',s.enemyStatuses); return '👁️ Piper\'s Warning: the enemy is afraid!'; }},
+  { fn: function(s) { var h=Math.floor(s.playerMaxHP*0.15); manualBattle_applyHeal(h, s); return '👁️ Piper\'s Gift: restored HP... why?'; }},
+  { fn: function(s) { Object.keys(s.skillCooldowns).forEach(function(k){s.skillCooldowns[k]=0;}); return '👁️ Piper\'s Laughter: all skill cooldowns reset!'; }}
+];
+
+function manualBattle_tickInfluence(gainAmount) {
+  var s = manualBattleState;
+  if (!s) return null;
+  var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+  var reduction = Math.min(0.3, spirit * 0.02);
+  s.piperInfluence = Math.min(100, (s.piperInfluence || 0) + Math.round(gainAmount * (1 - reduction)));
+  var fill = el('piper-influence-fill');
+  var label = el('piper-influence-label');
+  if (fill) fill.style.width = s.piperInfluence + '%';
+  if (label) label.textContent = s.piperInfluence + '%';
+  var chance = s.piperInfluence >= 75 ? 0.55 : s.piperInfluence >= 50 ? 0.35 : s.piperInfluence >= 25 ? 0.15 : 0;
+  if (chance > 0 && Math.random() < chance) {
+    var event = PIPER_EVENTS[Math.floor(Math.random() * PIPER_EVENTS.length)];
+    s.piperInfluence = Math.max(0, s.piperInfluence - 20);
+    if (fill) fill.style.width = s.piperInfluence + '%';
+    if (label) label.textContent = s.piperInfluence + '%';
+    return event.fn(s);
+  }
+  return null;
+}
+
 async function manualBattle_endBattle(victory) {
   var s = manualBattleState;
   if (!s) return;
@@ -13087,6 +13344,11 @@ async function manualBattle_endBattle(victory) {
 
   s.victory = victory;
   manualBattle_setActionButtonsEnabled(false);
+
+  var piperContainer = el('piper-influence-container');
+  if (piperContainer) piperContainer.style.display = 'none';
+  var itemOverlay = document.getElementById('battle-item-overlay');
+  if (itemOverlay) itemOverlay.remove();
 
   var resultText = victory
     ? '🎉 <strong>' + s.playerStats.name + ' wins!</strong>'

@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260805b">
+  <link rel="stylesheet" href="style.css?v=20260805d">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -2194,11 +2194,23 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <!-- Battle Narrative (manual combat) -->
         <div id="battle-narrative-box" style="display:none;min-height:64px;padding:10px 14px;background:rgba(0,0,0,0.04);border-radius:12px;margin:10px 0;font-size:0.85rem;line-height:1.6;color:var(--text);border-left:3px solid var(--purple);"></div>
 
+        <!-- Piper's Influence Meter -->
+        <div id="piper-influence-container" style="display:none;margin:8px 0 4px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:0.72rem;color:var(--text-light);margin-bottom:3px;">
+            <span>👁️ Piper's Influence</span>
+            <span id="piper-influence-label">0%</span>
+          </div>
+          <div style="background:rgba(0,0,0,0.08);border-radius:20px;height:6px;overflow:hidden;">
+            <div id="piper-influence-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#9966ff,#ff0066);border-radius:20px;transition:width 0.5s;"></div>
+          </div>
+        </div>
+
         <!-- Manual Action Panel -->
         <div id="manual-battle-actions" style="display:none;">
           <div id="battle-turn-indicator" style="text-align:center;font-size:0.78rem;color:var(--text-light);margin-bottom:8px;font-weight:600;letter-spacing:1px;"></div>
-          <div id="battle-action-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <div id="battle-action-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
             <button id="battle-btn-attack" class="btn btn-primary" onclick="manualBattle_playerAction('attack')" style="padding:12px;font-size:0.9rem;">⚔️ Attack</button>
+            <button id="battle-btn-item" class="btn btn-outline" onclick="manualBattle_showItemPicker()" style="padding:12px;font-size:0.9rem;">🎒 Item</button>
             <button id="battle-btn-flee" class="btn btn-outline" onclick="manualBattle_playerAction('flee')" style="padding:12px;font-size:0.9rem;">🏃 Flee</button>
           </div>
           <div id="battle-skill-row" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
