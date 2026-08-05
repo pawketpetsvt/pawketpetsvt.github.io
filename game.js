@@ -8507,7 +8507,7 @@ var _rodCastsBonus = [0, 0, 4, 10, 17]; // extra casts per rod level
 
 function fishingGetRodCasts() {
   var base = FISH_SPOTS[_fishingSpot] ? FISH_SPOTS[_fishingSpot].baseCasts : 8;
-  return base + (_rodCastsBonus[_fishingRodLevel] || 0);
+  return base + (_rodCastsBonus[_rodLevel] || 0);
 }
 
 function fishingSelectSpot(spot) {
@@ -8539,20 +8539,22 @@ function fishingSaveCollection() {
   } catch(e){}
 }
 
-function fishingGetCatch() {
+function fishingGetCatch(power) {
   var spot = _fishingSpot;
   var bait = FISH_BAIT[_fishingBait] || FISH_BAIT.worm;
   var weather = (weatherSystem&&weatherSystem.currentWeather&&weatherSystem.currentWeather.id)||'clear';
+  var rodLvl = _rodLevel || 1;
+  // power: 0.0-1.0 from hold-to-cast. undefined = direct click (treat as neutral 0.5)
+  var castPower = (power !== undefined) ? power : 0.5;
 
   // Build candidate pool for this spot
   var pool = FISH_POOL.filter(function(f){
     if(f.spots.indexOf(spot)===-1) return false;
-    // Weather-exclusive: only appears in that weather
     if(f.weather && f.weather!==weather) return false;
     return true;
   });
 
-  // Add weather-exclusive fish at boosted weight if weather matches
+  // Add weather-exclusive fish if weather matches
   var weatherPool = FISH_POOL.filter(function(f){
     return f.weather && f.weather===weather && f.spots.indexOf(spot)!==-1;
   });
@@ -8560,32 +8562,48 @@ function fishingGetCatch() {
     if(pool.indexOf(f)===-1) pool.push(f);
   });
 
-  // Apply bait rarity boost (shifts probability toward rarer fish)
-  var totalWeight = pool.reduce(function(s,f){
+  // Central weight calculator — bait + rod + power all applied in one place
+  var getWeight = function(f) {
     var w = f.weight;
-    // Bait boost reduces weight of junk/common and boosts rare+
-    if(bait.rarityBoost>0){
-      if(f.rarity==='junk'||f.rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
-      if(f.rarity==='rare'||f.rarity==='epic'||f.rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
-    }
-    return s+w;
-  }, 0);
+    var isJunk    = f.rarity === 'junk';
+    var isCommon  = f.rarity === 'common';
+    var isRarePlus = (f.rarity === 'rare' || f.rarity === 'epic' || f.rarity === 'legendary');
 
-  var roll = Math.random()*totalWeight;
-  var acc = 0;
-  for(var i=0;i<pool.length;i++){
-    var w=pool[i].weight;
-    if(bait.rarityBoost>0){
-      if(pool[i].rarity==='junk'||pool[i].rarity==='common') w=Math.max(1,w-Math.floor(w*bait.rarityBoost*2));
-      if(pool[i].rarity==='rare'||pool[i].rarity==='epic'||pool[i].rarity==='legendary') w=Math.floor(w*(1+bait.rarityBoost));
+    // Bait boost
+    if (bait.rarityBoost > 0) {
+      if (isJunk || isCommon) w = Math.max(1, w - Math.floor(w * bait.rarityBoost * 2));
+      if (isRarePlus)         w = Math.floor(w * (1 + bait.rarityBoost));
     }
-    acc+=w;
-    if(roll<acc) return pool[i];
+
+    // Rod quality: higher rods suppress junk/common and boost rare+
+    // Rod 1: no change. Rod 2: -25% junk. Rod 3: -50% junk, +15% rare+. Rod 4: -75% junk, -25% common, +30% rare+.
+    if (rodLvl >= 2 && isJunk)    w = Math.max(1, Math.floor(w * (rodLvl >= 4 ? 0.25 : rodLvl >= 3 ? 0.50 : 0.75)));
+    if (rodLvl >= 4 && isCommon)  w = Math.max(1, Math.floor(w * 0.75));
+    if (rodLvl >= 3 && isRarePlus) w = Math.floor(w * (rodLvl >= 4 ? 1.30 : 1.15));
+
+    // Cast power: perfect cast (+20% rare+, -15% junk), weak cast (+15% junk, -10% rare+)
+    if (castPower >= 0.8) {
+      if (isRarePlus) w = Math.floor(w * 1.20);
+      if (isJunk)     w = Math.max(1, Math.floor(w * 0.85));
+    } else if (castPower < 0.4) {
+      if (isJunk)     w = Math.floor(w * 1.15);
+      if (isRarePlus) w = Math.max(1, Math.floor(w * 0.90));
+    }
+
+    return Math.max(1, w);
+  };
+
+  var totalWeight = pool.reduce(function(s, f) { return s + getWeight(f); }, 0);
+  var roll = Math.random() * totalWeight;
+  var acc = 0;
+  for (var i = 0; i < pool.length; i++) {
+    acc += getWeight(pool[i]);
+    if (roll < acc) return pool[i];
   }
   return pool[0];
 }
 
-async function castLine() {
+async function castLine(power) {
   if (isCD('fishing') || fishingCasts <= 0) return;
   
   // Deduct bait cost
@@ -8610,7 +8628,7 @@ async function castLine() {
   setTimeout(async function() {
     if(line) line.style.display = 'none';
     
-    var caught = fishingGetCatch();
+    var caught = fishingGetCatch(power);
     fishingCasts--;
     fishingTotal += caught.pp;
     
@@ -8644,6 +8662,9 @@ async function castLine() {
       setTimeout(function(){
         showToast('...you caught something that shouldn\'t be here. It looked at you.', 6000);
       },2000);
+      // Award ARG badge/title for catching Piper's fish
+      awardPP(0, 'piper_fish_discovered');
+      checkPlayerTitleUnlocks('piper_angler').catch(function(){});
     }
 
     // Junk ad — Ad-pocalypse fish
@@ -8652,6 +8673,27 @@ async function castLine() {
         showToast('📢 You caught: Sponsored Content. It was not worth it.', 4000);
       },500);
     }
+
+    // Legendary/epic catch — scrapbook memory on companion pet
+    if(caught.rarity==='legendary' || caught.rarity==='epic'){
+      var companionId = CompanionBuddy && CompanionBuddy.currentCompanionId;
+      if(companionId){
+        scrapbook_addMemory(companionId, 'legendary_fish', { fish: caught.name + ' ' + caught.emoji }).catch(function(){});
+      }
+    }
+
+    // Fishing achievements — check milestones by total non-junk caught count
+    (function checkFishingAchievements(){
+      var totalCaught = Object.keys(_fishCollection).reduce(function(sum, k){
+        var f = FISH_POOL.find(function(ff){ return ff.id === k; });
+        return sum + (f && f.rarity !== 'junk' ? (_fishCollection[k].count || 0) : 0);
+      }, 0);
+      if(totalCaught >= 50)  checkPlayerTitleUnlocks('avid_angler').catch(function(){});
+      if(totalCaught >= 100) checkPlayerTitleUnlocks('master_angler').catch(function(){});
+      if(totalCaught >= 250) checkPlayerTitleUnlocks('legendary_angler').catch(function(){});
+      // First legendary catch
+      if(caught.rarity==='legendary' && isNew) checkPlayerTitleUnlocks('first_legendary').catch(function(){});
+    })();
 
     // Collection progress
     var totalFish=FISH_POOL.filter(function(f){return f.rarity!=='junk';}).length;
@@ -8704,7 +8746,7 @@ async function fishingLoadRodLevel() {
   if (!currentUser) return;
   try {
     var res = await supabaseClient.from('players').select('fishing_rod_level').eq('id', currentUser.id).single();
-    if (!res.error && res.data) _rodLevel = res.data.fishing_rod_level || 1;
+    if (!res.error && res.data) { _rodLevel = res.data.fishing_rod_level || 1; _fishingRodLevel = _rodLevel; }
   } catch(e) {}
   fishingUpdateRodUI();
 }
@@ -8864,7 +8906,7 @@ async function castLineRelease(e) {
   var btn = document.getElementById('fishing-btn');
   if (btn) { btn.textContent = '⏳ Waiting...'; btn.disabled = true; }
   // Run the catch
-  await castLine();
+  await castLine(power);
   if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
 }
 
@@ -8924,6 +8966,21 @@ async function initFishingTab() {
     }).length;
     var total = FISH_POOL.filter(function(f) { return f.rarity !== 'junk'; }).length;
     collEl.textContent = collected + '/' + total + ' fish found';
+  }
+
+  // Weather hint — show banner if today's weather unlocks exclusive fish
+  var hintEl = document.getElementById('fishing-weather-hint');
+  if (hintEl) {
+    var weather = (weatherSystem && weatherSystem.currentWeather && weatherSystem.currentWeather.id) || 'clear';
+    var exclusiveFish = FISH_POOL.filter(function(f) { return f.weather === weather; });
+    if (exclusiveFish.length > 0) {
+      var weatherLabel = (weatherSystem && weatherSystem.currentWeather && weatherSystem.currentWeather.label) || weather;
+      var fishNames = exclusiveFish.map(function(f){ return f.emoji + ' ' + f.name; }).join(', ');
+      hintEl.style.display = 'block';
+      hintEl.innerHTML = '<strong>' + weatherLabel + ' weather:</strong> ' + fishNames + ' can appear today!';
+    } else {
+      hintEl.style.display = 'none';
+    }
   }
 }
 
@@ -28452,6 +28509,12 @@ var SCRAPBOOK_TEMPLATES = {
         'An empty bowl. {pet} sat with it quietly. Then {trainer} came back.',
         'The hunger reached zero today. {pet} was patient about it. Mostly.',
         '{pet} was forgotten for a little while. It happens. They still wagged when you returned.'
+    ],
+    legendary_fish: [
+        '{pet} watched from the shoreline as {trainer} caught {fish}. Absolutely gobsmacked.',
+        'A legendary catch: {fish}! {pet} pretended not to be impressed. {pet} was very impressed.',
+        '{fish} — caught today. {pet} immediately tried to befriend it.',
+        '{trainer} pulled {fish} out of the water. {pet} decided this was the best day ever.'
     ]
 };
 
@@ -28517,7 +28580,8 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
     // Cooldown settings (hours)
     var cooldownSettings = {
         'random_flavor': 24,
-        'low_hp_victory': 24
+        'low_hp_victory': 24,
+        'hunger_empty': 24
     };
     var cooldownHours = cooldownSettings[memoryType] || 0;
     
@@ -28568,6 +28632,9 @@ async function scrapbook_addMemory(userPetId, memoryType, variables) {
     memoryText = memoryText.replace(/{level}/g, variables.level || '?');
     memoryText = memoryText.replace(/{food}/g, variables.food || 'a treat');
     memoryText = memoryText.replace(/{hp}/g, variables.hp || 'low');
+    memoryText = memoryText.replace(/{zone}/g, variables.zone || 'the wilderness');
+    memoryText = memoryText.replace(/{toy}/g, variables.toy || 'a toy');
+    memoryText = memoryText.replace(/{fish}/g, variables.fish || 'a rare fish');
     
     // Tag this memory with today's weather + the pet's current mood, so the
     // scrapbook and shareable cards can both show it later.
@@ -28698,22 +28765,22 @@ async function scrapbook_saveNote(memoryId, areaId) {
     var btn = area.querySelector('.btn-primary');
     if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
     try {
-        // Merge note into existing entry_data JSONB
+        // Fetch existing entry_data then merge note in (RLS enforces ownership)
         var { data: existing } = await supabaseClient
-            .from('pet_memories').select('entry_data').eq('id', memoryId).eq('user_id', currentUser.id).single();
+            .from('pet_memories').select('entry_data').eq('id', memoryId).single();
         var merged = Object.assign({}, (existing && existing.entry_data) || {}, { player_note: note });
         var { error } = await supabaseClient
-            .from('pet_memories').update({ entry_data: merged }).eq('id', memoryId).eq('user_id', currentUser.id);
+            .from('pet_memories').update({ entry_data: merged }).eq('id', memoryId);
         if (error) throw error;
         area.style.display = 'none';
-        // Update the displayed note without full re-render
+        // Update displayed note without full re-render
         var card = area.closest('.sb-memory-card');
         if (card) {
-            var existing_note = card.querySelector('.sb-player-note');
+            var existingNote = card.querySelector('.sb-player-note');
             if (note) {
-                if (existing_note) { existing_note.textContent = '✏️ ' + note; }
+                if (existingNote) { existingNote.textContent = '✏️ ' + note; }
                 else { var nd = document.createElement('div'); nd.className = 'sb-player-note'; nd.textContent = '✏️ ' + note; area.before(nd); }
-            } else if (existing_note) { existing_note.remove(); }
+            } else if (existingNote) { existingNote.remove(); }
             var editBtn = card.querySelector('button[onclick*="style.display=\'block\'"]');
             if (editBtn) editBtn.textContent = '✏️ ' + (note ? 'Edit note' : 'Add a note');
         }
@@ -33493,14 +33560,14 @@ async function renderDailyShop(allItems) {
   // Seed daily selection - same 4 items for everyone each day
   var seed = getDailyShopSeed();
   var items = allItems.slice().sort(function(a,b){ return ((a.id * seed) % 997) - ((b.id * seed) % 997); }).slice(0,4);
-  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px">⭐ Today's Deals</div>';
+  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px">⭐ Today\'s Deals</div>';
   html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px">';
   items.forEach(function(item) {
     html += '<div style="padding:10px;border-radius:12px;background:rgba(153,102,255,0.08);text-align:center">';
     html += '<div style="font-size:1.5rem">' + (item.emoji || '🎁') + '</div>';
     html += '<div style="font-weight:700;font-size:0.85rem">' + escapeHtml(item.name) + '</div>';
     html += '<div style="color:var(--text-light);font-size:0.75rem;margin:2px 0">' + (item.hunger_effect ? '+' + item.hunger_effect + ' hunger' : '') + '</div>';
-    html += '<button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="buyItem(' + item.id + ','' + escapeHtml(item.name) + '')">' + (item.cost || 50) + ' PP</button>';
+    html += '<button class="btn btn-sm btn-primary" style="margin-top:6px;width:100%" onclick="buyItem(' + item.id + ',\' + escapeHtml(item.name) + \')">' + (item.cost || 50) + ' PP</button>';
     html += '</div>';
   });
   html += '</div>';
