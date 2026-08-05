@@ -694,14 +694,14 @@ function getEvolutionEmoji(stage) {
 }
 
 function getEvolutionBonuses(stage) {
-  // Cumulative bonuses based on stage
+  // Meaningful stat bumps that players actually notice at milestone levels
   if (stage === 'adult') {
-    return { hp: 5, attack: 3, defense: 2, speed: 1 }; // Total bonuses at adult
+    return { hp: 35, attack: 15, defense: 10, speed: 7 };
   }
   if (stage === 'teen') {
-    return { hp: 2, attack: 1, defense: 1, speed: 0 }; // Bonuses at teen
+    return { hp: 15, attack: 6, defense: 4, speed: 3 };
   }
-  return { hp: 0, attack: 0, defense: 0, speed: 0 }; // No bonuses as baby
+  return { hp: 0, attack: 0, defense: 0, speed: 0 };
 }
 var selectedPet = null;
 var ownedPetIds = [];
@@ -5874,16 +5874,11 @@ async function feedWithItem(petId, itemId, itemName) {
   
   // PAWKETPASS: Update bingo and Pass XP
   updateBingoProgress('feed_pet', 1);
+  updateBingoProgress('use_treat', 1); // Any item-based feed counts as a treat
   await addPassXP(2, 'feed');
   
   // COMMUNITY GOALS: Track feeding
   community_increment('feed_pets', 1);
-  
-  // Check if using treat for bingo and community
-  if (itemId === 'treat' || itemId === 'premium_treat') {
-    updateBingoProgress('use_treat', 1);
-    community_increment('use_treats', 1);
-  }
   
   // Update local state
   petState[petId].hunger = feedResult.hunger;
@@ -7199,6 +7194,7 @@ async function useOnPet(petId,petNickname) {
   // Track bingo + PassXP the same way feedWithItem does
   if(ef.hunger_effect>0){
     updateBingoProgress('feed_pet',1);
+    updateBingoProgress('use_treat',1); // Any item-based feed counts as a treat
     addPassXP(2,'feed').catch(function(){});
     community_increment('feed_pets',1);
   }
@@ -20787,7 +20783,7 @@ async function gp_claimRewards() {
     else                 addPassXP(25, 'grand_prix_entry').catch(function(){});
 
     // Bingo
-    updateBingoProgress('grand_prix_top_10', rank <= 10 ? 1 : 0);
+    if (rank <= 10) updateBingoProgress('grand_prix_top_10', 1);
     if (rank === 1) updateBingoProgress('grand_prix_winner', 1);
 
     // Mark claimed
