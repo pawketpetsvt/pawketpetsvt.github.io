@@ -1295,6 +1295,16 @@ function makeModal() {
   return modal;
 }
 
+// Global closeModal — removes the topmost .modal-overlay-custom from the DOM.
+// makeModal() and feed/play all call this; showCenteredModal has its own local version.
+function closeModal() {
+  var overlays = document.querySelectorAll('.modal-overlay-custom');
+  if (!overlays.length) return;
+  var overlay = overlays[overlays.length - 1]; // close topmost
+  overlay.classList.add('closing');
+  setTimeout(function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 250);
+}
+
 function openModal(modalElement) {
   // modalElement is the inner content div; its parent is the overlay created by makeModal()
   var overlay = modalElement.parentElement;
@@ -5420,7 +5430,7 @@ async function personality_loadMood(petId) {
     .select('*')
     .eq('pet_id', petId)
     .eq('date', today)
-    .single();
+    .maybeSingle();
 
   if (row) {
     var parsedWishes = row.wishes
@@ -8470,31 +8480,31 @@ var FISH_BAIT = {
 // Fish pool — spot:rarity:weather-bonus
 var FISH_POOL = [
   // Pond commons
-  { id:'boot',    name:'Old Boot',      emoji:'👢', pp:0,  rarity:'junk',   spots:['pond','river','lake','ocean'], weight:15 },
-  { id:'seaweed', name:'Seaweed Clump', emoji:'🌿', pp:1,  rarity:'junk',   spots:['pond','river','lake','ocean'], weight:12 },
-  { id:'pebble',  name:'Sparkly Pebble',emoji:'💎', pp:2,  rarity:'junk',   spots:['pond','river'],               weight:10 },
-  { id:'carp',    name:'Carp',          emoji:'🐟', pp:4,  rarity:'common', spots:['pond','river'],               weight:20 },
-  { id:'bluegill',name:'Bluegill',      emoji:'🐠', pp:5,  rarity:'common', spots:['pond','lake'],                weight:18 },
-  { id:'perch',   name:'Yellow Perch',  emoji:'🐡', pp:6,  rarity:'common', spots:['pond','river','lake'],        weight:16 },
-  { id:'catfish', name:'Catfish',       emoji:'🐈', pp:8,  rarity:'uncommon',spots:['river','lake'],              weight:14 },
-  { id:'trout',   name:'Rainbow Trout', emoji:'🌈', pp:10, rarity:'uncommon',spots:['river'],                     weight:12 },
-  { id:'bass',    name:'Largemouth Bass',emoji:'🎣', pp:12, rarity:'uncommon',spots:['lake','river'],             weight:10 },
-  { id:'pike',    name:'Northern Pike', emoji:'⚡', pp:14, rarity:'uncommon',spots:['lake'],                      weight:8  },
-  { id:'salmon',  name:'Atlantic Salmon',emoji:'🐟', pp:18, rarity:'rare',  spots:['river','ocean'],              weight:6  },
-  { id:'eel',     name:'Electric Eel',  emoji:'⚡', pp:20, rarity:'rare',   spots:['lake','ocean'],               weight:5  },
-  { id:'swordfish',name:'Swordfish',    emoji:'🗡️', pp:25, rarity:'rare',   spots:['ocean'],                      weight:4  },
-  { id:'pufferfish',name:'Pufferfish',  emoji:'🐡', pp:22, rarity:'rare',   spots:['ocean'],                      weight:5  },
-  { id:'shark',   name:'Baby Shark',    emoji:'🦈', pp:35, rarity:'epic',   spots:['ocean'],                      weight:2  },
-  { id:'turtle',  name:'Ancient Turtle',emoji:'🐢', pp:30, rarity:'epic',   spots:['lake','ocean'],               weight:2  },
-  { id:'manta',   name:'Manta Ray',     emoji:'🦅', pp:40, rarity:'epic',   spots:['ocean'],                      weight:1  },
-  // Weather-exclusive fish
-  { id:'ghost_fish', name:'Ghost Fish',   emoji:'👻', pp:50, rarity:'legendary', spots:['pond','lake'],  weather:'foggy',   weight:3  },
-  { id:'storm_eel',  name:'Storm Eel',    emoji:'⛈️', pp:45, rarity:'legendary', spots:['ocean','river'],weather:'windy',   weight:3  },
-  { id:'void_fish',  name:'Void Fish',    emoji:'🌑', pp:60, rarity:'legendary', spots:['lake','ocean'], weather:'cursed',  weight:2  },
-  { id:'aurora_cod', name:'Aurora Cod',   emoji:'🌌', pp:55, rarity:'legendary', spots:['ocean'],        weather:'starry',  weight:3  },
-  { id:'junk_ad',    name:'Sponsored Content',emoji:'📢', pp:0, rarity:'junk',   spots:['pond','river','lake','ocean'], weather:'adpocalypse', weight:8 },
-  { id:'golden_carp',name:'Golden Carp',  emoji:'✨', pp:100,rarity:'legendary', spots:['pond'],                   weight:1  },
-  { id:'piper_fish', name:'Unfamiliar Fish',emoji:'❓', pp:75, rarity:'legendary', spots:['lake','ocean'],          weight:1  }
+  { id:'boot',     name:'Old Boot',        emoji:'👢', pp:0,   rarity:'junk',      spots:['pond','river','lake','ocean'], weight:15, minWeightG:300,    maxWeightG:2500   },
+  { id:'seaweed',  name:'Seaweed Clump',   emoji:'🌿', pp:1,   rarity:'junk',      spots:['pond','river','lake','ocean'], weight:12, minWeightG:80,     maxWeightG:600    },
+  { id:'pebble',   name:'Sparkly Pebble',  emoji:'💎', pp:2,   rarity:'junk',      spots:['pond','river'],               weight:10, minWeightG:30,     maxWeightG:250    },
+  { id:'carp',     name:'Carp',            emoji:'🐟', pp:4,   rarity:'common',    spots:['pond','river'],               weight:20, minWeightG:500,    maxWeightG:5000   },
+  { id:'bluegill', name:'Bluegill',        emoji:'🐠', pp:5,   rarity:'common',    spots:['pond','lake'],                weight:18, minWeightG:100,    maxWeightG:1800   },
+  { id:'perch',    name:'Yellow Perch',    emoji:'🐡', pp:6,   rarity:'common',    spots:['pond','river','lake'],        weight:16, minWeightG:150,    maxWeightG:1200   },
+  { id:'catfish',  name:'Catfish',         emoji:'🐈', pp:8,   rarity:'uncommon',  spots:['river','lake'],               weight:14, minWeightG:800,    maxWeightG:8000   },
+  { id:'trout',    name:'Rainbow Trout',   emoji:'🌈', pp:10,  rarity:'uncommon',  spots:['river'],                      weight:12, minWeightG:400,    maxWeightG:4500   },
+  { id:'bass',     name:'Largemouth Bass', emoji:'🎣', pp:12,  rarity:'uncommon',  spots:['lake','river'],               weight:10, minWeightG:600,    maxWeightG:5500   },
+  { id:'pike',     name:'Northern Pike',   emoji:'⚡', pp:14,  rarity:'uncommon',  spots:['lake'],                       weight:8,  minWeightG:1500,   maxWeightG:12000  },
+  { id:'salmon',   name:'Atlantic Salmon', emoji:'🐟', pp:18,  rarity:'rare',      spots:['river','ocean'],              weight:6,  minWeightG:1500,   maxWeightG:15000  },
+  { id:'eel',      name:'Electric Eel',    emoji:'⚡', pp:20,  rarity:'rare',      spots:['lake','ocean'],               weight:5,  minWeightG:300,    maxWeightG:2500   },
+  { id:'swordfish',name:'Swordfish',       emoji:'🗡️', pp:25,  rarity:'rare',      spots:['ocean'],                      weight:4,  minWeightG:8000,   maxWeightG:60000  },
+  { id:'pufferfish',name:'Pufferfish',     emoji:'🐡', pp:22,  rarity:'rare',      spots:['ocean'],                      weight:5,  minWeightG:200,    maxWeightG:2500   },
+  { id:'shark',    name:'Baby Shark',      emoji:'🦈', pp:35,  rarity:'epic',      spots:['ocean'],                      weight:2,  minWeightG:8000,   maxWeightG:35000  },
+  { id:'turtle',   name:'Ancient Turtle',  emoji:'🐢', pp:30,  rarity:'epic',      spots:['lake','ocean'],               weight:2,  minWeightG:15000,  maxWeightG:90000  },
+  { id:'manta',    name:'Manta Ray',       emoji:'🦅', pp:40,  rarity:'epic',      spots:['ocean'],                      weight:1,  minWeightG:50000,  maxWeightG:200000 },
+  // Weather-exclusive legendaries
+  { id:'ghost_fish',  name:'Ghost Fish',        emoji:'👻', pp:50,  rarity:'legendary', spots:['pond','lake'],          weather:'foggy',   weight:3, minWeightG:50,   maxWeightG:400    },
+  { id:'storm_eel',   name:'Storm Eel',          emoji:'⛈️', pp:45,  rarity:'legendary', spots:['ocean','river'],       weather:'windy',   weight:3, minWeightG:600,  maxWeightG:4000   },
+  { id:'void_fish',   name:'Void Fish',           emoji:'🌑', pp:60,  rarity:'legendary', spots:['lake','ocean'],        weather:'cursed',  weight:2, minWeightG:1,    maxWeightG:50     },
+  { id:'aurora_cod',  name:'Aurora Cod',          emoji:'🌌', pp:55,  rarity:'legendary', spots:['ocean'],              weather:'starry',  weight:3, minWeightG:800,  maxWeightG:7000   },
+  { id:'junk_ad',     name:'Sponsored Content',   emoji:'📢', pp:0,   rarity:'junk',      spots:['pond','river','lake','ocean'], weather:'adpocalypse', weight:8, minWeightG:0, maxWeightG:0 },
+  { id:'golden_carp', name:'Golden Carp',          emoji:'✨', pp:100, rarity:'legendary', spots:['pond'],               weight:1, minWeightG:2000,  maxWeightG:25000  },
+  { id:'piper_fish',  name:'Unfamiliar Fish',      emoji:'❓', pp:75,  rarity:'legendary', spots:['lake','ocean'],       weight:1, minWeightG:200,   maxWeightG:5000   }
 ];
 
 var fishingCasts = 10;
@@ -8527,17 +8537,66 @@ function fishingSelectBait(bait) {
   });
 }
 
-function fishingLoadCollection() {
-  try {
-    _fishCollection = JSON.parse(localStorage.getItem('fish_collection_'+currentUser.id)||'{}');
-  } catch(e){ _fishCollection={}; }
+// Format grams → human-readable weight string
+function fishingFormatWeight(grams) {
+  if (!grams || grams <= 0) return null;
+  if (grams < 1000) return grams + 'g';
+  return (grams / 1000).toFixed(1) + 'kg';
 }
 
-function fishingSaveCollection() {
+// Load collection from DB. Falls back to localStorage and migrates if DB is empty.
+async function fishingLoadCollection() {
+  _fishCollection = {};
+  if (!currentUser) return;
   try {
-    localStorage.setItem('fish_collection_'+currentUser.id, JSON.stringify(_fishCollection));
-  } catch(e){}
+    var res = await supabaseClient
+      .from('user_fish_collection')
+      .select('fish_id, catch_count, best_weight, first_caught_at')
+      .eq('user_id', currentUser.id);
+    if (res.error) throw res.error;
+    if (res.data && res.data.length > 0) {
+      res.data.forEach(function(row) {
+        _fishCollection[row.fish_id] = {
+          count:      row.catch_count || 0,
+          firstCatch: row.first_caught_at ? new Date(row.first_caught_at).getTime() : Date.now(),
+          bestWeight: row.best_weight || null
+        };
+      });
+    } else {
+      // DB empty — check localStorage for existing data and migrate it
+      fishingMigrateLocalStorage().catch(function(){});
+    }
+  } catch(e) {
+    dbg('fishingLoadCollection error:', e);
+    // Fallback to localStorage on error
+    try { _fishCollection = JSON.parse(localStorage.getItem('fish_collection_'+currentUser.id)||'{}'); } catch(e2){}
+  }
 }
+
+// One-time migration: push localStorage fish data to DB
+async function fishingMigrateLocalStorage() {
+  if (!currentUser) return;
+  var local = {};
+  try { local = JSON.parse(localStorage.getItem('fish_collection_'+currentUser.id)||'{}'); } catch(e){ return; }
+  var ids = Object.keys(local);
+  if (!ids.length) return;
+  dbg('Migrating', ids.length, 'fish from localStorage to DB');
+  for (var i = 0; i < ids.length; i++) {
+    var fid = ids[i];
+    var entry = local[fid];
+    var count = entry.count || 1;
+    for (var j = 0; j < count; j++) {
+      await supabaseClient.rpc('fishing_record_catch', { p_fish_id: fid, p_weight: null }).catch(function(){});
+    }
+    _fishCollection[fid] = { count: count, firstCatch: entry.firstCatch || Date.now(), bestWeight: null };
+  }
+  // Clear localStorage after migration
+  localStorage.removeItem('fish_collection_'+currentUser.id);
+  dbg('Fish collection migration complete');
+}
+
+// fishingSaveCollection is no longer needed — saves happen per-catch via RPC
+function fishingSaveCollection() { /* replaced by fishing_record_catch RPC */ }
 
 function fishingGetCatch(power) {
   var spot = _fishingSpot;
@@ -8631,30 +8690,54 @@ async function castLine(power) {
     var caught = fishingGetCatch(power);
     fishingCasts--;
     fishingTotal += caught.pp;
-    
+
+    // Generate catch weight
+    var weightG = 0;
+    if (caught.minWeightG !== undefined && caught.maxWeightG > caught.minWeightG) {
+      weightG = Math.round(caught.minWeightG + Math.random() * (caught.maxWeightG - caught.minWeightG));
+    }
+    var weightStr = fishingFormatWeight(weightG);
+
     el('fishing-casts').textContent = fishingCasts;
     el('fishing-earned').textContent = fishingTotal;
 
-    // Collection tracking
-    fishingLoadCollection();
+    // Record catch in DB (handles insert/update, tracks best weight)
     var isNew = !_fishCollection[caught.id];
-    if(!_fishCollection[caught.id]) _fishCollection[caught.id]={count:0,firstCatch:Date.now()};
+    var isNewRecord = false;
+    try {
+      var catchRes = await supabaseClient.rpc('fishing_record_catch', {
+        p_fish_id: caught.id,
+        p_weight:  weightG > 0 ? weightG : null
+      });
+      if (catchRes.data) {
+        isNew      = !!catchRes.data.new_fish;
+        isNewRecord = !!catchRes.data.new_record;
+      }
+    } catch(e) { dbg('fishing_record_catch error:', e); }
+
+    // Update local cache
+    if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now(), bestWeight:null };
     _fishCollection[caught.id].count++;
-    fishingSaveCollection();
+    if (weightG > 0 && (!_fishCollection[caught.id].bestWeight || weightG > _fishCollection[caught.id].bestWeight)) {
+      _fishCollection[caught.id].bestWeight = weightG;
+    }
 
     // Display catch
     var catchEl=document.querySelector('.pond-text');
     var rarityColors={junk:'#888',common:'#5dde7a',uncommon:'#4dabf7',rare:'#9966ff',epic:'#ff9f43',legendary:'#ffd700'};
     var rarityColor=rarityColors[caught.rarity]||'#5dde7a';
+    var weightDisplay = weightStr ? ' <span style="color:var(--text-light);font-size:0.78rem;">(' + weightStr + ')</span>' : '';
+    var newBadge = isNew ? ' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>' : (isNewRecord ? ' <span style="color:#ff9f43;font-size:0.75rem;">🏆 RECORD!</span>' : '');
     if(catchEl){
-      catchEl.innerHTML=caught.emoji+' <span style="color:'+rarityColor+';font-weight:700;">'+caught.name+'</span>'+
-        (isNew?' <span style="color:#ffd700;font-size:0.75rem;">✨ NEW!</span>':'')+
+      catchEl.innerHTML=caught.emoji+' <span style="color:'+rarityColor+';font-weight:700;">'+caught.name+'</span>'+weightDisplay+newBadge+
         ' (+'+caught.pp+' PP)';
     }
 
     // New fish celebration
     if(isNew && (caught.rarity==='epic'||caught.rarity==='legendary')){
-      showToast('🎣 NEW '+caught.rarity.toUpperCase()+' CATCH: '+caught.name+'! '+caught.emoji, 5000);
+      showToast('🎣 NEW '+caught.rarity.toUpperCase()+' CATCH: '+caught.name+'! '+caught.emoji+(weightStr?' ('+weightStr+')':''), 5000);
+    } else if(isNewRecord && weightStr) {
+      showToast('🏆 Personal best: ' + caught.name + ' ' + weightStr + '!', 4000);
     }
 
     // Piper fish ARG easter egg
@@ -8929,10 +9012,15 @@ function fishingRenderJournal(spotFilter) {
     html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px">';
     spotFish.forEach(function(fish) {
       var caught = (_fishCollection || {})[fish.id];
+      var bestWeightStr = caught && caught.bestWeight ? fishingFormatWeight(caught.bestWeight) : null;
       html += '<div style="padding:8px;border-radius:10px;background:' + (caught ? 'rgba(153,102,255,0.12)' : 'rgba(0,0,0,0.04)') + ';text-align:center;opacity:' + (caught ? '1' : '0.45') + '">';
       html += '<div style="font-size:1.5rem">' + (caught ? fish.emoji : '❓') + '</div>';
       html += '<div style="font-size:0.75rem;font-weight:700">' + (caught ? fish.name : '???') + '</div>';
       html += '<div style="font-size:0.7rem;color:var(--text-light)">' + fish.rarity + '</div>';
+      if (caught) {
+        html += '<div style="font-size:0.68rem;color:var(--text-light);margin-top:2px;">×' + (caught.count || 1) + ' caught</div>';
+        if (bestWeightStr) html += '<div style="font-size:0.68rem;color:var(--purple);font-weight:700;">best: ' + bestWeightStr + '</div>';
+      }
       html += '</div>';
     });
     html += '</div>';
@@ -17597,7 +17685,7 @@ async function furniture_equip(petId, furnitureKey) {
   petRoomCache[petId] = Object.assign({}, room, { furniture_list: equipped });
 
   // Re-render modal content in place
-  var modal = document.querySelector('.modal-content');
+  var modal = document.querySelector('.modal-content-custom');
   if (modal) modal.innerHTML = furniture_renderRoomModal(petId);
 }
 
@@ -17614,7 +17702,7 @@ async function furniture_unequip(petId, furnitureKey) {
   }
   petRoomCache[petId] = Object.assign({}, room, { furniture_list: equipped });
 
-  var modal = document.querySelector('.modal-content');
+  var modal = document.querySelector('.modal-content-custom');
   if (modal) modal.innerHTML = furniture_renderRoomModal(petId);
 }
 
@@ -24621,6 +24709,9 @@ var titleTracking = {
 // PLAYER TITLE UNLOCKS - NOT YET IMPLEMENTED
 // Uncomment when player title system (loadTitles, hasTitle, awardTitle) is added
 // ═══════════════════════════════════════════════════════════════════════
+
+// Stub keeps showApp call alive until full implementation is uncommented
+async function checkPlayerTitleUnlocks() { return; }
 
 /*
 async function checkPlayerTitleUnlocks() {
