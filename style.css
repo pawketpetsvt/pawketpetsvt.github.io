@@ -17670,3 +17670,55 @@ body.night-mode .sidebar-nav-btn.child { background:rgba(60,35,110,0.6) !importa
 .archive-widget-pulse {
   animation: archive-pulse 0.5s ease-in-out 8;
 }
+
+/* ── MANUAL COMBAT SYSTEM ───────────────────────────────────────────────── */
+.battle-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: rgba(0,0,0,0.08);
+  border: 1px solid rgba(0,0,0,0.12);
+  white-space: nowrap;
+}
+.battle-skill-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 2px solid var(--purple);
+  background: linear-gradient(135deg, rgba(153,102,255,0.12), rgba(255,102,204,0.08));
+  color: var(--purple-dark);
+  font-family: 'Fredoka', sans-serif;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.3;
+  transition: all 0.15s;
+}
+.battle-skill-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(153,102,255,0.22), rgba(255,102,204,0.15));
+  transform: translateY(-1px);
+}
+.battle-skill-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: var(--border);
+  transform: none;
+}
+.battle-skill-btn .skill-cooldown {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 400;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+#battle-narrative-box strong { color: var(--purple); }
+#battle-narrative-box .hit-player  { color: #e74c3c; }
+#battle-narrative-box .hit-enemy   { color: var(--purple); }
+#battle-narrative-box .heal        { color: #27ae60; }
+#battle-narrative-box .status-applied { color: #e67e22; }

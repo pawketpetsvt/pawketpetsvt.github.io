@@ -3705,6 +3705,16 @@ function makeMyPetCard(pet) {
   actions.appendChild(playBtn);
   actions.appendChild(roomBtn);
 
+  // 📊 Stat Points button — shows when pet has unallocated points
+  if ((pet.stat_points || 0) > 0) {
+    var statBtn = makeEl('button', { class: 'btn-action' });
+    statBtn.textContent = '📊 Level Up! (' + pet.stat_points + ')';
+    statBtn.title = 'Allocate stat points';
+    statBtn.style.cssText = 'min-width:72px;padding:8px 10px;font-size:0.82rem;background:linear-gradient(135deg,#ffd700,#ff9f43);color:#fff;border:none;border-radius:10px;cursor:pointer;font-family:Fredoka,sans-serif;font-weight:700;animation:archive-pulse 1.5s ease-in-out infinite;';
+    statBtn.onclick = (function(id) { return function() { statPoints_openModal(id); }; })(pet.id);
+    actionsRow.appendChild(statBtn);
+  }
+
   // 🏛️ Set Guild Pet button — only if player is in a guild and pet is level 5+
   if (guildState.myGuild && (pet.level||1) >= 5) {
     var isLiaison = (guildState.liaisonPetId === pet.id);
@@ -11475,6 +11485,12 @@ async function calculatePetStats(petId) {
     currentHP = stats.hp;
   }
   
+  // Apply player-allocated bonus stats from stat points system
+  stats.attack  += (pet.bonus_attack  || 0);
+  stats.defense += (pet.bonus_defense || 0);
+  stats.speed   += (pet.bonus_speed   || 0);
+  maxHP         += (pet.bonus_hp      || 0) * 3; // each HP point = +3 max HP
+
   return {
     id: pet.id,
     name: pet.nickname || pet.pets.name || 'Your Pet',
@@ -11485,7 +11501,8 @@ async function calculatePetStats(petId) {
     energy: pet.energy || 50,
     maxEnergy: pet.max_energy || 100,
     specialSkill: pet.pets.special_skill || null,
-    passives: equippedPassives
+    passives: equippedPassives,
+    skills: getSkillsForPet(pet.pets.name || '', pet.level || 1)
   };
 }
 
@@ -11521,6 +11538,12 @@ var PASSIVE_EFFECTS = {
   trash_royalty:         { type: 'defend', label: "Trash Royalty",       icon: '👑', reflectPct: 0.30 },
   forbidden_knowledge:   { type: 'defend', label: "Forbidden Knowledge", icon: '📜', flatReduction: 4 },
 
+  // ---- Epic-tier unique effects (referenced in DB but previously unimplemented) ----
+  radiant_purge:    { type: 'attack', label: 'Radiant Purge',   icon: '☀️', forceCrit: true, bonusDamage: 5 },
+  shadow_drain:     { type: 'attack', label: 'Shadow Drain',    icon: '🌑', healPct: 0.30, defenseShred: 1 },
+  sunlight_aegis:   { type: 'defend', label: 'Sunlight Aegis',  icon: '✨', healMaxPct: 0.12 },
+  void_embrace:     { type: 'defend', label: 'Void Embrace',    icon: '🌌', reflectPct: 0.40, selfDamage: 2 },
+
   // ---- Enemy-side passives ----
   corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 },
 
@@ -11539,6 +11562,452 @@ var PASSIVE_EFFECTS = {
   void_embrace:   { type: 'defend', label: 'Void Embrace',   icon: '🕳️', reflectPct: 0.30 }
 };
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ZONE CONFIGURATION — level caps, energy costs, battle modifiers
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS EFFECTS — used by manual combat skills
+// ═══════════════════════════════════════════════════════════════════════════
+var STATUS_EFFECTS = {
+  burn:      { icon: '🔥', label: 'Burn',      type: 'dot',    damage: 3,  duration: 3, desc: 'Takes 3 damage per turn' },
+  confuse:   { icon: '😵', label: 'Confuse',   type: 'debuff', missChance: 0.30, duration: 2, desc: '30% chance to miss attacks' },
+  fear:      { icon: '😨', label: 'Fear',      type: 'skip',   duration: 1, desc: 'Cannot attack next turn' },
+  stun:      { icon: '⚡', label: 'Stun',      type: 'skip',   duration: 1, desc: 'Loses next turn' },
+  glitch:    { icon: '🌀', label: 'Glitch',    type: 'debuff', failChance: 0.20, duration: 2, desc: '20% chance skills fail' },
+  petrify:   { icon: '🪨', label: 'Petrify',   type: 'debuff', defDown: 0.10, duration: 2, desc: 'Defense reduced 10%' },
+  infatuate: { icon: '💕', label: 'Infatuate', type: 'debuff', dmgDown: 0.30, duration: 2, desc: 'Deals 30% less damage' }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET SKILLS — 3 skills per pet, unlocked at levels 1 / 5 / 10
+// Keyed by lowercase pet name matching pets.name in the DB
+// ═══════════════════════════════════════════════════════════════════════════
+var PET_SKILLS = {
+
+  ember: [
+    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.2, status: { type: 'burn', chance: 0.20 },
+      desc: "Ember channels her inner fire into a focused blast. Sometimes it lingers.",
+      flavor: "I've been burning for eleven years. You get used to it. 🔥" },
+    { id: 'system_reboot', name: 'System Reboot', icon: '💻', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.15, cleanse: true,
+      desc: "Ember's cybernetic systems reboot, clearing errors and restoring function.",
+      flavor: "Have you tried turning it off and on again? Works for me. 🔄" },
+    { id: 'flametail_strike', name: 'Flametail Strike', icon: '🔥', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.8, status: { type: 'burn', chance: 0.60 }, selfCostPct: 0.15,
+      desc: "Ember unleashes everything she has. It hurts. It's worth it.",
+      flavor: "Fire solves everything. Including me. 🔥💔" }
+  ],
+
+  pyxie: [
+    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.1, status: { type: 'confuse', chance: 0.30 },
+      desc: "Pyxshuul throws a handful of sparkles directly into the enemy's face.",
+      flavor: "I have a plan. It involves sparkles. ✨" },
+    { id: 'echo_of_fear', name: 'Echo of Fear', icon: '👻', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.3, debuff: { stat: 'defense', amount: 0.10, turns: 2 },
+      desc: "Pyxshuul whispers forgotten horror stories, chilling the enemy to the bone.",
+      flavor: "I know things I shouldn't. My mom was a demon. 👻" },
+    { id: 'mamas_grace', name: "Mama's Grace", icon: '🌙', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.7, status: { type: 'fear', chance: 0.50 }, condBonus: { ifStatus: 'confuse', mult: 2.0 },
+      desc: "Pyxshuul channels the power of Mama's Sleeping Angels.",
+      flavor: "Mama said I was special. I don't think she meant this. 🌙" }
+  ],
+
+  gnarly: [
+    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.3, status: { type: 'stun', chance: 0.15 },
+      desc: "Gnarly winds up a punch fueled by the power of arcade nostalgia.",
+      flavor: "I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️" },
+    { id: 'glitch_step', name: 'Glitch Step', icon: '💾', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, evasionBuff: 0.50, atkBuff: { amount: 0.15, turns: 2 },
+      desc: "Gnarly moves like a glitching arcade sprite. Nobody can predict her next step.",
+      flavor: "You can't beat a game that's already broken. 💾" },
+    { id: 'high_score_slam', name: 'High Score Slam', icon: '🏆', unlockLevel: 10, cooldown: 4,
+      damageMult: 2.0, skillScaling: { perSkillUsed: 0.05, max: 0.50 },
+      desc: "Gnarly channels the energy of a perfect Pac-Man run. She cannot be stopped.",
+      flavor: "I'm going for the high score. Get out of my way. 🏆" }
+  ],
+
+  kleat: [
+    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.0, status: { type: 'confuse', chance: 0.40 },
+      desc: "Kelta sniffs the enemy. They're confused and a little intimidated.",
+      flavor: "Yip yap teehee I opened a portal! 🌀" },
+    { id: 'cinnabon_explosion', name: 'Cinnabon Explosion', icon: '🍥', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.4, lifeStealChance: { chance: 0.30, pct: 0.15 },
+      desc: "Kelta's chaotic energy explodes in a burst of sweet-scented fury.",
+      flavor: "I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨" },
+    { id: 'chaos_portal', name: 'Chaos Portal', icon: '🌌', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.6, chaosEffect: [
+        { weight: 40, effect: 'double_damage' },
+        { weight: 30, effect: 'heal_20pct' },
+        { weight: 20, effect: 'enemy_skip' },
+        { weight: 10, effect: 'nothing' }
+      ],
+      desc: "Kelta opens a portal to... somewhere. Nobody knows what will come through.",
+      flavor: "Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" }
+  ],
+
+  aria: [
+    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.2, debuff: { stat: 'defense', chance: 0.20, amount: 0.10, turns: 2 },
+      desc: "Aria throws a bone she's been keeping. It's surprisingly effective.",
+      flavor: "Do you want to see my bones? 🦋" },
+    { id: 'fae_light', name: 'Fae Light', icon: '✨', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.20, atkBuffChance: { chance: 0.30, amount: 0.15, turns: 2 },
+      desc: "Aria's fae magic creates a soft, warm light that heals and invigorates.",
+      flavor: "Humans are so strange and silly. But you're doing wonderfully. 🌸" },
+    { id: 'moths_embrace', name: "Moth's Embrace", icon: '🦋', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.5, lifeSteal: 0.20, status: { type: 'infatuate', chance: 0.40 },
+      desc: "Aria envelops the enemy in a flurry of fae magic.",
+      flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
+  ],
+
+  jess: [
+    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
+      desc: "Jess channels the power of ancient fossils into a devastating strike.",
+      flavor: "This fossil is 65 million years cuter than you. 🦕" },
+    { id: 'potion_brew', name: 'Potion Brew', icon: '🧪', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.15, randomBuff: { chance: 0.50, options: ['attack', 'defense'], amount: 0.15, turns: 2 },
+      desc: "Jess mixes a quick potion. The effects vary, but they're always helpful.",
+      flavor: "The potion came out right on the first try today. That's a good sign. 🌿" },
+    { id: 'mesozoic_rage', name: 'Mesozoic Rage', icon: '🦕', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.9, status: { type: 'fear', chance: 0.40 }, condBonus: { ifStatus: 'petrify', mult: 2.0 },
+      desc: "Jess remembers the age of dinosaurs. It makes her angry.",
+      flavor: "65 million years of evolution. I've been waiting for this. 🌋" }
+  ],
+
+  blushimia: [
+    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.1, status: { type: 'glitch', chance: 0.30 },
+      desc: "Blushimia barks with the power of a million glitched pixels.",
+      flavor: "WHAT THE GLOB????!!!! 👑" },
+    { id: 'escape_attempt', name: 'Escape Attempt', icon: '🏃', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, escapeEffect: { successChance: 0.60, onSuccess: 'enemy_skip', onFail: 'self_skip' },
+      desc: "Blushimia tries to escape back into her video game. It doesn't always work.",
+      flavor: "I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
+    { id: 'sentience_slam', name: 'Sentience Slam', icon: '💥', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.7, status: { type: 'stun', chance: 0.50 }, condBonus: { ifStatus: 'glitch', guaranteeStatus: 'stun' },
+      desc: "Blushimia channels the power of her sentience into a devastating attack.",
+      flavor: "I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" }
+  ],
+
+  steve: [
+    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 0,
+      damageMult: 1.2, status: { type: 'confuse', chance: 0.15 },
+      desc: "Steve combines a moo and a buzz into a sound that shouldn't exist.",
+      flavor: "CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔" },
+    { id: 'chaos_stampede', name: 'Chaos Stampede', icon: '🏃', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.4, status: { type: 'stun', chance: 0.25 }, atkScaling: { perAttack: 0.10, max: 0.50 },
+      desc: "Steve charges forward with the power of a thousand angry cow-bees.",
+      flavor: "I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
+    { id: 'chill_menace', name: 'The Chill Menace', icon: '😈', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.6, status: { type: 'fear', chance: 0.60 }, condBonus: { ifStatus: 'confuse', mult: 2.0, guaranteeStatus: 'stun' },
+      desc: "Steve stops being chill for a moment. It's terrifying.",
+      flavor: "As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" }
+  ]
+};
+
+// Returns the skills available to a pet at its current level
+function getSkillsForPet(petName, petLevel) {
+  var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
+  // Handle name variants: pyxshuul → pyxie name in DB
+  var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
+    gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
+    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve' };
+  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
+  if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
+  return PET_SKILLS[mappedKey].filter(function(s) { return (petLevel || 1) >= s.unlockLevel; });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STAT POINTS SYSTEM — players allocate 1 point per level
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Open the stat allocation modal for a pet
+async function statPoints_openModal(petId) {
+  var pet = petState[petId];
+  if (!pet) return;
+  var points = pet.stat_points || 0;
+  var bonusAtk = pet.bonus_attack || 0;
+  var bonusDef = pet.bonus_defense || 0;
+  var bonusSpd = pet.bonus_speed || 0;
+  var bonusHp  = pet.bonus_hp || 0;
+
+  // Build modal
+  var modal = makeModal();
+  var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your Pet';
+
+  function renderContent() {
+    var p = statPoints_pendingPoints !== null ? statPoints_pendingPoints : points;
+    var ba = statPoints_pending.attack;
+    var bd = statPoints_pending.defense;
+    var bs = statPoints_pending.speed;
+    var bh = statPoints_pending.hp;
+
+    modal.innerHTML =
+      '<h2 style="text-align:center;margin-bottom:4px;">📊 Stat Allocation</h2>' +
+      '<div style="text-align:center;color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + petName + ' — Level ' + (pet.level || 1) + '</div>' +
+      '<div style="background:rgba(153,102,255,0.08);border-radius:12px;padding:12px;text-align:center;margin-bottom:16px;">' +
+        '<span style="font-size:1.4rem;font-weight:700;color:var(--purple);">' + p + '</span>' +
+        '<span style="color:var(--text-light);font-size:0.85rem;"> unallocated point' + (p !== 1 ? 's' : '') + '</span>' +
+      '</div>' +
+      statPoints_row('Attack', '⚔️', bonusAtk, ba, 'attack', p) +
+      statPoints_row('Defense', '🛡️', bonusDef, bd, 'defense', p) +
+      statPoints_row('Speed', '💨', bonusSpd, bs, 'speed', p) +
+      statPoints_row('HP', '❤️', bonusHp, bh, 'hp', p) +
+      '<div style="display:flex;gap:10px;margin-top:18px;">' +
+        '<button class="btn btn-primary" style="flex:1;" onclick="statPoints_save(\'' + petId + '\')">Save Changes</button>' +
+        '<button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Cancel</button>' +
+      '</div>';
+  }
+
+  // Pending changes tracker
+  window.statPoints_pending = { attack: bonusAtk, defense: bonusDef, speed: bonusSpd, hp: bonusHp };
+  window.statPoints_pendingPoints = points;
+  window.statPoints_origPoints = points;
+  window.statPoints_renderContent = renderContent;
+
+  openModal(modal);
+  renderContent();
+}
+
+function statPoints_row(label, icon, baseVal, currentVal, stat, remaining) {
+  var canAdd = remaining > 0;
+  var canRemove = currentVal > (window.statPoints_pending[stat] - (currentVal - (window.statPoints_pending[stat]))); // can remove if any allocated
+  var allocated = currentVal - (stat === 'attack' ? (window.statPoints_pending.attack - currentVal) : 0);
+  // Simpler: track allocated as currentVal vs base (base from petState won't change mid-modal)
+  canRemove = currentVal > 0;
+  return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.03);margin-bottom:8px;">' +
+    '<span style="font-size:1.1rem;">' + icon + '</span>' +
+    '<span style="flex:1;font-weight:600;">' + label + '</span>' +
+    '<span style="color:var(--text-light);font-size:0.82rem;">+' + currentVal + ' pts</span>' +
+    '<button onclick="statPoints_adjust(\'' + stat + '\',-1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canRemove ? '' : 'disabled') + '>-</button>' +
+    '<button onclick="statPoints_adjust(\'' + stat + '\',1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canAdd ? '' : 'disabled') + '>+</button>' +
+  '</div>';
+}
+
+function statPoints_adjust(stat, delta) {
+  if (!window.statPoints_pending) return;
+  var newVal = window.statPoints_pending[stat] + delta;
+  if (newVal < 0) return;
+  var newPoints = window.statPoints_pendingPoints - delta;
+  if (newPoints < 0) return;
+  window.statPoints_pending[stat] = newVal;
+  window.statPoints_pendingPoints = newPoints;
+  if (window.statPoints_renderContent) window.statPoints_renderContent();
+}
+
+async function statPoints_save(petId) {
+  if (!currentUser || !petState[petId]) return;
+  var pet = petState[petId];
+  var pending = window.statPoints_pending;
+  if (!pending) return;
+
+  // Calculate total allocated
+  var totalAllocated = pending.attack + pending.defense + pending.speed + pending.hp;
+  var origTotal = (pet.bonus_attack || 0) + (pet.bonus_defense || 0) + (pet.bonus_speed || 0) + (pet.bonus_hp || 0);
+  var origPoints = window.statPoints_origPoints || 0;
+  var newPoints = origPoints - (totalAllocated - origTotal);
+
+  var btn = document.querySelector('.btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+  try {
+    var { error } = await supabaseClient.from('user_pets').update({
+      stat_points:   newPoints,
+      bonus_attack:  pending.attack,
+      bonus_defense: pending.defense,
+      bonus_speed:   pending.speed,
+      bonus_hp:      pending.hp
+    }).eq('id', petId).eq('user_id', currentUser.id);
+
+    if (error) throw error;
+
+    // Update local petState
+    pet.stat_points   = newPoints;
+    pet.bonus_attack  = pending.attack;
+    pet.bonus_defense = pending.defense;
+    pet.bonus_speed   = pending.speed;
+    pet.bonus_hp      = pending.hp;
+
+    closeModal();
+    showToast('Stats saved! 📊', 2000);
+    loadMyPets();
+  } catch(e) {
+    showToast('Could not save stats.', 2500);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+var ZONE_CONFIG = {
+  outskirts: {
+    label: 'Outskirts',
+    energyCost: 5,
+    minLevel: 1, maxLevel: 8,
+    battleMod: { type: 'none' }
+  },
+  glade: {
+    label: 'Forest Glade',
+    energyCost: 7,
+    minLevel: 4, maxLevel: 14,
+    battleMod: { type: 'regen', amount: 3, label: '🌿 Forest Regen', desc: 'Enemies regenerate 3 HP per turn' }
+  },
+  deepwoods: {
+    label: 'Deep Woods',
+    energyCost: 10,
+    minLevel: 8, maxLevel: 20,
+    battleMod: { type: 'fog', evasion: 0.15, fogTurns: 2, label: '🌫️ Fog of War', desc: 'Enemy has 15% evasion for first 2 turns' }
+  },
+  ruins: {
+    label: 'The Ruins',
+    energyCost: 14,
+    minLevel: 12, maxLevel: 28,
+    battleMod: { type: 'corruption', damage: 2, label: '☠️ Corrupted Ground', desc: 'You take 2 corruption damage each turn' }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STATUS EFFECT DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════════════
+var STATUS_EFFECT_DEFS = {
+  burn:      { label: 'Burn',      icon: '🔥', color: '#ff6600', type: 'dot',    tickDamage: 3, duration: 3 },
+  confuse:   { label: 'Confuse',   icon: '😵', color: '#aa66ff', type: 'debuff', missChance: 0.30, duration: 2 },
+  skip:      { label: 'Stunned',   icon: '⚡', color: '#ffcc00', type: 'skip',   duration: 1 },
+  glitch:    { label: 'Glitch',    icon: '🌀', color: '#00ffaa', type: 'debuff', failChance: 0.20, duration: 2 },
+  petrify:   { label: 'Petrify',   icon: '🪨', color: '#888888', type: 'stat',   stat: 'def', amount: -0.10, duration: 2 },
+  infatuate: { label: 'Infatuate', icon: '💕', color: '#ff99cc', type: 'stat',   stat: 'dmg', amount: -0.30, duration: 2 },
+  atk_buff:  { label: 'ATK Up',    icon: '⬆️', color: '#ffdd44', type: 'stat',   stat: 'atk', amount: 0.15, duration: 2 },
+  def_buff:  { label: 'DEF Up',    icon: '🛡️', color: '#44aaff', type: 'stat',   stat: 'def', amount: 0.15, duration: 2 },
+  evasion:   { label: 'Evasion',   icon: '💨', color: '#aaffaa', type: 'evasion', chance: 0.50, duration: 1 },
+  regen:     { label: 'Regen',     icon: '🌿', color: '#55cc55', type: 'hot',    healAmount: 3, duration: 99 },
+  corruption:{ label: 'Corruption',icon: '☠️', color: '#9900ff', type: 'dot',    tickDamage: 2, duration: 99 }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PET SKILLS — 3 per pet, unlocked by level
+// keyed by lowercase pet name from pets table
+// ═══════════════════════════════════════════════════════════════════════════
+var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly' };
+
+var PET_SKILLS = {
+  ember: [
+    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:0,
+      flavor:"I've been burning for eleven years. You get used to it. 🔥",
+      desc:'A focused fire blast. 20% chance to Burn (3 dmg/turn for 3 turns).',
+      damageMulti:1.2, applyStatus:{type:'burn',chance:0.20,tickDmg:3,duration:3} },
+    { id:'system_reboot', name:'System Reboot', icon:'💻', unlockLevel:5, cooldown:3,
+      flavor:"Have you tried turning it off and on again? Works for me. 🔄",
+      desc:'Restores 15% max HP and clears all negative status effects.',
+      damageMulti:0, heal:{percent:0.15}, cleanse:true },
+    { id:'flametail_strike', name:'Flametail Strike', icon:'🔥', unlockLevel:10, cooldown:4,
+      flavor:"Fire solves everything. Including me. 🔥💔",
+      desc:'1.8x damage. 60% Burn chance. Costs 15% current HP to use.',
+      damageMulti:1.8, applyStatus:{type:'burn',chance:0.60,tickDmg:3,duration:3}, selfCostHpPct:0.15 }
+  ],
+  pyxie: [
+    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:0,
+      flavor:"I have a plan. It involves sparkles. ✨",
+      desc:'1.1x damage. 30% chance to Confuse (enemy may miss next turn).',
+      damageMulti:1.1, applyStatus:{type:'confuse',chance:0.30} },
+    { id:'echo_of_fear', name:'Echo of Fear', icon:'👻', unlockLevel:5, cooldown:3,
+      flavor:"I know things I shouldn't. My mom was a demon. 👻",
+      desc:'1.3x damage. Lowers enemy DEF by 10% for 2 turns.',
+      damageMulti:1.3, applyStatus:{type:'petrify',chance:1.0} },
+    { id:'mamas_grace', name:"Mama's Grace", icon:'🌙', unlockLevel:10, cooldown:4,
+      flavor:"Mama said I was special. I don't think she meant this. 🌙",
+      desc:'1.7x damage. 50% Fear (enemy skips next turn). Doubles damage if enemy is Confused.',
+      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalDouble:'confuse' }
+  ],
+  gnarly: [
+    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:0,
+      flavor:"I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️",
+      desc:'1.3x damage. 15% chance to Stun (enemy loses next turn).',
+      damageMulti:1.3, applyStatus:{type:'skip',chance:0.15} },
+    { id:'glitch_step', name:'Glitch Step', icon:'💾', unlockLevel:5, cooldown:3,
+      flavor:"You can't beat a game that's already broken. 💾",
+      desc:'No damage. Grants 50% evasion on next hit and +15% ATK for 2 turns.',
+      damageMulti:0, applySelfStatus:[{type:'evasion',chance:0.50},{type:'atk_buff',amount:0.15,duration:2}] },
+    { id:'high_score_slam', name:'High Score Slam', icon:'🏆', unlockLevel:10, cooldown:4,
+      flavor:"I'm going for the high score. Get out of my way. 🏆",
+      desc:'2.0x base damage. +5% per previous skill used this battle (max +50%).',
+      damageMulti:2.0, scalingPer:'skillsUsed', scalingAmt:0.05, maxScaling:0.50 }
+  ],
+  kelta: [
+    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:0,
+      flavor:"Yip yap teehee I opened a portal! 🌀",
+      desc:'1.0x damage. 40% chance to Confuse (enemy may miss next turn).',
+      damageMulti:1.0, applyStatus:{type:'confuse',chance:0.40} },
+    { id:'cinnabon_explosion', name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5, cooldown:3,
+      flavor:"I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨",
+      desc:'1.4x damage. 30% chance to heal self for 15% of damage dealt.',
+      damageMulti:1.4, lifestealChance:0.30, lifestealPct:0.15 },
+    { id:'chaos_portal', name:'Chaos Portal', icon:'🌌', unlockLevel:10, cooldown:4,
+      flavor:"Yip! Yap! Teehee! I don't know what's going to happen either! 🌌",
+      desc:'1.6x base. Random bonus: 40% heal 20% HP, 30% double damage, 20% skip enemy, 10% nothing.',
+      damageMulti:1.6, special:'chaos_portal' }
+  ],
+  aria: [
+    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:0,
+      flavor:"Do you want to see my bones? 🦋",
+      desc:'1.2x damage. 20% chance to lower enemy DEF by 10% for 2 turns.',
+      damageMulti:1.2, applyStatus:{type:'petrify',chance:0.20} },
+    { id:'fae_light', name:'Fae Light', icon:'✨', unlockLevel:5, cooldown:3,
+      flavor:"Humans are so strange and silly. But you're doing wonderfully. 🌸",
+      desc:'Heals 20% max HP. 30% chance to also buff own ATK +15% for 2 turns.',
+      damageMulti:0, heal:{percent:0.20}, applySelfStatus:[{type:'atk_buff',chance:0.30,amount:0.15,duration:2}] },
+    { id:'moths_embrace', name:"Moth's Embrace", icon:'🦋', unlockLevel:10, cooldown:4,
+      flavor:"I'll let you keep your bones. Until you're done with them, anyway. 💀",
+      desc:'1.5x damage. Steals 20% of damage as HP. 40% chance to Infatuate (enemy -30% dmg for 2 turns).',
+      damageMulti:1.5, lifestealChance:1.0, lifestealPct:0.20, applyStatus:{type:'infatuate',chance:0.40} }
+  ],
+  jess: [
+    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:0,
+      flavor:"This fossil is 65 million years cuter than you. 🦕",
+      desc:'1.3x damage. 15% chance to Petrify (enemy -10% DEF for 2 turns).',
+      damageMulti:1.3, applyStatus:{type:'petrify',chance:0.15} },
+    { id:'potion_brew', name:'Potion Brew', icon:'🧪', unlockLevel:5, cooldown:3,
+      flavor:"The potion came out right on the first try today. That's a good sign. 🌿",
+      desc:'Heals 15% max HP. 50% chance to also buff ATK or DEF +15% for 2 turns.',
+      damageMulti:0, heal:{percent:0.15}, special:'potion_brew' },
+    { id:'mesozoic_rage', name:'Mesozoic Rage', icon:'🦕', unlockLevel:10, cooldown:4,
+      flavor:"65 million years of evolution. I've been waiting for this. 🌋",
+      desc:'1.9x damage. 40% Fear (enemy skips turn). Doubles damage if enemy is Petrified.',
+      damageMulti:1.9, applyStatus:{type:'skip',chance:0.40}, conditionalDouble:'petrify' }
+  ],
+  blushimia: [
+    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:0,
+      flavor:"WHAT THE GLOB????!!!! 👑",
+      desc:'1.1x damage. 30% chance to Glitch enemy (20% fail chance for 2 turns).',
+      damageMulti:1.1, applyStatus:{type:'glitch',chance:0.30} },
+    { id:'escape_attempt', name:'Escape Attempt', icon:'🏃', unlockLevel:5, cooldown:3,
+      flavor:"I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾",
+      desc:'60% chance: enemy skips turn. 40% chance: you skip turn. No damage.',
+      damageMulti:0, special:'escape_attempt' },
+    { id:'sentience_slam', name:'Sentience Slam', icon:'💥', unlockLevel:10, cooldown:4,
+      flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾",
+      desc:'1.7x damage. 50% Stun. Guarantees Stun if enemy is Glitched.',
+      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalGuarantee:{status:'glitch',effect:'skip'} }
+  ],
+  steve: [
+    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:0,
+      flavor:"CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔",
+      desc:'1.2x damage. 15% chance to Confuse (enemy may miss next turn).',
+      damageMulti:1.2, applyStatus:{type:'confuse',chance:0.15} },
+    { id:'chaos_stampede', name:'Chaos Stampede', icon:'🏃', unlockLevel:5, cooldown:3,
+      flavor:"I'M A MENACE! A MENACE, I SAY! 🐄⚡",
+      desc:'1.4x base damage. +10% per previous attack this battle (max +50%).',
+      damageMulti:1.4, scalingPer:'attacksUsed', scalingAmt:0.10, maxScaling:0.50 },
+    { id:'chill_menace', name:'The Chill Menace', icon:'😈', unlockLevel:10, cooldown:4,
+      flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔",
+      desc:'1.6x damage. 60% Fear. Doubles damage and guarantees Stun if enemy is Confused.',
+      damageMulti:1.6, applyStatus:{type:'skip',chance:0.60}, conditionalDouble:'confuse', conditionalGuarantee:{status:'confuse',effect:'skip'} }
+  ]
+};
+
 /**
  * Simulate an entire battle and return the log
  * Returns: { victory: boolean, log: [...], playerFinalHP: number, enemyFinalHP: number }
@@ -11548,10 +12017,27 @@ function simulateBattle(playerStats, enemyStats) {
   var playerHP = playerStats.currentHP;
   var enemyHP = enemyStats.hp;
   var turn = 0;
-  var maxTurns = GAME_CONSTANTS.BATTLE_MAX_TURNS; // prevent infinite loops
-  var enemyStunned = false; // set by stun-type passives (e.g. Haunting Melody)
+  var maxTurns = GAME_CONSTANTS.BATTLE_MAX_TURNS;
+  var enemyStunned = false;
+
+  // Zone battle modifier
+  var zone = enemyStats.forest_zone || 'outskirts';
+  var zoneConf = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
+  var mod = zoneConf.battleMod || { type: 'none' };
+
+  // Enemy passive (e.g. corrupted_fury)
+  var enemyPassiveList = enemyStats.passives || (enemyStats.passive ? [enemyStats.passive] : []);
+
+  // Announce zone modifier at battle start
+  if (mod.type !== 'none' && mod.label) {
+    log.push({ type: 'zone_mod', text: mod.label + ': ' + mod.desc, playerHP: playerHP, enemyHP: enemyHP });
+  }
   
   // Determine who goes first based on speed
+  // Deep Woods fog: enemy evasion for first N turns
+  var fogTurnsLeft = (mod.type === 'fog') ? (mod.fogTurns || 2) : 0;
+  var fogEvasion = (mod.type === 'fog') ? (mod.evasion || 0.15) : 0;
+
   var playerFirst = playerStats.stats.speed >= enemyStats.speed;
   
   log.push({
@@ -11609,9 +12095,14 @@ function simulateBattle(playerStats, enemyStats) {
           enemyHP: Math.max(0, enemyHP)
         });
       } else {
-        // Normal attack
-        var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false, playerStats.stats.luck || 0);
-        enemyHP -= playerDamageResult.damage;
+        // Normal attack — check fog evasion (Deep Woods)
+        if (fogTurnsLeft > 0 && Math.random() < fogEvasion) {
+          fogTurnsLeft--;
+          log.push({ type: 'player_attack', attacker: 'player', damage: 0, isSkill: false, text: '🌫️ ' + playerStats.name + ' swings... but misses! (Fog of War)', playerHP: playerHP, enemyHP: Math.max(0, enemyHP) });
+        } else {
+          if (fogTurnsLeft > 0) fogTurnsLeft--;
+          var playerDamageResult = calculateDamage(playerStats.stats.attack, enemyStats.defense, false, playerStats.stats.luck || 0);
+          enemyHP -= playerDamageResult.damage;
         
         log.push({
           type: 'player_attack',
@@ -11674,7 +12165,8 @@ function simulateBattle(playerStats, enemyStats) {
             }
           });
         }
-      }
+      } // close fog-hit else
+    } // close normal attack outer else
       
       if (enemyHP <= 0) break;
     }
@@ -11760,6 +12252,36 @@ function simulateBattle(playerStats, enemyStats) {
       });
     }
     
+    if (playerHP <= 0) break;
+
+    // ── ZONE BATTLE MOD TICKS ──────────────────────────────────────────
+    if (mod.type === 'regen' && enemyHP > 0) {
+      // Forest Glade: enemies regen each turn
+      var regenAmt = mod.amount || 3;
+      enemyHP = Math.min(enemyStats.hp, enemyHP + regenAmt);
+      log.push({ type: 'zone', text: mod.label + ': Enemy recovered ' + regenAmt + ' HP!', playerHP: Math.max(0, playerHP), enemyHP: Math.max(0, enemyHP) });
+    }
+    if (mod.type === 'corruption') {
+      // The Ruins: player takes corruption damage each turn
+      var corrDmg = mod.damage || 2;
+      playerHP = Math.max(0, playerHP - corrDmg);
+      log.push({ type: 'zone', text: mod.label + ': You took ' + corrDmg + ' corruption damage!', playerHP: Math.max(0, playerHP), enemyHP: Math.max(0, enemyHP) });
+    }
+
+    // ── ENEMY PASSIVE PROCS (corrupted_fury etc) ────────────────────
+    if (enemyPassiveList && enemyPassiveList.length) {
+      enemyPassiveList.forEach(function(passive) {
+        var fx = PASSIVE_EFFECTS[passive.effect];
+        if (!fx || fx.type !== 'enemyAttack') return;
+        if (Math.random() * 100 >= (passive.chance || 20)) return;
+        var bonusDmg = fx.bonusDamagePct ? Math.max(1, Math.floor(enemyStats.attack * fx.bonusDamagePct)) : 0;
+        if (bonusDmg > 0) {
+          playerHP = Math.max(0, playerHP - bonusDmg);
+          log.push({ type: 'enemy_passive', text: fx.icon + ' ' + fx.label + '! Enemy surges for ' + bonusDmg + ' bonus damage!', playerHP: Math.max(0, playerHP), enemyHP: Math.max(0, enemyHP) });
+        }
+      });
+    }
+
     if (playerHP <= 0) break;
   }
   
@@ -11938,9 +12460,12 @@ async function startBattleWithEnemy(petId, enemy) {
   
   dbg('👤 Player HP at battle start:', playerStats.currentHP);
   
-  // Check if pet has enough energy (need at least 5)
-  if (playerStats.energy < 5) {
-    showToast('🥱 Your pet is too tired! Feed them to restore energy.');
+  // Check if pet has enough energy for this zone's cost
+  var battleZone = (enemy && enemy.forest_zone) || 'outskirts';
+  var battleZoneConf = ZONE_CONFIG[battleZone] || ZONE_CONFIG.outskirts;
+  var battleEnergyCost = battleZoneConf.energyCost || 5;
+  if (playerStats.energy < battleEnergyCost) {
+    showToast('🥱 ' + battleZoneConf.label + ' costs ' + battleEnergyCost + ' energy. Feed your pet to restore more!');
     return;
   }
   
@@ -12000,69 +12525,616 @@ function calculateReward(enemyLevel, zone, type) {
 /**
  * Common battle execution logic (extracted to avoid duplication)
  */
+// ═══════════════════════════════════════════════════════════════════════════
+// MANUAL BATTLE ENGINE
+// Turn-based combat replacing the auto-simulation playback system.
+// Player chooses actions each turn; enemy AI responds.
+// Results feed into the existing saveBattleHistory / showBattleRewardsModal.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var manualBattleState = null;
+
 async function executeBattle(playerStats, enemyStats, petId) {
-  // Deduct 5 energy from pet BEFORE battle
-  // Get fresh energy value from database to be sure
+  // Use zone-specific energy cost from ZONE_CONFIG
+  var zone = (enemyStats && enemyStats.forest_zone) || 'outskirts';
+  var zoneConf = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
+  var energyCost = zoneConf.energyCost || 5;
+
+  // Wire corrupted enemy passive from the scaled enemy object
+  if (enemyStats.passive && !enemyStats.passives) {
+    enemyStats.passives = [enemyStats.passive];
+  }
+
+  // Deduct zone-appropriate energy from pet before battle
   var { data: newEnergy, error: energyErr } = await supabaseClient.rpc('adjust_pet_stat_secure', {
-    p_pet_id: petId, p_stat: 'energy', p_delta: -5, p_reason: 'battle_energy_cost'
+    p_pet_id: petId, p_stat: 'energy', p_delta: -energyCost, p_reason: 'battle_energy_cost'
   });
 
   if (!energyErr) {
-    dbg('Energy deducted via RPC, new value:', newEnergy);
-    showToast('⚡ Energy: ' + newEnergy);
     if (petState[petId]) petState[petId].energy = newEnergy;
   } else {
     console.error('Energy update error:', energyErr);
-    showToast('❌ Energy update failed!');
   }
-  dbg('=== END ENERGY DEBUG ===');
-  
-  // Simulate the battle
-  var battleResult = simulateBattle(playerStats, enemyStats);
-  
-  dbg('🎲 BATTLE RESULT:', {
-    victory: battleResult.victory,
-    playerFinalHP: battleResult.playerFinalHP,
-    enemyFinalHP: battleResult.enemyFinalHP,
-    turns: battleResult.turns
+
+  isBossBattle = enemyStats.is_boss || false;
+  initManualBattle(playerStats, enemyStats, petId);
+}
+
+function initManualBattle(playerStats, enemyStats, petId) {
+  var zone = (enemyStats && enemyStats.forest_zone) || 'outskirts';
+  var zoneConf = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
+
+  manualBattleState = {
+    playerStats: playerStats,
+    enemyStats: enemyStats,
+    petId: petId,
+    zone: zone,
+    zoneConf: zoneConf,
+    playerHP: playerStats.currentHP,
+    playerMaxHP: playerStats.maxHP,
+    enemyHP: enemyStats.hp,
+    enemyMaxHP: enemyStats.hp,
+    turn: 0,
+    playerStatuses: {},
+    enemyStatuses: {},
+    skillCooldowns: {},
+    skillUseCount: 0,
+    attackUseCount: 0,
+    enemyAtkDebuff: 0,
+    enemyDefDebuff: 0,
+    playerAtkBuff: 0,
+    playerEvasionBuff: false,
+    totalDamageTaken: 0,
+    battleLog: [],
+    victory: null
+  };
+
+  // Set up existing battle screen elements
+  el('forest-exploration').style.display = 'none';
+  el('battle-screen').style.display = 'block';
+
+  // Hide legacy controls, show manual panel
+  var legacy = el('battle-log-container');
+  var legacyCtrl = el('battle-controls-legacy');
+  if (legacy) legacy.style.display = 'none';
+  if (legacyCtrl) legacyCtrl.style.display = 'none';
+  el('battle-narrative-box').style.display = 'block';
+  el('manual-battle-actions').style.display = 'block';
+
+  // Zone banner
+  var mod = zoneConf.battleMod || { type: 'none' };
+  var banner = el('battle-zone-banner');
+  if (banner && mod.type !== 'none' && mod.label) {
+    banner.textContent = mod.label + ': ' + mod.desc;
+    banner.style.display = 'block';
+  }
+
+  // Player sprite
+  var pSprite = el('player-battle-sprite');
+  if (pSprite && playerStats.imageFile) {
+    pSprite.style.backgroundImage = 'url(images/' + playerStats.imageFile + ')';
+    pSprite.style.backgroundSize = 'cover';
+    pSprite.style.backgroundPosition = 'center';
+    pSprite.textContent = '';
+  }
+
+  // Enemy sprite
+  var eSprite = el('enemy-battle-sprite');
+  if (eSprite) {
+    var filterMap = { corrupted: 'hue-rotate(270deg) saturate(2.5)', golden: 'sepia(1) brightness(1.6) saturate(2.5)', shiny: 'hue-rotate(180deg) saturate(1.8) brightness(1.1)', glitched: 'hue-rotate(120deg) contrast(1.4)' };
+    if (enemyStats.specialVariant && filterMap[enemyStats.specialVariant]) eSprite.style.filter = filterMap[enemyStats.specialVariant];
+    eSprite.textContent = enemyStats.species ? (enemyStats.species.length <= 2 ? enemyStats.species : '🐾') : '🐾';
+    if (enemyStats.is_boss) { eSprite.style.fontSize = '3.5rem'; }
+  }
+
+  el('player-battle-name').textContent = playerStats.name;
+  el('enemy-battle-name').textContent = enemyStats.is_boss ? '⚠️ ' + enemyStats.name : enemyStats.name;
+  el('enemy-hp-text').textContent = enemyStats.is_boss ? '???/???' : enemyStats.hp + '/' + enemyStats.hp;
+  if (enemyStats.is_boss) el('enemy-hp-fill').style.background = 'linear-gradient(90deg,#ff4444,#ff0000)';
+
+  manualBattle_render();
+  manualBattle_setNarrative('<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>What will you do?');
+}
+
+function manualBattle_render() {
+  var s = manualBattleState;
+  if (!s) return;
+
+  // HP bars
+  updateHPBar('player', s.playerHP, s.playerMaxHP);
+  if (!s.enemyStats.is_boss) updateHPBar('enemy', s.enemyHP, s.enemyMaxHP);
+  else {
+    var pct = Math.max(0, s.enemyHP / s.enemyMaxHP * 100);
+    el('enemy-hp-fill').style.width = pct + '%';
+  }
+
+  // Status effect icons
+  manualBattle_renderStatuses('player', s.playerStatuses);
+  manualBattle_renderStatuses('enemy', s.enemyStatuses);
+
+  // Skill buttons
+  manualBattle_renderSkillButtons();
+
+  // Turn indicator
+  el('battle-turn-indicator').textContent = 'TURN ' + s.turn + ' — YOUR MOVE';
+}
+
+function manualBattle_renderStatuses(side, statuses) {
+  var row = el(side + '-status-row');
+  if (!row) return;
+  var keys = Object.keys(statuses || {});
+  if (!keys.length) { row.innerHTML = ''; return; }
+  row.innerHTML = keys.map(function(k) {
+    var def = STATUS_EFFECTS[k] || {};
+    var turns = statuses[k] && statuses[k].turns;
+    return '<span class="battle-status-badge" title="' + (def.desc || k) + '">' +
+      (def.icon || '?') + ' ' + (turns || '') + '</span>';
+  }).join('');
+}
+
+function manualBattle_renderSkillButtons() {
+  var s = manualBattleState;
+  var row = el('battle-skill-row');
+  if (!row || !s) return;
+  var skills = (s.playerStats.skills || []);
+  if (!skills.length) { row.innerHTML = ''; return; }
+  row.innerHTML = skills.map(function(skill, idx) {
+    var cd = s.skillCooldowns[skill.id] || 0;
+    var cdText = cd > 0 ? (cd + ' turn' + (cd > 1 ? 's' : '') + ' left') : 'Ready';
+    var btnHtml = '<button class="battle-skill-btn" ' +
+      (cd > 0 ? 'disabled ' : '') +
+      'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
+      'title="' + escapeHtml(skill.desc) + '">' +
+      skill.icon + ' <strong>' + escapeHtml(skill.name) + '</strong>' +
+      '<span class="skill-cooldown">' + cdText + '</span>' +
+      '</button>';
+    return btnHtml;
+  }).join('');
+}
+
+function manualBattle_setNarrative(html) {
+  var box = el('battle-narrative-box');
+  if (box) box.innerHTML = html;
+}
+
+function manualBattle_setActionButtonsEnabled(enabled) {
+  var ids = ['battle-btn-attack', 'battle-btn-flee'];
+  ids.forEach(function(id) { var b = el(id); if (b) b.disabled = !enabled; });
+  var row = el('battle-skill-row');
+  if (row) row.querySelectorAll('.battle-skill-btn').forEach(function(b) {
+    if (enabled) {
+      var s = manualBattleState;
+      var skills = s && s.playerStats.skills || [];
+      var idx = parseInt(b.getAttribute('onclick').match(/\d+/) && b.getAttribute('onclick').match(/(\d+)\)/)[1]);
+      var skill = skills[idx];
+      b.disabled = skill ? ((s.skillCooldowns[skill.id] || 0) > 0) : true;
+    } else {
+      b.disabled = true;
+    }
   });
-  
-  // Show battle UI and play it back
-  isBossBattle = enemyStats.is_boss || false;  // Track if this is a boss battle
-  showBattleUI(playerStats, enemyStats, battleResult);
-  
-  // Save battle to history and get rewards
-  // For dynamically scaled enemies, use the base enemy ID
-  dbg('💾 About to save battle - Victory:', battleResult.victory, 'Final HP:', battleResult.playerFinalHP);
-  battleRewards = await saveBattleHistory(petId, enemyStats.id, battleResult, enemyStats);
-  
-  dbg('✅ saveBattleHistory completed. Rewards:', battleRewards);
+}
 
-  // ── Special battle achievement badges ──
-  if (battleResult.victory) {
-    // Speed Demon: won in under 3 turns
-    if ((battleResult.turnCount || battleResult.turns || 0) < 3) {
-      await awardBadge('badge_speed_demon');
-    }
-    // The Wall: won taking less than 10 total damage
-    if ((battleResult.totalDamageTaken || 0) < 10) {
-      await awardBadge('badge_the_wall');
-    }
-    // Comeback King: won with less than 5% HP remaining
-    var maxHP = battleResult.playerMaxHP || 100;
-    var finalHP = battleResult.playerFinalHP || 0;
-    if (finalHP > 0 && (finalHP / maxHP) < 0.05) {
-      await awardBadge('badge_comeback');
-    }
-    // WISHES: battle win
-    checkPetWishes('win_battle', petId).catch(function(){});
-    trackDailyStat('battles_won').catch(function(){});
-    if (enemyStats && enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
+// Main player action dispatcher
+function manualBattle_playerAction(type, skillIdx) {
+  var s = manualBattleState;
+  if (!s || s.victory !== null) return;
+  manualBattle_setActionButtonsEnabled(false);
+  setTimeout(function() { _manualBattle_doTurn(type, skillIdx); }, 80);
+}
+
+async function _manualBattle_doTurn(type, skillIdx) {
+  var s = manualBattleState;
+  s.turn++;
+  var lines = [];
+
+  // ── PLAYER SKIP (from status effect) ─────────────────────────────
+  if (s.playerStatuses.stun || s.playerStatuses.fear) {
+    var skipStatus = s.playerStatuses.stun ? 'stun' : 'fear';
+    lines.push('😵 ' + s.playerStats.name + ' is ' + (skipStatus === 'stun' ? 'stunned' : 'afraid') + ' and cannot act!');
+    // Tick the status
+    s.playerStatuses[skipStatus].turns--;
+    if (s.playerStatuses[skipStatus].turns <= 0) delete s.playerStatuses[skipStatus];
+  } else {
+    // ── PLAYER ACTS ───────────────────────────────────────────────────
+    var playerNarrative = manualBattle_resolvePlayerAction(type, skillIdx, s);
+    lines.push(playerNarrative);
+    if (s.enemyHP <= 0) { s.enemyHP = 0; manualBattle_render(); await manualBattle_endBattle(true); return; }
   }
 
-  // CRITICAL: Force reload pet data AFTER HP is saved
-  dbg('🔄 Forcing pet data reload after battle...');
-  await new Promise(resolve => setTimeout(resolve, 100)); // Small delay to ensure DB write completes
+  // ── ZONE MOD TICK (enemy regen, corruption dmg) ───────────────────
+  var mod = s.zoneConf.battleMod || { type: 'none' };
+  if (mod.type === 'regen' && s.enemyHP > 0) {
+    s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + (mod.amount || 3));
+    lines.push(mod.label + ': Enemy recovered ' + (mod.amount || 3) + ' HP!');
+  }
+  if (mod.type === 'corruption') {
+    var corrDmg = mod.damage || 2;
+    s.playerHP = Math.max(0, s.playerHP - corrDmg);
+    s.totalDamageTaken += corrDmg;
+    lines.push(mod.label + ': You took ' + corrDmg + ' corruption damage!');
+    if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
+  }
+
+  // ── PLAYER STATUS TICKS (burn, poison) ──────────────────────────
+  var dotLines = manualBattle_tickDOT(s.playerStatuses, 'player', s);
+  lines = lines.concat(dotLines);
+  if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
+
+  // ── ENEMY ACTS ────────────────────────────────────────────────────
+  var enemyNarrative = manualBattle_enemyTurn(s);
+  lines.push(enemyNarrative);
+  if (s.playerHP <= 0) { s.playerHP = 0; manualBattle_render(); await manualBattle_endBattle(false); return; }
+
+  // ── ENEMY STATUS TICKS ────────────────────────────────────────────
+  var eDotLines = manualBattle_tickDOT(s.enemyStatuses, 'enemy', s);
+  lines = lines.concat(eDotLines);
+  if (s.enemyHP <= 0) { s.enemyHP = 0; manualBattle_render(); await manualBattle_endBattle(true); return; }
+
+  // ── TICK COOLDOWNS ────────────────────────────────────────────────
+  Object.keys(s.skillCooldowns).forEach(function(k) {
+    s.skillCooldowns[k] = Math.max(0, s.skillCooldowns[k] - 1);
+  });
+
+  // ── CORRUPTED ENEMY PASSIVE ───────────────────────────────────────
+  if (s.enemyStats.passives && s.enemyStats.passives.length) {
+    s.enemyStats.passives.forEach(function(passive) {
+      var fx = PASSIVE_EFFECTS[passive.effect];
+      if (!fx || fx.type !== 'enemyAttack') return;
+      if (Math.random() * 100 >= (passive.chance || 20)) return;
+      var bonusDmg = Math.max(1, Math.floor(s.enemyStats.base_attack * (fx.bonusDamagePct || 0.4)));
+      s.playerHP = Math.max(0, s.playerHP - bonusDmg);
+      s.totalDamageTaken += bonusDmg;
+      lines.push(fx.icon + ' ' + fx.label + '! ' + bonusDmg + ' bonus damage!');
+    });
+    if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
+  }
+
+  // Max turns safety valve
+  if (s.turn >= 50) { await manualBattle_endBattle(false); return; }
+
+  manualBattle_render();
+  manualBattle_setNarrative(lines.map(function(l) { return '<p style="margin:2px 0">'+l+'</p>'; }).join(''));
+  manualBattle_setActionButtonsEnabled(true);
+}
+
+function manualBattle_resolvePlayerAction(type, skillIdx, s) {
+  if (type === 'flee') {
+    // 40% chance to flee successfully
+    if (Math.random() < 0.4) {
+      s.victory = false;
+      s.playerHP = s.playerHP; // preserve HP on flee
+      setTimeout(function() { manualBattle_endBattle('flee'); }, 200);
+      return '🏃 ' + s.playerStats.name + ' fled from battle!';
+    } else {
+      return '🏃 Tried to flee... but couldn\'t escape!';
+    }
+  }
+
+  if (type === 'attack') {
+    s.attackUseCount++;
+    var dmgResult = calculateDamage(s.playerStats.stats.attack + (s.playerAtkBuff || 0), s.enemyStats.base_defense - (s.enemyDefDebuff || 0), false, s.playerStats.stats.luck || 0);
+    s.enemyHP = Math.max(0, s.enemyHP - dmgResult.damage);
+    var line = (dmgResult.isCrit ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + dmgResult.damage + ' damage!';
+
+    // Equipment attack passives
+    var passiveLines = manualBattle_applyEquipPassives(s, dmgResult.damage);
+    if (passiveLines.length) line += ' ' + passiveLines.join(' ');
+
+    s.playerEvasionBuff = false;
+    s.playerAtkBuff = 0; // consume one-turn buffs
+    return line;
+  }
+
+  if (type === 'skill') {
+    var skills = s.playerStats.skills || [];
+    var skill = skills[skillIdx];
+    if (!skill) return 'No skill found!';
+    if ((s.skillCooldowns[skill.id] || 0) > 0) return 'Skill not ready!';
+
+    s.skillUseCount++;
+    if (skill.cooldown > 0) s.skillCooldowns[skill.id] = skill.cooldown;
+    return manualBattle_applySkill(skill, s);
+  }
+
+  return '...nothing happened.';
+}
+
+function manualBattle_applySkill(skill, s) {
+  var lines = [skill.icon + ' ' + s.playerStats.name + ' uses ' + skill.name + '!'];
+  var baseAtk = s.playerStats.stats.attack;
+
+  // Self cost (Flametail Strike: costs 15% current HP)
+  if (skill.selfCostPct && skill.selfCostPct > 0) {
+    var cost = Math.max(1, Math.floor(s.playerHP * skill.selfCostPct));
+    s.playerHP = Math.max(1, s.playerHP - cost);
+    lines.push('(' + s.playerStats.name + ' sacrifices ' + cost + ' HP)');
+  }
+
+  // Healing / utility
+  if (skill.healPct && skill.healPct > 0) {
+    var healAmt = Math.floor(s.playerMaxHP * skill.healPct);
+    s.playerHP = Math.min(s.playerMaxHP, s.playerHP + healAmt);
+    lines.push('Restored ' + healAmt + ' HP!');
+  }
+
+  // Cleanse statuses
+  if (skill.cleanse) {
+    s.playerStatuses = {};
+    lines.push('All negative effects cleared!');
+  }
+
+  // Damage
+  if (skill.damageMult && skill.damageMult > 0) {
+    // Scaling for Gnarly / Steve
+    var scalingMult = 1;
+    if (skill.skillScaling) scalingMult = 1 + Math.min(skill.skillScaling.max, s.skillUseCount * skill.skillScaling.perSkillUsed);
+    if (skill.atkScaling) scalingMult = 1 + Math.min(skill.atkScaling.max, s.attackUseCount * skill.atkScaling.perAttack);
+
+    var baseDmg = Math.max(1, Math.floor((baseAtk - s.enemyStats.base_defense * 0.5) * skill.damageMult * scalingMult));
+
+    // Chaos Portal random effect (Kelta L10)
+    if (skill.chaosEffect) {
+      var roll = Math.random() * 100;
+      var cum = 0;
+      var chosen = null;
+      for (var ci = 0; ci < skill.chaosEffect.length; ci++) {
+        cum += skill.chaosEffect[ci].weight;
+        if (roll < cum) { chosen = skill.chaosEffect[ci].effect; break; }
+      }
+      if (chosen === 'double_damage') { baseDmg *= 2; lines.push('The portal doubles power!'); }
+      else if (chosen === 'heal_20pct') { var h = Math.floor(s.playerMaxHP * 0.20); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push('The portal heals ' + h + ' HP!'); baseDmg = 0; }
+      else if (chosen === 'enemy_skip') { manualBattle_applyStatus('fear', s.enemyStatuses); lines.push('The portal scares the enemy!'); baseDmg = 0; }
+      else { lines.push('The portal opens... and closes. (Nothing happened.)'); baseDmg = 0; }
+    }
+
+    // Escape Attempt (Blushimia L5)
+    if (skill.escapeEffect) {
+      if (Math.random() < skill.escapeEffect.successChance) {
+        manualBattle_applyStatus('fear', s.enemyStatuses);
+        lines.push('Success! The enemy loses their next turn!');
+      } else {
+        manualBattle_applyStatus('stun', s.playerStatuses);
+        lines.push('Failed! ' + s.playerStats.name + ' loses next turn!');
+      }
+      baseDmg = 0;
+    }
+
+    // Conditional bonus (Pyxshuul Mama's Grace, Jess Mesozoic Rage, Steve Chill Menace)
+    if (skill.condBonus && skill.condBonus.ifStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
+      baseDmg = Math.floor(baseDmg * (skill.condBonus.mult || 2));
+      lines.push('Bonus effect! (' + skill.condBonus.ifStatus + ' combo)');
+    }
+
+    if (baseDmg > 0) {
+      s.enemyHP = Math.max(0, s.enemyHP - baseDmg);
+      lines.push('Dealt ' + baseDmg + ' damage!');
+    }
+
+    // Apply status effect from skill
+    if (skill.status && Math.random() < skill.status.chance) {
+      // Sentience Slam: if enemy is glitched, guarantee stun
+      if (skill.condBonus && skill.condBonus.guaranteeStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
+        manualBattle_applyStatus(skill.condBonus.guaranteeStatus, s.enemyStatuses);
+        lines.push(STATUS_EFFECTS[skill.condBonus.guaranteeStatus].icon + ' ' + skill.condBonus.guaranteeStatus + ' applied!');
+      } else {
+        manualBattle_applyStatus(skill.status.type, s.enemyStatuses);
+        lines.push((STATUS_EFFECTS[skill.status.type] && STATUS_EFFECTS[skill.status.type].icon || '') + ' ' + skill.status.type + ' applied!');
+      }
+    }
+
+    // Lifesteal from skill (Moth's Embrace)
+    if (skill.lifeSteal && baseDmg > 0) {
+      var lsAmt = Math.floor(baseDmg * skill.lifeSteal);
+      s.playerHP = Math.min(s.playerMaxHP, s.playerHP + lsAmt);
+      lines.push('Drained ' + lsAmt + ' HP!');
+    }
+
+    // Lifesteal chance (Cinnabon Explosion)
+    if (skill.lifeStealChance && Math.random() < skill.lifeStealChance.chance && baseDmg > 0) {
+      var lsAmt2 = Math.floor(baseDmg * skill.lifeStealChance.pct);
+      s.playerHP = Math.min(s.playerMaxHP, s.playerHP + lsAmt2);
+      lines.push('Recovered ' + lsAmt2 + ' HP!');
+    }
+  }
+
+  // Utility-only: evasion buff (Glitch Step), atk buff
+  if (skill.evasionBuff) { s.playerEvasionBuff = skill.evasionBuff; lines.push('Next attack has ' + Math.round(skill.evasionBuff * 100) + '% miss chance against you!'); }
+  if (skill.atkBuff) { s.playerAtkBuff = Math.floor(baseAtk * skill.atkBuff.amount); lines.push('+' + Math.round(skill.atkBuff.amount * 100) + '% attack for ' + skill.atkBuff.turns + ' turn(s)!'); }
+
+  // Enemy defense debuff (Echo of Fear)
+  if (skill.debuff && skill.debuff.stat === 'defense') {
+    var defShred = Math.floor(s.enemyStats.base_defense * (skill.debuff.chance || skill.debuff.amount));
+    s.enemyDefDebuff = (s.enemyDefDebuff || 0) + defShred;
+    lines.push('Enemy defense reduced by ' + defShred + '!');
+  }
+
+  // Random buff (Potion Brew / Jess L5)
+  if (skill.randomBuff && Math.random() < skill.randomBuff.chance) {
+    var randomStat = skill.randomBuff.options[Math.floor(Math.random() * skill.randomBuff.options.length)];
+    if (randomStat === 'attack') { s.playerAtkBuff = Math.floor(baseAtk * skill.randomBuff.amount); lines.push('+' + Math.round(skill.randomBuff.amount * 100) + '% attack buff!'); }
+    else if (randomStat === 'defense') { lines.push('Defense boost! (next hit reduced)'); }
+  }
+
+  // Atk buff chance (Fae Light)
+  if (skill.atkBuffChance && Math.random() < skill.atkBuffChance.chance) {
+    s.playerAtkBuff = Math.floor(baseAtk * skill.atkBuffChance.amount);
+    lines.push('+' + Math.round(skill.atkBuffChance.amount * 100) + '% attack buff!');
+  }
+
+  return lines.join(' ');
+}
+
+function manualBattle_applyEquipPassives(s, baseDamage) {
+  var lines = [];
+  var passives = s.playerStats.passives || [];
+  passives.forEach(function(passive) {
+    var fx = PASSIVE_EFFECTS[passive.effect];
+    if (!fx || fx.type !== 'attack') return;
+    if (Math.random() * 100 >= passive.chance) return;
+    if (fx.bonusDamage) { s.enemyHP = Math.max(0, s.enemyHP - fx.bonusDamage); lines.push(fx.icon + ' +' + fx.bonusDamage + ' bonus!'); }
+    if (fx.doubleDamage) { s.enemyHP = Math.max(0, s.enemyHP - baseDamage); lines.push(fx.icon + ' Double hit!'); }
+    if (fx.extraHitPct) { var ex = Math.max(1, Math.floor(baseDamage * fx.extraHitPct)); s.enemyHP = Math.max(0, s.enemyHP - ex); lines.push(fx.icon + ' Extra strike: ' + ex + '!'); }
+    if (fx.forceCrit) { var crit = Math.floor(baseDamage * 0.5); s.enemyHP = Math.max(0, s.enemyHP - crit); lines.push(fx.icon + ' Fated crit!'); }
+    if (fx.healPct) { var h = Math.floor(baseDamage * fx.healPct); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push(fx.icon + ' Healed ' + h + '!'); }
+    if (fx.defenseShred) { s.enemyDefDebuff = (s.enemyDefDebuff || 0) + fx.defenseShred; }
+    if (fx.stunEnemy) { manualBattle_applyStatus('stun', s.enemyStatuses); lines.push(fx.icon + ' Stunned!'); }
+  });
+  return lines;
+}
+
+function manualBattle_applyDefendPassives(s, incomingDamage) {
+  var finalDmg = incomingDamage;
+  var lines = [];
+  var passives = s.playerStats.passives || [];
+  passives.forEach(function(passive) {
+    var fx = PASSIVE_EFFECTS[passive.effect];
+    if (!fx || fx.type !== 'defend') return;
+    if (Math.random() * 100 >= passive.chance) return;
+    if (fx.fullBlock) { finalDmg = 0; lines.push(fx.icon + ' Blocked!'); }
+    if (fx.flatReduction) { finalDmg = Math.max(0, finalDmg - fx.flatReduction); }
+    if (fx.reflectPct) { var ref = Math.floor(incomingDamage * fx.reflectPct); s.enemyHP = Math.max(0, s.enemyHP - ref); lines.push(fx.icon + ' Reflected ' + ref + '!'); }
+    if (fx.healMaxPct) { var h = Math.floor(s.playerMaxHP * fx.healMaxPct); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push(fx.icon + ' Healed ' + h + '!'); }
+    if (fx.selfDamage) { s.playerHP = Math.max(0, s.playerHP - fx.selfDamage); }
+  });
+  return { finalDmg: finalDmg, lines: lines };
+}
+
+function manualBattle_enemyTurn(s) {
+  var enemy = s.enemyStats;
+
+  // Stun / fear check
+  if (s.enemyStatuses.stun || s.enemyStatuses.fear) {
+    var sk = s.enemyStatuses.stun ? 'stun' : 'fear';
+    s.enemyStatuses[sk].turns--;
+    if (s.enemyStatuses[sk].turns <= 0) delete s.enemyStatuses[sk];
+    return enemy.name + ' is ' + (sk === 'stun' ? 'stunned' : 'afraid') + ' and cannot act!';
+  }
+
+  // Confuse check - 30% miss
+  if (s.enemyStatuses.confuse && Math.random() < STATUS_EFFECTS.confuse.missChance) {
+    s.enemyStatuses.confuse.turns--;
+    if (s.enemyStatuses.confuse.turns <= 0) delete s.enemyStatuses.confuse;
+    return enemy.name + ' is confused and misses!';
+  }
+
+  // Evasion buff (Gnarly's Glitch Step)
+  if (s.playerEvasionBuff && Math.random() < s.playerEvasionBuff) {
+    s.playerEvasionBuff = false;
+    return enemy.name + ' attacks... but misses! (Glitch Step)';
+  }
+
+  // Enemy attack
+  var atkResult = calculateDamage(enemy.base_attack, s.playerStats.stats.defense, false, 0);
+  var dmg = atkResult.damage;
+
+  // Apply defend passives
+  var defend = manualBattle_applyDefendPassives(s, dmg);
+  dmg = defend.finalDmg;
+
+  s.playerHP = Math.max(0, s.playerHP - dmg);
+  s.totalDamageTaken += dmg;
+
+  var line = enemy.name + ' attacks for ' + dmg + ' damage!';
+  if (defend.lines.length) line += ' ' + defend.lines.join(' ');
+  return line;
+}
+
+function manualBattle_applyStatus(type, targetStatuses) {
+  var def = STATUS_EFFECTS[type];
+  if (!def) return;
+  if (!targetStatuses[type]) {
+    targetStatuses[type] = { turns: def.duration };
+  } else {
+    targetStatuses[type].turns = Math.max(targetStatuses[type].turns, def.duration);
+  }
+}
+
+function manualBattle_tickDOT(statuses, side, s) {
+  var lines = [];
+  var defs = STATUS_EFFECTS;
+  Object.keys(statuses).forEach(function(k) {
+    var st = statuses[k];
+    var def = defs[k];
+    if (!def) return;
+    if (def.type === 'dot') {
+      var dmg = def.damage || 0;
+      if (side === 'player') { s.playerHP = Math.max(0, s.playerHP - dmg); s.totalDamageTaken += dmg; }
+      else { s.enemyHP = Math.max(0, s.enemyHP - dmg); }
+      lines.push(def.icon + ' ' + def.label + ': ' + dmg + ' damage!');
+    }
+    st.turns--;
+    if (st.turns <= 0) delete statuses[k];
+  });
+  return lines;
+}
+
+async function manualBattle_endBattle(victory) {
+  var s = manualBattleState;
+  if (!s) return;
+  if (victory === 'flee') {
+    manualBattle_setNarrative('🏃 ' + s.playerStats.name + ' fled from battle!');
+    manualBattle_setActionButtonsEnabled(false);
+    el('battle-turn-indicator').textContent = 'FLED';
+    setTimeout(function() {
+      el('battle-screen').style.display = 'none';
+      el('forest-exploration').style.display = 'block';
+      el('manual-battle-actions').style.display = 'none';
+      el('battle-narrative-box').style.display = 'none';
+      manualBattleState = null;
+    }, 1800);
+    return;
+  }
+
+  s.victory = victory;
+  manualBattle_setActionButtonsEnabled(false);
+
+  var resultText = victory
+    ? '🎉 <strong>' + s.playerStats.name + ' wins!</strong>'
+    : '💔 <strong>' + s.playerStats.name + ' fainted...</strong>';
+  manualBattle_setNarrative(resultText);
+  el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
+
+  // Build battleResult for existing reward system
+  var battleResult = {
+    victory: victory,
+    log: s.battleLog,
+    turns: s.turn,
+    playerFinalHP: s.playerHP,
+    enemyFinalHP: s.enemyHP,
+    playerMaxHP: s.playerMaxHP,
+    totalDamageTaken: s.totalDamageTaken,
+    turnCount: s.turn
+  };
+
+  // Badges
+  if (victory) {
+    if (s.turn < 3) awardBadge('badge_speed_demon').catch(function(){});
+    if (s.totalDamageTaken < 10) awardBadge('badge_the_wall').catch(function(){});
+    if (s.playerHP > 0 && (s.playerHP / s.playerMaxHP) < 0.05) awardBadge('badge_comeback').catch(function(){});
+    checkPetWishes('win_battle', s.petId).catch(function(){});
+    trackDailyStat('battles_won').catch(function(){});
+    if (s.enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
+    argLogs_tryDrop('battle').catch(function(){});
+  }
+
+  // Save results
+  battleRewards = await saveBattleHistory(s.petId, s.enemyStats.id, battleResult, s.enemyStats);
+
+  clearBossEffects();
+
+  // Show continue button pointing to rewards
+  el('battle-controls-legacy').style.display = 'block';
+  el('battle-skip-btn').style.display = 'none';
+  el('battle-continue-btn').style.display = 'block';
+  el('battle-continue-btn').textContent = victory ? '🎉 Claim Rewards' : '💔 Continue';
+  el('battle-continue-btn').onclick = function() {
+    el('battle-narrative-box').style.display = 'none';
+    el('manual-battle-actions').style.display = 'none';
+    el('battle-controls-legacy').style.display = 'none';
+    manualBattleState = null;
+    showBattleRewardsModal();
+  };
+
   tabsLoaded['mypets'] = false;
   tabsLoaded['battle'] = false;
 }
@@ -13864,30 +14936,14 @@ async function getRandomEnemy(zone, playerLevel) {
     }
   }
   
-  // Determine level range based on zone
-  var minLevel, maxLevel;
-  
-  if (zone === 'outskirts') {
-    // City Outskirts: -1 to +1 of player level (easier, more forgiving)
-    minLevel = Math.max(1, playerLevel - 1);
-    maxLevel = playerLevel + 1;
-  } else if (zone === 'glade') {
-    // Forest Glade: +0 to +2 of player level (harder)
-    minLevel = playerLevel;
-    maxLevel = playerLevel + 2;
-  } else if (zone === 'deepwoods') {
-    // Deep Woods: +1 to +3 of player level (very hard)
-    minLevel = playerLevel + 1;
-    maxLevel = playerLevel + 3;
-  } else if (zone === 'ruins') {
-    // Outside The Ruins: +2 to +5 of player level (extreme)
-    minLevel = playerLevel + 2;
-    maxLevel = playerLevel + 5;
-  } else {
-    // Default
-    minLevel = playerLevel;
-    maxLevel = playerLevel;
-  }
+  // Use ZONE_CONFIG absolute level bounds — prevents level 20 birds in the starter zone.
+  // Player-relative ideal range is clamped to zone hard caps.
+  var zoneConfig = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
+  var idealMin = playerLevel - 1;
+  var idealMax = playerLevel + 2;
+  var minLevel = Math.max(zoneConfig.minLevel, Math.min(idealMin, zoneConfig.maxLevel));
+  var maxLevel = Math.min(zoneConfig.maxLevel, Math.max(idealMax, zoneConfig.minLevel));
+  if (minLevel > maxLevel) minLevel = maxLevel;
   
   // Get base enemies for this zone
   var res = await supabaseClient
@@ -28310,6 +29366,14 @@ updateAllPoints = function(pts) {
 function onPetLevelUp(petId) {
   updateBingoProgress('level_up_pet', 1);
   addPassXP(10, 'level_up');
+  // Award 1 stat point to allocate
+  supabaseClient.from('user_pets')
+    .update({ stat_points: (petState[petId] && petState[petId].stat_points || 0) + 1 })
+    .eq('id', petId)
+    .eq('user_id', currentUser.id)
+    .then(function(res) {
+      if (!res.error && petState[petId]) petState[petId].stat_points = (petState[petId].stat_points || 0) + 1;
+    }).catch(function(){});
 }
 
 // Hook for adoption - call this when adopting a pet

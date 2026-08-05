@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260729b">
+  <link rel="stylesheet" href="style.css?v=20260805b">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -2151,13 +2151,12 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       <!-- Battle Screen (hidden by default) -->
       <div id="battle-screen" style="display:none;">
         <div class="battle-container">
-          
+          <!-- Zone modifier banner -->
+          <div id="battle-zone-banner" style="display:none;text-align:center;font-size:0.78rem;padding:5px 12px;border-radius:8px;margin-bottom:8px;background:rgba(153,102,255,0.12);color:var(--purple-dark);font-weight:600;width:100%;"></div>
           <!-- Player Side -->
           <div class="battle-side battle-player">
             <div class="battle-sprite-container">
-              <div class="battle-sprite player-sprite" id="player-battle-sprite">
-                🐾
-              </div>
+              <div class="battle-sprite player-sprite" id="player-battle-sprite">🐾</div>
             </div>
             <div class="battle-name" id="player-battle-name">Your Pet</div>
             <div class="battle-hp-container">
@@ -2166,14 +2165,13 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
                 <span id="player-hp-text">30/30</span>
               </div>
               <div class="battle-hp-bar">
-                <div class="battle-hp-fill" id="player-hp-fill" style="width: 100%"></div>
+                <div class="battle-hp-fill" id="player-hp-fill" style="width:100%"></div>
               </div>
             </div>
+            <div id="player-status-row" style="display:flex;gap:3px;flex-wrap:wrap;min-height:18px;margin-top:4px;justify-content:center;"></div>
           </div>
-          
           <!-- VS Text -->
           <div class="battle-vs">VS</div>
-          
           <!-- Enemy Side -->
           <div class="battle-side battle-enemy">
             <div class="battle-sprite-container">
@@ -2186,22 +2184,34 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
                 <span id="enemy-hp-text">20/20</span>
               </div>
               <div class="battle-hp-bar">
-                <div class="battle-hp-fill" id="enemy-hp-fill" style="width: 100%"></div>
+                <div class="battle-hp-fill" id="enemy-hp-fill" style="width:100%"></div>
               </div>
             </div>
+            <div id="enemy-status-row" style="display:flex;gap:3px;flex-wrap:wrap;min-height:18px;margin-top:4px;justify-content:center;"></div>
           </div>
-          
         </div>
-        
-        <!-- Battle Log -->
-        <div class="battle-log-container">
+
+        <!-- Battle Narrative (manual combat) -->
+        <div id="battle-narrative-box" style="display:none;min-height:64px;padding:10px 14px;background:rgba(0,0,0,0.04);border-radius:12px;margin:10px 0;font-size:0.85rem;line-height:1.6;color:var(--text);border-left:3px solid var(--purple);"></div>
+
+        <!-- Manual Action Panel -->
+        <div id="manual-battle-actions" style="display:none;">
+          <div id="battle-turn-indicator" style="text-align:center;font-size:0.78rem;color:var(--text-light);margin-bottom:8px;font-weight:600;letter-spacing:1px;"></div>
+          <div id="battle-action-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+            <button id="battle-btn-attack" class="btn btn-primary" onclick="manualBattle_playerAction('attack')" style="padding:12px;font-size:0.9rem;">⚔️ Attack</button>
+            <button id="battle-btn-flee" class="btn btn-outline" onclick="manualBattle_playerAction('flee')" style="padding:12px;font-size:0.9rem;">🏃 Flee</button>
+          </div>
+          <div id="battle-skill-row" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
+        </div>
+
+        <!-- Battle Log (legacy auto-battle playback) -->
+        <div class="battle-log-container" id="battle-log-container">
           <div class="battle-log" id="battle-log">
             <div class="battle-log-entry">Battle starting...</div>
           </div>
         </div>
-        
-        <!-- Battle Controls -->
-        <div class="battle-controls">
+        <!-- Battle Controls (legacy) -->
+        <div class="battle-controls" id="battle-controls-legacy">
           <button class="btn btn-outline" id="battle-skip-btn" onclick="skipBattle()">Skip Animation</button>
           <button class="btn btn-primary" id="battle-continue-btn" onclick="closeBattle()" style="display:none">Continue</button>
         </div>
