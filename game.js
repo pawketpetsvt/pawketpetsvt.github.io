@@ -12561,6 +12561,14 @@ async function executeBattle(playerStats, enemyStats, petId) {
 }
 
 function initManualBattle(playerStats, enemyStats, petId) {
+  // Normalize scaledEnemy — it uses base_hp/base_attack/base_defense but we need hp/attack/defense
+  enemyStats = Object.assign({}, enemyStats, {
+    hp:      Math.max(1, enemyStats.base_hp      || enemyStats.hp      || 10),
+    attack:  Math.max(1, enemyStats.base_attack  || enemyStats.attack  || 3),
+    defense: Math.max(0, enemyStats.base_defense || enemyStats.defense || 0),
+    speed:   Math.max(1, enemyStats.base_speed   || enemyStats.speed   || 3)
+  });
+
   var zone = (enemyStats && enemyStats.forest_zone) || 'outskirts';
   var zoneConf = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
 
@@ -12601,7 +12609,13 @@ function initManualBattle(playerStats, enemyStats, petId) {
   el('battle-narrative-box').style.display = 'block';
   el('manual-battle-actions').style.display = 'block';
 
-  // Zone banner
+  // Reset banner for this battle
+  if (el('battle-zone-banner')) {
+    el('battle-zone-banner').textContent = '';
+    el('battle-zone-banner').style.display = 'none';
+  }
+
+  // Zone banner (if zone has a mechanic)
   var mod = zoneConf.battleMod || { type: 'none' };
   var banner = el('battle-zone-banner');
   if (banner && mod.type !== 'none' && mod.label) {
@@ -12670,12 +12684,15 @@ function initManualBattle(playerStats, enemyStats, petId) {
   }
   manualBattleState.integrityMod = integrityMod;
 
-  // Show integrity banner if not stable
-  if (integrityMod.label && el('battle-zone-banner')) {
+  // Show integrity banner if not stable — appends to zone mod if present
+  if (integrityMod.label) {
     var banner = el('battle-zone-banner');
-    var existing = banner.textContent;
-    banner.textContent = existing ? existing + ' | ' + integrityMod.label : integrityMod.label;
-    banner.style.display = 'block';
+    if (banner) {
+      banner.textContent = banner.textContent
+        ? banner.textContent + '  |  ' + integrityMod.label
+        : integrityMod.label;
+      banner.style.display = 'block';
+    }
   }
 
   // Show Piper's Influence meter
@@ -12708,6 +12725,23 @@ function manualBattle_render() {
   el('battle-turn-indicator').textContent = 'TURN ' + s.turn + ' — YOUR MOVE';
 }
 
+function manualBattle_showSkillTip(btn) {
+  var existing = document.getElementById('battle-skill-tip');
+  if (existing) existing.remove();
+  var html = btn && btn.getAttribute('data-tip');
+  if (!html) return;
+  var tip = document.createElement('div');
+  tip.id = 'battle-skill-tip';
+  tip.style.cssText = 'position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);background:rgba(30,0,60,0.95);color:#f0e0ff;font-size:0.78rem;padding:8px 12px;border-radius:10px;width:220px;z-index:200;line-height:1.5;pointer-events:none;border:1px solid rgba(153,102,255,0.4);';
+  tip.innerHTML = html;
+  var wrap = btn.closest('.battle-skill-wrap');
+  if (wrap) { wrap.style.position = 'relative'; wrap.appendChild(tip); }
+}
+function manualBattle_hideSkillTip() {
+  var tip = document.getElementById('battle-skill-tip');
+  if (tip) tip.remove();
+}
+
 function manualBattle_renderStatuses(side, statuses) {
   var row = el(side + '-status-row');
   if (!row) return;
@@ -12716,9 +12750,27 @@ function manualBattle_renderStatuses(side, statuses) {
   row.innerHTML = keys.map(function(k) {
     var def = STATUS_EFFECTS[k] || {};
     var turns = statuses[k] && statuses[k].turns;
-    return '<span class="battle-status-badge" title="' + (def.desc || k) + '">' +
-      (def.icon || '?') + ' ' + (turns || '') + '</span>';
+    var tipText = (def.label || k) + ': ' + (def.desc || '') + ' (' + (turns || 0) + ' turn' + ((turns||0) !== 1 ? 's' : '') + ' left)';
+    return '<span class="battle-status-badge" ' +
+      'onmouseenter="manualBattle_showStatusTip(this)" ' +
+      'onmouseleave="manualBattle_hideSkillTip()" ' +
+      'data-stip="' + escapeHtml(tipText) + '" ' +
+      'style="position:relative;cursor:help;">' +
+      (def.icon || '?') + ' ' + (turns || '') +
+      '</span>';
   }).join('');
+}
+
+function manualBattle_showStatusTip(badge) {
+  var existing = document.getElementById('battle-status-tip');
+  if (existing) existing.remove();
+  var text = badge && badge.getAttribute('data-stip');
+  if (!text) return;
+  var tip = document.createElement('div');
+  tip.id = 'battle-status-tip';
+  tip.style.cssText = 'position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:rgba(30,0,60,0.95);color:#f0e0ff;font-size:0.75rem;padding:6px 10px;border-radius:8px;width:180px;z-index:200;line-height:1.4;pointer-events:none;border:1px solid rgba(153,102,255,0.4);white-space:normal;';
+  tip.textContent = text;
+  badge.appendChild(tip);
 }
 
 function manualBattle_renderSkillButtons() {
@@ -12730,14 +12782,18 @@ function manualBattle_renderSkillButtons() {
   row.innerHTML = skills.map(function(skill, idx) {
     var cd = s.skillCooldowns[skill.id] || 0;
     var cdText = cd > 0 ? (cd + ' turn' + (cd > 1 ? 's' : '') + ' left') : 'Ready';
-    var btnHtml = '<button class="battle-skill-btn" ' +
-      (cd > 0 ? 'disabled ' : '') +
-      'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
-      'title="' + escapeHtml(skill.desc) + '">' +
-      skill.icon + ' <strong>' + escapeHtml(skill.name) + '</strong>' +
-      '<span class="skill-cooldown">' + cdText + '</span>' +
-      '</button>';
-    return btnHtml;
+    var tooltipHtml = escapeHtml(skill.desc) + (skill.flavor ? '<br><em style="color:var(--text-light);">' + escapeHtml(skill.flavor) + '</em>' : '');
+    return '<div class="battle-skill-wrap" style="position:relative;flex:1;min-width:120px;">' +
+      '<button class="battle-skill-btn" ' +
+        (cd > 0 ? 'disabled ' : '') +
+        'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
+        'onmouseenter="manualBattle_showSkillTip(this)" ' +
+        'onmouseleave="manualBattle_hideSkillTip()" ' +
+        'data-tip="' + tooltipHtml + '">' +
+        skill.icon + ' <strong>' + escapeHtml(skill.name) + '</strong>' +
+        '<span class="skill-cooldown">' + cdText + '</span>' +
+      '</button>' +
+    '</div>';
   }).join('');
 }
 
@@ -15431,10 +15487,10 @@ async function getRandomEnemy(zone, playerLevel) {
   
   // Scale stats based on level (base stats + scaling per level)
   var levelBonus = enemyLevel - 1;
-  var baseHP = Math.floor((baseEnemy.base_hp + (levelBonus * 8)) * statMultiplier);
-  var baseATK = Math.floor((baseEnemy.base_attack + levelBonus) * statMultiplier);
-  var baseDEF = Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier);
-  var baseSPD = Math.floor((baseEnemy.base_speed + Math.floor(levelBonus * 0.5)) * statMultiplier);
+  var baseHP  = Math.max(20, Math.floor((baseEnemy.base_hp   + (levelBonus * 8)) * statMultiplier));
+  var baseATK = Math.max(2,  Math.floor((baseEnemy.base_attack + levelBonus)      * statMultiplier));
+  var baseDEF = Math.max(0,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier));
+  var baseSPD = Math.max(1,  Math.floor((baseEnemy.base_speed   + Math.floor(levelBonus * 0.5)) * statMultiplier));
   
   var scaledEnemy = {
     id: baseEnemy.id,
