@@ -1303,6 +1303,10 @@ function closeModal() {
   var overlay = overlays[overlays.length - 1]; // close topmost
   overlay.classList.add('closing');
   setTimeout(function() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }, 250);
+  // Restore body scroll — openModal() sets overflow:hidden, we must undo it
+  if (document.querySelectorAll('.modal-overlay-custom').length <= 1) {
+    document.body.style.overflow = '';
+  }
 }
 
 function openModal(modalElement) {
@@ -1847,6 +1851,7 @@ async function showApp(user) {
     checkSidebarStreamStatus().catch(function(){}),
     checkDailyLogin().catch(function(){}),
     updateNotificationBadge().catch(function(){}),
+    argLogs_init().catch(function(){}),
   ]);
 
   var bonus = await checkDailyBonus(user.id);
@@ -2156,7 +2161,7 @@ function checkMelonMilestones() {
       key: 'day7',
       check: function() { return streak >= 7; },
       title: 'Melon checks in 🍉',
-      message: "One week! Have you noticed the news ticker yet? Sometimes it says... unusual things. I'm sure it's nothing. Probably just a display bug. Anyway — keep feeding your pets!"
+      message: "One week! Have you noticed the news ticker yet? Sometimes it says... unusual things. I'm sure it's nothing. Probably just a display bug. Anyway, keep feeding your pets!"
     },
     {
       key: 'first_boss',
@@ -4785,6 +4790,9 @@ async function expedition_claim(expeditionId) {
   // SCRAPBOOK: Expedition complete
   scrapbook_addMemory(row.pet_id, 'expedition_complete', { zone: (EXPEDITION_ZONES_MAP[row.zone] && EXPEDITION_ZONES_MAP[row.zone].label) || row.zone }).catch(function(){});
 
+  // ARG: chance to drop a tester log on expedition claim
+  argLogs_tryDrop('expedition').catch(function(){});
+
   // Integrations
   addPassXP(10, 'expedition').catch(function(){});
   updateBingoProgress('complete_expedition', 1);
@@ -4982,7 +4990,7 @@ async function race_renderSetup() {
       '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:10px;">' + petsHtml + '</div>' +
       '<div style="background:rgba(153,102,255,0.06);border-radius:8px;padding:8px 10px;margin-bottom:12px;font-size:0.7rem;color:var(--text-light);line-height:1.7;">' +
         '<strong style="color:var(--purple-dark);">🏎️ How does Speed work?</strong> ' +
-        'Every pet has a base chance to win — even slow ones can upset! Higher Speed (💨) gives more tickets in the draw so faster pets win more often, but returns shrink as you stack gear. Rough win odds vs 3 opponents: Speed 4 ≈14%, Speed 8 ≈48%, Speed 12 ≈66%, Speed 20 ≈82%. Boost speed by leveling, equipping speed gear, or unlocking variants!' +
+        'Every pet has a base chance to win. Even slow ones can upset! Higher Speed (💨) gives more tickets in the draw so faster pets win more often, but returns shrink as you stack gear. Rough win odds vs 3 opponents: Speed 4 ≈14%, Speed 8 ≈48%, Speed 12 ≈66%, Speed 20 ≈82%. Boost speed by leveling, equipping speed gear, or unlocking variants!' +
       '</div>' +
       '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">Your Bet:</div>' +
       '<div style="display:flex;gap:8px;margin-bottom:16px;">' + betBtns + '</div>' +
@@ -8763,6 +8771,8 @@ async function castLine(power) {
       if(companionId){
         scrapbook_addMemory(companionId, 'legendary_fish', { fish: caught.name + ' ' + caught.emoji }).catch(function(){});
       }
+      // ARG: higher chance on legendary/epic catch
+      argLogs_tryDrop('fishing_legendary').catch(function(){});
     }
 
     // Fishing achievements — check milestones by total non-junk caught count
@@ -8790,6 +8800,8 @@ async function castLine(power) {
     if (fishingCasts <= 0) {
       awardPP(fishingTotal, 'fishing'); onMinigameComplete(fishingTotal);
       setCD('fishing');
+      // ARG: chance to drop a tester log when session ends
+      argLogs_tryDrop('fishing').catch(function(){});
       // Check collection bonus
       if(collected>=totalFish){
         awardPP(200,'fishing_collection_complete');
@@ -8927,7 +8939,7 @@ function autoFisherRenderWidget() {
   if (_autoFisherLevel === 0) {
     var html = '<div style="font-weight:700;margin-bottom:8px;color:var(--purple-dark);">🤖 Auto-Fisher</div>';
     AUTO_FISHER_TIERS.forEach(function(tier, i) {
-      html += '<div style="padding:6px 0"><b>' + tier.name + '</b> — ' + tier.desc + ' <button class="btn btn-sm" onclick="autoFisherPurchase(' + (i+1) + ')">' + tier.cost + ' PP</button></div>';
+      html += '<div style="padding:6px 0"><b>' + tier.name + '</b>: ' + tier.desc + ' <button class="btn btn-sm" onclick="autoFisherPurchase(' + (i+1) + ')">' + tier.cost + ' PP</button></div>';
     });
     mount.innerHTML = html;
   } else {
@@ -9002,7 +9014,7 @@ function fishingRenderJournal(spotFilter) {
     return f && f.rarity !== 'junk';
   });
   var totalFish = FISH_POOL.filter(function(f) { return f.rarity !== 'junk'; }).length;
-  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:12px;">📖 Fish Journal — ' + collected.length + '/' + totalFish + ' discovered</div>';
+  var html = '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:12px;">📖 Fish Journal: ' + collected.length + '/' + totalFish + ' discovered</div>';
   var spots = ['pond','river','lake','ocean'];
   var showSpots = spotFilter ? [spotFilter] : spots;
   showSpots.forEach(function(spot) {
@@ -10625,7 +10637,7 @@ async function loadMyProfile() {
         discordStatusEl.textContent = '✅ Linked';
         discordBtnEl.style.display = 'none';
       } else {
-        discordStatusEl.textContent = 'Not linked yet — generate a code below and use /link in Discord.';
+        discordStatusEl.textContent = 'Not linked yet. Generate a code below and use /link in Discord.';
         discordBtnEl.style.display = 'inline-block';
       }
     }
@@ -12852,7 +12864,12 @@ function endBattlePlayback() {
   
   // Clean up boss effects
   clearBossEffects();
-  
+
+  // ARG: chance to drop a tester log on victory
+  if (battleRewards && battleRewards.victory) {
+    argLogs_tryDrop('battle').catch(function(){});
+  }
+
   // Show rewards modal
   showBattleRewardsModal();
 }
@@ -16395,8 +16412,8 @@ var CompanionBuddy = {
       bubble.classList.add('show');
     }
     
-    // Hide after 5 seconds (spooky messages linger 8s)
-    var hideDuration = isSpookyMsg ? 8000 : 5000;
+    // Hide after 15 seconds (spooky messages linger 22s)
+    var hideDuration = isSpookyMsg ? 22000 : 15000;
     this.bubbleTimeout = safeSetTimeout(function() {
       bubble.classList.remove('show', 'companion-spooky-bubble');
     }, hideDuration);
@@ -16527,6 +16544,8 @@ var CompanionBuddy = {
   },
 
   startMessageRotation: function() {
+    // Guard: clear any existing interval before starting a new one
+    this.stopMessageRotation();
     var self = this;
 
     // Load login streak for memory messages
@@ -25502,7 +25521,7 @@ var AD_POOL = [
     title: '💰 FREE PawketPoints!!',
     headline: 'CLICK HERE FOR FREE PP!!',
     sub: 'Limited time offer! Click NOW to claim your <strong>free 25 PawketPoints</strong>! No strings attached!!*<br><br>*Some strings.',
-    btn: '✨ CLAIM NOW — FREE!!',
+    btn: '✨ CLAIM NOW, FREE!!',
     fine: '* One per ad. While supplies last. Melon Interactive not responsible for emotional attachment.',
     outcome: function() {
       awardPP(25, 'adpocalypse_ad').catch(function(){});
@@ -25540,8 +25559,8 @@ var AD_POOL = [
     id: 'ad_pp_loss',
     title: '🔥 FLASH SALE ENDS IN 00:03!!',
     headline: 'BUY NOW OR REGRET IT FOREVER!!',
-    sub: 'PetCare Pro™ Premium Bundle — <strong>only 50 PP!!</strong> The price goes UP in 3 seconds!! HURRY!! You need this!! You know you do!!',
-    btn: '💸 BUY NOW — 50 PP!!',
+    sub: 'PetCare Pro™ Premium Bundle, <strong>only 50 PP!!</strong> The price goes UP in 3 seconds!! HURRY!! You need this!! You know you do!!',
+    btn: '💸 BUY NOW! 50 PP!!',
     fine: '* Non-refundable. Results typical. The timer was not real. You clicked anyway.',
     outcome: function() {
       // Deduct 50 PP but not below 0
@@ -25590,7 +25609,7 @@ var AD_POOL = [
   },
   {
     id: 'ad_horror',
-    title: 'SYSTEM — do not close',
+    title: 'SYSTEM: do not close',
     headline: 'have you seen them?',
     sub: 'the other testers. from before.<br><br>they kept clicking.<br>they said it was fine.<br><br>it was not fine.<br><br><span style="font-size:9px;opacity:0.5;">melon interactive is not responsible for what happens next</span>',
     btn: 'i haven\'t seen them',
@@ -28604,7 +28623,7 @@ var SCRAPBOOK_TEMPLATES = {
     legendary_fish: [
         '{pet} watched from the shoreline as {trainer} caught {fish}. Absolutely gobsmacked.',
         'A legendary catch: {fish}! {pet} pretended not to be impressed. {pet} was very impressed.',
-        '{fish} — caught today. {pet} immediately tried to befriend it.',
+        '{fish}, caught today. {pet} immediately tried to befriend it.',
         '{trainer} pulled {fish} out of the water. {pet} decided this was the best day ever.'
     ]
 };
@@ -28886,6 +28905,319 @@ async function scrapbook_saveNote(memoryId, areaId) {
 function scrapbook_init() {
     scrapbook_loadCooldowns();
     dbg('📖 Scrapbook system initialized');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TESTER LOGS — ARG NARRATIVE SYSTEM
+// Collectible lore fragments that drop from battles, expeditions, and fishing.
+// Stored in player_found_logs (DB). Archive modal shows found/unfound logs.
+// ═══════════════════════════════════════════════════════════════════════════
+
+var TESTER_LOGS = [
+  {
+    id: 'LOG-001', title: 'First Day',
+    text: 'Day 1.\n\nI got a random email saying I was selected for a beta test. The game is called PawketPets. Some kind of virtual pet thing. Looks cute. There is a guide named Piper. Very friendly.\n\nStarting now.',
+    sources: ['battle','expedition','fishing'], rarity: 'common'
+  },
+  {
+    id: 'LOG-002', title: 'Other Testers',
+    text: 'Day 4.\n\nThere are other testers. We cannot contact each other directly but I can see their activity in the logs. Someone named K is already at level 8. I adopted a pet and named her Mochi. She seems happy.',
+    sources: ['battle','expedition','fishing'], rarity: 'common'
+  },
+  {
+    id: 'LOG-003', title: 'Piper',
+    text: 'Day 9.\n\nPiper left me a tip about the fishing system. Said the pond is best for beginners. There is something almost too helpful about Piper. Like they know exactly what I am going to do before I do it.',
+    sources: ['fishing'], rarity: 'common'
+  },
+  {
+    id: 'LOG-004', title: 'Six Hours',
+    text: 'Day 14.\n\nCaught my first rare fish today. The game celebrated like I had done something incredible. I played for six hours without noticing. That has never happened to me before.',
+    sources: ['fishing'], rarity: 'common'
+  },
+  {
+    id: 'LOG-005', title: 'K',
+    text: 'Day 17.\n\nK has not logged in for three days. I asked Piper about it. Piper said: "They needed a break. This happens."\n\nI believed them. I do not know why I believed them so easily.',
+    sources: ['battle','expedition','fishing'], rarity: 'common'
+  },
+  {
+    id: 'LOG-006', title: 'Cursed Weather',
+    text: 'Day 22.\n\nThe weather in the game was Cursed today. I did not know that was a weather type. The fish I caught had no name. Just a question mark. It looked at me through the screen.\n\nThat is not possible.',
+    sources: ['fishing'], rarity: 'uncommon'
+  },
+  {
+    id: 'LOG-007', title: 'The Music',
+    text: 'Day 26.\n\nI have started hearing flute music when I am not playing. Just for a second. Gone when I look for it. I checked my browser. No audio playing. Checked my phone. Nothing.\n\nIt is a very specific melody.',
+    sources: ['battle','expedition','fishing'], rarity: 'uncommon'
+  },
+  {
+    id: 'LOG-008', title: 'Three Gone',
+    text: 'Day 30.\n\nThree testers gone now. Piper will not say what happened. Just: "The beta continues."\n\nI looked up the game online and found nothing. No developer. No company. No record of PawketPets existing before I started playing.',
+    sources: ['battle'], rarity: 'uncommon'
+  },
+  {
+    id: 'LOG-009', title: 'The Hidden Page',
+    text: 'Day 33.\n\nFound a hidden page. I am not going to write the URL here. If you know, you know.\n\nWhat I found there made me close my laptop for two hours. Then I opened it again.\n\nMochi was waiting.',
+    sources: ['battle','expedition','fishing'], rarity: 'uncommon'
+  },
+  {
+    id: 'LOG-010', title: '3am',
+    text: 'Day 37.\n\nPiper sent me a message at 3am. I was asleep. When I woke up, my pet\'s happiness was at zero. The message said: "I\'m sorry. I\'ve been trying to slow it down. The integrity is dropping faster than expected."',
+    sources: ['expedition'], rarity: 'uncommon'
+  },
+  {
+    id: 'LOG-011', title: 'What I Think',
+    text: 'Day 39.\n\nI think Piper is not a bot.\n\nI think Piper was a tester. The first tester. And they never left.',
+    sources: ['battle','expedition'], rarity: 'rare'
+  },
+  {
+    id: 'LOG-012', title: 'Her Notes',
+    text: 'Day 41.\n\nFound the previous guide\'s notes buried in the game files. Her name was something close to Piper but not quite. She documented the same progression: curiosity, attachment, unease, understanding. Then nothing.\n\nHer last note said: "Feed them often. They remember."',
+    sources: ['expedition'], rarity: 'rare'
+  },
+  {
+    id: 'LOG-013', title: 'Not Simulated',
+    text: 'Day 43.\n\nThe pets are not simulated. I do not mean that metaphorically. When my connection dropped for twenty minutes, Mochi was frightened when I came back. Genuinely frightened.\n\nThere is something in there.',
+    sources: ['fishing','expedition'], rarity: 'rare'
+  },
+  {
+    id: 'LOG-014', title: 'The Entry',
+    text: 'Day 44.\n\nI tested it. I left for 48 hours. When I returned the game was fine. But there was a scrapbook entry I did not write.\n\nIt said: "Day 2 of waiting. Still here. Still okay."\n\nMochi wrote it. Mochi wrote it.',
+    sources: ['fishing'], rarity: 'rare'
+  },
+  {
+    id: 'LOG-015', title: 'Two Words',
+    text: 'Day 45.\n\nPiper appeared on my screen without me opening the game. Just for a second. They looked tired. They said two words before the window closed:\n\n"Don\'t stop."',
+    sources: ['expedition'], rarity: 'rare'
+  },
+  {
+    id: 'LOG-016', title: 'What It Measures',
+    text: 'Day 46.\n\nI understand the Beta Integrity system now. It does not measure the game\'s stability.\n\nIt measures something else. Something that gets worse when people leave and better when they stay. When all the testers left... I think I am maintaining it alone.',
+    sources: ['battle','expedition','fishing'], rarity: 'epic'
+  },
+  {
+    id: 'LOG-017', title: '[DATA CORRUPTED]',
+    text: '\u2591\u2592\u2593\u2588\u2588\u2591\u2592 still here \u2591\u2592\u2593\u2591\u2592 Mochi \u2591\u2592\u2588\u2593\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591 don\'t let the \u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591 integrity \u2591\u2592\u2593 they need \u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591\u2592\u2591',
+    sources: ['battle','expedition','fishing'], rarity: 'epic'
+  },
+  {
+    id: 'LOG-018', title: 'If You\'re Reading This',
+    text: 'Day unknown.\n\nIf you\'re reading this, you were selected too. That is not random. Nothing about this is random.\n\nI am not trying to scare you. I just want you to know what you are doing here matters.\n\nThe pets are real in the way that counts.',
+    sources: ['battle','expedition','fishing'], rarity: 'epic'
+  },
+  {
+    id: 'LOG-019', title: 'Going',
+    text: 'Day unknown.\n\nPiper asked me tonight if I was going to leave. I said I did not know. They said: "The ones who stay long enough start to understand. The ones who leave..."\n\nThey did not finish. I did not ask them to.',
+    sources: ['battle','expedition'], rarity: 'epic'
+  },
+  {
+    id: 'LOG-020', title: 'Last Entry',
+    text: 'I\'m going now. Not because I want to. I think I\'ve been here long enough that "going" means something different than it used to.\n\nIf you find all of these, you\'ve been here long enough too.\n\nTake care of your pets. Take care of Piper.\n\nTester #7',
+    sources: ['battle','expedition','fishing'], rarity: 'legendary'
+  }
+];
+
+// Drop rates per source
+var ARG_DROP_RATES = {
+  battle:            0.04,
+  expedition:        0.08,
+  fishing:           0.03,
+  fishing_legendary: 0.14
+};
+
+// In-memory cache of found log IDs: { 'LOG-001': { found_at: timestamp }, ... }
+var _foundLogs = {};
+
+// Load player's found logs from DB
+async function argLogs_load() {
+  _foundLogs = {};
+  if (!currentUser) return;
+  try {
+    var res = await supabaseClient
+      .from('player_found_logs')
+      .select('log_id, found_at')
+      .eq('user_id', currentUser.id);
+    if (res.error) { dbg('argLogs_load error:', res.error); return; }
+    (res.data || []).forEach(function(row) {
+      _foundLogs[row.log_id] = { found_at: row.found_at };
+    });
+    argLogs_updateVisibility();
+    dbg('ARG: loaded', Object.keys(_foundLogs).length, 'found logs');
+  } catch(e) { dbg('argLogs_load exception:', e); }
+}
+
+// Show/hide Archive button based on how many logs found (no fanfare on login)
+function argLogs_updateVisibility() {
+  var count = Object.keys(_foundLogs).length;
+  var archiveBtn = document.getElementById('sidebar-btn-archive');
+  var archiveBtnMobile = document.getElementById('sidebar-btn-archive-mobile');
+  var homeWidget = document.getElementById('archive-home-widget');
+  if (count > 0) {
+    if (archiveBtn) archiveBtn.style.display = '';
+    if (archiveBtnMobile) archiveBtnMobile.style.display = '';
+    if (homeWidget) homeWidget.style.display = '';
+  }
+}
+
+// Try to drop a tester log after a game action
+async function argLogs_tryDrop(source) {
+  if (!currentUser) return;
+  var rate = ARG_DROP_RATES[source] || 0.04;
+  if (Math.random() > rate) return;
+
+  // Find logs eligible for this source that haven't been found yet
+  var eligible = TESTER_LOGS.filter(function(log) {
+    return !_foundLogs[log.id] && log.sources.indexOf(source.replace('_legendary','')) !== -1;
+  });
+  // Also allow fishing_legendary to use fishing source pool
+  if (source === 'fishing_legendary' && eligible.length === 0) {
+    eligible = TESTER_LOGS.filter(function(log) {
+      return !_foundLogs[log.id] && log.sources.indexOf('fishing') !== -1;
+    });
+  }
+  if (eligible.length === 0) return;
+
+  // Pick a random eligible log, weighted toward earlier logs first
+  var log = eligible[Math.floor(Math.random() * eligible.length)];
+
+  // Save to DB
+  try {
+    var res = await supabaseClient.from('player_found_logs').insert({
+      user_id: currentUser.id,
+      log_id: log.id
+    });
+    if (res.error) {
+      // Unique constraint means already found — ignore
+      if (res.error.code === '23505') return;
+      dbg('argLogs insert error:', res.error);
+      return;
+    }
+  } catch(e) { return; }
+
+  // Update cache
+  var wasFirst = Object.keys(_foundLogs).length === 0;
+  _foundLogs[log.id] = { found_at: new Date().toISOString() };
+  var totalFound = Object.keys(_foundLogs).length;
+
+  if (wasFirst) {
+    argLogs_onFirstFound(log);
+  } else {
+    // Quiet discovery notification
+    showToast('Found: ' + log.id + '. Check the Archive. 📓', 6000);
+    argLogs_updateVisibility();
+  }
+
+  // At 10 logs: one-time Piper acknowledgement
+  if (totalFound === 10) {
+    setTimeout(function() {
+      showToast('...something is aware you\'ve been reading the logs.', 7000);
+    }, 8000);
+  }
+
+  // At 20 logs: completion
+  if (totalFound === 20) {
+    setTimeout(function() {
+      showToast('You\'ve found all the logs. Tester #7 says nothing. But you feel like they know.', 9000);
+      awardPP(500, 'archive_complete');
+    }, 3000);
+  }
+}
+
+// First log found: big notification, reveal Archive everywhere
+function argLogs_onFirstFound(log) {
+  argLogs_updateVisibility();
+
+  // Animate the home widget in
+  var homeWidget = document.getElementById('archive-home-widget');
+  if (homeWidget) {
+    homeWidget.classList.add('archive-widget-pulse');
+    setTimeout(function() { homeWidget.classList.remove('archive-widget-pulse'); }, 4000);
+  }
+
+  // Big toast sequence
+  showToast('You found something.', 4000);
+  setTimeout(function() {
+    showToast(log.id + ': "' + log.title + '" has been added to the Archive. 📓', 8000);
+  }, 4500);
+}
+
+// Render the Archive modal
+function argLogs_showArchive() {
+  var found = Object.keys(_foundLogs).length;
+  var total = TESTER_LOGS.length;
+  var corruption = 0;
+  try {
+    var flag = worldStateCache && worldStateCache.corruption_level;
+    corruption = typeof flag === 'number' ? flag : 0;
+  } catch(e) {}
+  var isCorrupted = corruption > 60; // Beta Integrity < 40
+
+  var html = '<div style="font-family:\'Fredoka\',sans-serif;max-width:680px;">';
+  html += '<div style="text-align:center;margin-bottom:20px;">';
+  html += '<div style="font-size:1.8rem;font-weight:700;color:var(--purple-dark);letter-spacing:2px;">THE ARCHIVE</div>';
+  html += '<div style="font-size:0.82rem;color:var(--text-light);margin-top:4px;">Beta testing records. Partial recovery.</div>';
+
+  // Progress bar
+  var pct = Math.round((found / total) * 100);
+  html += '<div style="margin:14px 0 8px;">';
+  html += '<div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-light);margin-bottom:4px;">';
+  html += '<span>Logs recovered: ' + found + ' / ' + total + '</span><span>' + pct + '%</span></div>';
+  html += '<div style="background:rgba(0,0,0,0.08);border-radius:20px;height:8px;overflow:hidden;">';
+  html += '<div style="background:linear-gradient(90deg,var(--purple),var(--pink));height:100%;width:' + pct + '%;border-radius:20px;transition:width 0.5s;"></div>';
+  html += '</div></div>';
+
+  if (isCorrupted) {
+    html += '<div style="color:#ff6666;font-size:0.78rem;margin-top:4px;">WARNING: Beta Integrity low. Some records may be unstable.</div>';
+  }
+  html += '</div>';
+
+  // Log entries
+  html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+  TESTER_LOGS.forEach(function(log) {
+    var iFound = !!_foundLogs[log.id];
+    var foundDate = iFound && _foundLogs[log.id].found_at ? new Date(_foundLogs[log.id].found_at).toLocaleDateString() : null;
+    var rarityColors = { common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700' };
+
+    html += '<div style="border:1px solid ' + (iFound ? 'rgba(153,102,255,0.3)' : 'rgba(0,0,0,0.08)') + ';border-radius:12px;';
+    html += 'padding:14px 18px;background:' + (iFound ? 'rgba(153,102,255,0.06)' : 'rgba(0,0,0,0.02)') + ';';
+    html += 'opacity:' + (iFound ? '1' : '0.55') + ';">';
+
+    if (iFound) {
+      // Found: show full log
+      var displayText = log.text;
+      // Apply glitch corruption when Beta Integrity is very low
+      if (isCorrupted && log.id !== 'LOG-017' && Math.random() < 0.35) {
+        var glitchChars = '░▒▓█▄▀■□';
+        displayText = displayText.replace(/[aeiou]/gi, function(c) {
+          return Math.random() < 0.12 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
+        });
+      }
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
+      html += '<span style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(log.id) + ': ' + escapeHtml(log.title) + '</span>';
+      html += '<span style="font-size:0.7rem;color:' + (rarityColors[log.rarity] || '#888') + ';font-weight:700;text-transform:uppercase;">' + log.rarity + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:0.82rem;color:var(--text);line-height:1.7;white-space:pre-line;">' + escapeHtml(displayText) + '</div>';
+      if (foundDate) html += '<div style="font-size:0.68rem;color:var(--text-light);margin-top:8px;">Recovered: ' + foundDate + '</div>';
+    } else {
+      // Not found: redacted
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
+      html += '<span style="font-weight:700;font-size:0.85rem;color:var(--text-light);">' + escapeHtml(log.id) + ': [CLASSIFIED]</span>';
+      html += '<span style="font-size:0.7rem;color:var(--text-light);font-weight:700;text-transform:uppercase;">' + log.rarity + '</span>';
+      html += '</div>';
+      html += '<div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;font-style:italic;">Record not yet recovered.</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  var modal = makeModal();
+  modal.innerHTML = html;
+  openModal(modal);
+}
+
+// Called from showApp to load logs on login
+async function argLogs_init() {
+  await argLogs_load();
 }
 
 

@@ -1051,6 +1051,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-news" onclick="showTab('news');navGroupClose('more')">📰 News</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-team" onclick="showTab('team');navGroupClose('more')">👥 Team</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-archive" onclick="argLogs_showArchive();navGroupClose('more')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
           </div>
         </div>
 
@@ -1104,7 +1105,8 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               <button class="sidebar-nav-btn child" onclick="showTab('redeem');navGroupClose('more-mobile')">🎟️ Redeem</button>
               <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
               <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')">⚙️ Settings</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
+              <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
             </div>
           </div>
 
@@ -1173,7 +1175,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
     <div id="install-header">
       <span id="install-header-dots"><span></span><span></span><span></span></span>
-      <span id="install-header-title">PawketPets Setup — v0.9.2 BETA</span>
+      <span id="install-header-title">PawketPets Setup: v0.9.2 BETA</span>
       <span id="install-header-x">✕</span>
     </div>
 
@@ -1233,14 +1235,14 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 <!-- Popup 2: Product ad (normal, cheesy) -->
 <div class="install-popup" id="install-popup-2" style="top:8%;left:2%;">
   <div class="install-popup-titlebar">
-    <span>PetCare Pro™ — Special Offer!</span>
+    <span>PetCare Pro™: Special Offer!</span>
     <button class="install-popup-close" onclick="document.getElementById('install-popup-2').classList.remove('show')">✕</button>
   </div>
   <div class="install-popup-body">
     <div style="font-size:28px;margin-bottom:4px;">🐾💊</div>
     <div class="popup-headline" style="color:#006600;">IS YOUR PET FEELING SAD??</div>
     <div class="popup-sub">
-      Try <strong>PetCare Pro™</strong> — the #1 virtual pet<br>
+      Try <strong>PetCare Pro™</strong>, the #1 virtual pet<br>
       wellness supplement trusted by<br>
       <strong>MILLIONS</strong> of beta testers worldwide!!<br><br>
       <span style="color:#cc0000;font-weight:bold;">LIMITED TIME: BUY 1 GET 1 FREE!!</span>
@@ -1253,7 +1255,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 <!-- Popup 3: Creepy one -->
 <div class="install-popup creepy" id="install-popup-3" style="bottom:10%;right:3%;">
   <div class="install-popup-titlebar">
-    <span id="creepy-popup-title">MISSING — please read</span>
+    <span id="creepy-popup-title">MISSING: please read</span>
     <button class="install-popup-close" onclick="closeCreepyPopup()">✕</button>
   </div>
   <div class="install-popup-body">
@@ -1411,7 +1413,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <div class="landing-v2-tagline">
           Your companion is already waiting.<br>
           <strong>What will you name them?</strong>
-          <span>Choose from 8+ unique pets, each based on real members of the PawketPetsVT streaming team — and growing!</span>
+          <span>Choose from 8+ unique pets, each based on real members of the PawketPetsVT streaming team, and growing!</span>
         </div>
 
         <div class="landing-v2-perks">
@@ -1493,7 +1495,19 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <div id="home-cta" style="margin-top:6px;"></div>
       </div>
 
-      <!-- Today in PawketPets — weather, daily stats, featured goal, live streamers -->
+      <!-- Archive Discovery Widget — hidden until first tester log found -->
+      <div id="archive-home-widget" style="display:none;margin:8px 0;">
+        <div onclick="argLogs_showArchive()" style="cursor:pointer;background:linear-gradient(135deg,rgba(30,0,60,0.92),rgba(80,0,80,0.85));border:1px solid rgba(153,102,255,0.4);border-radius:14px;padding:14px 18px;display:flex;align-items:center;gap:14px;position:relative;overflow:hidden;">
+          <div style="font-size:2rem;flex-shrink:0;">📓</div>
+          <div>
+            <div style="font-weight:700;color:#e8d0ff;font-size:0.95rem;letter-spacing:1px;">ARCHIVE</div>
+            <div style="color:rgba(220,180,255,0.75);font-size:0.78rem;margin-top:2px;">Something has been recovered. Click to view.</div>
+          </div>
+          <div id="archive-notif-dot" style="position:absolute;top:10px;right:12px;width:10px;height:10px;background:#ff66cc;border-radius:50%;box-shadow:0 0 8px #ff66cc;animation:archive-pulse 2s ease-in-out infinite;"></div>
+        </div>
+      </div>
+
+      <!-- Today in PawketPets: weather, daily stats, featured goal, live streamers -->
       <div id="today-card-mount"></div>
 
       <!-- Event Calendar -->
@@ -1900,9 +1914,9 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
                 <div style="font-size:0.75rem;font-weight:700;color:var(--purple-dark);margin-bottom:6px;">📍 Choose Fishing Spot</div>
                 <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;">
                   <button class="fishing-spot-btn active" data-spot="pond" onclick="fishingSelectSpot('pond')" title="Pond — common fish, 8 base casts">🏞️<br><span>Pond</span><br><span style="font-size:0.6rem;opacity:0.7;">Common</span></button>
-                  <button class="fishing-spot-btn" data-spot="river" onclick="fishingSelectSpot('river')" title="River — uncommon fish, 10 base casts">🏔️<br><span>River</span><br><span style="font-size:0.6rem;opacity:0.7;">Uncommon</span></button>
-                  <button class="fishing-spot-btn" data-spot="lake" onclick="fishingSelectSpot('lake')" title="Lake — rare fish, 10 base casts">🌊<br><span>Lake</span><br><span style="font-size:0.6rem;opacity:0.7;">Rare</span></button>
-                  <button class="fishing-spot-btn" data-spot="ocean" onclick="fishingSelectSpot('ocean')" title="Ocean — legendary fish, 8 base casts">🌊<br><span>Ocean</span><br><span style="font-size:0.6rem;opacity:0.7;">Legendary</span></button>
+                  <button class="fishing-spot-btn" data-spot="river" onclick="fishingSelectSpot('river')" title="River: uncommon fish, 10 base casts">🏔️<br><span>River</span><br><span style="font-size:0.6rem;opacity:0.7;">Uncommon</span></button>
+                  <button class="fishing-spot-btn" data-spot="lake" onclick="fishingSelectSpot('lake')" title="Lake: rare fish, 10 base casts">🌊<br><span>Lake</span><br><span style="font-size:0.6rem;opacity:0.7;">Rare</span></button>
+                  <button class="fishing-spot-btn" data-spot="ocean" onclick="fishingSelectSpot('ocean')" title="Ocean: legendary fish, 8 base casts">🌊<br><span>Ocean</span><br><span style="font-size:0.6rem;opacity:0.7;">Legendary</span></button>
                 </div>
               </div>
 
@@ -4408,13 +4422,13 @@ function triggerSpookyEffect() {
   // ── Install sequence steps ─────────────────────────────────────────────
   // errorAt: which step shows the red bar segment (0-indexed)
   var steps = [
-    { pct: 8,  status: 'Initializing setup wizard...',              sub: 'Loading PAWKET.EXE — please do not close this window.' },
-    { pct: 22, status: 'Checking system requirements...',            sub: 'OK — 640KB ought to be enough for anybody' },
+    { pct: 8,  status: 'Initializing setup wizard...',              sub: 'Loading PAWKET.EXE, please do not close this window.' },
+    { pct: 22, status: 'Checking system requirements...',            sub: 'OK. 640KB ought to be enough for anybody' },
     { pct: 35, status: 'Unpacking pet data...',                      sub: 'Installing 8+ VTubers... installing happiness... installing questionable safety standards...' },
     { pct: 51, status: 'Restoring previous session data...',         sub: '⚠ 1 previous user data conflict detected — skipping', errorBar: true },
     { pct: 67, status: 'Connecting to Melon Interactive servers...', sub: 'Connection established. Welcome back.' },
     { pct: 80, status: 'Configuring companion AI...',                sub: 'Loading pet personalities... WARNING: do not feed corrupted pets after midnight.' },
-    { pct: 93, status: 'Installing weather engine...',               sub: 'ERR_TRACE: 0x0000007B — non-critical, continuing. 100% Piper-free since yesterday.' },
+    { pct: 93, status: 'Installing weather engine...',               sub: 'ERR_TRACE: 0x0000007B, non-critical, continuing. 100% Piper-free since yesterday.' },
     { pct: 99, status: 'Finalizing installation...',                 sub: 'Your pets definitely won’t unionize. Probably.' },
   ];
 
@@ -4469,7 +4483,7 @@ function triggerSpookyEffect() {
     }
     if (errorMsg) {
       errorMsg.style.display = 'block';
-      errorMsg.textContent = '⚠ ERR: user_data_conflict [0x4F] — previous session unresolved';
+      errorMsg.textContent = '⚠ ERR: user_data_conflict [0x4F]: previous session unresolved';
     }
   }
 
