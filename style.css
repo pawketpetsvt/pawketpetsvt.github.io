@@ -17722,3 +17722,32 @@ body.night-mode .sidebar-nav-btn.child { background:rgba(60,35,110,0.6) !importa
 #battle-narrative-box .hit-enemy   { color: var(--purple); }
 #battle-narrative-box .heal        { color: #27ae60; }
 #battle-narrative-box .status-applied { color: #e67e22; }
+
+/* ── BOSS FIGHT: BATTLE AREA PROTECTED ZONE ─────────────────────────────── */
+/* Header, nav, sidebars drift. Battle controls NEVER move. */
+body.boss-ui-glitch #battle-screen,
+body.boss-ui-glitch #section-battle,
+body.boss-ui-glitch .battle-container,
+body.boss-ui-glitch #manual-battle-actions,
+body.boss-ui-glitch #battle-narrative-box,
+body.boss-ui-glitch #battle-zone-banner,
+body.boss-ui-glitch #piper-influence-container,
+body.boss-ui-glitch #piper-melody-counter,
+body.boss-ui-glitch .battle-side,
+body.boss-ui-glitch .battle-hp-container,
+body.boss-ui-glitch .battle-hp-bar,
+body.boss-ui-glitch #battle-skill-row,
+body.boss-ui-glitch #battle-action-grid,
+body.boss-ui-glitch #player-status-row,
+body.boss-ui-glitch #enemy-status-row,
+body.boss-ui-glitch #battle-log-container,
+body.boss-ui-glitch #battle-controls-legacy {
+  animation: none !important;
+  transform: none !important;
+}
+
+@keyframes phase3-flash {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}

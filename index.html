@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260805e">
+  <link rel="stylesheet" href="style.css?v=20260805i">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1672,11 +1672,18 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       <div class="points-banner"><span class="pb-label">Your PawketPoints</span><span class="pb-amount" id="shop-points">0 PP</span></div>
       <div class="shop-tabs">
         <button class="shop-tab active" id="shop-tab-btn" onclick="showShopTab('items')">Items</button>
+        <button class="shop-tab" id="consumables-tab-btn" onclick="showShopTab('consumables')">🧪 Consumables</button>
         <button class="shop-tab" id="equip-tab-btn" onclick="showShopTab('equipment')">⚔️ Equipment</button>
         <button class="shop-tab" id="furn-tab-btn" onclick="showShopTab('furniture')">🪑 Furniture</button>
         <button class="shop-tab" id="inv-tab-btn" onclick="showShopTab('inventory')">My Inventory</button>
       </div>
       <div id="shop-items-panel"><div id="daily-shop-mount"></div><div id="shop-grid" class="shop-grid"><div class="spinner"></div></div></div>
+
+      <!-- CONSUMABLES SHOP PANEL -->
+      <div id="shop-consumables-panel" style="display:none">
+        <div style="padding:10px 0 14px;color:var(--text-light);font-size:0.85rem;">Battle items — used from your inventory during combat. Use the Item button mid-fight.</div>
+        <div id="consumables-shop-grid" class="shop-grid"><div class="spinner"></div></div>
+      </div>
       
       <!-- EQUIPMENT SHOP PANEL -->
       <div id="shop-equipment-panel" style="display:none">
@@ -2189,6 +2196,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               </div>
             </div>
             <div id="enemy-status-row" style="display:flex;gap:3px;flex-wrap:wrap;min-height:18px;margin-top:4px;justify-content:center;"></div>
+            <!-- Piper Melody counter — only visible during Piper boss fight -->
+            <div id="piper-melody-counter" style="display:none;text-align:center;margin-top:6px;font-size:0.75rem;color:#cc66ff;font-weight:700;font-style:italic;">
+              🎵 Melody: <span id="piper-melody-count">0</span>
+              <span id="piper-melody-warning" style="color:#ff6666;display:none;"> — Resonates in <span id="piper-melody-turns">3</span></span>
+            </div>
           </div>
         </div>
 
@@ -2214,6 +2226,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button id="battle-btn-item" class="btn btn-outline" onclick="manualBattle_showItemPicker()" style="padding:12px;font-size:0.9rem;">🎒 Item</button>
             <button id="battle-btn-flee" class="btn btn-outline" onclick="manualBattle_playerAction('flee')" style="padding:12px;font-size:0.9rem;">🏃 Flee</button>
           </div>
+          <div style="font-size:0.68rem;font-weight:700;letter-spacing:2px;color:var(--text-light);text-align:center;margin-bottom:6px;text-transform:uppercase;">Skills</div>
           <div id="battle-skill-row" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
         </div>
 

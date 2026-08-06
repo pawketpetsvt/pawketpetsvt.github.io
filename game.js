@@ -6337,12 +6337,14 @@ function showShopTab(tab) {
   
   // Update tab buttons
   el('shop-tab-btn').classList.remove('active');
+  if (el('consumables-tab-btn')) el('consumables-tab-btn').classList.remove('active');
   el('equip-tab-btn').classList.remove('active');
   el('furn-tab-btn').classList.remove('active');
   el('inv-tab-btn').classList.remove('active');
   
   // Hide all panels
   el('shop-items-panel').style.display = 'none';
+  if (el('shop-consumables-panel')) el('shop-consumables-panel').style.display = 'none';
   el('shop-equipment-panel').style.display = 'none';
   el('shop-furniture-panel').style.display = 'none';
   el('shop-inv-panel').style.display = 'none';
@@ -6350,6 +6352,10 @@ function showShopTab(tab) {
   if (tab === 'items') {
     el('shop-tab-btn').classList.add('active');
     el('shop-items-panel').style.display = 'block';
+  } else if (tab === 'consumables') {
+    if (el('consumables-tab-btn')) el('consumables-tab-btn').classList.add('active');
+    if (el('shop-consumables-panel')) el('shop-consumables-panel').style.display = 'block';
+    loadConsumablesShop();
   } else if (tab === 'equipment') {
     el('equip-tab-btn').classList.add('active');
     el('shop-equipment-panel').style.display = 'block';
@@ -11585,58 +11591,58 @@ var STATUS_EFFECTS = {
 var PET_SKILLS = {
 
   ember: [
-    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 0,
+    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 1,
       damageMult: 1.2, status: { type: 'burn', chance: 0.20 },
-      desc: "Ember channels her inner fire into a focused blast. Sometimes it lingers.",
+      desc: 'Deals 1.2x damage. 20% chance to Burn (3 damage/turn for 3 turns).',
       flavor: "I've been burning for eleven years. You get used to it. 🔥" },
     { id: 'system_reboot', name: 'System Reboot', icon: '💻', unlockLevel: 5, cooldown: 3,
       damageMult: 0, healPct: 0.15, cleanse: true,
-      desc: "Ember's cybernetic systems reboot, clearing errors and restoring function.",
+      desc: 'Restore 15% max HP. Removes all negative status effects. No damage.',
       flavor: "Have you tried turning it off and on again? Works for me. 🔄" },
     { id: 'flametail_strike', name: 'Flametail Strike', icon: '🔥', unlockLevel: 10, cooldown: 4,
       damageMult: 1.8, status: { type: 'burn', chance: 0.60 }, selfCostPct: 0.15,
-      desc: "Ember unleashes everything she has. It hurts. It's worth it.",
+      desc: 'Deals 1.8x damage. 60% chance to Burn. Costs 15% of YOUR current HP to use.',
       flavor: "Fire solves everything. Including me. 🔥💔" }
   ],
 
   pyxie: [
-    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 0,
+    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 1,
       damageMult: 1.1, status: { type: 'confuse', chance: 0.30 },
-      desc: "Pyxshuul throws a handful of sparkles directly into the enemy's face.",
+      desc: 'Deals 1.1x damage. 30% chance to Confuse the enemy (30% miss chance for 2 turns).',
       flavor: "I have a plan. It involves sparkles. ✨" },
     { id: 'echo_of_fear', name: 'Echo of Fear', icon: '👻', unlockLevel: 5, cooldown: 3,
       damageMult: 1.3, debuff: { stat: 'defense', amount: 0.10, turns: 2 },
-      desc: "Pyxshuul whispers forgotten horror stories, chilling the enemy to the bone.",
+      desc: 'Deals 1.3x damage. Lowers enemy Defense by 10% for 2 turns.',
       flavor: "I know things I shouldn't. My mom was a demon. 👻" },
     { id: 'mamas_grace', name: "Mama's Grace", icon: '🌙', unlockLevel: 10, cooldown: 4,
       damageMult: 1.7, status: { type: 'fear', chance: 0.50 }, condBonus: { ifStatus: 'confuse', mult: 2.0 },
-      desc: "Pyxshuul channels the power of Mama's Sleeping Angels.",
+      desc: 'Deals 1.7x damage. 50% chance to Fear (skip turn). If enemy is already Confused: damage doubles.',
       flavor: "Mama said I was special. I don't think she meant this. 🌙" }
   ],
 
   gnarly: [
-    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 0,
+    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 1,
       damageMult: 1.3, status: { type: 'stun', chance: 0.15 },
-      desc: "Gnarly winds up a punch fueled by the power of arcade nostalgia.",
+      desc: 'Deals 1.3x damage. 15% chance to Stun (enemy skips next turn).',
       flavor: "I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️" },
     { id: 'glitch_step', name: 'Glitch Step', icon: '💾', unlockLevel: 5, cooldown: 3,
       damageMult: 0, evasionBuff: 0.50, atkBuff: { amount: 0.15, turns: 2 },
-      desc: "Gnarly moves like a glitching arcade sprite. Nobody can predict her next step.",
+      desc: 'No damage. Next enemy attack has 50% chance to miss. +15% Attack for 2 turns.',
       flavor: "You can't beat a game that's already broken. 💾" },
     { id: 'high_score_slam', name: 'High Score Slam', icon: '🏆', unlockLevel: 10, cooldown: 4,
       damageMult: 2.0, skillScaling: { perSkillUsed: 0.05, max: 0.50 },
-      desc: "Gnarly channels the energy of a perfect Pac-Man run. She cannot be stopped.",
+      desc: 'Deals 2.0x damage. +5% bonus per skill used this battle (max +50%). Gets stronger the longer you fight.',
       flavor: "I'm going for the high score. Get out of my way. 🏆" }
   ],
 
   kleat: [
-    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 0,
+    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 1,
       damageMult: 1.0, status: { type: 'confuse', chance: 0.40 },
-      desc: "Kelta sniffs the enemy. They're confused and a little intimidated.",
+      desc: 'Deals 1.0x damage. 40% chance to Confuse the enemy (30% miss chance for 2 turns).',
       flavor: "Yip yap teehee I opened a portal! 🌀" },
     { id: 'cinnabon_explosion', name: 'Cinnabon Explosion', icon: '🍥', unlockLevel: 5, cooldown: 3,
       damageMult: 1.4, lifeStealChance: { chance: 0.30, pct: 0.15 },
-      desc: "Kelta's chaotic energy explodes in a burst of sweet-scented fury.",
+      desc: 'Deals 1.4x damage. 30% chance to heal 15% of damage dealt as HP.',
       flavor: "I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨" },
     { id: 'chaos_portal', name: 'Chaos Portal', icon: '🌌', unlockLevel: 10, cooldown: 4,
       damageMult: 1.6, chaosEffect: [
@@ -11645,67 +11651,67 @@ var PET_SKILLS = {
         { weight: 20, effect: 'enemy_skip' },
         { weight: 10, effect: 'nothing' }
       ],
-      desc: "Kelta opens a portal to... somewhere. Nobody knows what will come through.",
+      desc: 'Deals 1.6x damage + random chaos effect: 40% double damage, 30% heal 20% HP, 20% enemy loses turn, 10% nothing.',
       flavor: "Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" }
   ],
 
   aria: [
-    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 0,
+    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 1,
       damageMult: 1.2, debuff: { stat: 'defense', chance: 0.20, amount: 0.10, turns: 2 },
-      desc: "Aria throws a bone she's been keeping. It's surprisingly effective.",
+      desc: 'Deals 1.2x damage. 20% chance to lower enemy Defense by 10% for 2 turns.',
       flavor: "Do you want to see my bones? 🦋" },
     { id: 'fae_light', name: 'Fae Light', icon: '✨', unlockLevel: 5, cooldown: 3,
       damageMult: 0, healPct: 0.20, atkBuffChance: { chance: 0.30, amount: 0.15, turns: 2 },
-      desc: "Aria's fae magic creates a soft, warm light that heals and invigorates.",
+      desc: 'No damage. Restores 20% max HP. 30% chance to also gain +15% Attack for 2 turns.',
       flavor: "Humans are so strange and silly. But you're doing wonderfully. 🌸" },
     { id: 'moths_embrace', name: "Moth's Embrace", icon: '🦋', unlockLevel: 10, cooldown: 4,
       damageMult: 1.5, lifeSteal: 0.20, status: { type: 'infatuate', chance: 0.40 },
-      desc: "Aria envelops the enemy in a flurry of fae magic.",
+      desc: 'Deals 1.5x damage. Heals 20% of damage dealt. 40% chance to Infatuate (enemy deals 30% less damage for 2 turns).',
       flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
   ],
 
   jess: [
-    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 0,
+    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 1,
       damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
-      desc: "Jess channels the power of ancient fossils into a devastating strike.",
+      desc: 'Deals 1.3x damage. 15% chance to Petrify (enemy loses 10% Defense for 2 turns).',
       flavor: "This fossil is 65 million years cuter than you. 🦕" },
     { id: 'potion_brew', name: 'Potion Brew', icon: '🧪', unlockLevel: 5, cooldown: 3,
       damageMult: 0, healPct: 0.15, randomBuff: { chance: 0.50, options: ['attack', 'defense'], amount: 0.15, turns: 2 },
-      desc: "Jess mixes a quick potion. The effects vary, but they're always helpful.",
+      desc: 'No damage. Restores 15% max HP. 50% chance to also gain +15% Attack or Defense for 2 turns.',
       flavor: "The potion came out right on the first try today. That's a good sign. 🌿" },
     { id: 'mesozoic_rage', name: 'Mesozoic Rage', icon: '🦕', unlockLevel: 10, cooldown: 4,
       damageMult: 1.9, status: { type: 'fear', chance: 0.40 }, condBonus: { ifStatus: 'petrify', mult: 2.0 },
-      desc: "Jess remembers the age of dinosaurs. It makes her angry.",
+      desc: 'Deals 1.9x damage. 40% chance to Fear. If enemy is Petrified: damage doubles.',
       flavor: "65 million years of evolution. I've been waiting for this. 🌋" }
   ],
 
   blushimia: [
-    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 0,
+    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 1,
       damageMult: 1.1, status: { type: 'glitch', chance: 0.30 },
-      desc: "Blushimia barks with the power of a million glitched pixels.",
+      desc: 'Deals 1.1x damage. 30% chance to Glitch the enemy (20% chance their skills fail for 2 turns).',
       flavor: "WHAT THE GLOB????!!!! 👑" },
     { id: 'escape_attempt', name: 'Escape Attempt', icon: '🏃', unlockLevel: 5, cooldown: 3,
       damageMult: 0, escapeEffect: { successChance: 0.60, onSuccess: 'enemy_skip', onFail: 'self_skip' },
-      desc: "Blushimia tries to escape back into her video game. It doesn't always work.",
+      desc: 'No damage. 60% chance: enemy loses next turn. 40% chance: YOU lose next turn instead. Always costs your turn.',
       flavor: "I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
     { id: 'sentience_slam', name: 'Sentience Slam', icon: '💥', unlockLevel: 10, cooldown: 4,
       damageMult: 1.7, status: { type: 'stun', chance: 0.50 }, condBonus: { ifStatus: 'glitch', guaranteeStatus: 'stun' },
-      desc: "Blushimia channels the power of her sentience into a devastating attack.",
+      desc: 'Deals 1.7x damage. 50% chance to Stun. If enemy is Glitched: Stun is guaranteed.',
       flavor: "I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" }
   ],
 
   steve: [
-    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 0,
+    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 1,
       damageMult: 1.2, status: { type: 'confuse', chance: 0.15 },
-      desc: "Steve combines a moo and a buzz into a sound that shouldn't exist.",
-      flavor: "CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔" },
+      desc: 'Deals 1.2x damage. 15% chance to Confuse the enemy (30% miss chance for 2 turns).',
+      flavor: "CLUCK! BAWK! BUCK! $#@&! Cockadoodledoo! 🐔" },
     { id: 'chaos_stampede', name: 'Chaos Stampede', icon: '🏃', unlockLevel: 5, cooldown: 3,
       damageMult: 1.4, status: { type: 'stun', chance: 0.25 }, atkScaling: { perAttack: 0.10, max: 0.50 },
-      desc: "Steve charges forward with the power of a thousand angry cow-bees.",
+      desc: 'Deals 1.4x damage. 25% chance to Stun. Gains +10% damage per attack used this battle (max +50%).',
       flavor: "I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
     { id: 'chill_menace', name: 'The Chill Menace', icon: '😈', unlockLevel: 10, cooldown: 4,
       damageMult: 1.6, status: { type: 'fear', chance: 0.60 }, condBonus: { ifStatus: 'confuse', mult: 2.0, guaranteeStatus: 'stun' },
-      desc: "Steve stops being chill for a moment. It's terrifying.",
+      desc: 'Deals 1.6x damage. 60% chance to Fear. If enemy is Confused: damage doubles and Stun is guaranteed.',
       flavor: "As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" }
   ]
 };
@@ -12672,15 +12678,15 @@ function initManualBattle(playerStats, enemyStats, petId) {
   // Beta Integrity battle modifier — corruption level affects fight conditions
   var corruption = getWorldStateValueSync('corruption_level', 50);
   var betaIntegrity = 100 - corruption; // 0-100, higher = more stable
-  var integrityMod = { type: 'stable', label: null };
+  var integrityMod = { type: 'stable', label: null, tip: null };
   if (betaIntegrity <= 10) {
-    integrityMod = { type: 'void',      label: '🌌 Beta: BREAKING', skillFailChance: 0.35, glitchDmg: 8 };
+    integrityMod = { type: 'void',      label: '🌌 Current Beta Status: BREAKING',   tip: 'Beta integrity is critically low. Skills may fail randomly and the game is actively destabilizing. Something is very wrong.', skillFailChance: 0.35, glitchDmg: 8 };
   } else if (betaIntegrity <= 25) {
-    integrityMod = { type: 'breaking',  label: '💀 Beta: Critical', skillFailChance: 0.20, glitchDmg: 5 };
+    integrityMod = { type: 'breaking',  label: '💀 Current Beta Status: Critical',   tip: 'Beta integrity is dangerously low. Expect skill failures and periodic instability damage during battles.', skillFailChance: 0.20, glitchDmg: 5 };
   } else if (betaIntegrity <= 50) {
-    integrityMod = { type: 'corrupted', label: '🟣 Beta: Corrupted', skillFailChance: 0.10, glitchDmg: 2 };
+    integrityMod = { type: 'corrupted', label: '🟣 Current Beta Status: Corrupted',  tip: 'Beta integrity has degraded significantly. Occasional skill failures are possible.', skillFailChance: 0.10, glitchDmg: 2 };
   } else if (betaIntegrity <= 79) {
-    integrityMod = { type: 'unstable',  label: '⚠️ Beta: Unstable',  skillFailChance: 0.05, glitchDmg: 0 };
+    integrityMod = { type: 'unstable',  label: '⚠️ Current Beta Status: Unstable',   tip: 'Beta integrity is below ideal. Minor instability may occasionally affect skills.', skillFailChance: 0.05, glitchDmg: 0 };
   }
   manualBattleState.integrityMod = integrityMod;
 
@@ -12692,14 +12698,53 @@ function initManualBattle(playerStats, enemyStats, petId) {
         ? banner.textContent + '  |  ' + integrityMod.label
         : integrityMod.label;
       banner.style.display = 'block';
+      if (integrityMod.tip) {
+        banner.title = integrityMod.tip;
+        banner.style.cursor = 'help';
+      }
     }
   }
 
-  // Show Piper's Influence meter
+  // Piper's Influence meter — only visible when integrity is critically low (below 25%)
+  // Piper is meant to stay mysterious; her presence should only surface in extreme conditions
   var piperContainer = el('piper-influence-container');
-  if (piperContainer) piperContainer.style.display = 'block';
+  if (piperContainer) {
+    piperContainer.style.display = betaIntegrity <= 25 ? 'block' : 'none';
+    if (betaIntegrity <= 25) {
+      piperContainer.setAttribute('title', 'With the beta integrity failing, the veil between game and reality is weakening. Piper is watching.');
+      piperContainer.style.cursor = 'help';
+    }
+  }
+
+  // Hide Melody counter by default, show only for Piper
+  var melCounter = el('piper-melody-counter');
+  if (melCounter) melCounter.style.display = 'none';
+
+  // Fire enemy battleStart behavior (e.g. mushroom spore cloud)
+  var specKey0 = (enemyStats.species || '').toLowerCase().split(' ')[0];
+  var beh0 = ENEMY_BEHAVIORS[specKey0] || {};
+  if (beh0.battleStart) {
+    var bsMsg = beh0.battleStart(manualBattleState, enemyStats);
+    if (bsMsg) manualBattleState._battleStartMsg = bsMsg;
+  }
+
+  // Initialize Piper boss fields
+  if (enemyStats.is_boss) {
+    manualBattleState.piperMelody = 0;
+    manualBattleState.piperPhase = 1;
+    manualBattleState.piperPhase2Triggered = false;
+    manualBattleState.piperPhase3Triggered = false;
+    manualBattleState.piperSkillCooldown = 0;
+    manualBattleState._piperTelegraphFired = false;
+    manualBattleState._piperNextAction = null;
+    if (melCounter) melCounter.style.display = 'block';
+  }
+
   manualBattle_render();
-  manualBattle_setNarrative('<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>What will you do?');
+  var initNarr = manualBattleState._battleStartMsg
+    ? '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>' + manualBattleState._battleStartMsg
+    : '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>What will you do?';
+  manualBattle_setNarrative(initNarr);
 }
 
 function manualBattle_render() {
@@ -12904,6 +12949,14 @@ async function _manualBattle_doTurn(type, skillIdx) {
     if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
   }
 
+  // ── ENEMY TURN-END BEHAVIORS (mushroom regen etc) ────────────────────
+  var specKeyEnd = (s.enemyStats.species || '').toLowerCase().split(' ')[0];
+  var behEnd = ENEMY_BEHAVIORS[specKeyEnd] || {};
+  if (behEnd.turnEnd && s.enemyHP > 0) {
+    var endResult = behEnd.turnEnd(s, s.enemyStats);
+    if (endResult) lines.push(endResult);
+  }
+
   // ── PIPER'S INFLUENCE — passive gain + possible event ─────────────────
   var piperEvent = manualBattle_tickInfluence(3);
   if (piperEvent) {
@@ -12942,24 +12995,23 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
   if (type === 'attack') {
     s.attackUseCount++;
     manualBattle_tickInfluence(8);
-    // Beta Integrity: low integrity can cause attacks to glitch
     var intMod = s.integrityMod || {};
     if (intMod.skillFailChance && Math.random() < intMod.skillFailChance) {
       return '⚡ Beta glitch! Attack misfires!';
     }
-    var dmgResult = calculateDamage(s.playerStats.stats.attack + (s.playerAtkBuff || 0), Math.max(0, s.enemyStats.base_defense - (s.enemyDefDebuff || 0)), false, s.playerStats.stats.luck || 0);
-    // Archive damage bonus
+    var atkStat   = Math.max(1, (s.playerStats.stats.attack   || 5) + (s.playerAtkBuff || 0));
+    var defStat   = Math.max(0, (s.enemyStats.base_defense || s.enemyStats.defense || 0) - (s.enemyDefDebuff || 0));
+    var luckStat  = s.playerStats.stats.luck || 0;
+    var dmgResult = calculateDamage(atkStat, defStat, false, luckStat);
+    var rawDmg    = (dmgResult && !isNaN(dmgResult.damage)) ? dmgResult.damage : Math.max(1, atkStat - defStat);
     var isCorrEnemy = !!(s.enemyStats.specialVariant === 'corrupted' || s.enemyStats.is_boss);
-    var archMult = manualBattle_dmgMultiplier(s, isCorrEnemy);
-    var finalDmg = Math.round(dmgResult.damage * archMult);
-    s.enemyHP = Math.max(0, s.enemyHP - finalDmg);
-    var line = (dmgResult.isCrit ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + finalDmg + ' damage!';
+    var archMult  = manualBattle_dmgMultiplier(s, isCorrEnemy);
+    var finalDmg  = Math.max(1, Math.round(rawDmg * (isNaN(archMult) ? 1 : archMult)));
+    s.enemyHP     = Math.max(0, s.enemyHP - finalDmg);
+    var line = ((dmgResult && dmgResult.isCrit) ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + finalDmg + ' damage!';
     if (archMult > 1.05) line += ' (Archive boost!)';
-
-    // Equipment attack passives
     var passiveLines = manualBattle_applyEquipPassives(s, finalDmg);
     if (passiveLines.length) line += ' ' + passiveLines.join(' ');
-
     s.playerEvasionBuff = false;
     s.playerAtkBuff = 0;
     return line;
@@ -13149,6 +13201,387 @@ function manualBattle_applyDefendPassives(s, incomingDamage) {
   return { finalDmg: finalDmg, lines: lines };
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ENEMY BEHAVIOR SYSTEM — per-species AI patterns
+// Each species has optional hooks: battleStart, getTurnAction, onAttackProc
+// ═══════════════════════════════════════════════════════════════════════════
+
+var ENEMY_BEHAVIORS = {
+
+  bird: {
+    battleStart: function(s) { return null; },
+    getTurnAction: function(s, enemy) {
+      if (Math.random() < 0.30) {
+        manualBattle_applyStatus('confuse', s.playerStatuses);
+        return enemy.name + ' flutters wildly! You\'re Confused!';
+      }
+      return null; // normal attack
+    }
+  },
+
+  bunny: {
+    getTurnAction: function(s, enemy) {
+      if (s.enemyHP < s.enemyMaxHP * 0.5) {
+        s._bunnyDodgeActive = true; // flag checked in applyDefendPassives
+        return null; // still attacks but with mult modifier
+      }
+      return null;
+    },
+    getAttackMult: function(s) {
+      return s.enemyHP < s.enemyMaxHP * 0.5 ? 1.5 : 1.0;
+    },
+    getAttackLabel: function(s) {
+      return s.enemyHP < s.enemyMaxHP * 0.5 ? 'Frightened Kick! (1.5x)' : null;
+    }
+  },
+
+  rabbit: {
+    getTurnAction: function(s, enemy) { return null; },
+    getAttackMult: function(s) { return Math.random() < 0.20 ? 1.4 : 1.0; },
+    getAttackLabel: function(s) { return null; }
+  },
+
+  squirrel: {
+    getTurnAction: function(s, enemy) {
+      s._squirrelDodge = Math.random() < 0.25;
+      return null;
+    },
+    onHitPlayer: function(s) {
+      // Chip armor each hit
+      s.enemyDefDebuff = Math.max(-15, (s.enemyDefDebuff || 0)); // squirrel shreds player def
+      s.playerDefShred = (s.playerDefShred || 0) + 2; // stored and used in damage calc
+    }
+  },
+
+  fox: {
+    getTurnAction: function(s, enemy) {
+      // Turn 1: Distracting Feint — no damage, lowers player defense
+      if (s.turn === 1) {
+        s.playerDefShred = (s.playerDefShred || 0) + Math.floor(s.playerStats.stats.defense * 0.15);
+        return enemy.name + ' uses Distracting Feint! Your defense drops for 2 turns.';
+      }
+      // Every 3 turns: steal player ATK buff
+      if (s.turn % 3 === 0 && s.playerAtkBuff > 0) {
+        s.playerAtkBuff = 0;
+        return enemy.name + ' steals your attack buff! It\'s gone.';
+      }
+      return null;
+    }
+  },
+
+  boar: {
+    flatReduction: 2,
+    getTurnAction: function(s, enemy) {
+      var cycle = ((s.turn - 1) % 3);
+      if (cycle === 1) {
+        // Telegraph the charge
+        s.enemyTelegraph = { action: 'charge', label: enemy.name + ' lowers its head... it\'s charging!' };
+        return s.enemyTelegraph.label; // skip normal attack, just telegraph
+      }
+      if (cycle === 2 && s.enemyTelegraph && s.enemyTelegraph.action === 'charge') {
+        // Execute charge
+        s.enemyTelegraph = null;
+        s._boarCharge = true; // tells attack step to deal 1.6x
+        return null; // falls through to attack with mult
+      }
+      if (s.enemyHP < s.enemyMaxHP * 0.3) {
+        s._boarBerserk = true; // +20% attack below 30%
+      }
+      return null;
+    },
+    getAttackMult: function(s) {
+      var m = 1.0;
+      if (s._boarCharge) { m = 1.6; s._boarCharge = false; }
+      if (s._boarBerserk) m *= 1.2;
+      return m;
+    },
+    getAttackLabel: function(s) { return s._boarCharge ? 'CHARGE! (1.6x)' : null; }
+  },
+
+  wolf: {
+    getTurnAction: function(s, enemy) {
+      if (s.turn === 1) {
+        s._wolfHowled = true;
+        s._wolfAtkBuff = Math.floor((enemy.attack || 3) * 0.20);
+        return enemy.name + ' howls! Pack Howl: +20% attack for 3 turns.';
+      }
+      return null;
+    },
+    getAttackMult: function(s) { return s._wolfHowled ? 1.2 : 1.0; },
+    onAttackProc: function(s) {
+      if (Math.random() < 0.25) {
+        manualBattle_applyStatusToPlayer('petrify', s);
+        return '🪨 Petrify!';
+      }
+      return null;
+    }
+  },
+
+  bear: {
+    getTurnAction: function(s, enemy) {
+      var cycle = ((s.turn - 1) % 3);
+      if (cycle === 1) {
+        // Telegraph Maul
+        s.enemyTelegraph = { action: 'maul', label: '🐻 ' + enemy.name + ' rears up... MAUL incoming!' };
+        return s.enemyTelegraph.label;
+      }
+      if (cycle === 2 && s.enemyTelegraph && s.enemyTelegraph.action === 'maul') {
+        s.enemyTelegraph = null;
+        s._bearMaul = true;
+        return null;
+      }
+      if (s.enemyHP < s.enemyMaxHP * 0.5) {
+        if (Math.random() < 0.20) {
+          manualBattle_applyStatusToPlayer('stun', s);
+          return enemy.name + ' swipes hard — Stunned!';
+        }
+      }
+      return null;
+    },
+    getAttackMult: function(s) { var m = s._bearMaul ? 2.0 : 1.0; s._bearMaul = false; return m; },
+    getAttackLabel: function(s) { return s._bearMaul ? 'MAUL! (2.0x)' : null; }
+  },
+
+  mushroom: {
+    battleStart: function(s, enemy) {
+      manualBattle_applyStatusToPlayer('confuse', s);
+      return '🍄 ' + enemy.name + ' releases spores! Confuse applied at battle start!';
+    },
+    turnEnd: function(s, enemy) {
+      // Heal 3 HP per turn (ties into Forest regen theme)
+      s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + 3);
+      return null; // silent regen
+    },
+    onAttackProc: function(s) {
+      if (Math.random() < 0.20) {
+        manualBattle_applyStatus('burn', s.playerStatuses);
+        return '🔥 Mycelium Rot! (Burn)';
+      }
+      return null;
+    }
+  },
+
+  slime: {
+    _healed: false,
+    onAttackProc: function(s) {
+      if (Math.random() < 0.30) {
+        manualBattle_applyStatusToPlayer('petrify', s);
+        return '🪨 Sticky! (Petrify)';
+      }
+      return null;
+    },
+    checkMidpoint: function(s, enemy) {
+      var hpPct = s.enemyHP / s.enemyMaxHP;
+      if (!s._slimeHealed && hpPct <= 0.5 && hpPct > 0) {
+        s._slimeHealed = true;
+        s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + 15);
+        return '🫧 ' + enemy.name + ' splits and reforms! Healed 15 HP!';
+      }
+      return null;
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PIPER BOSS BEHAVIOR — Phase-based AI with escalating drama
+// ═══════════════════════════════════════════════════════════════════════════
+
+function piperBoss_getTurnAction(s) {
+  var enemy = s.enemyStats;
+  var hpPct = s.enemyHP / s.enemyMaxHP;
+  var turn = s.turn;
+
+  // Tick Melody counter
+  s.piperMelody = (s.piperMelody || 0) + 1;
+  piperBoss_updateMelodyUI(s);
+
+  // Melody damage every 3 ticks
+  var melodyLine = null;
+  if (s.piperMelody % 3 === 0) {
+    var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
+    var melDmg = Math.max(1, 4 - Math.floor(spirit / 3));
+    s.playerHP = Math.max(0, s.playerHP - melDmg);
+    s.totalDamageTaken += melDmg;
+    melodyLine = '🎵 The melody resonates: ' + melDmg + ' dark damage!';
+  }
+
+  // Phase transitions (fire once)
+  if (hpPct <= 0.66 && !s.piperPhase2Triggered) {
+    s.piperPhase = 2;
+    s.piperPhase2Triggered = true;
+    piperBoss_phaseTransition(2);
+    return { type: 'narrative', text: '"You\'re still here. Interesting."', extra: melodyLine };
+  }
+  if (hpPct <= 0.33 && !s.piperPhase3Triggered) {
+    s.piperPhase = 3;
+    s.piperPhase3Triggered = true;
+    piperBoss_phaseTransition(3);
+    return { type: 'narrative', text: '"Don\'t make me do this."', glitch: true, extra: melodyLine };
+  }
+
+  var phase = s.piperPhase || 1;
+
+  // Reduce skill cooldown
+  s.piperSkillCooldown = Math.max(0, (s.piperSkillCooldown || 0) - 1);
+
+  var action = null;
+  if (phase === 1) {
+    if (s.piperSkillCooldown <= 0 && turn % 3 === 0) {
+      // Haunting Refrain: 0.8x + def down + 30% confuse
+      s.piperSkillCooldown = 3;
+      action = { type: 'skill', name: 'Haunting Refrain', mult: 0.8,
+        defDown: true, confuseChance: 0.30,
+        telegraph: '🎵 Piper raises her flute...' };
+    }
+    // Basic: Lullaby = attack + 25% fear
+    if (!action) action = { type: 'attack', fearChance: 0.25 };
+  }
+
+  if (phase === 2) {
+    if (s.piperSkillCooldown <= 0 && turn % 3 === 0) {
+      // The Echo: scales with corruption
+      s.piperSkillCooldown = 3;
+      var corruption = getWorldStateValueSync('corruption_level', 50);
+      var echMult = corruption > 50 ? 1.8 : 1.4;
+      action = { type: 'skill', name: 'The Echo', mult: echMult, burnApply: true,
+        telegraph: '🌑 The echo builds around her...' };
+    }
+    if (!action) action = { type: 'attack', fearChance: 0.25 };
+  }
+
+  if (phase === 3) {
+    if (s.piperSkillCooldown <= 0 && turn % 4 === 0) {
+      // Piper's Lament — telegraphed, doubles if player has any status
+      s.piperSkillCooldown = 4;
+      var hasStatus = Object.keys(s.playerStatuses || {}).length > 0;
+      action = { type: 'skill', name: "Piper's Lament", mult: hasStatus ? 4.0 : 2.0,
+        selfHealPct: 0.10, glitchEffect: true,
+        telegraph: '💔 Something shifts. Piper\'s eyes close.' };
+    }
+    if (!action) action = { type: 'attack', fearChance: 0.35 };
+  }
+
+  if (action) action.extra = melodyLine;
+  return action;
+}
+
+function piperBoss_updateMelodyUI(s) {
+  var counter = el('piper-melody-counter');
+  var countEl = el('piper-melody-count');
+  var warningEl = el('piper-melody-warning');
+  var turnsEl = el('piper-melody-turns');
+  if (!counter) return;
+  counter.style.display = 'block';
+  if (countEl) countEl.textContent = s.piperMelody;
+  var turnsUntilDamage = 3 - (s.piperMelody % 3);
+  if (turnsEl) turnsEl.textContent = turnsUntilDamage;
+  if (warningEl) warningEl.style.display = turnsUntilDamage <= 1 ? 'inline' : 'none';
+}
+
+function piperBoss_phaseTransition(phase) {
+  // Brief visual glitch on phase change
+  document.body.classList.add('boss-ui-glitch');
+  setTimeout(function() { document.body.classList.remove('boss-ui-glitch'); }, 800);
+
+  if (phase === 3) {
+    // Phase 3: more intense — flash red, extra glitch
+    var flash = document.createElement('div');
+    flash.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(200,0,80,0.15);z-index:9998;pointer-events:none;animation:phase3-flash 0.4s ease-out forwards;';
+    document.body.appendChild(flash);
+    setTimeout(function() { if (flash.parentNode) flash.remove(); }, 500);
+
+    var nameEl = el('enemy-battle-name');
+    if (nameEl) { nameEl.style.color = '#ff2266'; nameEl.style.animation = 'boss-ui-glitch 0.5s 2'; }
+
+    // Spawn an extra warning
+    if (typeof spawnWarningText === 'function') {
+      setTimeout(spawnWarningText, 200);
+      setTimeout(spawnWarningText, 600);
+    }
+  } else {
+    var nameEl2 = el('enemy-battle-name');
+    if (nameEl2) nameEl2.style.color = '#cc44ff';
+  }
+}
+
+function piperBoss_resolveTurnAction(action, s) {
+  if (!action) return 'Something stirs in the silence.';
+  var enemy = s.enemyStats;
+  var lines = [];
+
+  if (action.extra) lines.push(action.extra);
+
+  if (action.type === 'narrative') {
+    if (action.glitch && typeof spawnWarningText === 'function') spawnWarningText();
+    return lines.concat([action.text]).join('\n');
+  }
+
+  // Telegraph — show warning, skip damage this turn
+  if (action.telegraph && !s._piperTelegraphFired) {
+    s._piperTelegraphFired = true;
+    s._piperNextAction = Object.assign({}, action, { telegraph: null });
+    return lines.concat([action.telegraph]).join('\n');
+  }
+  s._piperTelegraphFired = false;
+
+  if (action.type === 'skill') {
+    var atkBase = Math.max(1, (enemy.attack || 3));
+    var defBase = Math.max(0, s.playerStats.stats.defense || 0);
+    var rawDmg = Math.max(1, atkBase - defBase);
+    var skillDmg = Math.max(1, Math.round(rawDmg * (action.mult || 1)));
+
+    if (action.glitchEffect) {
+      document.body.classList.add('boss-ui-glitch');
+      setTimeout(function() { document.body.classList.remove('boss-ui-glitch'); }, 600);
+      if (typeof spawnWarningText === 'function') spawnWarningText();
+    }
+
+    s.playerHP = Math.max(0, s.playerHP - skillDmg);
+    s.totalDamageTaken += skillDmg;
+    lines.push('🎵 ' + enemy.name + ' uses ' + action.name + '! ' + skillDmg + ' damage!');
+
+    if (action.defDown) {
+      s.playerDefShred = (s.playerDefShred || 0) + Math.floor(defBase * 0.15);
+      lines.push('Your defense weakens!');
+    }
+    if (action.confuseChance && Math.random() < action.confuseChance) {
+      manualBattle_applyStatusToPlayer('confuse', s);
+      lines.push('😵 Confused!');
+    }
+    if (action.burnApply) {
+      manualBattle_applyStatus('burn', s.playerStatuses);
+      lines.push('🔥 Burn applied!');
+    }
+    if (action.selfHealPct) {
+      var healAmt = Math.floor(s.enemyMaxHP * action.selfHealPct);
+      s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + healAmt);
+      lines.push('Piper heals ' + healAmt + ' HP...');
+    }
+
+    return lines.join(' ');
+  }
+
+  if (action.type === 'attack') {
+    var eatk = Math.max(1, enemy.attack || 3);
+    var pdef = Math.max(0, (s.playerStats.stats.defense || 0) - (s.playerDefShred || 0));
+    var atkRes = calculateDamage(eatk, pdef, true, 0);
+    var dmg = (atkRes && !isNaN(atkRes.damage)) ? atkRes.damage : Math.max(1, eatk - pdef);
+    var defend = manualBattle_applyDefendPassives(s, dmg);
+    dmg = defend.finalDmg;
+    s.playerHP = Math.max(0, s.playerHP - dmg);
+    s.totalDamageTaken += dmg;
+    lines.push(enemy.name + ' attacks for ' + dmg + ' damage!');
+    if (defend.lines.length) lines.push(defend.lines.join(' '));
+    if (action.fearChance && Math.random() < action.fearChance) {
+      manualBattle_applyStatusToPlayer('fear', s);
+      lines.push('😨 Fear!');
+    }
+    return lines.join(' ');
+  }
+
+  return lines.join(' ') || 'Piper watches silently.';
+}
+
 function manualBattle_enemyTurn(s) {
   var enemy = s.enemyStats;
 
@@ -13173,18 +13606,80 @@ function manualBattle_enemyTurn(s) {
     return enemy.name + ' attacks... but misses! (Glitch Step)';
   }
 
-  // Enemy attack
-  var atkResult = calculateDamage(enemy.base_attack, s.playerStats.stats.defense, false, 0);
-  var dmg = atkResult.damage;
-  // Apply defend passives
-  var defend = manualBattle_applyDefendPassives(s, dmg);
-  dmg = defend.finalDmg;
-  s.playerHP = Math.max(0, s.playerHP - dmg);
-  s.totalDamageTaken += dmg;
-  manualBattle_tickInfluence(10); // taking damage raises Piper's influence
+  // Squirrel dodge (dodge before damage)
+  if (s._squirrelDodge) {
+    s._squirrelDodge = false;
+    return enemy.name + ' dodges your attention and repositions!';
+  }
 
-  var line = enemy.name + ' attacks for ' + dmg + ' damage!';
+  // ── PIPER BOSS: route through dedicated phase system ─────────────────────
+  if (enemy.is_boss && enemy.name && enemy.name.includes('Piper')) {
+    // Check for telegraphed action from last turn
+    if (s._piperNextAction) {
+      var next = s._piperNextAction;
+      s._piperNextAction = null;
+      return piperBoss_resolveTurnAction(next, s);
+    }
+    var piperAction = piperBoss_getTurnAction(s);
+    return piperBoss_resolveTurnAction(piperAction, s);
+  }
+
+  // ── REGULAR ENEMY: get species behavior ───────────────────────────────────
+  var speciesKey = (enemy.species || '').toLowerCase().split(' ')[0];
+  var behavior = ENEMY_BEHAVIORS[speciesKey] || {};
+
+  // Check for telegraphed action from last turn
+  if (s.enemyTelegraph && s.enemyTelegraph.action) {
+    var tele = s.enemyTelegraph;
+    s.enemyTelegraph = null;
+    // Execute the telegraphed action (falls through to attack with behavior mults)
+  }
+
+  // Behavior hook: getTurnAction (may return a narrative string, null = do attack)
+  var behaviorResult = null;
+  if (behavior.checkMidpoint) {
+    var midRes = behavior.checkMidpoint(s, enemy);
+    if (midRes) return midRes;
+  }
+  if (behavior.getTurnAction) {
+    behaviorResult = behavior.getTurnAction(s, enemy);
+    if (behaviorResult) return behaviorResult; // narrative-only turn (no attack)
+  }
+
+  // Behavior: per-turn end effects (regen etc)
+  // Will run at end of this function via separate call in _doTurn
+
+  // ── NORMAL ATTACK ─────────────────────────────────────────────────────────
+  var enemyAtk   = Math.max(1, enemy.attack || enemy.base_attack || 3);
+  var playerDef  = Math.max(0, (s.playerStats.stats.defense || 0) - (s.playerDefShred || 0));
+
+  // Get attack multiplier from behavior
+  var atkMult    = behavior.getAttackMult ? behavior.getAttackMult(s) : 1.0;
+  var atkLabel   = behavior.getAttackLabel ? behavior.getAttackLabel(s) : null;
+
+  var atkResult  = calculateDamage(Math.round(enemyAtk * atkMult), playerDef, false, 0);
+  var dmg        = (atkResult && !isNaN(atkResult.damage)) ? atkResult.damage : Math.max(1, Math.round(enemyAtk * atkMult) - playerDef);
+
+  // Boar flat reduction passive
+  if (behavior.flatReduction) dmg = Math.max(0, dmg - 0); // player gets no reduction from boar passive; boar is tough
+  
+  var defend     = manualBattle_applyDefendPassives(s, dmg);
+  dmg            = defend.finalDmg;
+
+  s.playerHP     = Math.max(0, s.playerHP - dmg);
+  s.totalDamageTaken += dmg;
+
+  var line = (atkLabel ? atkLabel + ' ' : '') + enemy.name + ' attacks for ' + dmg + ' damage!';
   if (defend.lines.length) line += ' ' + defend.lines.join(' ');
+
+  // Behavior: on-attack proc (status effects)
+  if (behavior.onAttackProc) {
+    var proc = behavior.onAttackProc(s);
+    if (proc) line += ' ' + proc;
+  }
+  if (behavior.onHitPlayer) behavior.onHitPlayer(s);
+
+  manualBattle_tickInfluence(10);
   return line;
 }
 
@@ -13293,6 +13788,7 @@ function manualBattle_applyStatusToPlayer(type, s) {
 }
 
 function manualBattle_getUsableItems() {
+  // All medicine items are battle-usable: healing potions, cleanse items, offensive throwables
   return (inventoryItems || []).filter(function(item) {
     return (item.quantity || 0) > 0 && (
       item.item_type === 'medicine' ||
@@ -13301,38 +13797,76 @@ function manualBattle_getUsableItems() {
   }).slice(0, 8);
 }
 
+function manualBattle_getItemBattleLabel(item) {
+  var name = (item.name || '').toLowerCase();
+  if (name.includes('smoke bomb'))    return '<span style="color:#e67e22;font-size:0.72rem;">Confuse enemy</span>';
+  if (name.includes('shock shard'))   return '<span style="color:#e74c3c;font-size:0.72rem;">Burn enemy</span>';
+  if (name.includes('panacea'))       return '<span style="color:#9b59b6;font-size:0.72rem;">Cleanse ALL</span>';
+  if (name.includes('clarity'))       return '<span style="color:#3498db;font-size:0.72rem;">Cleanse Confuse/Fear/Glitch</span>';
+  if (name.includes('antidote'))      return '<span style="color:#27ae60;font-size:0.72rem;">Cleanse Burn</span>';
+  if (name.includes('full restore'))  return '<span style="color:#27ae60;font-size:0.72rem;">Full HP restore</span>';
+  var hp = item.effect_value || item.value || Math.round((item.hunger_effect || 0) * 3);
+  if (hp > 0) return '<span style="color:#27ae60;font-size:0.72rem;">+~' + hp + ' HP</span>';
+  return '';
+}
+
 function manualBattle_resolveItemUse(item, s) {
-  var hpGain = item.item_type === 'medicine'
-    ? (item.hp_effect || Math.round((item.hunger_effect || 10) * 3))
-    : Math.round((item.hunger_effect || 0) * 2);
-  if (hpGain <= 0) hpGain = 15;
-  var actualHeal = manualBattle_applyHeal(hpGain, s);
+  var itemName = (item.name || '').toLowerCase();
   if (item.quantity > 0) item.quantity--;
+
+  // ── OFFENSIVE ────────────────────────────────────────────────────────────
+  if (itemName.includes('smoke bomb')) {
+    manualBattle_applyStatus('confuse', s.enemyStatuses);
+    return '💨 Smoke Bomb! Enemy is Confused for 2 turns!';
+  }
+  if (itemName.includes('shock shard')) {
+    manualBattle_applyStatus('burn', s.enemyStatuses);
+    return '⚡ Shock Shard! Enemy is Burned!';
+  }
+
+  // ── CLEANSE ───────────────────────────────────────────────────────────────
+  if (itemName.includes('panacea')) {
+    s.playerStatuses = {};
+    return '✨ Panacea! All status effects cleared!';
+  }
+  if (itemName.includes('clarity')) {
+    ['confuse', 'fear', 'glitch'].forEach(function(st) { delete s.playerStatuses[st]; });
+    return '💎 Clarity Draft! Confuse, Fear, and Glitch removed!';
+  }
+  if (itemName.includes('antidote')) {
+    ['burn', 'poison'].forEach(function(st) { delete s.playerStatuses[st]; });
+    return '🌿 Antidote! Burn removed!';
+  }
+
+  // ── HEALING (default) ─────────────────────────────────────────────────────
+  var hpGain = item.effect_value || item.value || Math.round((item.hunger_effect || 10) * 3);
+  if (hpGain <= 0) hpGain = 15;
+  // Full Restore: uncap
+  if (itemName.includes('full restore')) hpGain = s.playerMaxHP;
+  var actualHeal = manualBattle_applyHeal(hpGain, s);
   manualBattle_tickInfluence(6);
-  return '🧪 Used ' + item.name + '! Restored ' + actualHeal + ' HP!';
+  return '🧪 ' + item.name + '! Restored ' + actualHeal + ' HP!';
 }
 
 function manualBattle_showItemPicker() {
   var s = manualBattleState;
   if (!s || s.victory !== null || s.fled) return;
   var usable = manualBattle_getUsableItems();
-  if (!usable.length) { showToast('No usable items!', 2000); return; }
+  if (!usable.length) { showToast('No battle items!', 2000); return; }
 
   var existing = document.getElementById('battle-item-overlay');
-  if (existing) { existing.remove(); return; } // toggle
+  if (existing) { existing.remove(); return; }
 
   var overlay = document.createElement('div');
   overlay.id = 'battle-item-overlay';
   overlay.style.cssText = 'background:var(--white);border:2px solid var(--purple);border-radius:14px;padding:10px;margin-bottom:8px;box-shadow:0 4px 20px rgba(0,0,0,0.15);';
   overlay.innerHTML = '<div style="font-weight:700;font-size:0.82rem;margin-bottom:8px;color:var(--purple-dark);">🎒 Use an Item (costs your turn)</div>' +
     usable.map(function(item, idx) {
-      var hpEst = item.item_type === 'medicine'
-        ? (item.hp_effect || Math.round((item.hunger_effect || 10) * 3))
-        : Math.round((item.hunger_effect || 0) * 2);
-      return '<button onclick="manualBattle_useItem(' + idx + ')" style="display:block;width:100%;text-align:left;padding:7px 10px;margin-bottom:5px;border-radius:10px;border:1px solid var(--border);background:rgba(153,102,255,0.06);cursor:pointer;font-family:\'Fredoka\',sans-serif;font-size:0.82rem;">' +
+      var effectLabel = manualBattle_getItemBattleLabel(item);
+      return '<button onclick="manualBattle_useItem(' + idx + ')" style="display:flex;align-items:center;justify-content:space-between;width:100%;text-align:left;padding:7px 10px;margin-bottom:5px;border-radius:10px;border:1px solid var(--border);background:rgba(153,102,255,0.06);cursor:pointer;font-family:\'Fredoka\',sans-serif;font-size:0.82rem;gap:8px;">' +
         '<strong>' + escapeHtml(item.name) + '</strong>' +
-        ' <span style="color:var(--green);font-size:0.75rem;">+' + hpEst + ' HP</span>' +
-        ' <span style="color:var(--text-light);font-size:0.72rem;">×' + (item.quantity || 0) + '</span></button>';
+        effectLabel +
+        '<span style="color:var(--text-light);font-size:0.72rem;white-space:nowrap;">×' + (item.quantity || 0) + '</span></button>';
     }).join('') +
     '<button onclick="document.getElementById(\'battle-item-overlay\').remove()" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:none;cursor:pointer;font-size:0.78rem;color:var(--text-light);font-family:\'Fredoka\',sans-serif;">Cancel</button>';
 
@@ -13363,6 +13897,11 @@ var PIPER_EVENTS = [
 function manualBattle_tickInfluence(gainAmount) {
   var s = manualBattleState;
   if (!s) return null;
+  // Piper only becomes active when integrity is critically low
+  var corruption = getWorldStateValueSync('corruption_level', 50);
+  var betaIntegrity = 100 - corruption;
+  if (betaIntegrity > 25) return null; // not low enough yet
+
   var spirit = (s.playerStats.stats && s.playerStats.stats.spirit) || 0;
   var reduction = Math.min(0.3, spirit * 0.02);
   s.piperInfluence = Math.min(100, (s.piperInfluence || 0) + Math.round(gainAmount * (1 - reduction)));
@@ -13405,10 +13944,22 @@ async function manualBattle_endBattle(victory) {
   if (piperContainer) piperContainer.style.display = 'none';
   var itemOverlay = document.getElementById('battle-item-overlay');
   if (itemOverlay) itemOverlay.remove();
+  var melCounter = el('piper-melody-counter');
+  if (melCounter) melCounter.style.display = 'none';
 
-  var resultText = victory
-    ? '🎉 <strong>' + s.playerStats.name + ' wins!</strong>'
-    : '💔 <strong>' + s.playerStats.name + ' fainted...</strong>';
+  // Piper special death narrative
+  var isPiperFight = s.enemyStats && s.enemyStats.is_boss &&
+    s.enemyStats.name && s.enemyStats.name.includes('Piper');
+
+  var resultText = '';
+  if (isPiperFight && victory) {
+    resultText = '<strong>🎵 Piper watches you leave. She doesn\'t follow.</strong><br>' +
+      '<span style="font-size:0.82rem;color:var(--text-light);">The flute melody fades. For now.</span>';
+  } else {
+    resultText = victory
+      ? '🎉 <strong>' + s.playerStats.name + ' wins!</strong>'
+      : '💔 <strong>' + s.playerStats.name + ' fainted...</strong>';
+  }
   manualBattle_setNarrative(resultText);
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
 
@@ -13431,12 +13982,30 @@ async function manualBattle_endBattle(victory) {
     if (s.playerHP > 0 && (s.playerHP / s.playerMaxHP) < 0.05) awardBadge('badge_comeback').catch(function(){});
     checkPetWishes('win_battle', s.petId).catch(function(){});
     trackDailyStat('battles_won').catch(function(){});
-    if (s.enemyStats.is_boss) trackDailyStat('bosses_killed').catch(function(){});
+    if (s.enemyStats.is_boss) {
+      trackDailyStat('bosses_killed').catch(function(){});
+      // Piper boss: bonus PP + ARG log fragment
+      if (s.enemyStats.name && s.enemyStats.name.includes('Piper')) {
+        awardPP(500, 'piper_defeated').catch(function(){});
+        // Drop a tester log if player hasn't found many yet
+        if (Object.keys(_foundLogs || {}).length < 10) {
+          argLogs_tryDrop('battle').catch(function(){});
+        }
+      }
+    }
     argLogs_tryDrop('battle').catch(function(){});
   }
 
   // Save results
   battleRewards = await saveBattleHistory(s.petId, s.enemyStats.id, battleResult, s.enemyStats);
+
+  // Immediately update petState so My Pets shows correct HP without waiting for full reload
+  if (petState[s.petId]) {
+    petState[s.petId].current_hp = s.playerHP;
+  }
+  // Force My Pets to reload from DB on next visit
+  tabsLoaded['mypets'] = false;
+  tabsLoaded['battle'] = false;
 
   clearBossEffects();
 
@@ -13451,6 +14020,8 @@ async function manualBattle_endBattle(victory) {
     el('battle-controls-legacy').style.display = 'none';
     manualBattleState = null;
     showBattleRewardsModal();
+    // Reload pets in background so HP is fresh when user visits My Pets
+    setTimeout(function() { tabsLoaded['mypets'] = false; }, 500);
   };
 
   tabsLoaded['mypets'] = false;
@@ -15526,45 +16097,41 @@ async function getRandomEnemy(zone, playerLevel) {
 // ═══════════════════════════════════════════════════════════════════════
 
 async function getBossEnemy(zone, playerLevel) {
-  // Use the same raw zone shorthand ('outskirts', 'glade', etc.) that the
-  // normal-enemy query below uses — forest_zone is stored in that format,
-  // not full names. Translating to "City Outskirts" etc. here was causing
-  // every boss lookup to silently fail to find a match.
+  // Piper scales with zone difficulty — one canonical entry (ID 10) loaded
+  // and multiplied based on where the fight is happening.
+  var ZONE_SCALE = { outskirts: 1.0, glade: 1.4, deepwoods: 1.9, ruins: 2.6 };
+  var scale = ZONE_SCALE[zone] || 1.0;
+
   var res = await supabaseClient
     .from('enemy_pets')
     .select('*')
-    .eq('is_boss', true)
-    .eq('forest_zone', zone || 'outskirts')
+    .eq('id', 10)   // Canonical Piper — single source of truth
     .single();
-  
+
   if (res.error || !res.data) {
-    console.error('Boss not found, falling back to normal enemy');
+    console.error('[Boss] Piper not found in DB:', res.error);
     return null;
   }
-  
+
   var boss = res.data;
-  
-  // Scale boss level to player (+2 levels to make it scary)
-  var bossLevel = playerLevel + 2;
-  
-  // Boss already has massive HP, just add level scaling
+  var bossLevel = Math.max(1, playerLevel + 2);
   var levelBonus = bossLevel - 1;
-  
+
   return {
-    id: boss.id,
-    species: boss.species,
-    name: boss.name,
-    level: bossLevel,
-    base_hp: boss.base_hp + (levelBonus * 15),  // Bosses scale faster!
-    base_attack: boss.base_attack + levelBonus,
-    base_defense: boss.base_defense + Math.floor(levelBonus * 0.5),
-    base_speed: boss.base_speed + Math.floor(levelBonus * 0.5),
-    image_file: boss.image_file,
-    forest_zone: boss.forest_zone,
+    id:           boss.id,
+    species:      boss.species,
+    name:         boss.name,
+    level:        bossLevel,
+    base_hp:      Math.round((boss.base_hp      + (levelBonus * 15)) * scale),
+    base_attack:  Math.round((boss.base_attack  + levelBonus)         * scale),
+    base_defense: Math.round((boss.base_defense + Math.floor(levelBonus * 0.5)) * scale),
+    base_speed:   boss.base_speed + Math.floor(levelBonus * 0.5),
+    image_file:   boss.image_file || null,
+    forest_zone:  zone,
     difficulty_tier: boss.difficulty_tier,
-    is_boss: true,
-    exp_reward: boss.exp_reward,
-    pp_reward: boss.pp_reward
+    is_boss:      true,
+    exp_reward:   Math.round((boss.exp_reward || 50) * scale),
+    pp_reward:    Math.round((boss.pp_reward  || 75) * scale)
   };
 }
 
@@ -28250,6 +28817,57 @@ function getTimeUntilRotation() {
 
 /**
  * Load equipment shop with rotation filtering
+async function loadConsumablesShop() {
+  var grid = el('consumables-shop-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div class="spinner"></div>';
+
+  var res = await supabaseClient
+    .from('items')
+    .select('*')
+    .eq('item_type', 'medicine')
+    .or('is_boss_drop.is.null,is_boss_drop.eq.false')
+    .order('price', { ascending: true });
+
+  if (res.error || !res.data || !res.data.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:36px;color:var(--text-light)">No consumables available yet!</div>';
+    return;
+  }
+
+  var CONSUMABLE_ICONS = {
+    'small potion':'🧪','large potion':'⚗️','full restore':'💊',
+    'antidote':'🌿','clarity draft':'💎','panacea':'✨',
+    'smoke bomb':'💨','shock shard':'⚡'
+  };
+  var CONSUMABLE_LABELS = {
+    'small potion':'Restore ~20 HP during battle',
+    'large potion':'Restore ~50 HP during battle',
+    'full restore':'Fully restore HP during battle',
+    'antidote':'Remove Burn during battle',
+    'clarity draft':'Remove Confuse, Fear, and Glitch',
+    'panacea':'Clear ALL status effects',
+    'smoke bomb':'Inflict Confuse on the enemy for 2 turns',
+    'shock shard':'Inflict Burn on the enemy'
+  };
+
+  grid.innerHTML = res.data.map(function(item) {
+    var nameLower = (item.name || '').toLowerCase();
+    var icon = CONSUMABLE_ICONS[nameLower] || '🧪';
+    var label = CONSUMABLE_LABELS[nameLower] || item.description || 'Battle consumable';
+    var price = item.price || 0;
+    return '<div class="shop-item-card" style="display:flex;flex-direction:column;gap:6px;padding:14px;border-radius:14px;background:var(--cream);border:1px solid var(--border);text-align:center;">' +
+      '<div style="font-size:2rem;">' + icon + '</div>' +
+      '<div style="font-weight:700;font-size:0.9rem;color:var(--purple-dark);">' + escapeHtml(item.name) + '</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-light);line-height:1.4;">' + escapeHtml(label) + '</div>' +
+      '<div style="margin-top:auto;padding-top:8px;">' +
+        '<div style="font-weight:700;color:var(--purple);margin-bottom:6px;">' + price + ' PP</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="buyItem(\'' + item.id + '\',\'' + escapeHtml(item.name) + '\')" style="width:100%;font-size:0.82rem;">Buy</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+/**
  * REPLACES or MODIFIES your existing loadShop/loadEquipmentShop function
  */
 async function loadEquipmentShop() {
