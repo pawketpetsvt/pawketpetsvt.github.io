@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260805k">
+  <link rel="stylesheet" href="style.css?v=20260805o">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1052,6 +1052,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-team" onclick="showTab('team');navGroupClose('more')">👥 Team</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-archive" onclick="argLogs_showArchive();navGroupClose('more')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
+            <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more')">📋 Weekly Challenges</button>
           </div>
         </div>
 
@@ -1107,6 +1108,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
               <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
               <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
+              <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
             </div>
           </div>
 
@@ -1890,6 +1892,10 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <p>Cast your line, collect fish, upgrade your rod, and discover what lurks in the deep. 🌊</p>
       </div>
       <div style="max-width:720px;margin:0 auto;">
+        <!-- Shoal Event Banner -->
+        <div id="fishing-shoal-banner" style="display:none;background:linear-gradient(135deg,rgba(77,171,247,0.15),rgba(93,222,122,0.12));border:1px solid rgba(77,171,247,0.4);border-radius:12px;padding:8px 14px;margin-bottom:10px;font-weight:700;font-size:0.82rem;color:#2980b9;text-align:center;"></div>
+        <!-- Melon's Quest + Daily Challenge -->
+        <div id="fishing-quest-area"></div>
         <!-- FISHING GAME -->
         <div class="game-card" style="grid-column:1/-1;">
           <div class="game-title">🎣 Fishing</div>
