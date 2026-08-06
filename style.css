@@ -17751,3 +17751,49 @@ body.boss-ui-glitch #battle-controls-legacy {
   50%  { opacity: 0.6; }
   100% { opacity: 0; }
 }
+
+/* ── MELON POSITION OVERRIDE ────────────────────────────────────────────── */
+/* Re-assert fixed positioning in case any parent transform breaks it */
+.shop-mascot {
+  position: fixed !important;
+  right: 20px !important;
+  bottom: 0 !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+}
+
+/* ── MELON MASCOT POSITION LOCK ─────────────────────────────────────────── */
+/* Fixed-position override — immune to parent transforms */
+.shop-mascot,
+#section-shop .shop-mascot {
+  position: fixed !important;
+  bottom: 0 !important;
+  right: 20px !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  width: auto !important;
+  z-index: 999 !important;
+}
+
+/* ── PET PAT FLOATING TEXT ──────────────────────────────────────────────── */
+.pet-pat-text {
+  position: absolute;
+  pointer-events: none;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pink);
+  font-family: 'Chewy', cursive;
+  white-space: nowrap;
+  animation: pet-pat-float 1.4s ease-out forwards;
+  z-index: 1000;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+@keyframes pet-pat-float {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-40px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
+}

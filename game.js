@@ -12827,16 +12827,22 @@ function manualBattle_renderSkillButtons() {
   row.innerHTML = skills.map(function(skill, idx) {
     var cd = s.skillCooldowns[skill.id] || 0;
     var cdText = cd > 0 ? (cd + ' turn' + (cd > 1 ? 's' : '') + ' left') : 'Ready';
-    var tooltipHtml = escapeHtml(skill.desc) + (skill.flavor ? '<br><em style="color:var(--text-light);">' + escapeHtml(skill.flavor) + '</em>' : '');
+    // Tooltip shows only the mechanical description
+    var tipHtml = escapeHtml(skill.desc || '');
+    // Strip emojis from display name for cleaner button text
+    var cleanName = (skill.name || '').replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
+    var flavorText = skill.flavor ? escapeHtml(skill.flavor) : '';
+
     return '<div class="battle-skill-wrap" style="position:relative;flex:1;min-width:120px;">' +
       '<button class="battle-skill-btn" ' +
         (cd > 0 ? 'disabled ' : '') +
         'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
         'onmouseenter="manualBattle_showSkillTip(this)" ' +
         'onmouseleave="manualBattle_hideSkillTip()" ' +
-        'data-tip="' + tooltipHtml + '">' +
-        skill.icon + ' <strong>' + escapeHtml(skill.name) + '</strong>' +
-        '<span class="skill-cooldown">' + cdText + '</span>' +
+        'data-tip="' + tipHtml + '">' +
+        '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' + cleanName + '</strong>' +
+        (flavorText ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
+        '<span class="skill-cooldown" style="margin-top:3px;">' + cdText + '</span>' +
       '</button>' +
     '</div>';
   }).join('');
@@ -13038,24 +13044,21 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
 }
 
 function manualBattle_applySkill(skill, s) {
-  var lines = [skill.icon + ' ' + s.playerStats.name + ' uses ' + skill.name + '!'];
-  var baseAtk = s.playerStats.stats.attack;
+  var lines = [s.playerStats.name + ' uses ' + skill.name + '!'];
+  var safeAtk = Math.max(1, Number(s.playerStats.stats.attack) || 5);
 
-  // Self cost (Flametail Strike: costs 15% current HP)
+  // Self cost (Flametail Strike)
   if (skill.selfCostPct && skill.selfCostPct > 0) {
     var cost = Math.max(1, Math.floor(s.playerHP * skill.selfCostPct));
     s.playerHP = Math.max(1, s.playerHP - cost);
-    lines.push('(' + s.playerStats.name + ' sacrifices ' + cost + ' HP)');
+    lines.push('(' + s.playerStats.name + ' spends ' + cost + ' HP)');
   }
 
-  // Healing / utility
+  // Healing / cleanse
   if (skill.healPct && skill.healPct > 0) {
-    var healBase = Math.floor(s.playerMaxHP * skill.healPct);
-    var healAmt = manualBattle_applyHeal(healBase, s);
+    var healAmt = manualBattle_applyHeal(Math.floor(s.playerMaxHP * skill.healPct), s);
     lines.push('Restored ' + healAmt + ' HP!');
   }
-
-  // Cleanse statuses
   if (skill.cleanse) {
     s.playerStatuses = {};
     lines.push('All negative effects cleared!');
@@ -13063,26 +13066,24 @@ function manualBattle_applySkill(skill, s) {
 
   // Damage
   if (skill.damageMult && skill.damageMult > 0) {
-    // Scaling for Gnarly / Steve
+    var safeDef = Math.max(0, Number(s.enemyStats.base_defense || s.enemyStats.defense || 0));
     var scalingMult = 1;
     if (skill.skillScaling) scalingMult = 1 + Math.min(skill.skillScaling.max, s.skillUseCount * skill.skillScaling.perSkillUsed);
-    if (skill.atkScaling) scalingMult = 1 + Math.min(skill.atkScaling.max, s.attackUseCount * skill.atkScaling.perAttack);
+    if (skill.atkScaling)   scalingMult = 1 + Math.min(skill.atkScaling.max,   s.attackUseCount * skill.atkScaling.perAttack);
+    var rawDmg  = (safeAtk - safeDef * 0.5) * skill.damageMult * scalingMult;
+    var baseDmg = Math.max(1, Math.round(isNaN(rawDmg) ? safeAtk * skill.damageMult : rawDmg));
 
-    var baseDmg = Math.max(1, Math.floor((baseAtk - s.enemyStats.base_defense * 0.5) * skill.damageMult * scalingMult));
-
-    // Chaos Portal random effect (Kelta L10)
+    // Chaos Portal (Kelta L10) — may override baseDmg
     if (skill.chaosEffect) {
-      var roll = Math.random() * 100;
-      var cum = 0;
-      var chosen = null;
+      var roll = Math.random() * 100, cum = 0, chosen = null;
       for (var ci = 0; ci < skill.chaosEffect.length; ci++) {
         cum += skill.chaosEffect[ci].weight;
         if (roll < cum) { chosen = skill.chaosEffect[ci].effect; break; }
       }
-      if (chosen === 'double_damage') { baseDmg *= 2; lines.push('The portal doubles power!'); }
-      else if (chosen === 'heal_20pct') { var h = Math.floor(s.playerMaxHP * 0.20); s.playerHP = Math.min(s.playerMaxHP, s.playerHP + h); lines.push('The portal heals ' + h + ' HP!'); baseDmg = 0; }
-      else if (chosen === 'enemy_skip') { manualBattle_applyStatus('fear', s.enemyStatuses); lines.push('The portal scares the enemy!'); baseDmg = 0; }
-      else { lines.push('The portal opens... and closes. (Nothing happened.)'); baseDmg = 0; }
+      if (chosen === 'double_damage')  { baseDmg *= 2; lines.push('The portal doubles power!'); }
+      else if (chosen === 'heal_20pct'){ manualBattle_applyHeal(Math.floor(s.playerMaxHP * 0.20), s); lines.push('The portal heals you!'); baseDmg = 0; }
+      else if (chosen === 'enemy_skip'){ manualBattle_applyStatus('fear', s.enemyStatuses); lines.push('The portal scares the enemy!'); baseDmg = 0; }
+      else                             { lines.push('The portal opens... and closes. (Nothing happened.)'); baseDmg = 0; }
     }
 
     // Escape Attempt (Blushimia L5)
@@ -13091,75 +13092,74 @@ function manualBattle_applySkill(skill, s) {
         manualBattle_applyStatus('fear', s.enemyStatuses);
         lines.push('Success! The enemy loses their next turn!');
       } else {
-        manualBattle_applyStatusToPlayer('stun', s); // spirit can resist even your own failed escape
+        manualBattle_applyStatusToPlayer('stun', s);
         lines.push('Failed! ' + s.playerStats.name + ' loses next turn!');
       }
       baseDmg = 0;
     }
 
-    // Scale damage by archive bonus
-    var corruptedEnemy = !!(s.enemyStats.specialVariant === 'corrupted' || s.enemyStats.is_boss);
-    baseDmg = Math.round(baseDmg * manualBattle_dmgMultiplier(s, corruptedEnemy));
-
-    // Conditional bonus (Pyxshuul Mama's Grace, Jess Mesozoic Rage, Steve Chill Menace)
+    // Archive + conditional bonus scaling
+    var isCorrEnemy = !!(s.enemyStats.specialVariant === 'corrupted' || s.enemyStats.is_boss);
+    baseDmg = Math.max(0, Math.round(baseDmg * manualBattle_dmgMultiplier(s, isCorrEnemy)));
     if (skill.condBonus && skill.condBonus.ifStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
       baseDmg = Math.floor(baseDmg * (skill.condBonus.mult || 2));
-      lines.push('Bonus effect! (' + skill.condBonus.ifStatus + ' combo)');
+      lines.push('(' + skill.condBonus.ifStatus + ' combo!)');
     }
 
+    // Apply damage
     if (baseDmg > 0) {
       s.enemyHP = Math.max(0, s.enemyHP - baseDmg);
-      lines.push('Dealt ' + baseDmg + ' damage!');
+      lines.push('Hit for ' + baseDmg + ' damage!');
     }
 
-    // Apply status effect from skill
-    if (skill.status && Math.random() < skill.status.chance) {
-      // Sentience Slam: if enemy is glitched, guarantee stun
+    // Status effect on enemy
+    if (skill.status) {
+      var applyChance = skill.status.chance || 0;
+      // Conditional guarantee (Sentience Slam on Glitched, Chill Menace on Confused)
       if (skill.condBonus && skill.condBonus.guaranteeStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
         manualBattle_applyStatus(skill.condBonus.guaranteeStatus, s.enemyStatuses);
-        lines.push(STATUS_EFFECTS[skill.condBonus.guaranteeStatus].icon + ' ' + skill.condBonus.guaranteeStatus + ' applied!');
-      } else {
+        var seDef = STATUS_EFFECTS[skill.condBonus.guaranteeStatus] || {};
+        lines.push((seDef.icon || '') + ' ' + skill.condBonus.guaranteeStatus + ' guaranteed!');
+      } else if (Math.random() < applyChance) {
         manualBattle_applyStatus(skill.status.type, s.enemyStatuses);
-        lines.push((STATUS_EFFECTS[skill.status.type] && STATUS_EFFECTS[skill.status.type].icon || '') + ' ' + skill.status.type + ' applied!');
+        var seDef2 = STATUS_EFFECTS[skill.status.type] || {};
+        lines.push((seDef2.icon || '') + ' ' + skill.status.type + ' applied!');
       }
     }
 
-    // Lifesteal from skill (Moth's Embrace)
+    // Lifesteal (Moth's Embrace)
     if (skill.lifeSteal && baseDmg > 0) {
-      var lsBase = Math.floor(baseDmg * skill.lifeSteal);
-      manualBattle_applyHeal(lsBase, s);
-      lines.push('Drained ' + lsBase + ' HP!');
+      manualBattle_applyHeal(Math.floor(baseDmg * skill.lifeSteal), s);
+      lines.push('Drained HP!');
     }
-
     // Lifesteal chance (Cinnabon Explosion)
     if (skill.lifeStealChance && Math.random() < skill.lifeStealChance.chance && baseDmg > 0) {
-      var lsBase2 = Math.floor(baseDmg * skill.lifeStealChance.pct);
-      manualBattle_applyHeal(lsBase2, s);
-      lines.push('Recovered ' + lsBase2 + ' HP!');
+      manualBattle_applyHeal(Math.floor(baseDmg * skill.lifeStealChance.pct), s);
+      lines.push('Siphoned HP!');
     }
+  } // end damageMult block
+
+  // Utility effects (no damage context needed)
+  if (skill.evasionBuff) {
+    s.playerEvasionBuff = skill.evasionBuff;
+    lines.push('Next enemy attack has ' + Math.round(skill.evasionBuff * 100) + '% miss chance!');
   }
-
-  // Utility-only: evasion buff (Glitch Step), atk buff
-  if (skill.evasionBuff) { s.playerEvasionBuff = skill.evasionBuff; lines.push('Next attack has ' + Math.round(skill.evasionBuff * 100) + '% miss chance against you!'); }
-  if (skill.atkBuff) { s.playerAtkBuff = Math.floor(baseAtk * skill.atkBuff.amount); lines.push('+' + Math.round(skill.atkBuff.amount * 100) + '% attack for ' + skill.atkBuff.turns + ' turn(s)!'); }
-
-  // Enemy defense debuff (Echo of Fear)
+  if (skill.atkBuff) {
+    s.playerAtkBuff = Math.floor(safeAtk * skill.atkBuff.amount);
+    lines.push('+' + Math.round(skill.atkBuff.amount * 100) + '% attack for ' + skill.atkBuff.turns + ' turn(s)!');
+  }
   if (skill.debuff && skill.debuff.stat === 'defense') {
-    var defShred = Math.floor(s.enemyStats.base_defense * (skill.debuff.chance || skill.debuff.amount));
-    s.enemyDefDebuff = (s.enemyDefDebuff || 0) + defShred;
-    lines.push('Enemy defense reduced by ' + defShred + '!');
+    var shred = Math.floor(Math.max(0, Number(s.enemyStats.base_defense || s.enemyStats.defense || 0)) * (skill.debuff.amount || 0.10));
+    s.enemyDefDebuff = (s.enemyDefDebuff || 0) + shred;
+    if (shred > 0) lines.push('Enemy defense reduced by ' + shred + '!');
   }
-
-  // Random buff (Potion Brew / Jess L5)
   if (skill.randomBuff && Math.random() < skill.randomBuff.chance) {
-    var randomStat = skill.randomBuff.options[Math.floor(Math.random() * skill.randomBuff.options.length)];
-    if (randomStat === 'attack') { s.playerAtkBuff = Math.floor(baseAtk * skill.randomBuff.amount); lines.push('+' + Math.round(skill.randomBuff.amount * 100) + '% attack buff!'); }
-    else if (randomStat === 'defense') { lines.push('Defense boost! (next hit reduced)'); }
+    var rStat = skill.randomBuff.options[Math.floor(Math.random() * skill.randomBuff.options.length)];
+    if (rStat === 'attack') { s.playerAtkBuff = Math.floor(safeAtk * skill.randomBuff.amount); lines.push('+' + Math.round(skill.randomBuff.amount * 100) + '% attack buff!'); }
+    else lines.push('Defense boost!');
   }
-
-  // Atk buff chance (Fae Light)
   if (skill.atkBuffChance && Math.random() < skill.atkBuffChance.chance) {
-    s.playerAtkBuff = Math.floor(baseAtk * skill.atkBuffChance.amount);
+    s.playerAtkBuff = Math.floor(safeAtk * skill.atkBuffChance.amount);
     lines.push('+' + Math.round(skill.atkBuffChance.amount * 100) + '% attack buff!');
   }
 
@@ -28817,6 +28817,7 @@ function getTimeUntilRotation() {
 
 /**
  * Load equipment shop with rotation filtering
+ */
 async function loadConsumablesShop() {
   var grid = el('consumables-shop-grid');
   if (!grid) return;
@@ -30330,7 +30331,36 @@ function onMinigameComplete(baseReward) {
   }
 }
 
-// Hook for companion pet message
+// ── PET PATTING MECHANIC ───────────────────────────────────────────────────
+var _petPatTexts = [':3','*purr*','<33','^-^','mrrp~','hehe~','pats!','uwu',':33','*mew*','heehee~','eep!'];
+var _petPatCount = 0;
+
+function petPat(spriteEl) {
+  if (_petPatCount >= 6) return; // cap active floaters
+  _petPatCount++;
+
+  var text = _petPatTexts[Math.floor(Math.random() * _petPatTexts.length)];
+  var span = document.createElement('span');
+  span.className = 'pet-pat-text';
+  span.textContent = text;
+
+  // Random horizontal spread from click point
+  var offsetX = (Math.random() - 0.5) * 60;
+  span.style.left = 'calc(50% + ' + offsetX + 'px)';
+  span.style.bottom = '100%';
+
+  // Alternate colors
+  var colors = ['var(--pink)','var(--purple)','#ff9f43','#5dde7a'];
+  span.style.color = colors[Math.floor(Math.random() * colors.length)];
+
+  spriteEl.style.position = 'relative'; // ensure parent is positioned
+  spriteEl.appendChild(span);
+
+  span.addEventListener('animationend', function() {
+    if (span.parentNode) span.parentNode.removeChild(span);
+    _petPatCount = Math.max(0, _petPatCount - 1);
+  });
+}
 function onCompanionMessage() {
   updateBingoProgress('pet_companion', 1);
 }
