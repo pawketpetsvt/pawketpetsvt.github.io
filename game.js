@@ -1563,12 +1563,7 @@ function navGroupToggle(id) {
   else navGroupOpen(id);
 }
 function navGroupHover(id, entering) {
-  if (_navGroupTimers[id]) { clearTimeout(_navGroupTimers[id]); _navGroupTimers[id] = null; }
-  if (entering) {
-    _navGroupTimers[id] = setTimeout(function() { navGroupOpen(id); _navGroupTimers[id] = null; }, 80);
-  } else {
-    _navGroupTimers[id] = setTimeout(function() { navGroupClose(id); _navGroupTimers[id] = null; }, 800);
-  }
+  // Hover disabled — nav groups now open/close only on click (navGroupToggle)
 }
 
 function showTab(tab) {
@@ -1856,13 +1851,8 @@ async function showApp(user) {
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
-    var today = new Date().toISOString().split('T')[0];
-    var modalKey = 'daily_bonus_modal_' + user.id + '_' + today;
-    if (!localStorage.getItem(modalKey)) {
-      el('bonus-amount').textContent = bonus.amount + ' PP';
-      el('bonus-modal').classList.add('show');
-      localStorage.setItem(modalKey, '1');
-    }
+    // Don't show bonus-modal — checkDailyLogin's showDailyLoginReward already
+    // covers the daily reward popup with streak info. Just update the PP total.
     updateAllPoints(bonus.newTotal);
   }
 
@@ -31202,34 +31192,23 @@ function argLogs_showArchive() {
   TESTER_LOGS.forEach(function(log) {
     var iFound = !!_foundLogs[log.id];
     var foundDate = iFound && _foundLogs[log.id].found_at ? new Date(_foundLogs[log.id].found_at).toLocaleDateString() : null;
-    var rarityColors = { common:'#5dde7a', uncommon:'#4dabf7', rare:'#9966ff', epic:'#ff9f43', legendary:'#ffd700' };
-
     html += '<div style="border:1px solid ' + (iFound ? 'rgba(153,102,255,0.3)' : 'rgba(0,0,0,0.08)') + ';border-radius:12px;';
     html += 'padding:14px 18px;background:' + (iFound ? 'rgba(153,102,255,0.06)' : 'rgba(0,0,0,0.02)') + ';';
     html += 'opacity:' + (iFound ? '1' : '0.55') + ';">';
 
     if (iFound) {
-      // Found: show full log
       var displayText = log.text;
-      // Apply glitch corruption when Beta Integrity is very low
       if (isCorrupted && log.id !== 'LOG-017' && Math.random() < 0.35) {
         var glitchChars = '░▒▓█▄▀■□';
         displayText = displayText.replace(/[aeiou]/gi, function(c) {
           return Math.random() < 0.12 ? glitchChars[Math.floor(Math.random() * glitchChars.length)] : c;
         });
       }
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">';
-      html += '<span style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(log.id) + ': ' + escapeHtml(log.title) + '</span>';
-      html += '<span style="font-size:0.7rem;color:' + (rarityColors[log.rarity] || '#888') + ';font-weight:700;text-transform:uppercase;">' + log.rarity + '</span>';
-      html += '</div>';
+      html += '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">' + escapeHtml(log.id) + ': ' + escapeHtml(log.title) + '</div>';
       html += '<div style="font-size:0.82rem;color:var(--text);line-height:1.7;white-space:pre-line;">' + escapeHtml(displayText) + '</div>';
       if (foundDate) html += '<div style="font-size:0.68rem;color:var(--text-light);margin-top:8px;">Recovered: ' + foundDate + '</div>';
     } else {
-      // Not found: redacted
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;">';
-      html += '<span style="font-weight:700;font-size:0.85rem;color:var(--text-light);">' + escapeHtml(log.id) + ': [CLASSIFIED]</span>';
-      html += '<span style="font-size:0.7rem;color:var(--text-light);font-weight:700;text-transform:uppercase;">' + log.rarity + '</span>';
-      html += '</div>';
+      html += '<div style="font-weight:700;font-size:0.85rem;color:var(--text-light);">' + escapeHtml(log.id) + ': [CLASSIFIED]</div>';
       html += '<div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;font-style:italic;">Record not yet recovered.</div>';
     }
     html += '</div>';
