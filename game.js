@@ -7376,6 +7376,51 @@ async function useOnPet(petId,petNickname) {
   await loadInventory(); tabsLoaded['mypets']=false;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// PET FOOD PREFERENCES & PERSONALITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+var petFoodPreferences = {
+  'Ember':     { loved_item:'Spicy Ramen',      liked_item:'Hot Wings',       disliked_item:'Rainbow Cake',    hated_item:'Sushi Roll',
+                 hobby:'Competitive dueling',     fun_fact:'Once won a spoon dueling championship!',
+                 sleep_habit:'night owl',          weather_preference:'loves sun',
+                 catchphrase:'Fire solves everything, obviously! 🔥', secret_talent:'Can light a campfire with a single wink' },
+  'Pyxie':     { loved_item:'Rainbow Cake',      liked_item:'Honey Cookies',   disliked_item:'Grilled Fish',    hated_item:'Beef Jerky',
+                 hobby:'Professional napping',     fun_fact:'Can sleep for 16 hours straight!',
+                 sleep_habit:'heavy sleeper',       weather_preference:'loves fog',
+                 catchphrase:'I have a plan. It involves napping. ✨', secret_talent:'Can nap in any position' },
+  'Aria':      { loved_item:'Faerie Dust Cake',  liked_item:'Sushi Roll',      disliked_item:'Hot Wings',       hated_item:'Spicy Ramen',
+                 hobby:'Collecting bones',          fun_fact:'Has a collection of over 200 beautiful bones',
+                 sleep_habit:'sleeps with bones',   weather_preference:'loves moonlight',
+                 catchphrase:'Do you want to see my bones? 🦋', secret_talent:'Can identify any bone by touch' },
+  'Blushimia': { loved_item:"Blushimia's Berry Tart", liked_item:'Berry Smoothie', disliked_item:'Bone Broth Soup', hated_item:'Beef Jerky',
+                 hobby:'Escaping things',           fun_fact:'Has escaped 47 different containers',
+                 sleep_habit:'curls up impossibly small', weather_preference:'loves all weather (freedom!)',
+                 catchphrase:'WHAT THE GLOB!! 👑', secret_talent:'Can fit through any gap larger than her head' },
+  'Steve':     { loved_item:"Cowbee's Corn Fritters", liked_item:'Trail Mix',  disliked_item:'Grilled Fish',    hated_item:'Garden Salad',
+                 hobby:'Being a menace',             fun_fact:'Produces both milk and honey simultaneously',
+                 sleep_habit:'sleeps standing up',   weather_preference:'loves chaos weather',
+                 catchphrase:"I'm a menace, owo. 🐄", secret_talent:'Can moo and cluck at the same time' },
+  'Kleat':     { loved_item:"Kelta's Void Smoothie", liked_item:'Berry Juice', disliked_item:'Beef Jerky',      hated_item:'Bone Broth Soup',
+                 hobby:'Opening portals',            fun_fact:'Has accidentally opened 12 portals this week',
+                 sleep_habit:'sleeps in void pockets', weather_preference:'loves void weather',
+                 catchphrase:'YIP! I opened a portal! 🌀', secret_talent:'Can yap in 3 dimensions simultaneously' },
+  'Gnarly':    { loved_item:"Gnarly's Nachos",    liked_item:'Energy Drink',    disliked_item:'Garden Salad',    hated_item:'Sweet Cream',
+                 hobby:'Achieving high scores',      fun_fact:'Has been playing the same arcade game for 20 years',
+                 sleep_habit:'never sleeps (inserts quarters)', weather_preference:'loves neon-lit weather',
+                 catchphrase:"I've been putting quarters in this machine for 20 years. 🕹️", secret_talent:'Can beat any game blindfolded' },
+  'Jess':      { loved_item:"Jess's Dino Nuggets", liked_item:'Mushroom Toast', disliked_item:'Sweet Cream',    hated_item:'Honey Cookies',
+                 hobby:'Fossil hunting',             fun_fact:'Has found fossils on every expedition',
+                 sleep_habit:'sleeps in a fossil nest', weather_preference:'loves prehistoric weather',
+                 catchphrase:"This fossil is 65 million years cuter than you. 🦕", secret_talent:'Can identify any fossil by smell' },
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BADGES SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+var earnedBadges = []; // Cache of user's earned badge keys
+
 async function loadUserBadges() {
   if (!currentUser) return;
   
