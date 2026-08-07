@@ -3823,15 +3823,15 @@ body::after {
 }
 
 .equipment-tier {
-  position: absolute;
-  top: 8px;
-  right: 8px;
+  display: inline-block;
   background: linear-gradient(135deg, var(--purple), var(--pink));
   color: white;
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.65rem;
   font-weight: bold;
+  margin-bottom: 4px;
+  white-space: nowrap;
 }
 
 .equipment-weight {
@@ -4206,9 +4206,9 @@ body::after {
    =========================================== */
 
 .shop-mascot {
-  position: fixed;
-  right: 20px;
-  bottom: 0;
+  position: fixed !important;
+  right: 120px !important;  /* offset from companion which is at right:20px */
+  bottom: 20px !important;  /* sits at same level but offset right */
   z-index: 9999;
   pointer-events: none;
 }
@@ -9637,16 +9637,9 @@ body.night-mode .btn-outline:hover {
     box-sizing: border-box !important;
   }
   
-  /* Right Sidebar - Below Content */
+  /* Right Sidebar - Hidden on smaller screens (prevents layout takeover) */
   .right-sidebar {
-    position: static !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    height: auto !important;
-    padding: 20px !important;
-    border-top: 2px solid var(--border);
-    order: 3;
-    box-sizing: border-box !important;
+    display: none !important;
   }
   
   /* Mobile Nav Menu Sidebar Buttons */
@@ -17756,8 +17749,8 @@ body.boss-ui-glitch #battle-controls-legacy {
 /* Re-assert fixed positioning in case any parent transform breaks it */
 .shop-mascot {
   position: fixed !important;
-  right: 20px !important;
-  bottom: 0 !important;
+  right: 120px !important;
+  bottom: 20px !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
@@ -17769,14 +17762,14 @@ body.boss-ui-glitch #battle-controls-legacy {
 .shop-mascot,
 #section-shop .shop-mascot {
   position: fixed !important;
-  bottom: 0 !important;
-  right: 20px !important;
+  bottom: 20px !important;
+  right: 120px !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
   margin: 0 !important;
   width: auto !important;
-  z-index: 999 !important;
+  z-index: 9999 !important;
 }
 
 /* ── PET PAT FLOATING TEXT ──────────────────────────────────────────────── */
@@ -17934,4 +17927,22 @@ body.streamer-landing-active .auth-card,
 body.streamer-landing-active .form-card {
   border: 2px solid var(--streamer-accent, var(--purple));
   box-shadow: 0 0 24px rgba(0,0,0,0.4);
+}
+
+/* ── Fix My Pets button red outline (browser focus ring) ──────────────────── */
+.sidebar-nav-btn:focus,
+.sidebar-nav-btn:focus-visible,
+.sidebar-nav-btn.child:focus,
+.sidebar-nav-btn.child:focus-visible,
+.nav-group-header:focus,
+.nav-group-header:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Hide right sidebar during active battle to prevent visual confusion ── */
+body.in-manual-battle .right-sidebar,
+body.boss-ui-glitch .right-sidebar {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260806i">
+  <link rel="stylesheet" href="style.css?v=20260807a">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -936,7 +936,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
     <span id="nav-user"></span>
     <span id="nav-points"></span>
     <button onclick="showHelpModal()" title="Game Information" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
-    <button onclick="showReportModal()" title="Report a player or bug" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
+    <button onclick="showReportModal()" title="Report an Issue" title="Report a player or bug" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
 
     <!-- Skin Key counter — hidden until logged in -->
     <div id="nav-skin-key-display" style="display:none;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,165,0,0.15));border-radius:20px;padding:4px 10px;border:1px solid rgba(255,215,0,0.35);cursor:help;" title="Skin Keys — use to unlock pet variants and cosmetics">
@@ -1021,14 +1021,12 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         </div>
 
         <button class="sidebar-nav-btn standalone" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
-        <div class="nav-group" id="shop-nav-group">
-        <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="shopNav_toggle()">
-          🛍️ Shop <span id="shop-nav-chevron" style="display:none;font-size:0.65rem;opacity:0.7;margin-left:2px;">▾</span>
-        </button>
-        <!-- Piper shop dropdown — only revealed during high corruption -->
-        <div id="shop-nav-children" style="display:none;padding-left:12px;">
-          <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;animation:boss-ui-glitch 6s infinite;">🎵 .....</button>
-        </div>
+        <button class="sidebar-nav-btn standalone" id="sidebar-btn-shop" onclick="shopNav_toggle()">
+        🛍️ Shop<span id="shop-nav-chevron" style="display:none;font-size:0.65rem;opacity:0.6;margin-left:4px;">▾</span>
+      </button>
+      <!-- Piper shop sub-button — only visible during high corruption -->
+      <div id="shop-nav-children" style="display:none;padding-left:14px;margin-top:2px;">
+        <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;animation:boss-ui-glitch 6s infinite;font-size:0.82rem;">🎵 .....</button>
       </div>
 
         <!-- COMMUNITY GROUP -->
@@ -1920,18 +1918,16 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
               <!-- Rod + Stats bar -->
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start;">
-                <div id="fishing-rod-shop" style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.2);border-radius:10px;padding:10px 12px;">
-                  Loading rod...
-                </div>
-                <div id="auto-fisher-mount" style="background:rgba(93,222,122,0.06);border:1px solid rgba(93,222,122,0.2);border-radius:10px;padding:10px 12px;margin-top:8px;">
-                  Loading auto-fisher...
+                <div id="fishing-rod-shop" style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.2);border-radius:10px;padding:10px 12px;"><div class="spinner"></div></div>
+                <div id="fishing-autofisher" style="background:rgba(93,222,122,0.06);border:1px solid rgba(93,222,122,0.2);border-radius:10px;padding:10px 12px;margin-top:8px;">
+                  <div class="spinner"></div>
                 </div>
                 <div style="background:rgba(77,171,247,0.08);border:1px solid rgba(77,171,247,0.2);border-radius:10px;padding:10px 12px;font-size:0.78rem;">
                   <div style="font-weight:700;color:var(--purple-dark);margin-bottom:4px;">📊 Today's Session</div>
                   <div>Casts left: <strong id="fishing-casts">10</strong></div>
                   <div>Earned: <strong id="fishing-earned">0</strong> PP</div>
                   <div style="margin-top:4px;color:var(--text-light);">Total: <span id="fishing-collection">0</span> found</div>
-                  <div style="font-size:0.68rem;color:var(--text-light);" id="fishing-area-progress">Area: 0/0</div>
+                  <div style="font-size:0.68rem;color:var(--text-light);" id="fishing-area-progress">📍 <span id="fishing-spot-name">Open Water</span></div>
                 </div>
               </div>
 
@@ -2256,8 +2252,9 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
         </div>
         <!-- Battle Controls (legacy) -->
-        <div class="battle-controls" id="battle-controls-legacy">
-          <button class="btn btn-outline" id="battle-skip-btn" onclick="skipBattle()">Skip Animation</button>
+        <div class="battle-controls" id="battle-controls-legacy" style="display:none!important">
+          <!-- Claim/Skip buttons removed — rewards shown in auto-dismissing modal -->
+          <button class="btn btn-outline" id="battle-skip-btn" onclick="skipBattle()" style="display:none">Skip</button>
           <button class="btn btn-primary" id="battle-continue-btn" onclick="closeBattle()" style="display:none">Continue</button>
         </div>
         
@@ -2275,14 +2272,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       
       <!-- Forest Exploration (main view) -->
       <div id="forest-exploration">
-        <div class="page-hero">
-          <div class="sparkle-row">🌲 ⚔️ 🌲</div>
-          <h1>Wildwood Forest</h1>
-          <p>Explore and battle wild creatures!</p>
-        </div>
-        
-        
-
         <div class="page-hero">
           <div class="sparkle-row">🌲 ⚔️ 🌲</div>
           <h1>Wildwood Forest</h1>
