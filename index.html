@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260805o">
+  <link rel="stylesheet" href="style.css?v=20260806a">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1051,6 +1051,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-news" onclick="showTab('news');navGroupClose('more')">📰 News</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-team" onclick="showTab('team');navGroupClose('more')">👥 Team</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop" onclick="piperShop_open();navGroupClose('more')" style="display:none;color:#cc44ff;font-style:italic;">🎵 ???</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-archive" onclick="argLogs_showArchive();navGroupClose('more')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
             <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more')">📋 Weekly Challenges</button>
           </div>
@@ -1107,6 +1108,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
               <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
               <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
+              <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop-mobile" onclick="piperShop_open();navGroupClose('more-mobile')" style="display:none;color:#cc44ff;font-style:italic;">🎵 ???</button>
               <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
               <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
             </div>
@@ -1159,10 +1161,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
     </div>
     
-    <!-- DESKTOP DAILY BONUS (visible on desktop) -->
-    <div class="sidebar-section desktop-nav" style="background:linear-gradient(135deg,var(--yellow),var(--orange));border-color:rgba(255,255,255,0.6);">
-      <button class="daily-bonus-btn" onclick="claimDailyBonus()">✨ Daily Bonus!</button>
-    </div>
   </div>
 
   <div class="center-content">

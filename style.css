@@ -17797,3 +17797,68 @@ body.boss-ui-glitch #battle-controls-legacy {
   60%  { opacity: 1; transform: translateY(-40px) scale(1.1); }
   100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
 }
+
+/* ── Equipment shop: outer container is block, inner grids handle columns ── */
+#equipment-shop-grid {
+  display: block !important;
+  grid-template-columns: unset !important;
+}
+#equipment-shop-grid .equipment-grid-single {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
+  gap: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+/* ── Boss-fight: battle area protected from glitch drift ────────────────── */
+body.boss-ui-glitch #battle-screen,
+body.boss-ui-glitch #section-battle,
+body.boss-ui-glitch #manual-battle-actions,
+body.boss-ui-glitch #battle-narrative-box,
+body.boss-ui-glitch #battle-zone-banner,
+body.boss-ui-glitch #battle-skill-row,
+body.boss-ui-glitch #battle-action-grid,
+body.boss-ui-glitch #player-status-row,
+body.boss-ui-glitch #enemy-status-row,
+body.boss-ui-glitch .battle-hp-bar,
+body.boss-ui-glitch .battle-side {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* ── Melon shop: fixed position lock ───────────────────────────────────────*/
+.shop-mascot,
+#section-shop .shop-mascot {
+  position: fixed !important;
+  bottom: 0 !important;
+  right: 20px !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  width: auto !important;
+  z-index: 999 !important;
+}
+
+/* ── Pet pat floating text ──────────────────────────────────────────────── */
+.pet-pat-text {
+  position: absolute;
+  pointer-events: none;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--pink);
+  font-family: 'Chewy', cursive;
+  white-space: nowrap;
+  animation: pet-pat-float 1.4s ease-out forwards;
+  z-index: 1000;
+}
+@keyframes pet-pat-float {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-40px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
+}
+@keyframes phase3-flash {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
