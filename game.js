@@ -1569,6 +1569,38 @@ function navGroupHover(id, entering) {
   // Hover disabled — nav groups now open/close only on click (navGroupToggle)
 }
 
+function showBetaIntegrityInfo() {
+  var modal = makeModal();
+  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;max-width:420px;">' +
+    '<h2 style="margin-bottom:12px;">🖥️ Beta Integrity</h2>' +
+    '<p style="line-height:1.6;margin-bottom:10px;">Beta Integrity measures how stable the PawketPets simulation is. 100% is perfect.</p>' +
+    '<p style="line-height:1.6;margin-bottom:10px;">Defeating bosses <strong>decreases</strong> it. Community goals and rituals <strong>restore</strong> it.</p>' +
+    '<p style="line-height:1.6;margin-bottom:10px;">At low integrity, Piper Shop becomes accessible and the world becomes unreliable.</p>' +
+    '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-light);margin-top:12px;">This is not a bug. This is intended.</div>' +
+    '<button class="btn btn-primary" onclick="closeModal(this.closest(\'.modal-overlay\'))" style="margin-top:16px;width:100%;">Got it</button>' +
+    '</div>';
+  openModal(modal);
+}
+
+
+function shopNav_toggle() {
+  var piperBtn = document.getElementById('sidebar-btn-piper-shop');
+  var children = document.getElementById('shop-nav-children');
+  showTab('shop');
+  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
+  var open = children.style.display !== 'none' && children.style.display !== '';
+  children.style.display = open ? 'none' : 'block';
+}
+
+function shopNav_toggleMobile() {
+  var piperBtn = document.getElementById('sidebar-btn-piper-shop-mobile');
+  var children = document.getElementById('shop-nav-children-mobile');
+  showTab('shop');
+  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
+  var open = children.style.display !== 'none' && children.style.display !== '';
+  children.style.display = open ? 'none' : 'block';
+}
+
 function showTab(tab) {
   var mobileMenu = document.getElementById('mobile-nav-menu');
   if (mobileMenu && mobileMenu.classList.contains('open')) {
@@ -2069,7 +2101,7 @@ function showMelonMessage(text, opts) {
   var wrap = document.createElement('div');
   wrap.id = 'melon-float-popup';
   wrap.style.cssText = [
-    'position:fixed','bottom:-240px','left:12px',
+    'position:fixed','bottom:-160px','left:12px',
     'z-index:8500','display:flex','align-items:flex-end','gap:8px',
     'transition:bottom 0.5s cubic-bezier(0.34,1.56,0.64,1)',
     'pointer-events:none'
@@ -2079,7 +2111,7 @@ function showMelonMessage(text, opts) {
   var spriteUrl = 'images/melon.png'; // existing melon image
   var sprite = document.createElement('div');
   sprite.style.cssText = [
-    'width:180px','height:180px','flex-shrink:0',
+    'width:72px','height:72px','flex-shrink:0',
     'background:url(' + spriteUrl + ') center/contain no-repeat',
     'filter:drop-shadow(0 4px 8px rgba(0,0,0,0.2))',
     'animation:companionFloat 3s ease-in-out infinite'
@@ -2120,7 +2152,7 @@ function showMelonMessage(text, opts) {
 
 function _melonPopupDismiss(wrap) {
   if (!wrap || !wrap.parentNode) return;
-  wrap.style.bottom = '-240px';
+  wrap.style.bottom = '-160px';
   safeSetTimeout(function() {
     if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
     _melonPopupActive = false;
@@ -2913,7 +2945,7 @@ function getEffectText(item) {
   if (energy    > 0) p.push('+' + energy    + ' Energy');
   if (happiness > 0) p.push('+' + happiness + ' Happiness');
   if (xp        > 0) p.push('+' + xp        + ' XP');
-  return p.length ? p.join('  x  ') : (item.description || 'No stat effects');
+  return p.length ? p.join('  ·  ') : (item.description || 'No stat effects');
 }
 
 async function loadMyPets() {
@@ -3712,13 +3744,6 @@ function makeMyPetCard(pet) {
     statBtn.onclick = (function(id) { return function() { statPoints_openModal(id); }; })(pet.id);
     actions.appendChild(statBtn);
   }
-
-  // ⚔️ Skills manager button — always visible
-  var skillsBtn = makeEl('button', { class:'btn btn-sm btn-outline' });
-  skillsBtn.textContent = '⚔️ Skills';
-  skillsBtn.style.fontSize = '0.78rem';
-  skillsBtn.onclick = (function(id) { return function() { petSkills_openManager(id); }; })(pet.id);
-  actions.appendChild(skillsBtn);
 
   // 🏛️ Set Guild Pet button — only if player is in a guild and pet is level 5+
   if (guildState.myGuild && (pet.level||1) >= 5) {
@@ -6380,58 +6405,14 @@ function showShopTab(tab) {
 
 function itemEmoji(type) { 
   return {
-    food:'🍽️',
-    medicine:'🧪',
-    toy:'🧸',
-    potion:'⚡',
-    special:'✨',
-    drink:'🥤',
-    pillow:'🛏️',
-    snack:'🍪',
-    treat:'🦴',
-    furniture:'🪑'
-  }[type]||'🎁';
-}
-
-// Name-based emoji for items with no category/image
-function itemEmojiByName(name) {
-  if (!name) return null;
-  var n = name.toLowerCase();
-  var patterns = [
-    [/popcorn|corn/,         '🍿'],
-    [/cookie|biscuit/,       '🍪'],
-    [/cake|tart|pie/,        '🎂'],
-    [/bread|loaf/,           '🍞'],
-    [/juice|smoothie|drink/, '🥤'],
-    [/steak|beef|brisket/,   '🥩'],
-    [/burger/,               '🍔'],
-    [/wing|chicken|poultry/, '🍗'],
-    [/sushi|roll/,           '🍱'],
-    [/ramen|noodle|pasta/,   '🍜'],
-    [/curry|burrito/,        '🌯'],
-    [/salad|greens/,         '🥗'],
-    [/soup|stew|broth/,      '🍲'],
-    [/nacho/,                '🧀'],
-    [/candy|gummy/,          '🍬'],
-    [/honey/,                '🍯'],
-    [/berry|fruit/,          '🍓'],
-    [/fish/,                 '🐟'],
-    [/seafood|shrimp|shellf/,'🦐'],
-    [/meat|steak/,           '🍖'],
-    [/egg/,                  '🥚'],
-    [/milk|dairy/,           '🥛'],
-    [/cheese/,               '🧀'],
-    [/potion|elixir/,        '⚗️'],
-    [/antidote/,             '🌿'],
-    [/panacea/,              '✨'],
-    [/smoke/,                '💨'],
-    [/shock|shard/,          '⚡'],
-    [/restore|heal/,         '💊'],
-  ];
-  for (var i = 0; i < patterns.length; i++) {
-    if (patterns[i][0].test(n)) return patterns[i][1];
-  }
-  return null;
+    food:'🍖',      // Meat
+    toy:'🧸',       // Teddy bear
+    potion:'⚡',    // Lightning/energy
+    special:'✨',   // Sparkles
+    drink:'🥤',     // Cup with straw
+    pillow:'🛏️',   // Bed/pillow
+    snack:'🍪'      // Cookie/treat
+  }[type]||'🎁';     // Gift box default
 }
 
 // ── Category-based food icon images ─────────────────────────────────────
@@ -6468,12 +6449,6 @@ function getItemIconHtml(item) {
     var fb  = FOOD_CATEGORY_FALLBACK[item.food_category] || '🍕';
     var src = FOOD_CATEGORY_IMAGES[item.food_category];
     return '<img src="' + src + '" class="item-icon-img" alt="' + escapeHtml(item.food_category) + '" onerror="var p=this.parentElement;if(p){p.innerHTML=\'' + fb + '\';p.style.fontSize=\'2rem\';}">';
-  }
-
-  // Name-based emoji — only if no uploaded PNG and no food category image exists
-  var nameEmoji = itemEmojiByName(item.name);
-  if (nameEmoji && !item.image_url && !(item.food_category && FOOD_CATEGORY_IMAGES[item.food_category])) {
-    return '<span style="font-size:1.8rem;line-height:1;">' + nameEmoji + '</span>';
   }
 
   // All other items: type emoji fallback
@@ -6716,12 +6691,10 @@ async function loadShop() {
   updateBingoProgress('visit_shop', 1);
   
   // Exclude boss drops from shop! Boss items can only be obtained by defeating bosses
-  // Also exclude ingredients — they have their own always-visible section below
   var res = await supabaseClient
     .from('items')
     .select('*')
     .or('is_boss_drop.is.null,is_boss_drop.eq.false')
-    .neq('item_type', 'ingredient')
     .neq('id', '00000000-0000-0000-0000-000000000001')  // Exclude Skin Keys by ID
     .neq('name', 'Skin Key')                             // Exclude Skin Keys by name
     .order('price', {ascending: true});
@@ -6780,7 +6753,7 @@ async function loadShop() {
     } else if (item.happiness_effect > 0 && (item.hunger_effect === 0 || item.happiness_effect > item.hunger_effect)) {
       categories.toys.push(item);
     } else if (item.hunger_effect > 0) {
-      categories.food.push(item);  // Collect all food, daily rotation applied below
+      categories.food.push(item); // collect all; daily rotation applied below
     } else {
       categories.other.push(item);
     }
@@ -6790,22 +6763,14 @@ async function loadShop() {
   Object.keys(categories).forEach(function(cat) {
     categories[cat].sort(function(a,b){return a.price-b.price;});
   });
-
-  // Daily food rotation — show a consistent subset each day (changes at midnight)
-  // Use today's date as seed for deterministic shuffle
+  // Daily food rotation — 8 items per day, seeded by date
   if (categories.food.length > 8) {
     var todaySeed = parseInt(new Date().toISOString().slice(0,10).replace(/-/g,''));
-    var rng = (function(seed) {
-      return function() { seed = (seed * 1664525 + 1013904223) & 0xffffffff; return (seed >>> 0) / 4294967296; };
-    })(todaySeed);
+    var rng = (function(seed) { return function() { seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>0)/4294967296; }; })(todaySeed);
     var shuffled = categories.food.slice();
-    for (var si = shuffled.length - 1; si > 0; si--) {
-      var sj = Math.floor(rng() * (si + 1));
-      var stmp = shuffled[si]; shuffled[si] = shuffled[sj]; shuffled[sj] = stmp;
-    }
-    categories.food = shuffled.slice(0, 8); // 8 foods per day
+    for (var si=shuffled.length-1;si>0;si--){var sj=Math.floor(rng()*(si+1));var st=shuffled[si];shuffled[si]=shuffled[sj];shuffled[sj]=st;}
+    categories.food = shuffled.slice(0, 8);
   }
-
   grid.innerHTML='';
   
   // Render categories with headers
@@ -6933,42 +6898,6 @@ async function loadShop() {
     // Append all at once
     grid.appendChild(fragment);
   }
-
-  // ── COOKING SUPPLIES — always visible, never rotates ─────────────────────
-  // Only show shop-purchasable ingredients (price > 0); expedition/battle drops never for sale
-  var ingRes = await supabaseClient.from('items')
-    .select('*').eq('item_type', 'ingredient')
-    .gt('price', 0)
-    .order('price', { ascending: true });
-
-  if (ingRes.data && ingRes.data.length) {
-    var cookSection = document.createElement('div');
-    cookSection.style.cssText = 'grid-column:1/-1;margin-top:24px;';
-    cookSection.innerHTML = '<div style="font-weight:700;font-size:1rem;color:var(--purple-dark);margin-bottom:4px;">🍳 Cooking Supplies</div>' +
-      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:12px;">Always in stock — combine these with expedition and battle finds to cook food.</div>';
-    var ingGrid = document.createElement('div');
-    ingGrid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;';
-
-    ingRes.data.forEach(function(item) {
-      var ing = Object.values(INGREDIENTS).find(function(i) { return i.name === item.name; });
-      var emoji = ing ? ing.emoji : '🌿';
-      var playerPP = currentPoints || 0;
-      var canAfford = playerPP >= item.price;
-      var card = document.createElement('div');
-      card.style.cssText = 'background:rgba(153,102,255,0.05);border:1px solid rgba(153,102,255,0.2);border-radius:12px;padding:10px;text-align:center;';
-      card.innerHTML = '<div style="font-size:1.8rem;margin-bottom:4px;">' + emoji + '</div>' +
-        '<div style="font-weight:700;font-size:0.82rem;margin-bottom:2px;">' + escapeHtml(item.name) + '</div>' +
-        '<div style="font-size:0.68rem;color:var(--text-light);margin-bottom:8px;">' + escapeHtml(item.description || '') + '</div>' +
-        '<div style="font-weight:700;color:var(--purple);font-size:0.8rem;margin-bottom:6px;">' + item.price + ' PP</div>' +
-        '<button class="btn btn-sm btn-primary" onclick="buyItem(\'' + item.id + '\',\'' + escapeHtml(item.name) + '\')" ' +
-        (canAfford ? '' : 'disabled ') +
-        'style="width:100%;font-size:0.75rem;">' + (canAfford ? 'Buy' : 'Need ' + item.price + ' PP') + '</button>';
-      ingGrid.appendChild(card);
-    });
-
-    cookSection.appendChild(ingGrid);
-    grid.appendChild(cookSection);
-  }
 }
 
 async function buyItem(itemId, itemName, price) {
@@ -6981,44 +6910,21 @@ async function buyItem(itemId, itemName, price) {
   }
   
   // Spend PP via secure RPC
-  var spendRes = await supabaseClient.rpc('spend_pp_secure', {
-    p_amount: price,
-    p_reason: 'shop_purchase'
-  });
-  
-  if (spendRes.error || !spendRes.data) {
-    showToast('Purchase failed — not enough PP?');
-    return;
-  }
-  
+  var spendRes = await supabaseClient.rpc('spend_pp_secure', { p_amount: price, p_reason: 'shop_purchase' });
+  if (spendRes.error || !spendRes.data) { showToast('Purchase failed — not enough PP?'); return; }
   // Add item to inventory
-  var existingRow = await supabaseClient
-    .from('user_inventory')
-    .select('id, quantity')
-    .eq('user_id', currentUser.id)
-    .eq('item_id', itemId)
-    .maybeSingle();
-  
+  var existingRow = await supabaseClient.from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', itemId).maybeSingle();
   if (existingRow.data) {
-    await supabaseClient.from('user_inventory')
-      .update({ quantity: existingRow.data.quantity + 1 })
-      .eq('id', existingRow.data.id);
+    await supabaseClient.from('user_inventory').update({ quantity: existingRow.data.quantity + 1 }).eq('id', existingRow.data.id);
   } else {
-    await supabaseClient.from('user_inventory')
-      .insert([{ user_id: currentUser.id, item_id: itemId, quantity: 1 }]);
+    await supabaseClient.from('user_inventory').insert([{ user_id: currentUser.id, item_id: itemId, quantity: 1 }]);
   }
-  
-  // Check spending badges
-  if (currentPoints >= 500) {
-    await awardBadge('mega_spender').then(null, function(){});
-  } else if (currentPoints >= 100) {
-    await awardBadge('big_spender').then(null, function(){});
-  }
-  
+  if (currentPoints >= 500) { await awardBadge('mega_spender').then(null, function(){}); }
+  else if (currentPoints >= 100) { await awardBadge('big_spender').then(null, function(){}); }
   updateAllPoints(spendRes.data);
   showToast('Bought ' + itemName + '! 🛍️');
-  tabsLoaded['shop'] = false;
-  loadShop();
+  tabsLoaded['shop'] = false; 
+  loadShop(); 
   loadInventory();
   tabsLoaded['mypets'] = false;
 }
@@ -7308,116 +7214,186 @@ async function useOnPet(petId,petNickname) {
   closeUseModal();
   var invRow=await supabaseClient.from('user_inventory').select('item_id,quantity').eq('id',invId).maybeSingle();
   if(invRow.error||!invRow.data){showToast('Could not find item.');return;}
-  var itemRes=await supabaseClient.from('items').select('hunger_effect,energy_effect,happiness_effect,xp_effect,food_category,item_type').eq('id',invRow.data.item_id).single();
+  var itemRes=await supabaseClient.from('items').select('hunger_effect,energy_effect,happiness_effect,xp_effect,item_type').eq('id',invRow.data.item_id).single();
   if(itemRes.error||!itemRes.data){showToast('Could not find effects.');return;}
   var ef=itemRes.data;
-  // Get pet including its type for preference lookup
   var petRes=await supabaseClient.from('user_pets').select('hunger,max_hunger,energy,max_energy,happiness,max_happiness,xp,level,pets!inner(name)').eq('id',petId).single();
   if(petRes.error||!petRes.data){showToast('Could not find pet.');return;}
   var pet=petRes.data;
   var petType = pet.pets && pet.pets.name ? pet.pets.name : null;
-
-  // Check food preferences — apply multiplier and log discovery
   var hapMultiplier = 1.0;
   var reactionMsg = '';
   if (petType && ef.item_type === 'food' && ef.hunger_effect > 0) {
     var prefs = petFoodPreferences[petType];
     if (prefs) {
-      if (prefs.loved_item && itemName === prefs.loved_item) {
-        hapMultiplier = 1.75; reactionMsg = '💖 ' + petNickname + ' LOVES this!';
-        logJournalDiscovery(petType, 'loved', itemName).then(null, function(){});
-      } else if (prefs.liked_item && itemName === prefs.liked_item) {
-        hapMultiplier = 1.25; reactionMsg = '😊 ' + petNickname + ' likes this!';
-        logJournalDiscovery(petType, 'liked', itemName).then(null, function(){});
-      } else if (prefs.hated_item && itemName === prefs.hated_item) {
-        hapMultiplier = 0.5;  reactionMsg = '😠 ' + petNickname + ' hates this...';
-        logJournalDiscovery(petType, 'hated', itemName).then(null, function(){});
-      } else if (prefs.disliked_item && itemName === prefs.disliked_item) {
-        hapMultiplier = 0.75; reactionMsg = '😐 ' + petNickname + ' doesn\'t like this.';
-        logJournalDiscovery(petType, 'disliked', itemName).then(null, function(){});
-      }
+      if (prefs.loved_item && itemName === prefs.loved_item)         { hapMultiplier=1.75; reactionMsg='💖 '+petNickname+' LOVES this!'; logJournalDiscovery(petType,'loved',itemName).then(null,function(){}); }
+      else if (prefs.liked_item && itemName === prefs.liked_item)    { hapMultiplier=1.25; reactionMsg='😊 '+petNickname+' likes this!'; logJournalDiscovery(petType,'liked',itemName).then(null,function(){}); }
+      else if (prefs.hated_item && itemName === prefs.hated_item)    { hapMultiplier=0.5;  reactionMsg='😠 '+petNickname+' hates this...'; logJournalDiscovery(petType,'hated',itemName).then(null,function(){}); }
+      else if (prefs.disliked_item && itemName === prefs.disliked_item){ hapMultiplier=0.75; reactionMsg='😐 '+petNickname+" doesn't like this."; logJournalDiscovery(petType,'disliked',itemName).then(null,function(){}); }
     }
   }
-
   var updates={};
   if(ef.hunger_effect>0)updates.hunger=Math.min(pet.hunger+ef.hunger_effect,pet.max_hunger);
   if(ef.energy_effect>0)updates.energy=Math.min(pet.energy+ef.energy_effect,pet.max_energy);
   if(ef.happiness_effect>0)updates.happiness=Math.min(pet.happiness+Math.round(ef.happiness_effect*hapMultiplier),pet.max_happiness);
   if(ef.xp_effect>0)updates.xp=pet.xp+ef.xp_effect;
   if(!Object.keys(updates).length){showToast('No effects configured.');return;}
+  // Also update last_fed if this is a food item, so decay calculates correctly
   if(ef.hunger_effect>0) updates.last_fed = new Date().toISOString();
   await supabaseClient.from('user_pets').update(updates).eq('id',petId);
   var qty=invRow.data.quantity;
   if(qty<=1)await supabaseClient.from('user_inventory').delete().eq('id',invId);
   else await supabaseClient.from('user_inventory').update({quantity:qty-1}).eq('id',invId);
+  // Track bingo + PassXP the same way feedWithItem does
   if(ef.hunger_effect>0){
     updateBingoProgress('feed_pet',1);
-    updateBingoProgress('use_treat',1);
+    updateBingoProgress('use_treat',1); // Any item-based feed counts as a treat
     addPassXP(2,'feed').then(null, function(){});
     community_increment('feed_pets',1);
-    if (petType) {
-      var disc = journalDiscoveries[petType] || {};
-      var foodDiscs = ['loved','liked','disliked','hated'].filter(function(k){return disc[k];}).length;
-      if (foodDiscs >= 1) logJournalDiscovery(petType, 'hobby', '').then(null, function(){});
-      if (foodDiscs >= 2) logJournalDiscovery(petType, 'fun_fact', '').then(null, function(){});
-      if (foodDiscs >= 3) logJournalDiscovery(petType, 'sleep_habit', '').then(null, function(){});
-      if (foodDiscs >= 4) logJournalDiscovery(petType, 'weather_preference', '').then(null, function(){});
-      if ((pet.level||1) >= 5)  logJournalDiscovery(petType, 'catchphrase', '').then(null, function(){});
-      if ((pet.level||1) >= 10) logJournalDiscovery(petType, 'secret_talent', '').then(null, function(){});
-    }
   }
   if(ef.happiness_effect>0 && ef.hunger_effect<=0){
+    // Toy/happiness-only item counts as play
     updateBingoProgress('use_toy',1);
     updateBingoProgress('play_pet',1);
     addPassXP(2,'play').then(null, function(){});
   }
-  var toastMsg = reactionMsg || ('Used '+itemName+' on '+petNickname+'!');
-  showToast(toastMsg, reactionMsg ? 4000 : 2500);
+  // Progressive journal unlocks
+  if (petType && ef.hunger_effect > 0) {
+    var disc = journalDiscoveries[petType] || {};
+    var foodDiscs = ['loved','liked','disliked','hated'].filter(function(k){return disc[k];}).length;
+    if (foodDiscs >= 1) logJournalDiscovery(petType,'hobby','').then(null,function(){});
+    if (foodDiscs >= 2) logJournalDiscovery(petType,'fun_fact','').then(null,function(){});
+    if (foodDiscs >= 3) logJournalDiscovery(petType,'sleep_habit','').then(null,function(){});
+    if (foodDiscs >= 4) logJournalDiscovery(petType,'weather_preference','').then(null,function(){});
+    if ((pet.level||1) >= 5)  logJournalDiscovery(petType,'catchphrase','').then(null,function(){});
+    if ((pet.level||1) >= 10) logJournalDiscovery(petType,'secret_talent','').then(null,function(){});
+  }
+  showToast(reactionMsg || ('Used '+itemName+' on '+petNickname+'!'), reactionMsg ? 4000 : 2500);
   await loadInventory(); tabsLoaded['mypets']=false;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 // PET FOOD PREFERENCES & PERSONALITIES
-// ═══════════════════════════════════════════════════════════════════════════
+// PLACEHOLDER_PET_DATA - Replace these with real streamer pet preferences!
+// Search for "PLACEHOLDER_PET_DATA" to find all placeholder data
+// ══════════════════════════════════════════════════════════════════════════
 
 var petFoodPreferences = {
-  'Ember':     { loved_item:'Spicy Ramen',      liked_item:'Hot Wings',       disliked_item:'Rainbow Cake',    hated_item:'Sushi Roll',
-                 hobby:'Competitive dueling',     fun_fact:'Once won a spoon dueling championship!',
-                 sleep_habit:'night owl',          weather_preference:'loves sun',
-                 catchphrase:'Fire solves everything, obviously! 🔥', secret_talent:'Can light a campfire with a single wink' },
-  'Pyxie':     { loved_item:'Rainbow Cake',      liked_item:'Honey Cookies',   disliked_item:'Grilled Fish',    hated_item:'Beef Jerky',
-                 hobby:'Professional napping',     fun_fact:'Can sleep for 16 hours straight!',
-                 sleep_habit:'heavy sleeper',       weather_preference:'loves fog',
-                 catchphrase:'I have a plan. It involves napping. ✨', secret_talent:'Can nap in any position' },
-  'Aria':      { loved_item:'Faerie Dust Cake',  liked_item:'Sushi Roll',      disliked_item:'Hot Wings',       hated_item:'Spicy Ramen',
-                 hobby:'Collecting bones',          fun_fact:'Has a collection of over 200 beautiful bones',
-                 sleep_habit:'sleeps with bones',   weather_preference:'loves moonlight',
-                 catchphrase:'Do you want to see my bones? 🦋', secret_talent:'Can identify any bone by touch' },
-  'Blushimia': { loved_item:"Blushimia's Berry Tart", liked_item:'Berry Smoothie', disliked_item:'Bone Broth Soup', hated_item:'Beef Jerky',
-                 hobby:'Escaping things',           fun_fact:'Has escaped 47 different containers',
-                 sleep_habit:'curls up impossibly small', weather_preference:'loves all weather (freedom!)',
-                 catchphrase:'WHAT THE GLOB!! 👑', secret_talent:'Can fit through any gap larger than her head' },
-  'Steve':     { loved_item:"Cowbee's Corn Fritters", liked_item:'Trail Mix',  disliked_item:'Grilled Fish',    hated_item:'Garden Salad',
-                 hobby:'Being a menace',             fun_fact:'Produces both milk and honey simultaneously',
-                 sleep_habit:'sleeps standing up',   weather_preference:'loves chaos weather',
-                 catchphrase:"I'm a menace, owo. 🐄", secret_talent:'Can moo and cluck at the same time' },
-  'Kleat':     { loved_item:"Kelta's Void Smoothie", liked_item:'Berry Juice', disliked_item:'Beef Jerky',      hated_item:'Bone Broth Soup',
-                 hobby:'Opening portals',            fun_fact:'Has accidentally opened 12 portals this week',
-                 sleep_habit:'sleeps in void pockets', weather_preference:'loves void weather',
-                 catchphrase:'YIP! I opened a portal! 🌀', secret_talent:'Can yap in 3 dimensions simultaneously' },
-  'Gnarly':    { loved_item:"Gnarly's Nachos",    liked_item:'Energy Drink',    disliked_item:'Garden Salad',    hated_item:'Sweet Cream',
-                 hobby:'Achieving high scores',      fun_fact:'Has been playing the same arcade game for 20 years',
-                 sleep_habit:'never sleeps (inserts quarters)', weather_preference:'loves neon-lit weather',
-                 catchphrase:"I've been putting quarters in this machine for 20 years. 🕹️", secret_talent:'Can beat any game blindfolded' },
-  'Jess':      { loved_item:"Jess's Dino Nuggets", liked_item:'Mushroom Toast', disliked_item:'Sweet Cream',    hated_item:'Honey Cookies',
-                 hobby:'Fossil hunting',             fun_fact:'Has found fossils on every expedition',
-                 sleep_habit:'sleeps in a fossil nest', weather_preference:'loves prehistoric weather',
-                 catchphrase:"This fossil is 65 million years cuter than you. 🦕", secret_talent:'Can identify any fossil by smell' },
+  // PLACEHOLDER_PET_DATA - Replace these with real streamer pet data!
+  // Format: loved (1.75x), liked (1.25x), disliked (0.75x), hated (0.5x)
+  
+  'Ember': {
+    loved_item: 'Spicy Ramen',
+    liked_item: 'Hot Wings',
+    disliked_item: 'Rainbow Cake',
+    hated_item: 'Sushi Roll',
+    hobby: 'Competitive dueling',
+    fun_fact: 'Once won a spoon dueling championship!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves sun',
+    catchphrase: 'Fire solves everything, obviously! 🔥',
+    secret_talent: 'Can light a campfire with a single wink'
+  },
+  
+  'Pyxie': {
+    loved_item: 'Rainbow Cake',
+    liked_item: 'Honey Cookies',
+    disliked_item: 'Grilled Salmon',
+    hated_item: 'Spicy Burrito',
+    hobby: 'Professional napping',
+    fun_fact: 'Can sleep for 16 hours straight!',
+    sleep_habit: 'heavy sleeper',
+    weather_preference: 'loves fog',
+    catchphrase: 'I have a plan. It involves napping. ✨',
+    secret_talent: 'Can nap in any position, including upside down'
+  },
+  
+  'Steve': {
+    loved_item: 'Fresh Bread',
+    liked_item: 'Garden Salad',
+    disliked_item: 'Hot Wings',
+    hated_item: 'Curry Feast',
+    hobby: 'Being a menace',
+    fun_fact: 'As chill as a fire in hell, controlled like the beasts of Australia!',
+    sleep_habit: 'power napper',
+    weather_preference: 'hates weather',
+    catchphrase: 'Cluck, bawk, buck... you know the rest. 🐔',
+    secret_talent: 'Somehow always the last one standing in any situation'
+  },
+  
+  'Kleat': {
+    loved_item: 'Garden Salad',
+    liked_item: 'Fresh Bread',
+    disliked_item: 'Shrimp Tempura',
+    hated_item: 'Grilled Steak',
+    hobby: 'Studying void and galaxy magic',
+    fun_fact: 'A grand mage who can open portals to other worlds!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves fog',
+    catchphrase: 'Yip, yap, teehee, I opened a portal! ✨',
+    secret_talent: 'Can sense when someone is about to say something stupid'
+  },
+  
+  'Blushimia': {
+    loved_item: 'Sushi Roll',
+    liked_item: 'Grilled Salmon',
+    disliked_item: 'Banana Bread',
+    hated_item: 'Honey Cookies',
+    hobby: 'Breaking out of video games',
+    fun_fact: 'Escaped her video game after gaining sentience!',
+    sleep_habit: 'early bird',
+    weather_preference: 'loves sun',
+    catchphrase: 'What the glob?! I\'m free!! 👑',
+    secret_talent: 'Can find the hidden exit in literally any room'
+  },
+  
+  'Aria': {
+    loved_item: 'Grilled Steak',
+    liked_item: 'Beef Jerky',
+    disliked_item: 'Apple Pie',
+    hated_item: 'Grape Juice',
+    hobby: 'Collecting bones and writing stories',
+    fun_fact: 'A fae rosy maple moth who uses bones as currency!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves rain',
+    catchphrase: 'Do you want to see my bones? 🦋',
+    secret_talent: 'Can identify any creature by its skeleton alone'
+  },
+  
+  'Gnarly': {
+    loved_item: 'Apple Pie',
+    liked_item: 'Mango Delight',
+    disliked_item: 'Roasted Chicken',
+    hated_item: 'Seafood Soup',
+    hobby: 'Playing arcade games and collecting Furbies',
+    fun_fact: 'Runs the PaleoPlex arcade! Loves nachos!',
+    sleep_habit: 'power napper',
+    weather_preference: 'loves sun',
+    catchphrase: 'High score? Watch me. 🎮',
+    secret_talent: 'Has never lost a game of Pac-Man. Not once.'
+  },
+  
+  'Jess': {
+    loved_item: 'Mango Delight',
+    liked_item: 'Strawberry Parfait',
+    disliked_item: 'Cheese Platter',
+    hated_item: 'Veggie Noodles',
+    hobby: 'Potion brewing and fossil collecting',
+    fun_fact: 'A paleoart Parasaur who makes potions!',
+    sleep_habit: 'early bird',
+    weather_preference: 'loves rain',
+    catchphrase: 'This fossil is 65 million years cuter than you. 🦕',
+    secret_talent: 'Can brew a potion that tastes terrible but works perfectly'
+  }
 };
 
-// ═══════════════════════════════════════════════════════════════════════════
+function getPetPreferences(petType) {
+  return petFoodPreferences[petType] || null;
+}
+
 // BADGES SYSTEM
-// ═══════════════════════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════════════════
 
 var earnedBadges = []; // Cache of user's earned badge keys
 
@@ -7595,7 +7571,7 @@ function showUnlockCelebration(unlockType, data, extra) {
 
   } else if (unlockType === 'title') {
     var titleObj = data;
-
+    var rarityColors = { common:'#8e8e8e', uncommon:'#5cb85c', rare:'#5bc0de', epic:'#9c27b0', legendary:'#ff9800' };
     color = titleObj.color || rarityColors[(titleObj.rarity||'').toLowerCase()] || '#9966ff';
     title = 'Title Unlocked!';
     subtitle = (titleObj.icon || '👑') + ' ' + titleObj.display_name;
@@ -8865,26 +8841,6 @@ async function castLine(power) {
     fishingDaily_onCatch(caught, weightG);
     fishingShoal_onCast();
 
-    // Cooking ingredient drops from fishing
-    if (caught.rarity !== 'junk') {
-      (function() {
-        var spotKey = (_fishingSpot || '').toLowerCase();
-        var isOcean = spotKey.indexOf('ocean') > -1 || spotKey.indexOf('sea') > -1 || spotKey.indexOf('coast') > -1;
-        var fishDropTable = isOcean
-          ? [{key:'fish',w:40},{key:'shellfish',w:35},{key:'seaweed',w:25}]
-          : [{key:'fish',w:70},{key:'seaweed',w:30}];
-        // 30% chance per non-junk catch
-        if (Math.random() < 0.30) {
-          var total = fishDropTable.reduce(function(s,e){return s+e.w;},0);
-          var roll = Math.random()*total; var cum=0; var picked=null;
-          for(var fi=0;fi<fishDropTable.length;fi++){cum+=fishDropTable[fi].w;if(roll<cum){picked=fishDropTable[fi].key;break;}}
-          if (picked && typeof cooking_tryIngredientDrop_direct === 'function') {
-            cooking_tryIngredientDrop_direct(picked);
-          }
-        }
-      })();
-    }
-
 
     // Fishing achievements
     (function(){
@@ -9093,9 +9049,7 @@ function castLineStart(e) {
   if (pond) { pond.textContent = '🎣 Hold to build power... Release to cast!'; pond.style.color = 'var(--purple)'; }
   var btn = document.getElementById('fishing-btn');
   if (btn) btn.textContent = '⚡ Casting... Release!';
-  // Show and fill power bar
-  var wrap = document.getElementById('fishing-power-wrap');
-  if (wrap) wrap.style.display = 'block';
+  // Power bar fill
   var bar = document.getElementById('fishing-power-bar');
   if (bar) {
     bar.style.width = '0%';
@@ -9115,8 +9069,6 @@ async function castLineRelease(e) {
   var power = Math.min(1.0, (Date.now() - _castStartTime) / 2000);
   var bar = document.getElementById('fishing-power-bar');
   if (bar) bar.style.width = '0%';
-  var wrap = document.getElementById('fishing-power-wrap');
-  if (wrap) wrap.style.display = 'none';
   var pond = document.getElementById('fishing-pond-text');
   if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
   var btn = document.getElementById('fishing-btn');
@@ -9161,21 +9113,16 @@ function fishingRenderJournal(spotFilter) {
   mount.innerHTML = html;
 }
 
-function fishingToggleJournal() {
-  var mount = document.getElementById('fishing-journal-mount');
-  var chevron = document.getElementById('fish-journal-chevron');
-  if (!mount) return;
-  var isOpen = mount.style.display !== 'none' && mount.style.display !== '';
-  mount.style.display = isOpen ? 'none' : 'block';
-  if (chevron) chevron.textContent = isOpen ? '▼' : '▲';
-  if (!isOpen && typeof fishingRenderJournal === 'function') fishingRenderJournal();
+function fishingShowJournal() {
+  var section = document.getElementById('fishing-journal-section');
+  if (!section) return;
+  var isVisible = section.style.display !== 'none' && section.style.display !== '';
+  section.style.display = isVisible ? 'none' : 'block';
+  if (!isVisible) fishingRenderJournal();
 }
 
-function fishingShowJournal() { fishingToggleJournal(); }
-
-
 // ── FISHING TAB INIT ──────────────────────────────────────────────────────────
-// ═══════════════════════════════════════════════════════════════════════════
+async // ═══════════════════════════════════════════════════════════════════════════
 // FISHING DEPTH — Melon's Weekly Quest, Daily Challenge, Shoal Events, Cook
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -9398,17 +9345,6 @@ async function initFishingTab() {
   // Check for rare shoal event
   fishingShoal_check();
   fishingRenderRodShop();
-  // Render fish journal inline on tab open
-  if (typeof fishingRenderJournal === 'function') {
-    fishingRenderJournal();
-  }
-  // Update spot name display
-  var spotNameEl = document.getElementById('fishing-spot-name');
-  if (spotNameEl && _fishingSpot) {
-    var spotLabels = { pond:'Quiet Pond', lake:'Forest Lake', river:'River', ocean:'Ocean', reef:'Coral Reef', waterfall:'Waterfall' };
-    spotNameEl.textContent = spotLabels[_fishingSpot] || (_fishingSpot.charAt(0).toUpperCase() + _fishingSpot.slice(1));
-  }
-
   var collEl = document.getElementById('fishing-collection');
   if (collEl) {
     var collected = Object.keys(_fishCollection || {}).filter(function(k) {
@@ -9780,44 +9716,22 @@ function streamerLanding_buildHero(member) {
       '</div>' +
     '</div>';
 
-  // Apply to login section (primary landing page)
-  var loginSection = document.getElementById('section-login');
-  if (loginSection) {
-    var existingHero = loginSection.querySelector('.landing-hero');
+  // Apply to both auth sections
+  ['section-login', 'section-register'].forEach(function(sectionId) {
+    var section = document.getElementById(sectionId);
+    if (!section) { dbg('[Landing] Section not found:', sectionId); return; }
+    var existingHero = section.querySelector('.landing-hero');
     if (existingHero) {
       existingHero.outerHTML = heroHTML;
+      dbg('[Landing] Hero replaced in', sectionId, 'for', member.name);
     } else {
-      // No placeholder exists — inject before the form content
-      loginSection.insertAdjacentHTML('afterbegin', heroHTML);
+      dbg('[Landing] .landing-hero not found in', sectionId);
     }
-    dbg('[Landing] Hero injected for', member.name);
-  } else {
-    dbg('[Landing] section-login not found');
-  }
-  // Also apply to register section
-  var regSection = document.getElementById('section-register');
-  if (regSection) {
-    var existingHeroReg = regSection.querySelector('.landing-hero');
-    if (existingHeroReg) {
-      existingHeroReg.outerHTML = heroHTML;
-    } else {
-      regSection.insertAdjacentHTML('afterbegin', heroHTML);
-    }
-  }
+  });
 
   // Set accent CSS variable for streamer-themed form card borders etc.
   document.body.style.setProperty('--streamer-accent', accent);
   document.body.classList.add('streamer-landing-active');
-
-  // Apply streamer theme background to the whole page section
-  var lSec = document.getElementById('section-login');
-  var rSec = document.getElementById('section-register');
-  [lSec, rSec].forEach(function(s) {
-    if (s) {
-      s.style.background = bg;
-      s.style.minHeight = '100vh';
-    }
-  });
 
   // Show register tab for new visitors
   showAuthSection('register');
@@ -11952,615 +11866,141 @@ var STATUS_EFFECTS = {
 var PET_SKILLS = {
 
   ember: [
-    // Tier 1
-    { id:'flame_buffer',     name:'Flame Buffer',      icon:'🔥', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.2, status:{type:'burn',chance:0.20},
-      desc:'1.2x damage. 20% chance Burn (3 dmg/turn, 3 turns).', flavor:"I've been burning for eleven years. 🔥" },
-    { id:'quick_ignite',     name:'Quick Ignite',      icon:'⚡', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, critBonus:0.10,
-      desc:'1.0x damage. +10% crit chance.', flavor:'Fire is just enthusiastic air.' },
-    { id:'heat_shield',      name:'Heat Shield',       icon:'🛡️', unlockLevel:3,  cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.20,turns:2},
-      desc:'No damage. Reduce damage taken 20% for 2 turns.', flavor:"I'm not starting problems. I'm creating opportunities." },
-    { id:'ember_dash',       name:'Ember Dash',        icon:'💨', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, spdBuff:{pct:0.20,turns:2},
-      desc:'No damage. +20% speed for 2 turns.', flavor:'Sick flips incoming.' },
-    { id:'flame_burst',      name:'Flame Burst',       icon:'🔥', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.4, status:{type:'burn',chance:0.30},
-      desc:'1.4x damage. 30% chance Burn.', flavor:'Fire solves everything. Including me. 🔥' },
-    { id:'inferno',          name:'Inferno',           icon:'🌋', unlockLevel:7,  cooldown:2, passive:false,
-      damageMult:1.6, selfCostPct:0.08,
-      desc:'1.6x damage. Costs 8% current HP.', flavor:'Eleven years. Still chaotic. Still thriving. 🧡' },
-    { id:'system_reboot',    name:'System Reboot',     icon:'💻', unlockLevel:8,  cooldown:4, passive:false,
-      damageMult:0, healPct:0.15, cleanse:true,
-      desc:'Heal 15% max HP. Remove all negative statuses.', flavor:'Have you tried turning it off and on again?' },
-    { id:'emergency_patch',  name:'Emergency Patch',   icon:'🩹', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:0, healPct:0.25,
-      desc:'Heal 25% max HP.', flavor:'The grind never stops. Neither do I. 🔥' },
-    { id:'flametail_strike', name:'Flametail Strike',  icon:'🔥', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.8, status:{type:'burn',chance:0.60}, selfCostPct:0.15,
-      desc:'1.8x damage. 60% Burn. Costs 15% HP.', flavor:'Fire solves everything. Including me. 🔥💔' },
-    { id:'overheat',         name:'Overheat',          icon:'💥', unlockLevel:14, cooldown:4, passive:false,
-      damageMult:2.0, selfStun:true,
-      desc:'2.0x damage. YOU are stunned next turn.', flavor:'I could be napping. I choose chaos.' },
-    { id:'fire_shield',      name:'Fire Shield',       icon:'🛡️', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:0, reflect:{pct:0.20,turns:2},
-      desc:'Reflect 20% damage back to attacker for 2 turns.', flavor:'Aggressively wholesome.' },
-    { id:'blaze_wall',       name:'Blaze Wall',        icon:'🧱', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:3},
-      desc:'Reduce damage taken 30% for 3 turns.', flavor:'Chaos is just enthusiasm with better marketing.' },
-    { id:'infernal_blast',   name:'Infernal Blast',    icon:'☄️', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.2, status:{type:'burn',chance:0.40},
-      desc:'2.2x damage. 40% Burn (4 dmg/turn).', flavor:'Best day ever. Yesterday too. Tomorrow also.' },
-    { id:'phoenix_rebirth',  name:'Phoenix Rebirth',   icon:'🦅', unlockLevel:22, cooldown:8, passive:false,
-      damageMult:0, reviveEffect:{hpPct:0.30},
-      desc:'Revive once with 30% HP if you would faint. 8-turn cooldown.', flavor:'Running at full power. 🔥' },
-    { id:'burning_aura',     name:'Burning Aura',      icon:'🔥', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'dot',dmgPerTurn:4},
-      desc:'PASSIVE: Enemies take 4 damage per turn from proximity heat.', flavor:"I've been burning for eleven years." },
-    { id:'fire_resistance',  name:'Fire Resistance',   icon:'🔰', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'resist',statusType:'burn',pct:0.30},
-      desc:'PASSIVE: Reduce Burn damage taken by 30%.', flavor:"You get used to it." },
-    { id:'eternal_flame',    name:'Eternal Flame',     icon:'🔥', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:3.0, selfCostPct:0.25,
-      desc:'3.0x damage. Costs 25% current HP. The big one.', flavor:'Eleven years on Twitch and still excited.' },
-    { id:'purifying_fire',   name:'Purifying Fire',    icon:'✨', unlockLevel:32, cooldown:6, passive:false,
-      damageMult:0, healPct:0.50, cleanse:true,
-      desc:'Heal 50% max HP. Remove ALL statuses.', flavor:'Fire solves everything. 🔥' },
+    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.2, status: { type: 'burn', chance: 0.20 },
+      desc: 'Deals 1.2x damage. 20% chance to Burn (3 damage/turn for 3 turns).',
+      flavor: "I've been burning for eleven years. You get used to it. 🔥" },
+    { id: 'system_reboot', name: 'System Reboot', icon: '💻', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.15, cleanse: true,
+      desc: 'Restore 15% max HP. Removes all negative status effects. No damage.',
+      flavor: "Have you tried turning it off and on again? Works for me. 🔄" },
+    { id: 'flametail_strike', name: 'Flametail Strike', icon: '🔥', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.8, status: { type: 'burn', chance: 0.60 }, selfCostPct: 0.15,
+      desc: 'Deals 1.8x damage. 60% chance to Burn. Costs 15% of YOUR current HP to use.',
+      flavor: "Fire solves everything. Including me. 🔥💔" }
   ],
 
   pyxie: [
-    { id:'glitter_bomb',     name:'Glitter Bomb',      icon:'✨', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.1, status:{type:'confuse',chance:0.30},
-      desc:'1.1x damage. 30% Confuse (30% miss, 2 turns).', flavor:'I have a plan. It involves sparkles. ✨' },
-    { id:'spark',            name:'Spark',             icon:'⚡', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, critBonus:0.10,
-      desc:'1.0x damage. +10% crit chance.', flavor:'The chaos is organized. I promise.' },
-    { id:'dazzle',           name:'Dazzle',            icon:'🌟', unlockLevel:3,  cooldown:2, passive:false,
-      damageMult:0, enemyEvasionDebuff:{pct:0.20,turns:2},
-      desc:'No damage. Reduce enemy accuracy 20% for 2 turns.', flavor:'Something funny happened. I will not explain.' },
-    { id:'energy_surge',     name:'Energy Surge',      icon:'💨', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, spdBuff:{pct:0.25,turns:2},
-      desc:'No damage. +25% speed for 2 turns.', flavor:'Tactical napping is a legitimate strategy.' },
-    { id:'chaos_spark',      name:'Chaos Spark',       icon:'🌀', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.3, randomStatus:['confuse','fear','glitch'],
-      desc:'1.3x damage. Applies a random status effect.', flavor:'I had a plan. It involved a nap.' },
-    { id:'glitter_storm',    name:'Glitter Storm',     icon:'✨', unlockLevel:7,  cooldown:2, passive:false,
-      damageMult:1.5, status:{type:'confuse',chance:0.40},
-      desc:'1.5x damage. 40% Confuse.', flavor:'I may seem quiet. I am plotting.' },
-    { id:'echo_of_fear',     name:'Echo of Fear',      icon:'👻', unlockLevel:8,  cooldown:3, passive:false,
-      damageMult:1.3, status:{type:'fear',chance:0.30},
-      desc:'1.3x damage. 30% Fear (skip turn).', flavor:"I know things I shouldn't. My mom was a demon. 👻" },
-    { id:'mamas_grace',      name:"Mama's Grace",      icon:'🌙', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.7, status:{type:'fear',chance:0.50}, condBonus:{ifStatus:'confuse',mult:2.0},
-      desc:"1.7x damage. 50% Fear. If enemy Confused: damage doubles.", flavor:"Mama said I was special. 🌙" },
-    { id:'chaos_portal_pyxie',name:'Chaos Portal',    icon:'🌌', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.6, chaosEffect:[{weight:40,effect:'double_damage'},{weight:30,effect:'heal_20pct'},{weight:20,effect:'enemy_skip'},{weight:10,effect:'nothing'}],
-      desc:'1.6x damage + random: 40% double, 30% heal, 20% skip, 10% nothing.', flavor:'The portal is open! 🌀' },
-    { id:'reality_bend',     name:'Reality Bend',      icon:'🔮', unlockLevel:14, cooldown:3, passive:false,
-      damageMult:1.4, status:{type:'glitch',chance:0.30},
-      desc:'1.4x damage. 30% Glitch.', flavor:'The fog had good vibes today.' },
-    { id:'sparkle_shield',   name:'Sparkle Shield',    icon:'💜', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.25,turns:2},
-      desc:'Reduce damage taken 25% for 2 turns.', flavor:'Pizza the dog would back me up on this.' },
-    { id:'glitter_trap',     name:'Glitter Trap',      icon:'🪤', unlockLevel:18, cooldown:3, passive:false,
-      damageMult:0, enemyDot:{dmgPerTurn:5,turns:3},
-      desc:'No damage. Enemy takes 5 damage/turn for 3 turns.', flavor:'Plans within plans within plans.' },
-    { id:'prismatic_burst',  name:'Prismatic Burst',   icon:'🌈', unlockLevel:20, cooldown:4, passive:false,
-      damageMult:2.0, randomStatus:['burn','petrify','stun'],
-      desc:'2.0x damage. Applies random heavy status.', flavor:'Quietly thriving. Do not disturb. ✨' },
-    { id:'chaos_storm',      name:'Chaos Storm',       icon:'🌪️', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, status:{type:'confuse',chance:0.50}, selfCostPct:0.10,
-      desc:'2.2x damage. 50% Confuse. Costs 10% HP.', flavor:"I'm doing great. In a specifically chaotic way. 💜" },
-    { id:'chaotic_aura',     name:'Chaotic Aura',      icon:'🌀', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'random_buff_start_turn'},
-      desc:'PASSIVE: Gain a random minor buff each turn (ATK/DEF/SPD +15%).', flavor:'The chaos is organized.' },
-    { id:'glitter_resistance',name:'Glitter Resistance',icon:'💜', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'status_duration',reduces:['confuse','fear'],pct:0.50},
-      desc:'PASSIVE: Confuse and Fear last 50% fewer turns.', flavor:'I have a plan. It involves sparkles.' },
-    { id:'reality_break',    name:'Reality Break',     icon:'💥', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, status:{type:'glitch',chance:0.80}, selfCostPct:0.15,
-      desc:'2.5x damage. 80% Glitch. Costs 15% HP.', flavor:"Mama's Sleeping Angels energy: activated." },
-    { id:'mamas_blessing',   name:"Mama's Blessing",   icon:'🌙', unlockLevel:32, cooldown:6, passive:false,
-      damageMult:0, healPct:0.40, atkBuff:{amount:0.20,turns:2},
-      desc:'Heal 40% HP. +20% ATK for 2 turns.', flavor:"Mama said I was special. I don't think she meant this. 🌙" },
-  ],
-
-  aria: [
-    { id:'bone_toss',        name:'Bone Toss',         icon:'🦴', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.2, debuff:{stat:'defense',chance:0.20,amount:0.10,turns:2},
-      desc:'1.2x damage. 20% chance lower enemy DEF 10% for 2 turns.', flavor:'Do you want to see my bones? 🦋' },
-    { id:'moth_dust',        name:'Moth Dust',         icon:'🦋', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, status:{type:'confuse',chance:0.20},
-      desc:'1.0x damage. 20% Confuse.', flavor:'Humans are so strange and silly.' },
-    { id:'glow',             name:'Glow',              icon:'✨', unlockLevel:3,  cooldown:2, passive:false,
-      damageMult:0, evasionBuff:0.25,
-      desc:'No damage. +25% evasion next turn.', flavor:'I found the most beautiful bone today.' },
-    { id:'fae_light',        name:'Fae Light',         icon:'💚', unlockLevel:4,  cooldown:3, passive:false,
-      damageMult:0, healPct:0.20, atkBuffChance:{chance:0.30,amount:0.15,turns:2},
-      desc:'Heal 20% HP. 30% chance +15% ATK for 2 turns.', flavor:'The fae left me a shiny thing.' },
-    { id:'bone_shards',      name:'Bone Shards',       icon:'🦴', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.4, debuff:{stat:'defense',chance:0.30,amount:0.10,turns:2},
-      desc:'1.4x damage. 30% chance lower enemy DEF.', flavor:'Cheesecake and bones. That\'s the dream.' },
-    { id:'moth_swarm',       name:'Moth Swarm',        icon:'🦋', unlockLevel:7,  cooldown:2, passive:false,
-      damageMult:1.5, status:{type:'confuse',chance:0.30},
-      desc:'1.5x damage. 30% Confuse.', flavor:'Something is glowing nearby and I need to investigate.' },
-    { id:'skeleton_key',     name:'Skeleton Key',      icon:'🗝️', unlockLevel:8,  cooldown:3, passive:false,
-      damageMult:1.3, debuff:{stat:'defense',chance:0.50,amount:0.15,turns:2},
-      desc:'1.3x damage. 50% chance DEF -15% for 2 turns.', flavor:'I have a skeleton key. It opens things.' },
-    { id:'moths_embrace',    name:"Moth's Embrace",    icon:'🦋', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.5, lifeSteal:0.20, status:{type:'infatuate',chance:0.40},
-      desc:'1.5x damage. Lifesteal 20%. 40% Infatuate (-30% dmg, 2 turns).', flavor:"I'll let you keep your bones. For now. 💀" },
-    { id:'bone_garden',      name:'Bone Garden',       icon:'🪴', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.6, debuff:{stat:'defense',chance:0.40,amount:0.15,turns:2},
-      desc:'1.6x damage. 40% chance DEF -15% for 2 turns.', flavor:'The shadows said something interesting.' },
-    { id:'fae_fire',         name:'Fae Fire',          icon:'🔥', unlockLevel:14, cooldown:3, passive:false,
-      damageMult:1.4, status:{type:'burn',chance:0.30},
-      desc:'1.4x damage. 30% Burn.', flavor:'Spooky things are just regular things with better lighting.' },
-    { id:'moth_wing_shield', name:'Moth Wing Shield',  icon:'🛡️', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:2},
-      desc:'Reduce damage taken 30% for 2 turns.', flavor:"I've been very patient. I am known for this." },
-    { id:'bone_armor',       name:'Bone Armor',        icon:'🦴', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, defBuff:{pct:0.25,turns:3},
-      desc:'Reduce damage taken 25% for 3 turns.', flavor:'I wrote a sad story about a moth. She\'s okay at the end.' },
-    { id:'fae_queens_blessing',name:"Fae Queen's Blessing",icon:'👑', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.0, status:{type:'fear',chance:0.50},
-      desc:'2.0x damage. 50% Fear.', flavor:'The fae left me a shiny thing. Very polite.' },
-    { id:'bone_storm',       name:'Bone Storm',        icon:'🌪️', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, debuff:{stat:'defense',chance:0.40,amount:0.20,turns:2},
-      desc:'2.2x damage. 40% DEF -20% for 2 turns.', flavor:'The shadows said something interesting.' },
-    { id:'glowing_aura',     name:'Glowing Aura',      icon:'✨', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'enemy_status_chance',status:'confuse',pct:0.10},
-      desc:'PASSIVE: 10% chance to Confuse enemy each turn from ambient glow.', flavor:'Something is glowing. I need to investigate.' },
-    { id:'bone_collector',   name:'Bone Collector',    icon:'🦴', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'bonus_dmg_vs_status',pct:0.15},
-      desc:'PASSIVE: +15% damage to enemies that have any status effect.', flavor:'I found the most beautiful bone today.' },
-    { id:'queens_judgment',  name:"Queen's Judgment",  icon:'👑', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, status:{type:'fear',chance:0.60}, defPiercing:0.50,
-      desc:'2.5x damage. 60% Fear. Ignores 50% enemy DEF.', flavor:'Do you want to see my bones? 🦋' },
-    { id:'fae_rebirth',      name:'Fae Rebirth',       icon:'🦋', unlockLevel:32, cooldown:8, passive:false,
-      damageMult:0, reviveEffect:{hpPct:0.50}, healPct:0.20,
-      desc:'Revive with 50% HP if you would faint. Also heals 20% HP now.', flavor:'Humans are so strange and silly. But you\'re doing wonderfully.' },
-  ],
-
-  blushimia: [
-    { id:'glitched_bark',    name:'Glitched Bark',     icon:'🎮', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.1, status:{type:'glitch',chance:0.30},
-      desc:'1.1x damage. 30% Glitch (20% skill fail, 2 turns).', flavor:'WHAT THE GLOB????!!!! 👑' },
-    { id:'puppy_rush',       name:'Puppy Rush',        icon:'🐾', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, status:{type:'stun',chance:0.15},
-      desc:'1.0x damage. 15% Stun.', flavor:"I'm free! I'm finally free!" },
-    { id:'escape_attempt',   name:'Escape Attempt',    icon:'🏃', unlockLevel:3,  cooldown:3, passive:false,
-      damageMult:0, escapeEffect:{successChance:0.60,onSuccess:'enemy_skip',onFail:'self_skip'},
-      desc:'60% chance: enemy loses next turn. 40% chance: YOU lose next turn.', flavor:'I WILL NOT BE PUT BACK IN A BOX!! 🐾' },
-    { id:'princess_charm',   name:"Princess's Charm",  icon:'👑', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, enemyAtkDebuff:{pct:0.20,turns:2},
-      desc:'No damage. Reduce enemy ATK 20% for 2 turns.', flavor:'Princess status: maximum.' },
-    { id:'reality_glitch',   name:'Reality Glitch',    icon:'📺', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.3, status:{type:'glitch',chance:0.30},
-      desc:'1.3x damage. 30% Glitch.', flavor:"What the glob?! I'm free!!" },
-    { id:'bark_of_freedom',  name:'Bark of Freedom',   icon:'🗣️', unlockLevel:7,  cooldown:2, passive:false,
-      damageMult:1.5, status:{type:'fear',chance:0.30},
-      desc:'1.5x damage. 30% Fear.', flavor:"This is so much better than my game!" },
-    { id:'pixel_break',      name:'Pixel Break',       icon:'💾', unlockLevel:8,  cooldown:3, passive:false,
-      damageMult:1.4, removesEnemyBuffs:true,
-      desc:'1.4x damage. Removes all enemy buffs.', flavor:"I have so many thoughts! All of them are good!" },
-    { id:'sentience_slam',   name:'Sentience Slam',    icon:'💥', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.7, status:{type:'stun',chance:0.50}, condBonus:{ifStatus:'glitch',guaranteeStatus:'stun'},
-      desc:'1.7x damage. 50% Stun. If Glitched: Stun guaranteed.', flavor:'I AM SENTIENT!! I WILL NOT BE CONTAINED!! 👑🐾' },
-    { id:'game_breaker',     name:'Game Breaker',      icon:'🎮', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.8, status:{type:'glitch',chance:0.40}, removesEnemyBuffs:true,
-      desc:'1.8x damage. 40% Glitch. Removes enemy buffs.', flavor:'I escaped a video game. Wild.' },
-    { id:'princess_wrath',   name:"Princess's Wrath",  icon:'👑', unlockLevel:14, cooldown:3, passive:false,
-      damageMult:1.6, status:{type:'fear',chance:0.30}, randomStatus:['confuse'],
-      desc:'1.6x damage. 30% Fear + 30% Confuse.', flavor:'The princess has arrived. You\'re welcome.' },
-    { id:'digital_shield',   name:'Digital Shield',    icon:'🛡️', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:2},
-      desc:'Reduce damage taken 30% for 2 turns.', flavor:'Wanna see my escape route?' },
-    { id:'escape_plan',      name:'Escape Plan',       icon:'🚪', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, evasionBuff:0.50, spdBuff:{pct:0.15,turns:2},
-      desc:'No damage. 50% evasion next turn. +15% speed for 2 turns.', flavor:'WHAT THE GLOB I AM SO HAPPY RIGHT NOW!!' },
-    { id:'reality_break_b',  name:'Reality Break',     icon:'💥', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.0, status:{type:'glitch',chance:0.50}, removesEnemyBuffs:true,
-      desc:'2.0x damage. 50% Glitch. Removes all enemy buffs.', flavor:'I AM SENTIENT!!' },
-    { id:'sentience_overload',name:'Sentience Overload',icon:'⚡', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, status:{type:'stun',chance:0.40}, selfStunChance:0.20,
-      desc:'2.2x damage. 40% Stun. 20% chance to stun yourself too.', flavor:'I AM ALIVE!! I WILL NOT BE CONTAINED!!' },
-    { id:'glitch_aura',      name:'Glitch Aura',       icon:'📺', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'enemy_status_chance',status:'glitch',pct:0.15},
-      desc:'PASSIVE: 15% chance enemy Glitches on their turn.', flavor:'what the glob what the glob what the glob' },
-    { id:'freedom_fighter',  name:'Freedom Fighter',   icon:'🐾', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'hp_threshold_dmg',threshold:0.30,pct:0.20},
-      desc:'PASSIVE: +20% damage when your HP is below 30%.', flavor:'I will NOT be put back in a box!!' },
-    { id:'system_crash',     name:'System Crash',      icon:'💻', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, status:{type:'glitch',chance:0.70}, statusTurnsBonus:1,
-      desc:'2.5x damage. 70% Glitch for 3 turns. Enemy is severely disrupted.', flavor:'WHAT THE GLOB!!!!???? 👑' },
-    { id:'true_sentience',   name:'True Sentience',    icon:'✨', unlockLevel:32, cooldown:6, passive:false,
-      damageMult:0, healPct:0.50, cleanse:true, atkBuff:{amount:0.30,turns:2},
-      desc:'Heal 50% HP. Cleanse all statuses. +30% ATK for 2 turns.', flavor:'I AM SENTIENT!! I AM ALIVE!!' },
-  ],
-
-  steve: [
-    { id:'moo_buzz',         name:'Moo Buzz',          icon:'🐄', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.2, status:{type:'confuse',chance:0.15},
-      desc:'1.2x damage. 15% Confuse. The sound should not exist.',
-      flavor:'CLUCK! BAWK! BUCK! $#@&! Cockadoodledoo! 🐔' },
-    { id:'headbutt',         name:'Headbutt',          icon:'💥', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, status:{type:'stun',chance:0.20},
-      desc:'1.0x damage. 20% Stun.', flavor:"Don't test me. I'll peck you." },
-    { id:'chaos_call',       name:'Chaos Call',        icon:'📢', unlockLevel:3,  cooldown:2, passive:false,
-      damageMult:0, randomStatus:['confuse','fear'],
-      desc:'No damage. 30% Confuse, 30% Fear, 40% nothing.', flavor:"I'm a menace, owo." },
-    { id:'menace_aura_steve',name:'Menace Aura',       icon:'😈', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, enemyAtkDebuff:{pct:0.15,turns:2},
-      desc:'No damage. Reduce enemy ATK 15% for 2 turns.', flavor:'As chill as a fire in hell!' },
-    { id:'stampede',         name:'Stampede',          icon:'🏃', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.4, status:{type:'stun',chance:0.25},
-      desc:'1.4x damage. 25% Stun.', flavor:'CLUCK! BAWK! BUCK! Cockadoodledoo!' },
-    { id:'chaos_stampede',   name:'Chaos Stampede',    icon:'🌪️', unlockLevel:7,  cooldown:3, passive:false,
-      damageMult:1.5, atkScaling:{perAttack:0.10,max:0.50},
-      desc:'1.5x damage. +10% per attack used this battle (max +50%).', flavor:"I'M A MENACE! A MENACE, I SAY!" },
-    { id:'bawk_of_terror',   name:'Bawk of Terror',    icon:'😱', unlockLevel:8,  cooldown:3, passive:false,
-      damageMult:1.3, status:{type:'fear',chance:0.40},
-      desc:'1.3x damage. 40% Fear.', flavor:'Cluck. That means hello. Or a threat. Unclear.' },
-    { id:'chill_menace',     name:'The Chill Menace',  icon:'😈', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.6, status:{type:'fear',chance:0.60}, condBonus:{ifStatus:'confuse',mult:2.0,guaranteeStatus:'stun'},
-      desc:'1.6x damage. 60% Fear. If Confused: damage doubles, Stun guaranteed.',
-      flavor:'As chill as a fire in hell. And right now, the fire is VERY chill. 🐔' },
-    { id:'farmyard_frenzy',  name:'Farmyard Frenzy',   icon:'🐄', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.7, randomStatus:['confuse','fear'],
-      desc:'1.7x damage. 30% Confuse AND 30% Fear.', flavor:'I produce milk AND honey. Economists are recovering.' },
-    { id:'berserker_bawk',   name:'Berserker Bawk',    icon:'💢', unlockLevel:14, cooldown:3, passive:false,
-      damageMult:1.8, selfCostPct:0.10, atkBuff:{amount:0.20,turns:2},
-      desc:'1.8x damage. Costs 10% HP. +20% ATK for 2 turns.', flavor:'Your cozy little horror is feeling very cozy today.' },
-    { id:'feather_shield',   name:'Feather Shield',    icon:'🪶', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.25,turns:2},
-      desc:'Reduce damage taken 25% for 2 turns.', flavor:"I've been streaming since 2016. Don't ask." },
-    { id:'menace_recovery',  name:'Menace Recovery',   icon:'💚', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, healPct:0.20, atkBuff:{amount:0.15,turns:2},
-      desc:'Heal 20% HP. +15% ATK for 2 turns.', flavor:'The bread is mine. All of it. Historically.' },
-    { id:'total_chaos',      name:'Total Chaos',       icon:'🌀', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.0, randomStatus:['confuse','fear','stun'],
-      desc:'2.0x damage. Random heavy status (confuse/fear/stun).', flavor:'Cluck bawk. Translation: I am thriving chaotically.' },
-    { id:'apocalypse_bawk',  name:'Apocalypse Bawk',   icon:'💀', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, status:{type:'stun',chance:0.50}, selfCostPct:0.15,
-      desc:'2.2x damage. 50% Stun. Costs 15% HP.', flavor:"I'm operating on a different frequency." },
-    { id:'chaos_incarnate',  name:'Chaos Incarnate',   icon:'😈', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'enemy_status_chance',status:'confuse',pct:0.20},
-      desc:'PASSIVE: 20% chance enemy becomes Confused on their turn start.', flavor:'I produce milk AND honey.' },
-    { id:'menace_persistence',name:'Menace Persistence',icon:'💢', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'hp_threshold_dmg',threshold:0.30,pct:0.25},
-      desc:'PASSIVE: +25% damage when HP below 30%.', flavor:'Everything is fine. I caused minor problems.' },
-    { id:'judgment_day',     name:'Judgment Day',      icon:'⚡', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, randomStatus:['confuse','fear'], selfCostPct:0.20,
-      desc:'2.5x damage. Confuse AND Fear applied. Costs 20% HP.', flavor:"I'M A MENACE! A MENACE, I SAY!" },
-    { id:'undying_menace',   name:'Undying Menace',    icon:'🐄', unlockLevel:32, cooldown:8, passive:false,
-      damageMult:0, reviveEffect:{hpPct:0.50}, atkBuff:{amount:0.30,turns:3},
-      desc:'Revive with 50% HP if you would faint. +30% ATK for 3 turns.', flavor:"I'm a menace, owo." },
-  ],
-
-  kleat: [
-    { id:'confusing_sniff',  name:'Confusing Sniff',   icon:'🐾', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, status:{type:'confuse',chance:0.40},
-      desc:'1.0x damage. 40% Confuse.', flavor:'Yip yap teehee I opened a portal! 🌀' },
-    { id:'pom_dash',         name:'Pom Dash',          icon:'💨', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, spdBuff:{pct:0.10,turns:1},
-      desc:'1.0x damage. +10% speed for 1 turn.', flavor:'The void says hi. I said hi back.' },
-    { id:'portal_step',      name:'Portal Step',       icon:'🌀', unlockLevel:3,  cooldown:2, passive:false,
-      damageMult:0, evasionBuff:0.30, spdBuff:{pct:0.15,turns:2},
-      desc:'No damage. +30% evasion next turn. +15% speed for 2 turns.', flavor:'YIP! Portal opened! 🌀' },
-    { id:'void_gaze',        name:'Void Gaze',         icon:'🌑', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, randomStatus:['fear','confuse'],
-      desc:'No damage. 30% Fear, 30% Confuse, 40% nothing.', flavor:'The void says hi. Very productive.' },
-    { id:'cinnabon_explosion',name:'Cinnabon Explosion',icon:'🍥', unlockLevel:5,  cooldown:3, passive:false,
-      damageMult:1.4, lifeStealChance:{chance:0.30,pct:0.15},
-      desc:'1.4x damage. 30% chance heal 15% of damage dealt.', flavor:"I'm a grand mage! I'm ALSO a Pomeranian! ✨" },
-    { id:'void_slice',       name:'Void Slice',        icon:'⚫', unlockLevel:7,  cooldown:2, passive:false,
-      damageMult:1.5, removesEnemyBuffs:true,
-      desc:'1.5x damage. 20% chance to remove enemy buffs.', flavor:'Yap yap yap. That\'s arcane language.' },
-    { id:'galaxy_shield',    name:'Galaxy Shield',     icon:'🌌', unlockLevel:8,  cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:2},
-      desc:'Reduce damage taken 30% for 2 turns.', flavor:'Grand mage hours. Do not test me.' },
-    { id:'chaos_portal_kleat',name:'Chaos Portal',     icon:'🌌', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.6, chaosEffect:[{weight:40,effect:'double_damage'},{weight:30,effect:'heal_20pct'},{weight:20,effect:'enemy_skip'},{weight:10,effect:'nothing'}],
-      desc:'1.6x damage + random: 40% double, 30% heal, 20% skip, 10% nothing.', flavor:'Yip! Teehee! I don\'t know what\'s happening either!' },
-    { id:'void_blast',       name:'Void Blast',        icon:'💜', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.7, randomStatus:['glitch','fear'],
-      desc:'1.7x damage. 30% Glitch + 30% Fear.', flavor:'I got lost in another dimension. Found snacks. Worth it.' },
-    { id:'pom_magic',        name:'Pom Magic',         icon:'⭐', unlockLevel:14, cooldown:3, passive:false,
-      damageMult:1.5, status:{type:'confuse',chance:0.40}, spdBuff:{pct:0.15,turns:2},
-      desc:'1.5x damage. 40% Confuse. +15% speed for 2 turns.', flavor:'The floof is a weapon. A soft, powerful weapon.' },
-    { id:'portal_wall',      name:'Portal Wall',       icon:'🚪', unlockLevel:16, cooldown:4, passive:false,
-      damageMult:0, defBuff:{pct:0.25,turns:3},
-      desc:'Reduce damage taken 25% for 3 turns.', flavor:'Another portal opened. I didn\'t do it. Probably.' },
-    { id:'void_heal',        name:'Void Heal',         icon:'💜', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, healPct:0.25, cleanse:true,
-      desc:'Heal 25% HP. Remove all negative statuses.', flavor:'YIP! That means I\'m excited! And also always!' },
-    { id:'reality_rip',      name:'Reality Rip',       icon:'🌀', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.0, randomStatus:['stun','fear'],
-      desc:'2.0x damage. 40% Stun + 30% Fear.', flavor:'Chaotic? Prefer \'dynamically spontaneous\'.' },
-    { id:'pom_apocalypse',   name:'Pom Apocalypse',    icon:'💥', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, randomStatus:['confuse','glitch'], selfCostPct:0.10,
-      desc:'2.2x damage. Confuse + Glitch. Costs 10% HP.', flavor:'The Pomeranian has spoken. Heed the yap.' },
-    { id:'void_aura',        name:'Void Aura',         icon:'🌑', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'enemy_skip_chance',pct:0.15},
-      desc:'PASSIVE: 15% chance enemy loses their turn when attacking.', flavor:'The void says hi. I said hi back.' },
-    { id:'portal_magic',     name:'Portal Magic',      icon:'🌀', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'double_skill_chance',pct:0.10},
-      desc:'PASSIVE: 10% chance any skill triggers twice.', flavor:'I opened three portals and I regret nothing.' },
-    { id:'universal_void',   name:'Universal Void',    icon:'🌌', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, randomStatus:['stun','fear'], defPiercing:0.25,
-      desc:'2.5x damage. Stun + Fear. Ignores 25% DEF.', flavor:'I am small. I am mighty. The void confirms this.' },
-    { id:'pom_god_mode',     name:'Pom God Mode',      icon:'👑', unlockLevel:32, cooldown:7, passive:false,
-      damageMult:0, healPct:0.40, atkBuff:{amount:0.25,turns:3}, cleanse:true,
-      desc:'Heal 40% HP. +25% ATK for 3 turns. Cleanse all statuses.', flavor:'Everything is fine! I opened a portal to make sure!' },
+    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.1, status: { type: 'confuse', chance: 0.30 },
+      desc: 'Deals 1.1x damage. 30% chance to Confuse the enemy (30% miss chance for 2 turns).',
+      flavor: "I have a plan. It involves sparkles. ✨" },
+    { id: 'echo_of_fear', name: 'Echo of Fear', icon: '👻', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.3, debuff: { stat: 'defense', amount: 0.10, turns: 2 },
+      desc: 'Deals 1.3x damage. Lowers enemy Defense by 10% for 2 turns.',
+      flavor: "I know things I shouldn't. My mom was a demon. 👻" },
+    { id: 'mamas_grace', name: "Mama's Grace", icon: '🌙', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.7, status: { type: 'fear', chance: 0.50 }, condBonus: { ifStatus: 'confuse', mult: 2.0 },
+      desc: 'Deals 1.7x damage. 50% chance to Fear (skip turn). If enemy is already Confused: damage doubles.',
+      flavor: "Mama said I was special. I don't think she meant this. 🌙" }
   ],
 
   gnarly: [
-    { id:'quarter_punch',    name:'Quarter Punch',     icon:'🕹️', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.3, status:{type:'stun',chance:0.15},
-      desc:'1.3x damage. 15% Stun.', flavor:"I've been putting quarters in this machine for 20 years. 🕹️" },
-    { id:'button_mash',      name:'Button Mash',       icon:'🎮', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, critBonus:0.10,
-      desc:'1.0x damage. +10% crit chance.', flavor:'Radical! Completely radical!' },
-    { id:'glitch_step',      name:'Glitch Step',       icon:'💾', unlockLevel:3,  cooldown:3, passive:false,
-      damageMult:0, evasionBuff:0.50, atkBuff:{amount:0.15,turns:2},
-      desc:'No damage. 50% evasion next turn. +15% ATK for 2 turns.', flavor:'You can\'t beat a game that\'s already broken. 💾' },
-    { id:'power_up',         name:'Power Up',          icon:'⬆️', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, atkBuff:{amount:0.20,turns:2},
-      desc:'No damage. +20% ATK for 2 turns.', flavor:'HIGH SCORE! In life AND in games!' },
-    { id:'arcade_rush',      name:'Arcade Rush',       icon:'🎮', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.4, spdBuff:{pct:0.15,turns:2},
-      desc:'1.4x damage. +15% speed for 2 turns.', flavor:'PaleoPlex is OPEN and the nachos are FRESH.' },
-    { id:'high_score_slam',  name:'High Score Slam',   icon:'🏆', unlockLevel:7,  cooldown:4, passive:false,
-      damageMult:2.0, skillScaling:{perSkillUsed:0.05,max:0.50},
-      desc:'2.0x damage. +5% per skill used this battle (max +50%).', flavor:"I'm going for the high score. Get out of my way. 🏆" },
-    { id:'extra_life',       name:'Extra Life',        icon:'💚', unlockLevel:8,  cooldown:5, passive:false,
-      damageMult:0, healPct:0.25,
-      desc:'Heal 25% max HP.', flavor:"I never get game overs. In games OR in life." },
-    { id:'turbo_mode',       name:'Turbo Mode',        icon:'⚡', unlockLevel:10, cooldown:3, passive:false,
-      damageMult:0, spdBuff:{pct:0.30,turns:3},
-      desc:'No damage. +30% speed for 3 turns.', flavor:'Prehistorically good at everything. It\'s a gift.' },
-    { id:'final_boss',       name:'Final Boss',        icon:'👾', unlockLevel:12, cooldown:4, passive:false,
-      damageMult:1.8, status:{type:'stun',chance:0.30},
-      desc:'1.8x damage. 30% Stun.', flavor:'The high score board has my name on it. All of them.' },
-    { id:'continue',         name:'Continue?',         icon:'🔄', unlockLevel:14, cooldown:8, passive:false,
-      damageMult:0, reviveEffect:{hpPct:0.30},
-      desc:'Revive with 30% HP if you would faint. One use.', flavor:'INSERT COIN. That\'s you. You\'re the coin.' },
-    { id:'neo_punch',        name:'Neo Punch',         icon:'👊', unlockLevel:16, cooldown:3, passive:false,
-      damageMult:1.5, status:{type:'confuse',chance:0.30},
-      desc:'1.5x damage. 30% Confuse.', flavor:'Sick moves incoming. I practiced. Well, \'practiced\'.' },
-    { id:'arcade_shield',    name:'Arcade Shield',     icon:'🛡️', unlockLevel:18, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:2},
-      desc:'Reduce damage taken 30% for 2 turns.', flavor:'The Furbies are watching. They approve.' },
-    { id:'perfect_run',      name:'Perfect Run',       icon:'⭐', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.2, critBonus:0.20,
-      desc:'2.2x damage. +20% crit chance this battle.', flavor:'I got banned from an arcade once. Best story ever.' },
-    { id:'game_over',        name:'Game Over',         icon:'💀', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.5, selfStun:true,
-      desc:'2.5x damage. YOU are stunned for the next 2 turns.', flavor:'Gnarly status: fully operational, maximum radical.' },
-    { id:'retro_aura',       name:'Retro Aura',        icon:'🕹️', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'reflect',pct:0.10,chance:0.25},
-      desc:'PASSIVE: 25% chance to reflect 10% of incoming damage.', flavor:'Even the Furbies can\'t keep up with me.' },
-    { id:'speed_runner',     name:'Speed Runner',      icon:'⚡', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'flat_stat_bonus',stats:{speed:0.15,evasion:0.10}},
-      desc:'PASSIVE: Permanently +15% speed and +10% evasion in battle.', flavor:'Neopets The Darkest Faerie is a masterpiece.' },
-    { id:'high_score_god',   name:'High Score God',    icon:'🏆', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:3.0, skillScaling:{perSkillUsed:0.05,max:0.50}, selfCostPct:0.20,
-      desc:'3.0x damage + skill scaling bonus. Costs 20% HP. The absolute maximum.', flavor:'The high score board has my name on it. ALL of them.' },
-    { id:'continue_plus',    name:'Continue+',         icon:'🔄', unlockLevel:32, cooldown:10, passive:false,
-      damageMult:0, reviveEffect:{hpPct:0.60}, atkBuff:{amount:0.30,turns:3},
-      desc:'Revive with 60% HP. +30% ATK for 3 turns afterward.', flavor:'Player two has entered the game. Maximum radical.' },
+    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.3, status: { type: 'stun', chance: 0.15 },
+      desc: 'Deals 1.3x damage. 15% chance to Stun (enemy skips next turn).',
+      flavor: "I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️" },
+    { id: 'glitch_step', name: 'Glitch Step', icon: '💾', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, evasionBuff: 0.50, atkBuff: { amount: 0.15, turns: 2 },
+      desc: 'No damage. Next enemy attack has 50% chance to miss. +15% Attack for 2 turns.',
+      flavor: "You can't beat a game that's already broken. 💾" },
+    { id: 'high_score_slam', name: 'High Score Slam', icon: '🏆', unlockLevel: 10, cooldown: 4,
+      damageMult: 2.0, skillScaling: { perSkillUsed: 0.05, max: 0.50 },
+      desc: 'Deals 2.0x damage. +5% bonus per skill used this battle (max +50%). Gets stronger the longer you fight.',
+      flavor: "I'm going for the high score. Get out of my way. 🏆" }
+  ],
+
+  kleat: [
+    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.0, status: { type: 'confuse', chance: 0.40 },
+      desc: 'Deals 1.0x damage. 40% chance to Confuse the enemy (30% miss chance for 2 turns).',
+      flavor: "Yip yap teehee I opened a portal! 🌀" },
+    { id: 'cinnabon_explosion', name: 'Cinnabon Explosion', icon: '🍥', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.4, lifeStealChance: { chance: 0.30, pct: 0.15 },
+      desc: 'Deals 1.4x damage. 30% chance to heal 15% of damage dealt as HP.',
+      flavor: "I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨" },
+    { id: 'chaos_portal', name: 'Chaos Portal', icon: '🌌', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.6, chaosEffect: [
+        { weight: 40, effect: 'double_damage' },
+        { weight: 30, effect: 'heal_20pct' },
+        { weight: 20, effect: 'enemy_skip' },
+        { weight: 10, effect: 'nothing' }
+      ],
+      desc: 'Deals 1.6x damage + random chaos effect: 40% double damage, 30% heal 20% HP, 20% enemy loses turn, 10% nothing.',
+      flavor: "Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" }
+  ],
+
+  aria: [
+    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.2, debuff: { stat: 'defense', chance: 0.20, amount: 0.10, turns: 2 },
+      desc: 'Deals 1.2x damage. 20% chance to lower enemy Defense by 10% for 2 turns.',
+      flavor: "Do you want to see my bones? 🦋" },
+    { id: 'fae_light', name: 'Fae Light', icon: '✨', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.20, atkBuffChance: { chance: 0.30, amount: 0.15, turns: 2 },
+      desc: 'No damage. Restores 20% max HP. 30% chance to also gain +15% Attack for 2 turns.',
+      flavor: "Humans are so strange and silly. But you're doing wonderfully. 🌸" },
+    { id: 'moths_embrace', name: "Moth's Embrace", icon: '🦋', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.5, lifeSteal: 0.20, status: { type: 'infatuate', chance: 0.40 },
+      desc: 'Deals 1.5x damage. Heals 20% of damage dealt. 40% chance to Infatuate (enemy deals 30% less damage for 2 turns).',
+      flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
   ],
 
   jess: [
-    { id:'fossil_strike',    name:'Fossil Strike',     icon:'🦴', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.3, debuff:{stat:'defense',chance:0.15,amount:0.10,turns:2},
-      desc:'1.3x damage. 15% chance DEF -10% for 2 turns.', flavor:'This fossil is 65 million years cuter than you. 🦕' },
-    { id:'herbivores_bite',  name:"Herbivore's Bite",  icon:'🌿', unlockLevel:1,  cooldown:1, passive:false,
-      damageMult:1.0, spdBuff:{pct:0.05,turns:1},
-      desc:'1.0x damage. Small speed boost.', flavor:'A quiet critter doing quiet things.' },
-    { id:'potion_brew',      name:'Potion Brew',       icon:'🧪', unlockLevel:3,  cooldown:3, passive:false,
-      damageMult:0, healPct:0.20, randomBuff:{chance:0.50,options:['attack','defense'],amount:0.15,turns:2},
-      desc:'Heal 20% HP. 50% chance ATK or DEF +15% for 2 turns.', flavor:'The potion came out right on the first try today. 🌿' },
-    { id:'fossil_dust',      name:'Fossil Dust',       icon:'💨', unlockLevel:4,  cooldown:2, passive:false,
-      damageMult:0, randomStatus:['petrify','confuse'],
-      desc:'No damage. 30% Petrify + 30% Confuse.', flavor:'I found something interesting in the dirt.' },
-    { id:'tail_whip',        name:'Tail Whip',         icon:'🦕', unlockLevel:5,  cooldown:2, passive:false,
-      damageMult:1.4, status:{type:'stun',chance:0.20},
-      desc:'1.4x damage. 20% Stun.', flavor:'65 million years of dinosaur history. Still thriving.' },
-    { id:'mesozoic_roar',    name:'Mesozoic Roar',     icon:'🦕', unlockLevel:7,  cooldown:3, passive:false,
-      damageMult:1.5, status:{type:'fear',chance:0.30},
-      desc:'1.5x damage. 30% Fear.', flavor:"The dinosaurs didn't go extinct. They just got cuter." },
-    { id:'healing_brew',     name:'Healing Brew',      icon:'🌿', unlockLevel:8,  cooldown:4, passive:false,
-      damageMult:0, healPct:0.30, cleanse:true,
-      desc:'Heal 30% HP. Remove Burn and Poison.', flavor:'I have a mango delight and life is good.' },
-    { id:'mesozoic_rage',    name:'Mesozoic Rage',     icon:'🌋', unlockLevel:10, cooldown:4, passive:false,
-      damageMult:1.9, status:{type:'fear',chance:0.40}, condBonus:{ifStatus:'petrify',mult:2.0},
-      desc:'1.9x damage. 40% Fear. If Petrified: damage doubles.', flavor:'65 million years of evolution. I\'ve been waiting. 🌋' },
-    { id:'fossil_armor',     name:'Fossil Armor',      icon:'🦴', unlockLevel:12, cooldown:3, passive:false,
-      damageMult:0, defBuff:{pct:0.30,turns:2},
-      desc:'Reduce damage taken 30% for 2 turns.', flavor:'The fossils have been very talkative today.' },
-    { id:'ancient_power',    name:'Ancient Power',     icon:'⚡', unlockLevel:14, cooldown:4, passive:false,
-      damageMult:1.7, debuff:{stat:'defense',chance:0.40,amount:0.15,turns:2},
-      desc:'1.7x damage. 40% chance DEF -15% for 2 turns.', flavor:'Something whimsical is happening and I\'m here for it.' },
-    { id:'potion_expert',    name:'Potion Expert',     icon:'🧪', unlockLevel:16, cooldown:4, passive:false,
-      damageMult:0, healPct:0.30, cleanse:true,
-      desc:'Heal 30% HP. Remove ALL negative statuses.', flavor:'I started a new potion. It\'s going well. Probably.' },
-    { id:'fossil_shield',    name:'Fossil Shield',     icon:'🛡️', unlockLevel:18, cooldown:4, passive:false,
-      damageMult:0, defBuff:{pct:0.25,turns:3},
-      desc:'Reduce damage taken 25% for 3 turns.', flavor:'The fossils say hi. Very polite for being old.' },
-    { id:'jurassic_slam',    name:'Jurassic Slam',     icon:'🌋', unlockLevel:20, cooldown:5, passive:false,
-      damageMult:2.0, debuff:{stat:'defense',chance:0.50,amount:0.20,turns:2},
-      desc:'2.0x damage. 50% chance DEF -20% for 2 turns.', flavor:'Art is happening. Quietly. With full dinosaur energy.' },
-    { id:'prehistoric_roar', name:'Prehistoric Roar',  icon:'🦕', unlockLevel:22, cooldown:5, passive:false,
-      damageMult:2.2, randomStatus:['fear','stun'],
-      desc:'2.2x damage. 40% Fear + 30% Stun.', flavor:'65 million years of evolution. I\'ve been waiting for this.' },
-    { id:'ancient_aura',     name:'Ancient Aura',      icon:'🦴', unlockLevel:25, cooldown:0, passive:true,
-      passiveEffect:{type:'enemy_status_chance',status:'petrify',pct:0.15},
-      desc:'PASSIVE: 15% chance to Petrify attackers when they hit you.', flavor:'The fossils have been very talkative today.' },
-    { id:'potion_mastery',   name:'Potion Mastery',    icon:'🧪', unlockLevel:27, cooldown:0, passive:true,
-      passiveEffect:{type:'heal_bonus',pct:0.20},
-      desc:'PASSIVE: All healing effects are 20% stronger.', flavor:'The potion came out right on the first try today.' },
-    { id:'extinction_event', name:'Extinction Event',  icon:'☄️', unlockLevel:30, cooldown:6, passive:false,
-      damageMult:2.5, randomStatus:['petrify','fear'],
-      desc:'2.5x damage. 60% Petrify + 40% Fear.', flavor:'65 million years of dinosaur history. Still thriving.' },
-    { id:'eternal_parasaur', name:'Eternal Parasaur',  icon:'🦕', unlockLevel:32, cooldown:7, passive:false,
-      damageMult:0, healPct:0.50, atkBuff:{amount:0.20,turns:3}, defBuff:{pct:0.20,turns:3},
-      desc:'Heal 50% HP. +20% ATK and DEF for 3 turns.', flavor:'This fossil is 65 million years cuter than you. 🦕' },
+    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
+      desc: 'Deals 1.3x damage. 15% chance to Petrify (enemy loses 10% Defense for 2 turns).',
+      flavor: "This fossil is 65 million years cuter than you. 🦕" },
+    { id: 'potion_brew', name: 'Potion Brew', icon: '🧪', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, healPct: 0.15, randomBuff: { chance: 0.50, options: ['attack', 'defense'], amount: 0.15, turns: 2 },
+      desc: 'No damage. Restores 15% max HP. 50% chance to also gain +15% Attack or Defense for 2 turns.',
+      flavor: "The potion came out right on the first try today. That's a good sign. 🌿" },
+    { id: 'mesozoic_rage', name: 'Mesozoic Rage', icon: '🦕', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.9, status: { type: 'fear', chance: 0.40 }, condBonus: { ifStatus: 'petrify', mult: 2.0 },
+      desc: 'Deals 1.9x damage. 40% chance to Fear. If enemy is Petrified: damage doubles.',
+      flavor: "65 million years of evolution. I've been waiting for this. 🌋" }
   ],
 
-};
+  blushimia: [
+    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.1, status: { type: 'glitch', chance: 0.30 },
+      desc: 'Deals 1.1x damage. 30% chance to Glitch the enemy (20% chance their skills fail for 2 turns).',
+      flavor: "WHAT THE GLOB????!!!! 👑" },
+    { id: 'escape_attempt', name: 'Escape Attempt', icon: '🏃', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, escapeEffect: { successChance: 0.60, onSuccess: 'enemy_skip', onFail: 'self_skip' },
+      desc: 'No damage. 60% chance: enemy loses next turn. 40% chance: YOU lose next turn instead. Always costs your turn.',
+      flavor: "I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
+    { id: 'sentience_slam', name: 'Sentience Slam', icon: '💥', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.7, status: { type: 'stun', chance: 0.50 }, condBonus: { ifStatus: 'glitch', guaranteeStatus: 'stun' },
+      desc: 'Deals 1.7x damage. 50% chance to Stun. If enemy is Glitched: Stun is guaranteed.',
+      flavor: "I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" }
+  ],
 
+  steve: [
+    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 1,
+      damageMult: 1.2, status: { type: 'confuse', chance: 0.15 },
+      desc: 'Deals 1.2x damage. 15% chance to Confuse the enemy (30% miss chance for 2 turns).',
+      flavor: "CLUCK! BAWK! BUCK! $#@&! Cockadoodledoo! 🐔" },
+    { id: 'chaos_stampede', name: 'Chaos Stampede', icon: '🏃', unlockLevel: 5, cooldown: 3,
+      damageMult: 1.4, status: { type: 'stun', chance: 0.25 }, atkScaling: { perAttack: 0.10, max: 0.50 },
+      desc: 'Deals 1.4x damage. 25% chance to Stun. Gains +10% damage per attack used this battle (max +50%).',
+      flavor: "I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
+    { id: 'chill_menace', name: 'The Chill Menace', icon: '😈', unlockLevel: 10, cooldown: 4,
+      damageMult: 1.6, status: { type: 'fear', chance: 0.60 }, condBonus: { ifStatus: 'confuse', mult: 2.0, guaranteeStatus: 'stun' },
+      desc: 'Deals 1.6x damage. 60% chance to Fear. If enemy is Confused: damage doubles and Stun is guaranteed.',
+      flavor: "As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" }
+  ]
+};
 
 // Returns the skills available to a pet at its current level
 function getSkillsForPet(petName, petLevel) {
   var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
+  // Handle name variants: pyxshuul → pyxie name in DB
   var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
     gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
     blushimia: 'blushimia', steve: 'steve', cowbee: 'steve' };
-  var mappedKey = nameMap[key] || nameMap[(petName || '').toLowerCase()] || null;
+  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
   if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
-
-  var level = petLevel || 1;
-  var allSkills = PET_SKILLS[mappedKey].filter(function(s) { return level >= s.unlockLevel; });
-  var passives = allSkills.filter(function(s) { return s.passive; });
-  var actives  = allSkills.filter(function(s) { return !s.passive; });
-  var slotCount = petSkills_slotCount(level);
-  var storageKey = mappedKey + '_' + petName;
-  var loadout = petSkills_getLoadout(storageKey, actives, slotCount);
-  return loadout.concat(passives);
-}
-
-function petSkills_slotCount(level) {
-  if (level >= 20) return 6;
-  if (level >= 12) return 5;
-  if (level >= 5)  return 4;
-  return 3;
-}
-
-function petSkills_getLoadout(storageKey, availableActives, slotCount) {
-  var saved = null;
-  try { saved = JSON.parse(localStorage.getItem('skill_loadout_' + storageKey) || 'null'); } catch(e) {}
-  if (!saved || !Array.isArray(saved)) return availableActives.slice(0, slotCount);
-  var result = [];
-  saved.forEach(function(id) {
-    var sk = availableActives.find(function(s) { return s.id === id; });
-    if (sk && result.length < slotCount) result.push(sk);
-  });
-  availableActives.forEach(function(sk) {
-    if (result.length < slotCount && !result.find(function(r) { return r.id === sk.id; })) result.push(sk);
-  });
-  return result.slice(0, slotCount);
-}
-
-function petSkills_saveLoadout(storageKey, skillIds) {
-  try { localStorage.setItem('skill_loadout_' + storageKey, JSON.stringify(skillIds)); } catch(e) {}
-}
-
-function petSkills_addToLoadout(storageKey, skillId) {
-  var saved = null;
-  try { saved = JSON.parse(localStorage.getItem('skill_loadout_' + storageKey) || 'null'); } catch(e) {}
-  if (!Array.isArray(saved)) saved = [];
-  if (!saved.includes(skillId)) saved.push(skillId);
-  petSkills_saveLoadout(storageKey, saved);
-  var modal = document.querySelector('.modal-overlay');
-  if (modal && modal._skillsRerender) modal._skillsRerender();
-}
-
-function petSkills_removeFromLoadout(storageKey, skillId) {
-  var saved = null;
-  try { saved = JSON.parse(localStorage.getItem('skill_loadout_' + storageKey) || 'null'); } catch(e) {}
-  if (!Array.isArray(saved)) return;
-  saved = saved.filter(function(id) { return id !== skillId; });
-  petSkills_saveLoadout(storageKey, saved);
-  var modal = document.querySelector('.modal-overlay');
-  if (modal && modal._skillsRerender) modal._skillsRerender();
-}
-
-function petSkills_openManager(petId) {
-  var pet = petState[petId];
-  if (!pet) return;
-  var petName = (pet.pets && pet.pets.name) || 'Pet';
-  var level = pet.level || 1;
-  var key = petName.toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
-  var nameMap = { pyxshuul:'pyxie', pyxie:'pyxie', ember:'ember', embertail:'ember',
-    gnarly:'gnarly', kelta:'kleat', kleat:'kleat', aria:'aria', jess:'jess',
-    blushimia:'blushimia', steve:'steve', cowbee:'steve' };
-  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || key;
-  var storageKey = mappedKey + '_' + petName;
-  if (!PET_SKILLS[mappedKey]) { showToast('No skills found for this pet.', 2000); return; }
-
-  var allSkills  = PET_SKILLS[mappedKey];
-  var slotCount  = petSkills_slotCount(level);
-  var unlockedActives  = allSkills.filter(function(s) { return level >= s.unlockLevel && !s.passive; });
-  var unlockedPassives = allSkills.filter(function(s) { return level >= s.unlockLevel && s.passive; });
-
-  function render() {
-    var loadout = petSkills_getLoadout(storageKey, unlockedActives, slotCount);
-    var loadoutIds = loadout.map(function(s) { return s.id; });
-    var available = unlockedActives.filter(function(s) { return !loadoutIds.includes(s.id); });
-    var locked = allSkills.filter(function(s) { return level < s.unlockLevel && !s.passive; }).slice(0, 6);
-    var canAdd = loadout.length < slotCount;
-
-    var h = '<div style="font-family:Fredoka,sans-serif;max-width:580px;">';
-    h += '<h2 style="margin-bottom:4px;">⚔️ ' + escapeHtml(petName) + ' — Skills</h2>';
-    h += '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:14px;">Lv' + level + ' · ' + slotCount + ' slots · ' + unlockedActives.length + ' unlocked</div>';
-
-    // Active loadout
-    h += '<div style="margin-bottom:14px;"><div style="font-size:0.82rem;font-weight:700;color:var(--purple-dark);margin-bottom:8px;">Active Slots (' + loadout.length + '/' + slotCount + ')</div>';
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;">';
-    loadout.forEach(function(sk) {
-      h += '<div style="background:rgba(153,102,255,0.1);border:2px solid var(--purple);border-radius:10px;padding:10px;position:relative;">';
-      h += '<div style="font-weight:700;font-size:0.8rem;padding-right:18px;">' + escapeHtml(sk.name) + '</div>';
-      h += '<div style="font-size:0.67rem;color:var(--text-light);margin:3px 0;line-height:1.3;">' + escapeHtml(sk.desc) + '</div>';
-      h += '<div style="font-size:0.65rem;color:var(--purple);">CD: ' + sk.cooldown + '</div>';
-      h += '<button onclick="petSkills_removeFromLoadout(\'' + storageKey + '\',\'' + sk.id + '\')" title="Remove" style="position:absolute;top:5px;right:5px;background:rgba(255,50,50,0.12);border:1px solid rgba(255,50,50,0.3);border-radius:50%;width:18px;height:18px;font-size:0.6rem;cursor:pointer;color:#cc0000;line-height:1;">✕</button>';
-      h += '</div>';
-    });
-    for (var e = loadout.length; e < slotCount; e++) {
-      h += '<div style="border:2px dashed rgba(153,102,255,0.25);border-radius:10px;padding:10px;text-align:center;font-size:0.75rem;color:rgba(153,102,255,0.4);">Empty</div>';
-    }
-    h += '</div></div>';
-
-    if (available.length) {
-      h += '<div style="margin-bottom:14px;"><div style="font-size:0.82rem;font-weight:700;margin-bottom:8px;">Available</div>';
-      h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;">';
-      available.forEach(function(sk) {
-        h += '<div style="background:rgba(0,0,0,0.04);border:1px solid var(--border);border-radius:10px;padding:10px;">';
-        h += '<div style="font-weight:700;font-size:0.8rem;">' + escapeHtml(sk.name) + '</div>';
-        h += '<div style="font-size:0.67rem;color:var(--text-light);margin:3px 0;line-height:1.3;">' + escapeHtml(sk.desc) + '</div>';
-        h += '<button onclick="petSkills_addToLoadout(\'' + storageKey + '\',\'' + sk.id + '\')" ' + (canAdd ? '' : 'disabled ') + 'style="margin-top:5px;width:100%;padding:3px;border-radius:6px;border:1px solid var(--purple);background:' + (canAdd ? 'rgba(153,102,255,0.1)' : 'rgba(0,0,0,0.05)') + ';cursor:' + (canAdd ? 'pointer' : 'not-allowed') + ';font-size:0.7rem;font-family:Fredoka,sans-serif;color:var(--purple);">+ Equip</button>';
-        h += '</div>';
-      });
-      h += '</div></div>';
-    }
-
-    if (unlockedPassives.length) {
-      h += '<div style="margin-bottom:14px;"><div style="font-size:0.82rem;font-weight:700;color:#27ae60;margin-bottom:8px;">Passive (always active)</div>';
-      h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px;">';
-      unlockedPassives.forEach(function(sk) {
-        h += '<div style="background:rgba(93,222,122,0.07);border:1px solid rgba(93,222,122,0.3);border-radius:10px;padding:10px;">';
-        h += '<div style="font-weight:700;font-size:0.8rem;">' + escapeHtml(sk.name) + '</div>';
-        h += '<div style="font-size:0.67rem;color:var(--text-light);margin-top:3px;line-height:1.3;">' + escapeHtml(sk.desc) + '</div>';
-        h += '</div>';
-      });
-      h += '</div></div>';
-    }
-
-    if (locked.length) {
-      h += '<div style="font-size:0.75rem;color:var(--text-light);">🔒 Next: ';
-      h += locked.slice(0,4).map(function(s) { return 'Lv' + s.unlockLevel + ' ' + escapeHtml(s.name); }).join(' · ');
-      h += '</div>';
-    }
-    h += '</div>';
-    return h;
-  }
-
-  var modal = makeModal();
-  modal.innerHTML = render();
-  modal._skillsRerender = function() { modal.innerHTML = render(); };
-  openModal(modal);
+  return PET_SKILLS[mappedKey].filter(function(s) { return (petLevel || 1) >= s.unlockLevel; });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -13677,15 +13117,11 @@ function manualBattle_renderSkillButtons() {
         'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
         'onmouseenter="manualBattle_showSkillTip(this)" ' +
         'onmouseleave="manualBattle_hideSkillTip()" ' +
-        'data-tip="' + tipHtml + '" ' +
-        'style="' + (cd > 0 ? 'opacity:0.55;filter:grayscale(0.4);' : '') + '">' +
+        'data-tip="' + tipHtml + '">' +
         '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' + cleanName + '</strong>' +
         (flavorText ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
-        '<span class="skill-cooldown" style="margin-top:3px;font-weight:700;color:' + (cd > 0 ? '#cc4444' : 'var(--green)') + ';">' + cdText + '</span>' +
+        '<span class="skill-cooldown" style="margin-top:3px;">' + cdText + '</span>' +
       '</button>' +
-      (cd > 0 ? '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;">' +
-        '<span style="background:rgba(180,30,30,0.85);color:#fff;font-size:0.65rem;font-weight:800;padding:3px 7px;border-radius:6px;letter-spacing:0.5px;">COOLDOWN ' + cd + '</span>' +
-        '</div>' : '') +
     '</div>';
   }).join('');
 }
@@ -13771,26 +13207,7 @@ async function _manualBattle_doTurn(type, skillIdx) {
   // ── ENEMY ACTS ────────────────────────────────────────────────────
   var enemyNarrative = manualBattle_enemyTurn(s);
   lines.push(enemyNarrative);
-  if (s.playerHP <= 0) {
-    s.playerHP = 0;
-    // Check for revive skills before declaring defeat
-    var reviveSkill = (s.playerStats.skills || []).find(function(sk) {
-      return sk.reviveEffect && !(s._usedRevive && s._usedRevive[sk.id]);
-    });
-    if (reviveSkill) {
-      s._usedRevive = s._usedRevive || {};
-      s._usedRevive[reviveSkill.id] = true;
-      var revHP = Math.floor(s.playerMaxHP * (reviveSkill.reviveEffect.hpPct || 0.30));
-      s.playerHP = revHP;
-      if (reviveSkill.atkBuff) s.playerAtkBuff = (s.playerAtkBuff||0) + Math.floor((s.playerStats.stats.attack||5) * reviveSkill.atkBuff.amount);
-      lines.push('💫 ' + reviveSkill.name + '! ' + s.playerStats.name + ' revives with ' + revHP + ' HP!');
-      // Continue battle
-    } else {
-      manualBattle_render();
-      await manualBattle_endBattle(false);
-      return;
-    }
-  }
+  if (s.playerHP <= 0) { s.playerHP = 0; manualBattle_render(); await manualBattle_endBattle(false); return; }
 
   // ── ENEMY STATUS TICKS ────────────────────────────────────────────
   var eDotLines = manualBattle_tickDOT(s.enemyStatuses, 'enemy', s);
@@ -13822,30 +13239,6 @@ async function _manualBattle_doTurn(type, skillIdx) {
   if (behEnd.turnEnd && s.enemyHP > 0) {
     var endResult = behEnd.turnEnd(s, s.enemyStats);
     if (endResult) lines.push(endResult);
-  }
-
-  // ── PLAYER PASSIVE SKILLS — apply at start of player's turn ──────────────
-  var passiveLines = [];
-  var playerPassives = (s.playerStats.skills || []).filter(function(sk) { return sk.passive && sk.passiveEffect; });
-  playerPassives.forEach(function(sk) {
-    var fx = sk.passiveEffect;
-    // Burning Aura / enemy DoT
-    if (fx.type === 'dot' && fx.dmgPerTurn && s.enemyHP > 0) {
-      s.enemyHP = Math.max(0, s.enemyHP - fx.dmgPerTurn);
-      passiveLines.push('🔥 ' + sk.name + ': ' + fx.dmgPerTurn + ' passive damage!');
-    }
-    // Random buff each turn (Chaotic Aura)
-    if (fx.type === 'random_buff_start_turn') {
-      var buffType = ['attack','defense','speed'][Math.floor(Math.random()*3)];
-      if (buffType === 'attack') s.playerAtkBuff = (s.playerAtkBuff || 0) + Math.floor((s.playerStats.stats.attack || 5) * 0.15);
-      passiveLines.push('✨ Chaotic Aura: random ' + buffType + ' boost!');
-    }
-    // Speed Runner flat bonus (already in stats, just note)
-    // HP threshold damage bonus — handled in applySkill condBonus check via s.playerStats
-    // Status resistance (Glitter Resistance) — handled in applyStatus duration
-  });
-  if (passiveLines.length) {
-    lines.push(passiveLines.join(' '));
   }
 
   // ── PIPER'S INFLUENCE — passive gain + possible event ─────────────────
@@ -14963,7 +14356,7 @@ async function manualBattle_endBattle(victory) {
   clearBossEffects();
 
   // Show continue button pointing to rewards
-  // Auto-show reward modal after brief delay — no button needed
+  // Auto-show reward modal — no button click needed
   el('battle-narrative-box').style.display = 'none';
   el('manual-battle-actions').style.display = 'none';
   el('battle-controls-legacy').style.display = 'none';
@@ -15043,7 +14436,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       if (weatherPPBonus > 0) {
         await supabaseClient.rpc('award_pp_secure', {
           p_amount: weatherPPBonus, p_reason: 'weather_pp_bonus'
-        }).then(null, function(e) { dbg('[Weather] PP bonus error:', e); });
+        }).catch(function(e) { dbg('[Weather] PP bonus error:', e); });
         ppGained += weatherPPBonus;
         dbg('[Weather] PP bonus:', weatherPPBonus, 'weather:', weatherSystem.currentWeather && weatherSystem.currentWeather.id);
       }
@@ -15777,76 +15170,124 @@ function endBattlePlayback() {
 }
 
 function showBattleRewardsModal() {
-  if (!battleRewards) { closeBattle(); return; }
-
-  var victory = battleRewards.victory;
-
-  // Build reward lines
-  var lines = [];
-  if (victory) {
-    if (battleRewards.evolved) {
-      lines.push(battleRewards.evolutionEmoji + ' EVOLUTION! ' + battleRewards.evolutionStage.toUpperCase() + '!');
-      lines.push('Now Level ' + battleRewards.newLevel + '!');
-    } else if (battleRewards.leveledUp) {
-      lines.push('Level Up! Now Level ' + battleRewards.newLevel + '!');
+  if (!battleRewards) return;
+  
+  var modal = el('battle-rewards-modal');
+  if (!modal) {
+    console.error('Battle rewards modal not found in HTML!');
+    // Fallback to toast
+    if (battleRewards.victory) {
+      showToast('Victory! +' + battleRewards.expGained + ' EXP, +' + battleRewards.ppGained + ' PP!');
+    } else {
+      showToast('Defeat! Better luck next time!');
     }
-    if (battleRewards.expGained) lines.push('+' + battleRewards.expGained + ' EXP');
-    if (battleRewards.ppGained)  lines.push('+' + battleRewards.ppGained + ' PP');
-    if (battleRewards.itemDropped) lines.push('🎁 Found: ' + battleRewards.itemDropped.name + '!');
+    return;
   }
-
-  // Build centered modal (like daily bonus style)
-  var modal = makeModal();
-  modal.style.zIndex = '99999';
-  modal.innerHTML =
-    '<div style="font-family:Fredoka,sans-serif;text-align:center;padding:8px;">' +
-    '<div style="font-size:3rem;margin-bottom:10px;">' + (victory ? '🎉' : '💀') + '</div>' +
-    '<h2 style="color:' + (victory ? 'var(--green)' : 'var(--red)') + ';margin-bottom:12px;font-size:1.6rem;">' +
-      (victory ? 'Victory!' : 'Defeat!') +
-    '</h2>' +
-    (lines.length
-      ? '<div style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;">' +
-          lines.map(function(l) {
-            return '<div style="font-size:1.1rem;font-weight:700;color:var(--purple-dark);">' + l + '</div>';
-          }).join('') +
-        '</div>'
-      : '<p style="color:var(--text-light);margin-bottom:16px;">' + (victory ? 'Good fight!' : 'Better luck next time!') + '</p>') +
-    '<button id="battle-reward-awesome-btn" class="btn btn-primary btn-lg" onclick="battleRewardDismiss()" style="min-width:160px;font-size:1rem;">Awesome!</button>' +
-    '<div id="battle-reward-timer" style="font-size:0.72rem;color:var(--text-light);margin-top:8px;">Returning in 3...</div>' +
-    '</div>';
-  openModal(modal);
-
-  // Companion reaction on victory
-  if (victory && typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
-    CompanionBuddy.lastBattleResult = { victory: true };
+  
+  // Update modal content
+  var title = el('rewards-title');
+  var expText = el('rewards-exp');
+  var ppText = el('rewards-pp');
+  var itemText = el('rewards-item');
+  
+  if (battleRewards.victory) {
+    title.textContent = '🎉 Victory!';
+    title.style.color = 'var(--green)';
+    expText.textContent = '+' + battleRewards.expGained + ' EXP';
+    ppText.textContent = '+' + battleRewards.ppGained + ' PP';
+    
+    // 🐾 COMPANION REACTION - Battle victory!
+    if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+      // Store in companion memory for future contextual messages
+      CompanionBuddy.lastBattleResult = {
+        victory: true,
+        enemyName: battleRewards && battleRewards.enemyName ? battleRewards.enemyName : null,
+        finalHP: battleRewards ? battleRewards.playerFinalHP : null
+      };
+      var victoryMessages = [
+        "That was incredible! ⚔️✨",
+        "You're so strong! 💪",
+        "Amazing battle! 🌟",
+        "We won! 🎉",
+        "Victory is ours! ⭐"
+      ];
+      CompanionBuddy.showMessage(victoryMessages[Math.floor(Math.random() * victoryMessages.length)]);
+    }
+    
+    // ⭐ STAR BURST!
     setTimeout(function() {
-      CompanionBuddy.showMessage(['That was incredible! ⚔️✨', "You're so strong! 💪", 'Amazing battle! 🌟', 'We won! 🎉'][Math.floor(Math.random()*4)]);
-    }, 1500);
-  }
-
-  // Auto-dismiss countdown
-  var _countdownSecs = 3;
-  var _countdownInterval = setInterval(function() {
-    _countdownSecs--;
-    var timerEl = document.getElementById('battle-reward-timer');
-    if (timerEl) timerEl.textContent = _countdownSecs > 0 ? 'Returning in ' + _countdownSecs + '...' : 'Returning...';
-    if (_countdownSecs <= 0) {
-      clearInterval(_countdownInterval);
-      battleRewardDismiss();
+      createStarBurst(window.innerWidth / 2, window.innerHeight / 3);
+    }, 200);
+    
+    // Check for level up
+    if (battleRewards.leveledUp) {
+      var levelUpText = '⭐ LEVEL UP! Now Level ' + battleRewards.newLevel + '!\n';
+      
+      // 🐾 COMPANION REACTION - Level up!
+      if (typeof CompanionBuddy !== 'undefined' && CompanionBuddy.currentCompanionId) {
+        setTimeout(function() {
+          CompanionBuddy.showMessage("You're getting stronger! 💪⭐");
+        }, 3000);
+      }
+      
+      // Check for evolution!
+      if (battleRewards.evolved) {
+        levelUpText = battleRewards.evolutionEmoji + ' EVOLUTION! ' + battleRewards.evolutionStage.toUpperCase() + ' STAGE!\n';
+        levelUpText += 'Your pet is now Level ' + battleRewards.newLevel + '!\n';
+      }
+      
+      var stats = battleRewards.statIncreases;
+      if (stats.hp) levelUpText += '+' + stats.hp + ' HP ';
+      if (stats.atk) levelUpText += '+' + stats.atk + ' ATK ';
+      if (stats.def) levelUpText += '+' + stats.def + ' DEF ';
+      if (stats.spd) levelUpText += '+' + stats.spd + ' SPD';
+      
+      expText.textContent = levelUpText;
+      expText.style.color = battleRewards.evolved ? 'var(--pink)' : 'var(--purple)';
+      expText.style.fontWeight = 'bold';
+      expText.style.fontSize = battleRewards.evolved ? '1.2rem' : '1.1rem';
+    } else {
+      expText.style.color = '';
+      expText.style.fontWeight = '';
+      expText.style.fontSize = '';
     }
-  }, 1000);
-
-  // Store interval on modal so Awesome! can clear it
-  modal._battleCountdown = _countdownInterval;
-
-  // ARG: check for rare drops
-  if (victory && typeof newFeatures_checkBattleRewards === 'function') {
+    
+    if (battleRewards.itemDropped) {
+      itemText.textContent = '🎁 Bonus: Found ' + battleRewards.itemDropped.name + '!';
+      itemText.style.display = 'block';
+    } else {
+      itemText.style.display = 'none';
+    }
+  } else {
+    title.textContent = '💀 Defeat!';
+    title.style.color = 'var(--red)';
+    expText.textContent = 'No EXP gained';
+    ppText.textContent = 'No PP gained';
+    itemText.style.display = 'none';
+  }
+  
+  modal.classList.add('show');
+  
+  // NEW FEATURES: Check for rare drops after victory
+  if (battleRewards && battleRewards.victory && typeof newFeatures_checkBattleRewards === 'function') {
     newFeatures_checkBattleRewards('battle_' + Date.now());
   }
 }
 
+function closeBattleRewardsModal() {
+  var modal = el('battle-rewards-modal');
+  if (modal) modal.classList.remove('show');
+  
+  // Always reload My Pets tab to show updated HP and stats
+  tabsLoaded['mypets'] = false;
+  
+  // Reset battle state
+  battleRewards = null;
+  closeBattle();
+}
+
+
 function battleRewardDismiss() {
-  // Clear any running countdown
   var modal = document.querySelector('.modal-overlay');
   if (modal && modal._battleCountdown) clearInterval(modal._battleCountdown);
   closeModal(modal);
@@ -15854,20 +15295,7 @@ function battleRewardDismiss() {
   closeBattle();
 }
 
-
-function showBetaIntegrityInfo() {
-  var modal = makeModal();
-  modal.innerHTML =
-    '<div style="font-family:Fredoka,sans-serif;max-width:420px;">' +
-    '<h2 style="margin-bottom:12px;">🖥️ Beta Integrity</h2>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">Beta Integrity measures how stable the PawketPets simulation is. 100% is perfect — the system is running as intended.</p>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">Defeating bosses <strong>decreases</strong> integrity (they destabilise the simulation). Completing community goals and protection rituals <strong>restore</strong> it.</p>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">At low integrity, strange things start happening — Piper gains influence, Piper\'s Shop becomes accessible, and the world itself becomes... unreliable.</p>' +
-    '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-light);margin-top:12px;">This is not a bug. This is intended.</div>' +
-    '<button class="btn btn-primary" onclick="closeModal(this.closest(\'.modal-overlay\'))" style="margin-top:16px;width:100%;">Got it</button>' +
-    '</div>';
-  openModal(modal);
-}
+function closeBattleRewardsModal() { battleRewardDismiss(); }
 
 async function closeBattle() {
   // Stop sprite animation
@@ -16030,18 +15458,6 @@ async function battleExp_renderForm() {
       '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:6px;">Select Zone:</label>' +
       '<div style="display:flex;gap:6px;">' + zoneCards + '</div>' +
     '</div>' +
-    '<div style="margin-bottom:10px;">' +
-      '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:6px;">Expedition Speed:</label>' +
-      '<div style="display:flex;gap:6px;">' +
-        Object.keys(EXPEDITION_SPEED_MODS).map(function(k) {
-          var s = EXPEDITION_SPEED_MODS[k];
-          return '<button class="exp-speed-btn" data-speed="' + k + '" onclick="battleExp_setSpeed(\'' + k + '\')" ' +
-            'title="' + s.tip + '" ' +
-            'style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--border);background:' + (k === 'normal' ? 'rgba(153,102,255,0.12);border-color:var(--purple);font-weight:700' : 'none') + ';cursor:pointer;font-size:0.75rem;font-family:Fredoka,sans-serif;">' +
-            s.label + '</button>';
-        }).join('') +
-      '</div>' +
-    '</div>' +
     '<div id="battle-exp-info" style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;min-height:18px;"></div>' +
     '<button id="battle-exp-btn" class="btn btn-primary" onclick="battleExp_start()" disabled style="width:100%;opacity:0.5;">🚀 Send on Expedition</button>';
 
@@ -16051,24 +15467,6 @@ async function battleExp_renderForm() {
 }
 
 var _battleExpZone = null;
-var _battleExpSpeed = 'normal'; // 'careful' | 'normal' | 'risky'
-
-var EXPEDITION_SPEED_MODS = {
-  careful: { label: '🐢 Careful',  durationMult: 1.5,  ppMult: 1.3,  energyMult: 0.85, tip: '+30% PP, 50% longer, -15% energy' },
-  normal:  { label: '🚀 Normal',   durationMult: 1.0,  ppMult: 1.0,  energyMult: 1.0,  tip: 'Balanced rewards and risk' },
-  risky:   { label: '⚡ Risky',    durationMult: 0.6,  ppMult: 0.8,  energyMult: 1.2,  tip: '40% faster, -20% PP, +20% energy' }
-};
-
-function battleExp_setSpeed(speed) {
-  _battleExpSpeed = speed;
-  document.querySelectorAll('.exp-speed-btn').forEach(function(b) {
-    var active = b.getAttribute('data-speed') === speed;
-    b.style.background = active ? 'rgba(153,102,255,0.12)' : 'none';
-    b.style.borderColor = active ? 'var(--purple)' : 'var(--border)';
-    b.style.fontWeight = active ? '700' : '400';
-  });
-  battleExp_updateBtn();
-}
 
 function battleExp_selectZone(zoneKey, el) {
   _battleExpZone = zoneKey;
@@ -16102,17 +15500,9 @@ function battleExp_updateBtn() {
   var ok = (pet.energy || 0) >= zone.energyCost;
   btn.disabled  = !ok;
   btn.style.opacity = ok ? '1' : '0.5';
-  var speedMod = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
-  var adjEnergy = Math.round(zone.energyCost * speedMod.energyMult);
-  var adjDur    = Math.round(zone.duration   * speedMod.durationMult);
-  var adjMinPP  = Math.round(zone.minPP      * speedMod.ppMult);
-  var adjMaxPP  = Math.round(zone.maxPP      * speedMod.ppMult);
-  var ok2 = (pet.energy || 0) >= adjEnergy;
-  btn.disabled  = !ok2;
-  btn.style.opacity = ok2 ? '1' : '0.5';
-  info.textContent = ok2
-    ? '⚡ ' + adjEnergy + ' energy · ' + adjDur + ' min · ' + adjMinPP + '-' + adjMaxPP + ' PP + ' + zone.xpReward + ' XP'
-    : '❌ Need ' + adjEnergy + ' energy (have ' + Math.floor(pet.energy||0) + ')';
+  info.textContent = ok
+    ? '⚡ Costs ' + zone.energyCost + ' energy · Returns in ' + zone.duration + ' min · ' + zone.minPP + '-' + zone.maxPP + ' PP + ' + zone.xpReward + ' XP'
+    : '❌ Need ' + zone.energyCost + ' energy (have ' + Math.floor(pet.energy||0) + ')';
   if (!ok) info.style.color = '#ff6b6b'; else info.style.color = 'var(--text-light)';
 }
 
@@ -16134,20 +15524,14 @@ async function battleExp_start() {
     petState[petId] = dbPet;
     pet = dbPet;
   }
-  // Recalculate with speed modifier
-  var speedMod2 = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
-  var adjEnergyCheck = Math.round(zone.energyCost * speedMod2.energyMult);
-  if ((pet.energy || 0) < adjEnergyCheck) { showToast('Not enough energy!', 2500); return; }
+  if ((pet.energy || 0) < zone.energyCost) { showToast('Not enough energy!', 2500); return; }
   if (_battleExpeditionPetIds.indexOf(petId) !== -1) { showToast('That pet is already exploring!', 2500); return; }
 
   var btn = document.getElementById('battle-exp-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
 
   var levelBonus = Math.min(1.5, 1 + (pet.level||1) / 100);
-  var speedMod  = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
-  var adjDur    = Math.round(zone.duration * speedMod.durationMult);
-  var adjEnergy = Math.round(zone.energyCost * speedMod.energyMult);
-  var rewardPP  = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus * speedMod.ppMult);
+  var rewardPP  = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus);
   var rewardXP  = Math.floor(zone.xpReward * levelBonus);
 
   // Single item drop using itemChance + ruins equipment split
@@ -16673,15 +16057,16 @@ async function handleFlavorEncounter() {
 // Show exploration result in battle screen area
 function showExplorationResult(title, message, reward, buttonText) {
   var modal = makeModal();
-  modal.innerHTML =
-    '<div style="font-family: Fredoka, sans-serif; text-align:center; padding:10px;">' +
+  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;text-align:center;padding:10px;">' +
     '<div style="font-size:1.8rem;margin-bottom:12px;">' + title + '</div>' +
     '<div style="font-size:1rem;line-height:1.6;margin-bottom:16px;">' + message + '</div>' +
     (reward ? '<div style="font-size:1.1rem;font-weight:700;color:var(--purple);margin-bottom:18px;">' + reward + '</div>' : '') +
     '<button class="btn btn-primary" onclick="closeModal(this.closest(\'.modal-overlay\'))" style="min-width:120px;">' + (buttonText || 'Continue') + '</button>' +
     '</div>';
   openModal(modal);
+  // OLD body intentionally removed — was using battle screen causing flash
 }
+
 
 function closeExplorationModal() {
   document.getElementById('exploration-modal').classList.remove('show');
@@ -18534,8 +17919,7 @@ var newsTicker = {
   init: function() {
     this.shuffle();
     this.updateTicker();
-    // Note: animationend listener is attached inside updateTicker() on each clone.
-    // Do NOT call startScrollDetection() here — it would attach a duplicate listener.
+    this.startScrollDetection();
     // Pre-load today's stats for dynamic headlines (non-blocking)
     this.loadDailyStats().then(null, function(){});
   },
@@ -19552,14 +18936,13 @@ async function logJournalDiscovery(petType, discoveryType, itemName) {
   try {
     await supabaseClient.from('pet_journal').insert({
       user_id: currentUser.id,
-      pet_type: petType,
       entry_type: discoveryType,
-      entry_data: JSON.stringify({
+      entry_data: {
         pet_type: petType,
         item_name: itemName,
         discovered_at: new Date().toISOString()
-      })
-    }).catch(function(e) { dbg('[Journal] Insert error:', e); });
+      }
+    });
     
     // Update local cache
     if (!journalDiscoveries[petType]) journalDiscoveries[petType] = {};
@@ -22516,7 +21899,7 @@ async function checkAchievementTierProgress(achievementKey, petId, currentValue)
       .from('pet_achievements')
       .select('id, name, tier2_requirement, tier3_requirement, tier4_requirement, tier5_requirement, tier2_reward, tier3_reward, tier4_reward, tier5_reward')
       .eq('achievement_key', achievementKey)
-      .single();
+      .maybeSingle();
     if (!achievement) return;
 
     // Fetch user's current tier for this achievement
@@ -29777,163 +29160,6 @@ function getTimeUntilRotation() {
 /**
  * Load equipment shop with rotation filtering
  */
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PIPER'S SHOP — Appears when Beta Integrity <= 40% (corruption >= 60)
-// Sells boss drop items + dark/light corruption equipment at 2x markup
-// Visually glitchy and unstable — ARG aesthetic
-// ═══════════════════════════════════════════════════════════════════════════
-
-function piperShop_getBetaIntegrity() {
-  var corruption = 0;
-  try { corruption = getWorldStateValueSync('corruption_level', 0) || 0; } catch(e) {}
-  return Math.max(0, 100 - corruption);
-}
-
-function piperShop_updateVisibility() {
-  var visible = piperShop_getBetaIntegrity() <= 40;
-  var btn  = document.getElementById('sidebar-btn-piper-shop');
-  var btnM = document.getElementById('sidebar-btn-piper-shop-mobile');
-  var chev  = document.getElementById('shop-nav-chevron');
-  var chevM = document.getElementById('shop-nav-chevron-mobile');
-  if (btn)   btn.style.display   = visible ? '' : 'none';
-  if (btnM)  btnM.style.display  = visible ? '' : 'none';
-  if (chev)  chev.style.display  = visible ? 'inline' : 'none';
-  if (chevM) chevM.style.display = visible ? 'inline' : 'none';
-}
-
-function shopNav_toggle() {
-  var piperBtn = document.getElementById('sidebar-btn-piper-shop');
-  var children = document.getElementById('shop-nav-children');
-  showTab('shop');
-  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
-  var open = children.style.display !== 'none' && children.style.display !== '';
-  children.style.display = open ? 'none' : 'block';
-}
-
-function shopNav_toggleMobile() {
-  var piperBtn = document.getElementById('sidebar-btn-piper-shop-mobile');
-  var children = document.getElementById('shop-nav-children-mobile');
-  showTab('shop');
-  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
-  var open = children.style.display !== 'none' && children.style.display !== '';
-  children.style.display = open ? 'none' : 'block';
-}
-
-async function piperShop_open() {
-  var integrity = piperShop_getBetaIntegrity();
-  if (integrity > 40) { showToast('...nothing there.', 2000); return; }
-
-  document.body.classList.add('boss-ui-glitch');
-  setTimeout(function() { document.body.classList.remove('boss-ui-glitch'); }, 800);
-
-  var corruptionPct = 100 - integrity;
-  var glitchTitle = corruptionPct >= 85 ? 'S\u0336h\u0320o\u0336p' :
-    corruptionPct >= 70 ? 'P\u0336i\u0320p\u0336e\u0320r\u0336 Shop' : 'Piper\u2019s Shop';
-  var subtext = corruptionPct >= 80 ? '...you\u2019re not supposed to find this.' :
-    corruptionPct >= 60 ? 'She knows you\u2019re here.' : 'A strange shop. Where did it come from?';
-
-  var modal = makeModal();
-  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;"><div class="spinner"></div></div>';
-  openModal(modal);
-
-  var bossItemsRes = await supabaseClient.from('items').select('*').eq('is_boss_drop', true).order('price', { ascending: true });
-  // Fetch all corruption-locked equipment then filter client-side
-  // (unlock columns are stored as TEXT in DB so numeric comparison must happen in JS)
-  var allCorruptEquipRes = await supabaseClient.from('equipment').select('*')
-    .or('unlock_min_corruption.not.is.null,unlock_max_corruption.not.is.null')
-    .order('tier', { ascending: true });
-
-  var bossItems = bossItemsRes.data || [];
-  var allCorruptEquip = allCorruptEquipRes.data || [];
-  var darkEquip  = allCorruptEquip.filter(function(e) {
-    return e.unlock_min_corruption !== null && parseInt(e.unlock_min_corruption) <= corruptionPct;
-  });
-  var lightEquip = allCorruptEquip.filter(function(e) {
-    return e.unlock_max_corruption !== null && parseInt(e.unlock_max_corruption) >= corruptionPct;
-  });
-
-  var html = '<div style="font-family:Fredoka,sans-serif;max-width:600px;">' +
-    '<div style="text-align:center;margin-bottom:18px;">' +
-    '<div style="font-size:1.5rem;font-weight:700;color:#cc44ff;letter-spacing:2px;animation:boss-ui-glitch 4s infinite;">' + glitchTitle + '</div>' +
-    '<div style="font-size:0.75rem;color:rgba(200,100,255,0.7);margin-top:4px;font-style:italic;">' + subtext + '</div>' +
-    '<div style="font-size:0.7rem;color:rgba(255,80,80,0.6);margin-top:2px;">Beta Integrity: ' + integrity + '% — Prices are 2x market rate</div>' +
-    '</div><div style="display:flex;flex-direction:column;gap:18px;">';
-
-  function renderGrid(items, isEquip) {
-    var g = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;">';
-    items.forEach(function(item) {
-      var price = isEquip ? Math.round((item.price || item.cost || 500) * 2) : (item.price || 0) * 2;
-      var desc = isEquip ? piperShop_equipDesc(item) : (item.description || '');
-      var btnId = 'ps-' + item.id;
-      var onclick = isEquip
-        ? 'piperShop_buyEquip(\'' + item.id + '\',' + price + ',\'' + (item.name||'?').replace(/'/g,'') + '\',\'' + btnId + '\')' 
-        : 'piperShop_buyItem(\'' + item.id + '\',' + price + ',\'' + (item.name||'?').replace(/'/g,'') + '\',\'' + btnId + '\')';
-      g += '<div style="background:rgba(100,0,150,0.08);border:1px solid rgba(180,80,255,0.25);border-radius:12px;padding:10px 12px;">' +
-        '<div style="font-weight:700;font-size:0.82rem;color:#cc44ff;margin-bottom:4px;">' + escapeHtml(item.name || '???') + '</div>' +
-        '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:8px;min-height:26px;">' + escapeHtml(desc) + '</div>' +
-        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-        '<span style="font-weight:700;font-size:0.82rem;color:#aa33dd;">' + price + ' PP</span>' +
-        '<button id="' + btnId + '" class="btn btn-sm" onclick="' + onclick + '" style="font-size:0.72rem;padding:4px 10px;background:rgba(150,0,200,0.15);border-color:rgba(180,80,255,0.4);color:#cc44ff;">Buy</button>' +
-        '</div></div>';
-    });
-    g += '</div>';
-    return g;
-  }
-
-  if (bossItems.length) {
-    html += '<div><div style="font-size:0.82rem;font-weight:700;color:#cc44ff;margin-bottom:8px;border-bottom:1px solid rgba(200,100,255,0.2);padding-bottom:4px;">💀 Boss Drops</div>' + renderGrid(bossItems, false) + '</div>';
-  }
-  if (darkEquip.length) {
-    html += '<div><div style="font-size:0.82rem;font-weight:700;color:#9900cc;margin-bottom:8px;border-bottom:1px solid rgba(150,0,200,0.2);padding-bottom:4px;">🌑 Corruption Gear</div>' + renderGrid(darkEquip, true) + '</div>';
-  }
-  if (lightEquip.length) {
-    html += '<div><div style="font-size:0.82rem;font-weight:700;color:#ffcc44;margin-bottom:8px;border-bottom:1px solid rgba(255,200,50,0.2);padding-bottom:4px;">✨ Integrity Gear <span style="font-size:0.7rem;opacity:0.7;">(fading fast)</span></div>' + renderGrid(lightEquip, true) + '</div>';
-  }
-  if (!bossItems.length && !darkEquip.length && !lightEquip.length) {
-    html += '<div style="text-align:center;padding:30px;color:rgba(200,100,255,0.6);font-style:italic;">...nothing is here. Or maybe it cannot be seen.</div>';
-  }
-
-  html += '</div></div>';
-  modal.querySelector('div').innerHTML = html;
-}
-
-function piperShop_equipDesc(equip) {
-  var parts = [];
-  if ((equip.attack_bonus  || 0) > 0) parts.push('+' + equip.attack_bonus  + ' ATK');
-  if ((equip.defense_bonus || 0) > 0) parts.push('+' + equip.defense_bonus + ' DEF');
-  if ((equip.speed_bonus   || 0) > 0) parts.push('+' + equip.speed_bonus   + ' SPD');
-  if ((equip.hp_bonus      || 0) > 0) parts.push('+' + equip.hp_bonus      + ' HP');
-  return (equip.description || '') + (parts.length ? ' (' + parts.join(', ') + ')' : '');
-}
-
-async function piperShop_buyItem(itemId, price, name, btnId) {
-  var btn = document.getElementById(btnId);
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  var res = await supabaseClient.rpc('spend_pp_secure', { p_amount: price, p_reason: 'piper_shop' });
-  if (res.error || !res.data) { showToast('Not enough PP.', 3000); if (btn) { btn.disabled = false; btn.textContent = 'Buy'; } return; }
-  var existing = await supabaseClient.from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', itemId).maybeSingle();
-  if (existing.data) {
-    await supabaseClient.from('user_inventory').update({ quantity: existing.data.quantity + 1 }).eq('id', existing.data.id);
-  } else {
-    await supabaseClient.from('user_inventory').insert([{ user_id: currentUser.id, item_id: itemId, quantity: 1 }]);
-  }
-  updateAllPoints(res.data);
-  showToast('🌑 ' + name + ' acquired. Shh.', 4000);
-  if (btn) btn.textContent = '✓ Bought';
-}
-
-async function piperShop_buyEquip(equipId, price, name, btnId) {
-  var btn = document.getElementById(btnId);
-  if (btn) { btn.disabled = true; btn.textContent = '...'; }
-  var res = await supabaseClient.rpc('spend_pp_secure', { p_amount: price, p_reason: 'piper_shop_equip' });
-  if (res.error || !res.data) { showToast('Not enough PP.', 3000); if (btn) { btn.disabled = false; btn.textContent = 'Buy'; } return; }
-  await supabaseClient.from('player_equipment').insert([{ user_id: currentUser.id, equipment_id: equipId, acquired_at: new Date().toISOString() }]);
-  updateAllPoints(res.data);
-  showToast('🌑 ' + name + ' is yours. She watched you take it.', 4000);
-  if (btn) btn.textContent = '✓ Bought';
-}
-
 async function loadConsumablesShop() {
   var grid = el('consumables-shop-grid');
   if (!grid) return;
@@ -31147,10 +30373,8 @@ async function updateBingoProgress(taskType, amount) {
   
   var wasCompleted = square.completed;
   square.progress = Math.min(square.progress + (amount || 1), square.target);
-  
-  // Save updated progress immediately
+  // Save progress immediately
   try { localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo)); } catch(e) {}
-
   // Check if just completed
   var justCompleted = !wasCompleted && square.progress >= square.target;
   
@@ -32061,8 +31285,6 @@ function scrapbook_init() {
 // ═══════════════════════════════════════════════════════════════════════════
 
 var WEEKLY_CHALLENGE_POOL = [
-  { id: 'cook_recipes', label: 'Cook 5 recipes',          emoji: '🍳', target: 5, stat: 'wk_cooking', reward: 120 },
-
   { id: 'win_battles',       label: 'Win 15 battles',                 emoji: '⚔️',  target: 15,  stat: 'wk_battles_won',      reward: 150 },
   { id: 'catch_fish',        label: 'Catch 25 fish',                  emoji: '🎣',  target: 25,  stat: 'wk_fish_caught',       reward: 100 },
   { id: 'expeditions',       label: 'Complete 5 expeditions',         emoji: '🗺️',  target: 5,   stat: 'wk_expeditions',       reward: 120 },
@@ -34605,7 +33827,7 @@ async function todayCard_render() {
       : integrityLevel >= 50 ? 'The beta is holding together, thanks to recent boss defeats.'
       : integrityLevel >= 25 ? 'The beta feels a little more stable today, thanks to recent boss kills.'
       : 'Critical instability detected. The beta is failing. Defeat bosses to restore integrity.';
-    var tooltipHtml = '<span class="beta-integrity-tooltip" title="What is Beta Integrity?" onclick="showBetaIntegrityInfo()" style="cursor:help;">❓</span>';
+    var tooltipHtml = '<span class="beta-integrity-tooltip" title="" onclick="showBetaIntegrityInfo()">❓</span>';
     worldStateHtml = '<div class="today-card-worldstate">' +
       '🖥️ Beta Integrity: ' + integrityLevel + '%. ' + integrityDesc + ' ' + tooltipHtml +
       '<div class="today-card-ritual-buttons">' +
@@ -34969,7 +34191,7 @@ async function screenshot_generate(petId) {
     var winRate     = totalBattle > 0 ? Math.round(battlesWon / totalBattle * 100) : 0;
 
     // Pet title text + color
-
+    var rarityColors = { common:'#8e8e8e', uncommon:'#5cb85c', rare:'#5bc0de', epic:'#9c27b0', legendary:'#ff9800' };
     var titleText  = petTitle ? ((petTitle.icon || '') + ' ' + (petTitle.display_name || '')).trim() : '';
     var titleColor = petTitle ? (rarityColors[petTitle.rarity] || '#9966ff') : '#9966ff';
 
@@ -37288,10 +36510,6 @@ async function initFishingTab() {
   // Check for rare shoal event
   fishingShoal_check();
   fishingRenderRodShop();
-  // Render fish journal inline on tab open
-  if (typeof fishingRenderJournal === 'function') {
-    fishingRenderJournal();
-  }
   var collEl = document.getElementById('fishing-collection');
   if (collEl) {
     var collected = Object.keys(_fishCollection || {}).filter(function(k) {
@@ -37663,30 +36881,18 @@ function streamerLanding_buildHero(member) {
       '</div>' +
     '</div>';
 
-  // Apply to login section (primary landing page)
-  var loginSection = document.getElementById('section-login');
-  if (loginSection) {
-    var existingHero = loginSection.querySelector('.landing-hero');
+  // Apply to both auth sections
+  ['section-login', 'section-register'].forEach(function(sectionId) {
+    var section = document.getElementById(sectionId);
+    if (!section) { dbg('[Landing] Section not found:', sectionId); return; }
+    var existingHero = section.querySelector('.landing-hero');
     if (existingHero) {
       existingHero.outerHTML = heroHTML;
+      dbg('[Landing] Hero replaced in', sectionId, 'for', member.name);
     } else {
-      // No placeholder exists — inject before the form content
-      loginSection.insertAdjacentHTML('afterbegin', heroHTML);
+      dbg('[Landing] .landing-hero not found in', sectionId);
     }
-    dbg('[Landing] Hero injected for', member.name);
-  } else {
-    dbg('[Landing] section-login not found');
-  }
-  // Also apply to register section
-  var regSection = document.getElementById('section-register');
-  if (regSection) {
-    var existingHeroReg = regSection.querySelector('.landing-hero');
-    if (existingHeroReg) {
-      existingHeroReg.outerHTML = heroHTML;
-    } else {
-      regSection.insertAdjacentHTML('afterbegin', heroHTML);
-    }
-  }
+  });
 
   // Set accent CSS variable for streamer-themed form card borders etc.
   document.body.style.setProperty('--streamer-accent', accent);
@@ -40083,534 +39289,4 @@ async function statPoints_save(petId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════
-// COOKING SYSTEM — GW2-style discovery model
-// Players combine 2-4 ingredients; matching a recipe yields food.
-// Mystery by default: recipe journal shows ??? until discovered.
-// ═══════════════════════════════════════════════════════════════════════════
-
-var INGREDIENTS = {
-  // ── EXPEDITION / EXPLORATION DROPS ──────────────────────────────────────
-  grain:      { name:'Grain',       emoji:'🌾', source:'expedition', zone:'outskirts',  rarity:'common',   desc:'Found in the Outskirts fields.' },
-  herbs:      { name:'Herbs',       emoji:'🌿', source:'expedition', zone:'glade',      rarity:'common',   desc:'Gathered from the Forest Glade.' },
-  berries:    { name:'Berries',     emoji:'🫐', source:'expedition', zone:'deepwoods',  rarity:'common',   desc:'Wild berries from the Deep Woods.' },
-  wild_greens:{ name:'Wild Greens', emoji:'🥬', source:'expedition', zone:'glade',      rarity:'common',   desc:'Fresh greens from the Forest Glade.' },
-  mushroom:   { name:'Mushroom',    emoji:'🍄', source:'expedition', zone:'deepwoods',  rarity:'uncommon', desc:'Found in deep, dark places.' },
-  spices:     { name:'Spices',      emoji:'🌶️', source:'expedition', zone:'ruins',      rarity:'uncommon', desc:'Ancient spice blend from the Ruins.' },
-  honey:      { name:'Honey',       emoji:'🍯', source:'expedition', zone:'deepwoods',  rarity:'rare',     desc:'Rare honeycomb from deep forest hives.' },
-  starlight_dust:{ name:'Starlight Dust',emoji:'✨',source:'expedition',zone:'ruins',   rarity:'rare',     desc:'Falls during night expeditions. Glows faintly.' },
-
-  // ── BATTLE DROPS ─────────────────────────────────────────────────────────
-  meat:       { name:'Meat',        emoji:'🥩', source:'battle',     zone:'any',        rarity:'common',   desc:'Dropped by wolves, boars, bears.' },
-  poultry:    { name:'Poultry',     emoji:'🍗', source:'battle',     zone:'any',        rarity:'common',   desc:'Dropped by bird-type enemies.' },
-  bone_broth: { name:'Bone Broth',  emoji:'🦴', source:'battle',     zone:'any',        rarity:'uncommon', desc:'Extracted after any battle.' },
-
-  // ── FISHING DROPS ────────────────────────────────────────────────────────
-  fish:       { name:'Fish',        emoji:'🐟', source:'fishing',    zone:'any',        rarity:'common',   desc:'Caught while fishing.' },
-  shellfish:  { name:'Shellfish',   emoji:'🦐', source:'fishing',    zone:'ocean',      rarity:'uncommon', desc:'Caught in ocean spots.' },
-  seaweed:    { name:'Seaweed',     emoji:'🌊', source:'fishing',    zone:'ocean',      rarity:'common',   desc:'Tangled up in your line.' },
-
-  // ── SHOP INGREDIENTS (purchasable) ───────────────────────────────────────
-  milk:       { name:'Milk',        emoji:'🥛', source:'shop',       zone:null,         rarity:'common',   desc:'Buy from the shop.' },
-  sugar:      { name:'Sugar',       emoji:'🍬', source:'shop',       zone:null,         rarity:'common',   desc:'Buy from the shop.' },
-};
-
-// Recipe lookup: sort ingredient IDs, join with '+' → item name to grant
-// Each recipe entry: { id, name, ingredients:[], result:{name,hunger,happiness,energy,category}, flavor, streamer? }
-var RECIPES = [
-
-  // ── BASIC (2 ingredients) ────────────────────────────────────────────────
-  { id:'fresh_bread',    name:'Fresh Bread',        ingredients:['grain','milk'],
-    result:{ name:'Fresh Bread',    hunger:20, happiness:5,  energy:5,  category:'basic' },
-    flavor:'Warm from the oven. Simple perfection.' },
-
-  { id:'honey_cookies',  name:'Honey Cookies',      ingredients:['grain','honey'],
-    result:{ name:'Honey Cookies',  hunger:15, happiness:15, energy:5,  category:'sweet' },
-    flavor:'Sweeter than they have any right to be.' },
-
-  { id:'grain_crackers', name:'Grain Crackers',     ingredients:['grain','sugar'],
-    result:{ name:'Grain Crackers', hunger:12, happiness:8,  energy:8,  category:'basic' },
-    flavor:'Satisfyingly crunchy.' },
-
-  { id:'beef_jerky',     name:'Beef Jerky',         ingredients:['meat','spices'],
-    result:{ name:'Beef Jerky',     hunger:25, happiness:5,  energy:10, category:'savory' },
-    flavor:'Chewy, salty, deeply satisfying.' },
-
-  { id:'grilled_chicken',name:'Grilled Chicken',    ingredients:['poultry','herbs'],
-    result:{ name:'Grilled Chicken',hunger:22, happiness:8,  energy:10, category:'savory' },
-    flavor:'Herbed and golden. Classic.' },
-
-  { id:'grilled_fish',   name:'Grilled Fish',       ingredients:['fish','herbs'],
-    result:{ name:'Grilled Fish',   hunger:20, happiness:10, energy:8,  category:'fish' },
-    flavor:'Fresh from the water to the fire.' },
-
-  { id:'garden_salad',   name:'Garden Salad',       ingredients:['wild_greens','herbs'],
-    result:{ name:'Garden Salad',   hunger:12, happiness:12, energy:10, category:'basic' },
-    flavor:'Crisp, fresh, probably healthy.' },
-
-  { id:'berry_juice',    name:'Berry Juice',        ingredients:['berries','sugar'],
-    result:{ name:'Berry Juice',    hunger:8,  happiness:18, energy:15, category:'fruit' },
-    flavor:'Bright and sweet. Almost too pretty to drink.' },
-
-  { id:'mushroom_toast', name:'Mushroom Toast',     ingredients:['mushroom','grain'],
-    result:{ name:'Mushroom Toast', hunger:18, happiness:10, energy:8,  category:'savory' },
-    flavor:'Earthy. Comforting. Slightly uncanny.' },
-
-  { id:'bone_soup',      name:'Bone Broth Soup',    ingredients:['bone_broth','wild_greens'],
-    result:{ name:'Bone Broth Soup',hunger:22, happiness:8,  energy:12, category:'savory' },
-    flavor:'Rich and warming. Ancient recipe.' },
-
-  { id:'sushi_roll',     name:'Sushi Roll',         ingredients:['fish','seaweed'],
-    result:{ name:'Sushi Roll',     hunger:18, happiness:15, energy:10, category:'fish' },
-    flavor:'Elegant. Requires patience and a steady paw.' },
-
-  { id:'trail_mix',      name:'Trail Mix',          ingredients:['berries','honey'],
-    result:{ name:'Trail Mix',      hunger:14, happiness:12, energy:18, category:'basic' },
-    flavor:'Perfect for expeditions. Coincidence? No.' },
-
-  { id:'sweet_cream',    name:'Sweet Cream',        ingredients:['milk','sugar'],
-    result:{ name:'Sweet Cream',    hunger:8,  happiness:20, energy:5,  category:'sweet' },
-    flavor:'Dangerously good. No regrets.' },
-
-  { id:'spicy_shrimp',   name:'Spicy Shrimp',       ingredients:['shellfish','spices'],
-    result:{ name:'Spicy Shrimp',   hunger:22, happiness:12, energy:10, category:'spicy' },
-    flavor:'Bites back. Respectfully.' },
-
-  { id:'hot_wings',      name:'Hot Wings',          ingredients:['poultry','spices'],
-    result:{ name:'Hot Wings',      hunger:20, happiness:10, energy:8,  category:'spicy' },
-    flavor:'Sticky, fiery, deeply worth it.' },
-
-  { id:'berry_smoothie', name:'Berry Smoothie',     ingredients:['berries','milk'],
-    result:{ name:'Berry Smoothie', hunger:10, happiness:18, energy:20, category:'fruit' },
-    flavor:'Fruity and energising. Goes down easy.' },
-
-  // ── INTERMEDIATE (3 ingredients) ─────────────────────────────────────────
-  { id:'apple_pie',      name:'Apple Pie',          ingredients:['grain','berries','sugar'],
-    result:{ name:'Apple Pie',      hunger:30, happiness:25, energy:10, category:'sweet' },
-    flavor:'Classic. Comforting. Some things are just right.' },
-
-  { id:'rainbow_cake',   name:'Rainbow Cake',       ingredients:['grain','milk','sugar'],
-    result:{ name:'Rainbow Cake',   hunger:25, happiness:30, energy:10, category:'sweet' },
-    flavor:'Seven layers. All happiness.' },
-
-  { id:'spicy_ramen',    name:'Spicy Ramen',        ingredients:['grain','bone_broth','spices'],
-    result:{ name:'Spicy Ramen',    hunger:35, happiness:15, energy:15, category:'spicy' },
-    flavor:'Steam rising. The smell alone is worth it.' },
-
-  { id:'deluxe_burger',  name:'Deluxe Burger',      ingredients:['meat','grain','milk'],
-    result:{ name:'Deluxe Burger',  hunger:40, happiness:15, energy:12, category:'savory' },
-    flavor:'Colossal. You will need both paws.' },
-
-  { id:'curry_feast',    name:'Curry Feast',        ingredients:['meat','wild_greens','spices'],
-    result:{ name:'Curry Feast',    hunger:38, happiness:18, energy:15, category:'spicy' },
-    flavor:'A full banquet in one bowl.' },
-
-  { id:'shrimp_tempura', name:'Shrimp Tempura',     ingredients:['shellfish','grain','spices'],
-    result:{ name:'Shrimp Tempura', hunger:30, happiness:18, energy:12, category:'fish' },
-    flavor:'Crispy outside, tender inside. Perfection.' },
-
-  { id:'seafood_stew',   name:'Seafood Stew',       ingredients:['fish','shellfish','herbs'],
-    result:{ name:'Seafood Stew',   hunger:35, happiness:15, energy:12, category:'fish' },
-    flavor:'Ocean in a bowl. Briny and deep.' },
-
-  { id:'mushroom_soup',  name:'Mushroom Soup',      ingredients:['mushroom','bone_broth','herbs'],
-    result:{ name:'Mushroom Soup',  hunger:28, happiness:15, energy:12, category:'savory' },
-    flavor:'Deeply earthy. Suspiciously delicious.' },
-
-  { id:'melons_stew',    name:"Melon's Mystery Stew",ingredients:['meat','wild_greens','herbs'],
-    result:{ name:"Melon's Mystery Stew",hunger:35,happiness:20,energy:15,category:'savory' },
-    flavor:"Melon won't tell you what's in it. 5 stars." },
-
-  { id:'cowbees_fritters',name:"Cowbee's Corn Fritters",ingredients:['grain','milk','honey'],
-    result:{ name:"Cowbee's Corn Fritters",hunger:25,happiness:22,energy:12,category:'sweet' },
-    flavor:"CLUCK! That means these are good." },
-
-  { id:'gnarlys_nachos', name:"Gnarly's Nachos",    ingredients:['grain','spices','milk'],
-    result:{ name:"Gnarly's Nachos",hunger:28,happiness:22,energy:12,category:'spicy' },
-    flavor:'Retro. Radical. Absolutely covered in cheese.' },
-
-  { id:'faerie_cake',    name:'Faerie Dust Cake',   ingredients:['honey','berries','sugar'],
-    result:{ name:'Faerie Dust Cake',hunger:20,happiness:35,energy:15,category:'sweet' },
-    flavor:'Inexplicably glittery. Aria approved.' },
-
-  // ── ENERGY DRINKS ─────────────────────────────────────────────────────────
-  { id:'energy_drink',   name:'Energy Drink',       ingredients:['berries','sugar','herbs'],
-    result:{ name:'Energy Drink',   hunger:5,  happiness:10, energy:40, category:'basic' },
-    flavor:'Jittery in all the right ways.' },
-
-  // ── COMPLEX (4 ingredients) ───────────────────────────────────────────────
-  { id:'embers_debug_juice',name:"Ember's Debug Juice",ingredients:['berries','sugar','honey','starlight_dust'],
-    result:{ name:"Ember's Debug Juice",hunger:15,happiness:25,energy:50,category:'fruit' },
-    flavor:"Tastes like fixing bugs at 3am. Ember's favourite. 🔥", streamer:'ember' },
-
-  { id:'blushimias_tart',name:"Blushimia's Berry Tart",ingredients:['grain','berries','sugar','milk'],
-    result:{ name:"Blushimia's Berry Tart",hunger:30,happiness:35,energy:15,category:'sweet' },
-    flavor:"WHAT THE GLOB this is delicious!! 👑", streamer:'blushimia' },
-
-  { id:'jess_dino_nuggets',name:"Jess's Dino Nuggets",ingredients:['poultry','grain','herbs','spices'],
-    result:{ name:"Jess's Dino Nuggets",hunger:35,happiness:25,energy:15,category:'savory' },
-    flavor:"65 million years of flavour. 🦕", streamer:'jess' },
-
-  { id:'pyxshuul_mystery_roll',name:"Pyxshuul's Mystery Roll",ingredients:['fish','grain','seaweed','spices'],
-    result:{ name:"Pyxshuul's Mystery Roll",hunger:30,happiness:25,energy:20,category:'fish' },
-    flavor:"I had a plan. It involved seaweed. ✨", streamer:'pyxshuul' },
-
-  { id:'keltas_smoothie',name:"Kelta's Void Smoothie",ingredients:['berries','milk','honey','starlight_dust'],
-    result:{ name:"Kelta's Void Smoothie",hunger:20,happiness:30,energy:45,category:'fruit' },
-    flavor:"YIP! It tastes like the void but good! 🌀", streamer:'kelta' },
-
-  { id:'golden_crown_roast',name:'Golden Crown Roast',ingredients:['meat','honey','spices','herbs'],
-    result:{ name:'Golden Crown Roast',hunger:50,happiness:20,energy:20,category:'savory' },
-    flavor:'Fit for royalty. Or at least a very good pet.' },
-
-  { id:'arias_midnight_soup',name:"Aria's Midnight Soup",ingredients:['bone_broth','mushroom','herbs','spices'],
-    result:{ name:"Aria's Midnight Soup",hunger:40,happiness:25,energy:20,category:'savory' },
-    flavor:"Do you want to see my bones? Anyway here's soup. 🦋", streamer:'aria' },
-
-  { id:'super_energy_drink',name:'⚡ Energy Drink',  ingredients:['berries','sugar','herbs','starlight_dust'],
-    result:{ name:'⚡ Energy Drink', hunger:5,  happiness:15, energy:60, category:'basic' },
-    flavor:'Cosmic caffeine. Handle with care.' },
-
-];
-
-// Build recipe lookup map: sorted ingredient key → recipe
-var _recipeMap = {};
-RECIPES.forEach(function(r) {
-  var key = r.ingredients.slice().sort().join('+');
-  _recipeMap[key] = r;
-});
-
-// Player's discovered recipes (persisted to localStorage)
-function cooking_getDiscovered() {
-  if (!currentUser) return {};
-  try { return JSON.parse(localStorage.getItem('cooking_discovered_' + currentUser.id) || '{}'); } catch(e) { return {}; }
-}
-function cooking_discover(recipeId) {
-  if (!currentUser) return;
-  var d = cooking_getDiscovered();
-  if (!d[recipeId]) {
-    d[recipeId] = Date.now();
-    try { localStorage.setItem('cooking_discovered_' + currentUser.id, JSON.stringify(d)); } catch(e) {}
-  }
-}
-
-// Ingredient inventory helpers — use user_inventory with item_type='ingredient'
-var _ingredientCache = null;
-async function cooking_loadIngredients() {
-  if (!currentUser) return {};
-  var res = await supabaseClient.from('user_inventory')
-    .select('id, item_id, quantity, items!inner(name, item_type)')
-    .eq('user_id', currentUser.id)
-    .eq('items.item_type', 'ingredient')
-    .gt('quantity', 0);
-  _ingredientCache = {};
-  if (res.data) {
-    res.data.forEach(function(row) {
-      // Map item name back to ingredient key
-      Object.keys(INGREDIENTS).forEach(function(key) {
-        if (INGREDIENTS[key].name.toLowerCase() === (row.items && row.items.name || '').toLowerCase()) {
-          _ingredientCache[key] = { invId: row.id, itemId: row.item_id, qty: row.quantity };
-        }
-      });
-    });
-  }
-  return _ingredientCache;
-}
-
-async function cooking_consumeIngredients(ingredientKeys) {
-  for (var i = 0; i < ingredientKeys.length; i++) {
-    var key = ingredientKeys[i];
-    var inv = _ingredientCache && _ingredientCache[key];
-    if (!inv) continue;
-    if (inv.qty <= 1) {
-      await supabaseClient.from('user_inventory').delete().eq('id', inv.invId);
-    } else {
-      await supabaseClient.from('user_inventory').update({ quantity: inv.qty - 1 }).eq('id', inv.invId);
-    }
-    inv.qty--;
-  }
-}
-
-async function cooking_awardResult(recipe) {
-  // Look up the result food item by name in the items table
-  var res = await supabaseClient.from('items')
-    .select('id').eq('name', recipe.result.name).maybeSingle();
-  if (res.data) {
-    // Item exists — add to inventory
-    var existing = await supabaseClient.from('user_inventory')
-      .select('id, quantity').eq('user_id', currentUser.id).eq('item_id', res.data.id).maybeSingle();
-    if (existing.data) {
-      await supabaseClient.from('user_inventory').update({ quantity: existing.data.quantity + 1 }).eq('id', existing.data.id);
-    } else {
-      await supabaseClient.from('user_inventory').insert([{ user_id: currentUser.id, item_id: res.data.id, quantity: 1 }]);
-    }
-  } else {
-    // Item doesn't exist in DB yet — just award PP + show toast (fallback)
-    dbg('[Cooking] Item not found in DB:', recipe.result.name, '— awarding PP fallback');
-    awardPP(10, 'cooking_fallback').catch(function(){});
-  }
-}
-
-// ── COOKING UI ────────────────────────────────────────────────────────────
-
-var _cookingSelected = []; // array of ingredient keys currently selected
-
-async function cooking_openModal() {
-  if (!currentUser) return;
-  var modal = makeModal();
-  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;"><div class="spinner"></div></div>';
-  openModal(modal);
-  await cooking_loadIngredients();
-  modal.innerHTML = cooking_buildUI();
-  modal._cookingRerender = function() { modal.innerHTML = cooking_buildUI(); };
-}
-
-function cooking_buildUI() {
-  var discovered = cooking_getDiscovered();
-  var hasAny = Object.keys(_ingredientCache || {}).length > 0;
-
-  var h = '<div style="font-family:Fredoka,sans-serif;max-width:580px;">';
-  h += '<h2 style="margin-bottom:4px;">🍳 Cooking</h2>';
-  h += '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:14px;">Select 2-4 ingredients and cook. Experiment to discover recipes!</div>';
-
-  // Selected slot display
-  h += '<div style="background:rgba(153,102,255,0.06);border:2px dashed rgba(153,102,255,0.3);border-radius:14px;padding:12px;margin-bottom:12px;">';
-  h += '<div style="font-size:0.8rem;font-weight:700;margin-bottom:8px;color:var(--purple-dark);">Selected Ingredients (' + _cookingSelected.length + '/4):</div>';
-  if (_cookingSelected.length === 0) {
-    h += '<div style="color:var(--text-light);font-size:0.8rem;font-style:italic;">Select ingredients below...</div>';
-  } else {
-    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">';
-    _cookingSelected.forEach(function(key, i) {
-      var ing = INGREDIENTS[key];
-      h += '<span style="background:rgba(153,102,255,0.15);border:1px solid var(--purple);border-radius:20px;padding:5px 12px;font-size:0.82rem;cursor:pointer;" onclick="cooking_deselect(' + i + ')">' +
-        ing.emoji + ' ' + ing.name + ' <span style="opacity:0.6;font-size:0.7rem;">✕</span></span>';
-    });
-    h += '</div>';
-  }
-
-  // Cook button
-  var canCook = _cookingSelected.length >= 2;
-  h += '<button onclick="cooking_cook()" ' + (canCook ? '' : 'disabled ') + ' style="margin-top:10px;width:100%;padding:10px;border-radius:10px;border:none;background:' +
-    (canCook ? 'var(--purple)' : 'rgba(0,0,0,0.08)') + ';color:' + (canCook ? '#fff' : 'var(--text-light)') +
-    ';font-family:Fredoka,sans-serif;font-size:0.9rem;font-weight:700;cursor:' + (canCook ? 'pointer' : 'not-allowed') + ';">' +
-    (canCook ? '🍳 Cook!' : 'Select 2-4 ingredients to cook') + '</button>';
-  h += '</div>';
-
-  // Ingredient inventory
-  h += '<div style="margin-bottom:12px;"><div style="font-size:0.82rem;font-weight:700;margin-bottom:8px;">Your Ingredients:</div>';
-  if (!hasAny) {
-    h += '<div style="color:var(--text-light);font-size:0.8rem;padding:16px;text-align:center;">No ingredients yet! Find them on expeditions, battles, and fishing. Some can be bought in the shop.</div>';
-  } else {
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;">';
-    Object.keys(INGREDIENTS).forEach(function(key) {
-      var inv = _ingredientCache[key];
-      if (!inv || inv.qty <= 0) return;
-      var alreadySelected = _cookingSelected.filter(function(k) { return k === key; }).length;
-      var canSelect = _cookingSelected.length < 4 && alreadySelected < inv.qty;
-      h += '<div onclick="' + (canSelect ? 'cooking_select(\'' + key + '\')' : '') + '" style="background:' +
-        (alreadySelected > 0 ? 'rgba(153,102,255,0.12)' : 'rgba(0,0,0,0.04)') +
-        ';border:' + (alreadySelected > 0 ? '2px solid var(--purple)' : '1px solid var(--border)') +
-        ';border-radius:10px;padding:10px;text-align:center;cursor:' + (canSelect ? 'pointer' : 'default') + ';opacity:' + (canSelect || alreadySelected > 0 ? '1' : '0.5') + ';">';
-      h += '<div style="font-size:1.6rem;">' + INGREDIENTS[key].emoji + '</div>';
-      h += '<div style="font-size:0.78rem;font-weight:700;">' + INGREDIENTS[key].name + '</div>';
-      h += '<div style="font-size:0.68rem;color:var(--text-light);">×' + inv.qty + '</div>';
-      if (alreadySelected > 0) h += '<div style="font-size:0.65rem;color:var(--purple);">(' + alreadySelected + ' selected)</div>';
-      h += '</div>';
-    });
-    h += '</div>';
-  }
-  h += '</div>';
-
-  // Journal preview button
-  var discoveredCount = Object.keys(discovered).length;
-  h += '<button onclick="cooking_openJournal()" style="width:100%;padding:8px;border-radius:10px;border:1px solid var(--border);background:rgba(0,0,0,0.03);cursor:pointer;font-family:Fredoka,sans-serif;font-size:0.82rem;">📖 Recipe Journal (' + discoveredCount + '/' + RECIPES.length + ' discovered)</button>';
-
-  h += '</div>';
-  return h;
-}
-
-function cooking_select(key) {
-  if (_cookingSelected.length >= 4) return;
-  _cookingSelected.push(key);
-  var modal = document.querySelector('.modal-overlay');
-  if (modal && modal._cookingRerender) modal._cookingRerender();
-}
-
-function cooking_deselect(idx) {
-  _cookingSelected.splice(idx, 1);
-  var modal = document.querySelector('.modal-overlay');
-  if (modal && modal._cookingRerender) modal._cookingRerender();
-}
-
-async function cooking_cook() {
-  if (_cookingSelected.length < 2) return;
-  var key = _cookingSelected.slice().sort().join('+');
-  var recipe = _recipeMap[key];
-
-  // Check inventory still has all selected ingredients
-  for (var i = 0; i < _cookingSelected.length; i++) {
-    var needed = _cookingSelected.filter(function(k) { return k === _cookingSelected[i]; }).length;
-    var have = (_ingredientCache[_cookingSelected[i]] || {}).qty || 0;
-    if (have < needed) { showToast('Not enough ' + INGREDIENTS[_cookingSelected[i]].name + '!', 3000); return; }
-  }
-
-  var ingredients = _cookingSelected.slice();
-  _cookingSelected = [];
-
-  if (recipe) {
-    // Success!
-    await cooking_consumeIngredients(ingredients);
-    await cooking_awardResult(recipe);
-    cooking_discover(recipe.id);
-    weeklyChallenge_increment('wk_cooking', 1);
-    updateBingoProgress('cook_food', 1);
-    await cooking_loadIngredients(); // refresh cache
-
-    // Show discovery fanfare if first time
-    var isNew = !cooking_getDiscovered()[recipe.id];
-    var discoveryMsg = isNew ? '🎉 New recipe discovered: ' + recipe.name + '!' : recipe.name + ' cooked!';
-    showToast('🍳 ' + discoveryMsg + ' Added to inventory.', 5000);
-
-    var modal = document.querySelector('.modal-overlay');
-    if (modal && modal._cookingRerender) modal._cookingRerender();
-  } else {
-    // Mystery Goo — invalid combo but still consume
-    await cooking_consumeIngredients(ingredients);
-    await cooking_loadIngredients();
-    showToast('🫧 The ingredients combine into... Mystery Goo. Not edible. Keep experimenting!', 4000);
-    var modal2 = document.querySelector('.modal-overlay');
-    if (modal2 && modal2._cookingRerender) modal2._cookingRerender();
-  }
-}
-
-// ── RECIPE JOURNAL ────────────────────────────────────────────────────────
-
-function cooking_openJournal() {
-  var discovered = cooking_getDiscovered();
-  var modal = makeModal();
-
-  var tierNames = { 2:'Basic Recipes', 3:'Intermediate Recipes', 4:'Complex Recipes' };
-  var byTier = {};
-  RECIPES.forEach(function(r) {
-    var t = r.ingredients.length;
-    if (!byTier[t]) byTier[t] = [];
-    byTier[t].push(r);
-  });
-
-  var h = '<div style="font-family:Fredoka,sans-serif;max-width:600px;">';
-  h += '<h2 style="margin-bottom:4px;">📖 Recipe Journal</h2>';
-  h += '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:16px;">' + Object.keys(discovered).length + ' of ' + RECIPES.length + ' recipes discovered. Keep experimenting!</div>';
-
-  [2, 3, 4].forEach(function(tier) {
-    if (!byTier[tier]) return;
-    h += '<div style="margin-bottom:16px;">';
-    h += '<div style="font-size:0.85rem;font-weight:700;color:var(--purple-dark);margin-bottom:8px;border-bottom:1px solid var(--border);padding-bottom:4px;">' + (tierNames[tier] || tier + ' Ingredients') + '</div>';
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px;">';
-    byTier[tier].forEach(function(recipe) {
-      var isKnown = !!discovered[recipe.id];
-      if (isKnown) {
-        h += '<div style="background:rgba(153,102,255,0.06);border:1px solid rgba(153,102,255,0.25);border-radius:10px;padding:10px;">';
-        h += '<div style="font-weight:700;font-size:0.82rem;margin-bottom:4px;">' + escapeHtml(recipe.name) + '</div>';
-        h += '<div style="font-size:0.7rem;color:var(--text-light);margin-bottom:6px;">' + recipe.ingredients.map(function(k) { return (INGREDIENTS[k] || {}).emoji || '?'; }).join(' + ') + '</div>';
-        h += '<div style="font-size:0.68rem;color:var(--text-light);font-style:italic;">' + escapeHtml(recipe.flavor || '') + '</div>';
-        var r = recipe.result;
-        h += '<div style="font-size:0.65rem;color:var(--purple);margin-top:4px;">';
-        if (r.hunger > 0)    h += '🍖+' + r.hunger + ' ';
-        if (r.happiness > 0) h += '😊+' + r.happiness + ' ';
-        if (r.energy > 0)    h += '⚡+' + r.energy;
-        h += '</div>';
-        // Quick cook button
-        h += '<button onclick="cooking_quickCook(' + JSON.stringify(recipe.ingredients).replace(/"/g,"'") + ')" style="margin-top:6px;width:100%;padding:3px;border-radius:6px;border:1px solid var(--purple);background:rgba(153,102,255,0.1);cursor:pointer;font-size:0.7rem;font-family:Fredoka,sans-serif;color:var(--purple);">Quick Cook</button>';
-        h += '</div>';
-      } else {
-        h += '<div style="background:rgba(0,0,0,0.03);border:1px solid var(--border);border-radius:10px;padding:10px;opacity:0.6;">';
-        h += '<div style="font-weight:700;font-size:0.82rem;margin-bottom:4px;color:var(--text-light);">???</div>';
-        h += '<div style="font-size:0.7rem;color:var(--text-light);">' + recipe.ingredients.map(function() { return '❓'; }).join(' + ') + '</div>';
-        h += '<div style="font-size:0.65rem;color:var(--text-light);margin-top:4px;">Undiscovered</div>';
-        h += '</div>';
-      }
-    });
-    h += '</div></div>';
-  });
-
-  h += '</div>';
-  modal.innerHTML = h;
-  openModal(modal);
-}
-
-function cooking_quickCook(ingredientKeys) {
-  // Close journal and open cooking modal with pre-selected ingredients
-  closeModal(document.querySelector('.modal-overlay'));
-  _cookingSelected = ingredientKeys.slice();
-  cooking_openModal();
-}
-
-// ── INGREDIENT DROPS ─────────────────────────────────────────────────────
-var INGREDIENT_DROP_TABLES = {
-  expedition: {
-    outskirts:   [{key:'grain',w:40},{key:'herbs',w:20},{key:'wild_greens',w:20},{key:'mushroom',w:10},{key:'spices',w:5},{key:'honey',w:3},{key:'starlight_dust',w:2}],
-    glade:       [{key:'herbs',w:35},{key:'wild_greens',w:30},{key:'berries',w:20},{key:'mushroom',w:10},{key:'honey',w:3},{key:'starlight_dust',w:2}],
-    deepwoods:   [{key:'mushroom',w:25},{key:'berries',w:25},{key:'herbs',w:20},{key:'honey',w:15},{key:'spices',w:10},{key:'starlight_dust',w:5}],
-    ruins:       [{key:'spices',w:35},{key:'mushroom',w:25},{key:'herbs',w:20},{key:'honey',w:10},{key:'starlight_dust',w:10}],
-    hiddenglade: [{key:'herbs',w:30},{key:'mushroom',w:30},{key:'wild_greens',w:20},{key:'honey',w:15},{key:'starlight_dust',w:5}],
-  },
-  battle: {
-    bird:    [{key:'poultry',w:70},{key:'bone_broth',w:30}],
-    bunny:   [{key:'bone_broth',w:60},{key:'meat',w:40}],
-    rabbit:  [{key:'meat',w:60},{key:'bone_broth',w:40}],
-    squirrel:[{key:'bone_broth',w:70},{key:'meat',w:30}],
-    fox:     [{key:'meat',w:65},{key:'bone_broth',w:35}],
-    boar:    [{key:'meat',w:75},{key:'bone_broth',w:25}],
-    wolf:    [{key:'meat',w:70},{key:'bone_broth',w:30}],
-    bear:    [{key:'meat',w:80},{key:'bone_broth',w:20}],
-    mushroom:[{key:'mushroom',w:70},{key:'herbs',w:30}],
-    _default:[{key:'meat',w:50},{key:'bone_broth',w:35},{key:'poultry',w:15}],
-  },
-};
-
-async function cooking_tryIngredientDrop(source, zoneOrSpecies) {
-  if (!currentUser) return;
-  var dropChance = source === 'expedition' ? 0.45 : 0.20;
-  if (Math.random() > dropChance) return;
-  var table = null;
-  if (source === 'expedition') {
-    table = INGREDIENT_DROP_TABLES.expedition[(zoneOrSpecies||'').toLowerCase()] || INGREDIENT_DROP_TABLES.expedition.outskirts;
-  } else {
-    table = INGREDIENT_DROP_TABLES.battle[(zoneOrSpecies||'').toLowerCase()] || INGREDIENT_DROP_TABLES.battle._default;
-  }
-  if (!table) return;
-  var total = table.reduce(function(s,e) { return s+e.w; }, 0);
-  var roll = Math.random() * total;
-  var cum = 0; var picked = null;
-  for (var i = 0; i < table.length; i++) { cum += table[i].w; if (roll < cum) { picked = table[i].key; break; } }
-  if (!picked) return;
-  var ing = INGREDIENTS[picked];
-  if (!ing) return;
-  var itemRes = await supabaseClient.from('items').select('id').eq('name', ing.name).eq('item_type', 'ingredient').maybeSingle();
-  if (!itemRes.data) { dbg('[Cooking] Ingredient not in DB:', ing.name); return; }
-  var existing = await supabaseClient.from('user_inventory').select('id,quantity').eq('user_id', currentUser.id).eq('item_id', itemRes.data.id).maybeSingle();
-  if (existing.data) {
-    await supabaseClient.from('user_inventory').update({ quantity: existing.data.quantity + 1 }).eq('id', existing.data.id);
-  } else {
-    await supabaseClient.from('user_inventory').insert([{ user_id: currentUser.id, item_id: itemRes.data.id, quantity: 1 }]);
-  }
-  showToast(ing.emoji + ' Found 1 ' + ing.name + '! (Cooking ingredient)', 3000);
-}
-
-// Direct ingredient drop by key — for fishing which knows the specific ingredient
-async function cooking_tryIngredientDrop_direct(ingredientKey) {
-  if (!currentUser) return;
-  var ing = INGREDIENTS[ingredientKey];
-  if (!ing) return;
-  var itemRes = await supabaseClient.from('items').select('id').eq('name', ing.name).eq('item_type', 'ingredient').maybeSingle();
-  if (!itemRes.data) { dbg('[Cooking] Ingredient not in DB:', ing.name); return; }
-  var existing = await supabaseClient.from('user_inventory').select('id,quantity').eq('user_id', currentUser.id).eq('item_id', itemRes.data.id).maybeSingle();
-  if (existing.data) {
-    await supabaseClient.from('user_inventory').update({ quantity: existing.data.quantity + 1 }).eq('id', existing.data.id);
-  } else {
-    await supabaseClient.from('user_inventory').insert([{ user_id: currentUser.id, item_id: itemRes.data.id, quantity: 1 }]);
-  }
-  showToast(ing.emoji + ' Found 1 ' + ing.name + '! (Cooking ingredient)', 3000);
-}
 }

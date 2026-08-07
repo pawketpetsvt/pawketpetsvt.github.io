@@ -4206,9 +4206,9 @@ body::after {
    =========================================== */
 
 .shop-mascot {
-  position: fixed !important;
-  right: 120px !important;  /* offset from companion which is at right:20px */
-  bottom: 20px !important;  /* sits at same level but offset right */
+  position: fixed;
+  right: 20px;
+  bottom: 0;
   z-index: 9999;
   pointer-events: none;
 }
@@ -9637,7 +9637,7 @@ body.night-mode .btn-outline:hover {
     box-sizing: border-box !important;
   }
   
-  /* Right Sidebar - Hidden on smaller screens (prevents layout takeover) */
+  /* Right Sidebar - Hidden on smaller screens */
   .right-sidebar {
     display: none !important;
   }
@@ -17749,8 +17749,8 @@ body.boss-ui-glitch #battle-controls-legacy {
 /* Re-assert fixed positioning in case any parent transform breaks it */
 .shop-mascot {
   position: fixed !important;
-  right: 120px !important;
-  bottom: 20px !important;
+  right: 20px !important;
+  bottom: 0 !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
@@ -17762,14 +17762,14 @@ body.boss-ui-glitch #battle-controls-legacy {
 .shop-mascot,
 #section-shop .shop-mascot {
   position: fixed !important;
-  bottom: 20px !important;
-  right: 120px !important;
+  bottom: 0 !important;
+  right: 20px !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
   margin: 0 !important;
   width: auto !important;
-  z-index: 9999 !important;
+  z-index: 999 !important;
 }
 
 /* ── PET PAT FLOATING TEXT ──────────────────────────────────────────────── */
@@ -17791,7 +17791,18 @@ body.boss-ui-glitch #battle-controls-legacy {
   100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
 }
 
-/* ── Equipment shop: outer container is block, inner grids handle columns ── */
+/* ── Remove browser focus ring on nav buttons ────────────────────────────── */
+.sidebar-nav-btn:focus,
+.sidebar-nav-btn:focus-visible,
+.sidebar-nav-btn.child:focus,
+.sidebar-nav-btn.child:focus-visible,
+.nav-group-header:focus,
+.nav-group-header:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* ── Equipment shop: outer container block, inner grids handle columns ────── */
 #equipment-shop-grid {
   display: block !important;
   grid-template-columns: unset !important;
@@ -17803,146 +17814,22 @@ body.boss-ui-glitch #battle-controls-legacy {
   margin-bottom: 24px !important;
 }
 
-/* ── Boss-fight: battle area protected from glitch drift ────────────────── */
-body.boss-ui-glitch #battle-screen,
-body.boss-ui-glitch #section-battle,
-body.boss-ui-glitch #manual-battle-actions,
-body.boss-ui-glitch #battle-narrative-box,
-body.boss-ui-glitch #battle-zone-banner,
-body.boss-ui-glitch #battle-skill-row,
-body.boss-ui-glitch #battle-action-grid,
-body.boss-ui-glitch #player-status-row,
-body.boss-ui-glitch #enemy-status-row,
-body.boss-ui-glitch .battle-hp-bar,
-body.boss-ui-glitch .battle-side {
-  animation: none !important;
-  transform: none !important;
+/* ── Hide right sidebar during manual battle ─────────────────────────────── */
+body.in-manual-battle .right-sidebar {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-/* ── Melon shop: fixed position lock ───────────────────────────────────────*/
+/* ── Melon shop mascot — beside companion, not on top ───────────────────── */
 .shop-mascot,
 #section-shop .shop-mascot {
   position: fixed !important;
-  bottom: 0 !important;
-  right: 20px !important;
+  right: 120px !important;
+  bottom: 20px !important;
   left: auto !important;
   top: auto !important;
   transform: none !important;
   margin: 0 !important;
   width: auto !important;
-  z-index: 999 !important;
-}
-
-/* ── Pet pat floating text ──────────────────────────────────────────────── */
-.pet-pat-text {
-  position: absolute;
-  pointer-events: none;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--pink);
-  font-family: 'Chewy', cursive;
-  white-space: nowrap;
-  animation: pet-pat-float 1.4s ease-out forwards;
-  z-index: 1000;
-}
-@keyframes pet-pat-float {
-  0%   { opacity: 1; transform: translateY(0) scale(1); }
-  60%  { opacity: 1; transform: translateY(-40px) scale(1.1); }
-  100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
-}
-@keyframes phase3-flash {
-  0%   { opacity: 1; }
-  50%  { opacity: 0.6; }
-  100% { opacity: 0; }
-}
-
-/* ── STREAMER LANDING PAGES ─────────────────────────────────────────────── */
-.streamer-landing-hero {
-  position: relative;
-  overflow: hidden;
-  text-align: center;
-}
-.streamer-landing-pet-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 16px;
-}
-.streamer-landing-pet-img {
-  width: clamp(140px, 35vw, 220px);
-  height: clamp(140px, 35vw, 220px);
-  object-fit: contain;
-  animation: companionFloat 3s ease-in-out infinite;
-}
-.streamer-landing-info {
-  color: #fff;
-}
-.streamer-landing-invited {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  font-size: 0.85rem;
-  margin-bottom: 8px;
-  opacity: 0.85;
-}
-.streamer-landing-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-  animation: live-dot-pulse 1.4s ease-in-out infinite;
-}
-.streamer-landing-bio {
-  font-size: 0.88rem;
-  line-height: 1.6;
-  color: rgba(255,255,255,0.75);
-  max-width: 420px;
-  margin: 0 auto 16px;
-}
-.streamer-landing-socials {
-  display: flex;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-.streamer-landing-social-btn {
-  padding: 8px 18px;
-  border-radius: 30px;
-  border: 2px solid currentColor;
-  text-decoration: none;
-  font-size: 0.82rem;
-  font-weight: 700;
-  font-family: 'Fredoka', sans-serif;
-  background: rgba(255,255,255,0.08);
-  backdrop-filter: blur(4px);
-  transition: background 0.2s, transform 0.15s;
-}
-.streamer-landing-social-btn:hover {
-  background: rgba(255,255,255,0.18);
-  transform: translateY(-1px);
-}
-/* Form card gets streamer accent border when on a landing page */
-body.streamer-landing-active .auth-card,
-body.streamer-landing-active .form-card {
-  border: 2px solid var(--streamer-accent, var(--purple));
-  box-shadow: 0 0 24px rgba(0,0,0,0.4);
-}
-
-/* ── Fix My Pets button red outline (browser focus ring) ──────────────────── */
-.sidebar-nav-btn:focus,
-.sidebar-nav-btn:focus-visible,
-.sidebar-nav-btn.child:focus,
-.sidebar-nav-btn.child:focus-visible,
-.nav-group-header:focus,
-.nav-group-header:focus-visible {
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* ── Hide right sidebar during active battle to prevent visual confusion ── */
-body.in-manual-battle .right-sidebar,
-body.boss-ui-glitch .right-sidebar {
-  opacity: 0 !important;
-  pointer-events: none !important;
+  z-index: 9999 !important;
 }
