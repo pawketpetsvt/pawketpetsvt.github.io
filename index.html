@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260806a">
+  <link rel="stylesheet" href="style.css?v=20260806c">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1981,8 +1981,8 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
             <!-- Fish Journal -->
             <div style="margin-top:20px;border-top:1px solid rgba(153,102,255,0.15);padding-top:16px;">
-              <div style="font-size:0.85rem;font-weight:700;color:var(--purple-dark);margin-bottom:10px;">📖 Fish Journal</div>
-              <div id="fishing-journal-mount"></div>
+              <button onclick="fishingToggleJournal()" style="font-size:0.85rem;font-weight:700;color:var(--purple-dark);margin-bottom:10px;background:none;border:none;cursor:pointer;padding:0;font-family:'Fredoka',sans-serif;display:flex;align-items:center;gap:6px;">📖 Fish Journal <span id="fish-journal-chevron" style="font-size:0.7rem;opacity:0.6;">▼</span></button>
+              <div id="fishing-journal-mount" style="display:none;"></div>
             </div>
           </div>
         </div>
@@ -2266,7 +2266,24 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           <p>Explore and battle wild creatures!</p>
         </div>
         
-        <!-- Zone Selection -->
+        
+
+        <div class="page-hero">
+          <div class="sparkle-row">🌲 ⚔️ 🌲</div>
+          <h1>Wildwood Forest</h1>
+          <p>Explore and battle wild creatures!</p>
+        </div>
+        
+        <!-- Select Pet -->
+        <div class="battle-pet-selector">
+          <h3>Choose Your Fighter</h3>
+          <div id="battle-pet-select" class="battle-pet-grid">
+            <div class="spinner"></div>
+          </div>
+        </div>
+        
+        
+<!-- Zone Selection -->
         <div class="zone-selector" style="margin: 20px 0;">
           <h3 style="text-align: center; color: var(--purple); margin-bottom: 15px;">Choose Your Destination</h3>
           <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
@@ -2317,8 +2334,21 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
         </div>
         
-        <!-- ── EXPEDITION SECTION ── -->
-        <div id="battle-expedition-section" style="margin-bottom:24px;">
+        <!-- Encounter Button -->
+        <div style="text-align: center; margin-top: 30px;">
+          <button class="btn btn-primary btn-large" onclick="goExploring()" id="find-battle-btn" disabled>
+            🌲 Go Exploring
+          </button>
+          <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;" id="battle-helper-text">Select a pet first</p>
+        </div>
+                <!-- ── EXPEDITIONS (collapsible, at bottom) ── -->
+        <div style="margin-top:24px;">
+          <details style="border:2px solid var(--border);border-radius:14px;overflow:hidden;">
+            <summary style="padding:12px 16px;font-weight:700;font-size:0.9rem;color:var(--purple-dark);cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;background:rgba(153,102,255,0.04);">
+              🗺️ Expeditions <span style="font-size:0.75rem;font-weight:400;color:var(--text-light);margin-left:4px;">— Send pets on timed journeys</span>
+            </summary>
+            <div style="padding:14px 16px;border-top:1px solid var(--border);">
+<div id="battle-expedition-section" style="margin-bottom:24px;">
 
           <!-- Active explorations -->
           <div style="background:linear-gradient(135deg,rgba(153,102,255,0.08),rgba(255,102,204,0.05));border-radius:16px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(153,102,255,0.2);">
@@ -2343,23 +2373,10 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
 
         </div>
+            </div>
+          </details>
+        </div>
 
-        <!-- Select Pet -->
-        <div class="battle-pet-selector">
-          <h3>Choose Your Fighter</h3>
-          <div id="battle-pet-select" class="battle-pet-grid">
-            <div class="spinner"></div>
-          </div>
-        </div>
-        
-        <!-- Encounter Button -->
-        <div style="text-align: center; margin-top: 30px;">
-          <button class="btn btn-primary btn-large" onclick="goExploring()" id="find-battle-btn" disabled>
-            🌲 Go Exploring
-          </button>
-          <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;" id="battle-helper-text">Select a pet first</p>
-        </div>
-        
       </div>
       
     </div>

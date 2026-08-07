@@ -6373,14 +6373,58 @@ function showShopTab(tab) {
 
 function itemEmoji(type) { 
   return {
-    food:'🍖',      // Meat
-    toy:'🧸',       // Teddy bear
-    potion:'⚡',    // Lightning/energy
-    special:'✨',   // Sparkles
-    drink:'🥤',     // Cup with straw
-    pillow:'🛏️',   // Bed/pillow
-    snack:'🍪'      // Cookie/treat
-  }[type]||'🎁';     // Gift box default
+    food:'🍽️',
+    medicine:'🧪',
+    toy:'🧸',
+    potion:'⚡',
+    special:'✨',
+    drink:'🥤',
+    pillow:'🛏️',
+    snack:'🍪',
+    treat:'🦴',
+    furniture:'🪑'
+  }[type]||'🎁';
+}
+
+// Name-based emoji for items with no category/image
+function itemEmojiByName(name) {
+  if (!name) return null;
+  var n = name.toLowerCase();
+  var patterns = [
+    [/popcorn|corn/,         '🍿'],
+    [/cookie|biscuit/,       '🍪'],
+    [/cake|tart|pie/,        '🎂'],
+    [/bread|loaf/,           '🍞'],
+    [/juice|smoothie|drink/, '🥤'],
+    [/steak|beef|brisket/,   '🥩'],
+    [/burger/,               '🍔'],
+    [/wing|chicken|poultry/, '🍗'],
+    [/sushi|roll/,           '🍱'],
+    [/ramen|noodle|pasta/,   '🍜'],
+    [/curry|burrito/,        '🌯'],
+    [/salad|greens/,         '🥗'],
+    [/soup|stew|broth/,      '🍲'],
+    [/nacho/,                '🧀'],
+    [/candy|gummy/,          '🍬'],
+    [/honey/,                '🍯'],
+    [/berry|fruit/,          '🍓'],
+    [/fish/,                 '🐟'],
+    [/seafood|shrimp|shellf/,'🦐'],
+    [/meat|steak/,           '🍖'],
+    [/egg/,                  '🥚'],
+    [/milk|dairy/,           '🥛'],
+    [/cheese/,               '🧀'],
+    [/potion|elixir/,        '⚗️'],
+    [/antidote/,             '🌿'],
+    [/panacea/,              '✨'],
+    [/smoke/,                '💨'],
+    [/shock|shard/,          '⚡'],
+    [/restore|heal/,         '💊'],
+  ];
+  for (var i = 0; i < patterns.length; i++) {
+    if (patterns[i][0].test(n)) return patterns[i][1];
+  }
+  return null;
 }
 
 // ── Category-based food icon images ─────────────────────────────────────
@@ -6417,6 +6461,12 @@ function getItemIconHtml(item) {
     var fb  = FOOD_CATEGORY_FALLBACK[item.food_category] || '🍕';
     var src = FOOD_CATEGORY_IMAGES[item.food_category];
     return '<img src="' + src + '" class="item-icon-img" alt="' + escapeHtml(item.food_category) + '" onerror="var p=this.parentElement;if(p){p.innerHTML=\'' + fb + '\';p.style.fontSize=\'2rem\';}">';
+  }
+
+  // Name-based emoji fallback (before generic type emoji)
+  var nameEmoji = itemEmojiByName(item.name);
+  if (nameEmoji && !item.image_url) {
+    return '<span style="font-size:1.8rem;line-height:1;">' + nameEmoji + '</span>';
   }
 
   // All other items: type emoji fallback
@@ -9066,16 +9116,21 @@ function fishingRenderJournal(spotFilter) {
   mount.innerHTML = html;
 }
 
-function fishingShowJournal() {
-  var section = document.getElementById('fishing-journal-section');
-  if (!section) return;
-  var isVisible = section.style.display !== 'none' && section.style.display !== '';
-  section.style.display = isVisible ? 'none' : 'block';
-  if (!isVisible) fishingRenderJournal();
+function fishingToggleJournal() {
+  var mount = document.getElementById('fishing-journal-mount');
+  var chevron = document.getElementById('fish-journal-chevron');
+  if (!mount) return;
+  var isOpen = mount.style.display !== 'none' && mount.style.display !== '';
+  mount.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.textContent = isOpen ? '▼' : '▲';
+  if (!isOpen && typeof fishingRenderJournal === 'function') fishingRenderJournal();
 }
 
+function fishingShowJournal() { fishingToggleJournal(); }
+
+
 // ── FISHING TAB INIT ──────────────────────────────────────────────────────────
-async // ═══════════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // FISHING DEPTH — Melon's Weekly Quest, Daily Challenge, Shoal Events, Cook
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -9298,6 +9353,10 @@ async function initFishingTab() {
   // Check for rare shoal event
   fishingShoal_check();
   fishingRenderRodShop();
+  // Render fish journal inline on tab open
+  if (typeof fishingRenderJournal === 'function') {
+    fishingRenderJournal();
+  }
   var collEl = document.getElementById('fishing-collection');
   if (collEl) {
     var collected = Object.keys(_fishCollection || {}).filter(function(k) {
@@ -14489,7 +14548,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('item_id', itemDropped.id)
-        .single();
+        .maybeSingle();
       
       if (existingItem.data) {
         await supabaseClient
@@ -15406,6 +15465,18 @@ async function battleExp_renderForm() {
       '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:6px;">Select Zone:</label>' +
       '<div style="display:flex;gap:6px;">' + zoneCards + '</div>' +
     '</div>' +
+    '<div style="margin-bottom:10px;">' +
+      '<label style="font-size:0.8rem;font-weight:600;color:var(--purple-dark);display:block;margin-bottom:6px;">Expedition Speed:</label>' +
+      '<div style="display:flex;gap:6px;">' +
+        Object.keys(EXPEDITION_SPEED_MODS).map(function(k) {
+          var s = EXPEDITION_SPEED_MODS[k];
+          return '<button class="exp-speed-btn" data-speed="' + k + '" onclick="battleExp_setSpeed(\'' + k + '\')" ' +
+            'title="' + s.tip + '" ' +
+            'style="flex:1;padding:8px 4px;border-radius:8px;border:2px solid var(--border);background:' + (k === 'normal' ? 'rgba(153,102,255,0.12);border-color:var(--purple);font-weight:700' : 'none') + ';cursor:pointer;font-size:0.75rem;font-family:Fredoka,sans-serif;">' +
+            s.label + '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>' +
     '<div id="battle-exp-info" style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;min-height:18px;"></div>' +
     '<button id="battle-exp-btn" class="btn btn-primary" onclick="battleExp_start()" disabled style="width:100%;opacity:0.5;">🚀 Send on Expedition</button>';
 
@@ -15415,6 +15486,24 @@ async function battleExp_renderForm() {
 }
 
 var _battleExpZone = null;
+var _battleExpSpeed = 'normal'; // 'careful' | 'normal' | 'risky'
+
+var EXPEDITION_SPEED_MODS = {
+  careful: { label: '🐢 Careful',  durationMult: 1.5,  ppMult: 1.3,  energyMult: 0.85, tip: '+30% PP, 50% longer, -15% energy' },
+  normal:  { label: '🚀 Normal',   durationMult: 1.0,  ppMult: 1.0,  energyMult: 1.0,  tip: 'Balanced rewards and risk' },
+  risky:   { label: '⚡ Risky',    durationMult: 0.6,  ppMult: 0.8,  energyMult: 1.2,  tip: '40% faster, -20% PP, +20% energy' }
+};
+
+function battleExp_setSpeed(speed) {
+  _battleExpSpeed = speed;
+  document.querySelectorAll('.exp-speed-btn').forEach(function(b) {
+    var active = b.getAttribute('data-speed') === speed;
+    b.style.background = active ? 'rgba(153,102,255,0.12)' : 'none';
+    b.style.borderColor = active ? 'var(--purple)' : 'var(--border)';
+    b.style.fontWeight = active ? '700' : '400';
+  });
+  battleExp_updateBtn();
+}
 
 function battleExp_selectZone(zoneKey, el) {
   _battleExpZone = zoneKey;
@@ -15448,9 +15537,17 @@ function battleExp_updateBtn() {
   var ok = (pet.energy || 0) >= zone.energyCost;
   btn.disabled  = !ok;
   btn.style.opacity = ok ? '1' : '0.5';
-  info.textContent = ok
-    ? '⚡ Costs ' + zone.energyCost + ' energy · Returns in ' + zone.duration + ' min · ' + zone.minPP + '-' + zone.maxPP + ' PP + ' + zone.xpReward + ' XP'
-    : '❌ Need ' + zone.energyCost + ' energy (have ' + Math.floor(pet.energy||0) + ')';
+  var speedMod = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
+  var adjEnergy = Math.round(zone.energyCost * speedMod.energyMult);
+  var adjDur    = Math.round(zone.duration   * speedMod.durationMult);
+  var adjMinPP  = Math.round(zone.minPP      * speedMod.ppMult);
+  var adjMaxPP  = Math.round(zone.maxPP      * speedMod.ppMult);
+  var ok2 = (pet.energy || 0) >= adjEnergy;
+  btn.disabled  = !ok2;
+  btn.style.opacity = ok2 ? '1' : '0.5';
+  info.textContent = ok2
+    ? '⚡ ' + adjEnergy + ' energy · ' + adjDur + ' min · ' + adjMinPP + '-' + adjMaxPP + ' PP + ' + zone.xpReward + ' XP'
+    : '❌ Need ' + adjEnergy + ' energy (have ' + Math.floor(pet.energy||0) + ')';
   if (!ok) info.style.color = '#ff6b6b'; else info.style.color = 'var(--text-light)';
 }
 
@@ -15472,14 +15569,20 @@ async function battleExp_start() {
     petState[petId] = dbPet;
     pet = dbPet;
   }
-  if ((pet.energy || 0) < zone.energyCost) { showToast('Not enough energy!', 2500); return; }
+  // Recalculate with speed modifier
+  var speedMod2 = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
+  var adjEnergyCheck = Math.round(zone.energyCost * speedMod2.energyMult);
+  if ((pet.energy || 0) < adjEnergyCheck) { showToast('Not enough energy!', 2500); return; }
   if (_battleExpeditionPetIds.indexOf(petId) !== -1) { showToast('That pet is already exploring!', 2500); return; }
 
   var btn = document.getElementById('battle-exp-btn');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
 
   var levelBonus = Math.min(1.5, 1 + (pet.level||1) / 100);
-  var rewardPP  = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus);
+  var speedMod  = EXPEDITION_SPEED_MODS[_battleExpSpeed] || EXPEDITION_SPEED_MODS.normal;
+  var adjDur    = Math.round(zone.duration * speedMod.durationMult);
+  var adjEnergy = Math.round(zone.energyCost * speedMod.energyMult);
+  var rewardPP  = Math.floor((zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus * speedMod.ppMult);
   var rewardXP  = Math.floor(zone.xpReward * levelBonus);
 
   // Single item drop using itemChance + ruins equipment split
@@ -15885,7 +15988,7 @@ async function handleItemEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .single();
+    .maybeSingle();
   
   if (existingItem.data) {
     await supabaseClient
@@ -15941,7 +16044,7 @@ async function handleTreasureEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .single();
+    .maybeSingle();
   
   if (existingItem.data) {
     await supabaseClient
@@ -18883,13 +18986,14 @@ async function logJournalDiscovery(petType, discoveryType, itemName) {
   try {
     await supabaseClient.from('pet_journal').insert({
       user_id: currentUser.id,
+      pet_type: petType,
       entry_type: discoveryType,
-      entry_data: {
+      entry_data: JSON.stringify({
         pet_type: petType,
         item_name: itemName,
         discovered_at: new Date().toISOString()
-      }
-    });
+      })
+    }).catch(function(e) { dbg('[Journal] Insert error:', e); });
     
     // Update local cache
     if (!journalDiscoveries[petType]) journalDiscoveries[petType] = {};
@@ -36591,6 +36695,10 @@ async function initFishingTab() {
   // Check for rare shoal event
   fishingShoal_check();
   fishingRenderRodShop();
+  // Render fish journal inline on tab open
+  if (typeof fishingRenderJournal === 'function') {
+    fishingRenderJournal();
+  }
   var collEl = document.getElementById('fishing-collection');
   if (collEl) {
     var collected = Object.keys(_fishCollection || {}).filter(function(k) {
