@@ -17862,3 +17862,76 @@ body.boss-ui-glitch .battle-side {
   50%  { opacity: 0.6; }
   100% { opacity: 0; }
 }
+
+/* ── STREAMER LANDING PAGES ─────────────────────────────────────────────── */
+.streamer-landing-hero {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+.streamer-landing-pet-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.streamer-landing-pet-img {
+  width: clamp(140px, 35vw, 220px);
+  height: clamp(140px, 35vw, 220px);
+  object-fit: contain;
+  animation: companionFloat 3s ease-in-out infinite;
+}
+.streamer-landing-info {
+  color: #fff;
+}
+.streamer-landing-invited {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  margin-bottom: 8px;
+  opacity: 0.85;
+}
+.streamer-landing-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: live-dot-pulse 1.4s ease-in-out infinite;
+}
+.streamer-landing-bio {
+  font-size: 0.88rem;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.75);
+  max-width: 420px;
+  margin: 0 auto 16px;
+}
+.streamer-landing-socials {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.streamer-landing-social-btn {
+  padding: 8px 18px;
+  border-radius: 30px;
+  border: 2px solid currentColor;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-family: 'Fredoka', sans-serif;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(4px);
+  transition: background 0.2s, transform 0.15s;
+}
+.streamer-landing-social-btn:hover {
+  background: rgba(255,255,255,0.18);
+  transform: translateY(-1px);
+}
+/* Form card gets streamer accent border when on a landing page */
+body.streamer-landing-active .auth-card,
+body.streamer-landing-active .form-card {
+  border: 2px solid var(--streamer-accent, var(--purple));
+  box-shadow: 0 0 24px rgba(0,0,0,0.4);
+}

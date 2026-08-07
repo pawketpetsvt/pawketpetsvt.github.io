@@ -9728,22 +9728,44 @@ function streamerLanding_buildHero(member) {
       '</div>' +
     '</div>';
 
-  // Apply to both auth sections
-  ['section-login', 'section-register'].forEach(function(sectionId) {
-    var section = document.getElementById(sectionId);
-    if (!section) { dbg('[Landing] Section not found:', sectionId); return; }
-    var existingHero = section.querySelector('.landing-hero');
+  // Apply to login section (primary landing page)
+  var loginSection = document.getElementById('section-login');
+  if (loginSection) {
+    var existingHero = loginSection.querySelector('.landing-hero');
     if (existingHero) {
       existingHero.outerHTML = heroHTML;
-      dbg('[Landing] Hero replaced in', sectionId, 'for', member.name);
     } else {
-      dbg('[Landing] .landing-hero not found in', sectionId);
+      // No placeholder exists — inject before the form content
+      loginSection.insertAdjacentHTML('afterbegin', heroHTML);
     }
-  });
+    dbg('[Landing] Hero injected for', member.name);
+  } else {
+    dbg('[Landing] section-login not found');
+  }
+  // Also apply to register section
+  var regSection = document.getElementById('section-register');
+  if (regSection) {
+    var existingHeroReg = regSection.querySelector('.landing-hero');
+    if (existingHeroReg) {
+      existingHeroReg.outerHTML = heroHTML;
+    } else {
+      regSection.insertAdjacentHTML('afterbegin', heroHTML);
+    }
+  }
 
   // Set accent CSS variable for streamer-themed form card borders etc.
   document.body.style.setProperty('--streamer-accent', accent);
   document.body.classList.add('streamer-landing-active');
+
+  // Apply streamer theme background to the whole page section
+  var lSec = document.getElementById('section-login');
+  var rSec = document.getElementById('section-register');
+  [lSec, rSec].forEach(function(s) {
+    if (s) {
+      s.style.background = bg;
+      s.style.minHeight = '100vh';
+    }
+  });
 
   // Show register tab for new visitors
   showAuthSection('register');
@@ -37092,18 +37114,30 @@ function streamerLanding_buildHero(member) {
       '</div>' +
     '</div>';
 
-  // Apply to both auth sections
-  ['section-login', 'section-register'].forEach(function(sectionId) {
-    var section = document.getElementById(sectionId);
-    if (!section) { dbg('[Landing] Section not found:', sectionId); return; }
-    var existingHero = section.querySelector('.landing-hero');
+  // Apply to login section (primary landing page)
+  var loginSection = document.getElementById('section-login');
+  if (loginSection) {
+    var existingHero = loginSection.querySelector('.landing-hero');
     if (existingHero) {
       existingHero.outerHTML = heroHTML;
-      dbg('[Landing] Hero replaced in', sectionId, 'for', member.name);
     } else {
-      dbg('[Landing] .landing-hero not found in', sectionId);
+      // No placeholder exists — inject before the form content
+      loginSection.insertAdjacentHTML('afterbegin', heroHTML);
     }
-  });
+    dbg('[Landing] Hero injected for', member.name);
+  } else {
+    dbg('[Landing] section-login not found');
+  }
+  // Also apply to register section
+  var regSection = document.getElementById('section-register');
+  if (regSection) {
+    var existingHeroReg = regSection.querySelector('.landing-hero');
+    if (existingHeroReg) {
+      existingHeroReg.outerHTML = heroHTML;
+    } else {
+      regSection.insertAdjacentHTML('afterbegin', heroHTML);
+    }
+  }
 
   // Set accent CSS variable for streamer-themed form card borders etc.
   document.body.style.setProperty('--streamer-accent', accent);
