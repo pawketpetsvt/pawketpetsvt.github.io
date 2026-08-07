@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260806c">
+  <link rel="stylesheet" href="style.css?v=20260806d">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1021,7 +1021,15 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         </div>
 
         <button class="sidebar-nav-btn standalone" id="sidebar-btn-battle" onclick="showTab('battle')">⚔️ Battle Arena</button>
-        <button class="sidebar-nav-btn standalone" id="sidebar-btn-shop" onclick="showTab('shop')">🛍️ Shop</button>
+        <div class="nav-group" id="shop-nav-group">
+        <button class="sidebar-nav-btn" id="sidebar-btn-shop" onclick="shopNav_toggle()">
+          🛍️ Shop <span id="shop-nav-chevron" style="display:none;font-size:0.65rem;opacity:0.7;margin-left:2px;">▾</span>
+        </button>
+        <!-- Piper shop dropdown — only revealed during high corruption -->
+        <div id="shop-nav-children" style="display:none;padding-left:12px;">
+          <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;animation:boss-ui-glitch 6s infinite;">🎵 .....</button>
+        </div>
+      </div>
 
         <!-- COMMUNITY GROUP -->
         <div class="nav-group" id="navgroup-community">
@@ -1051,7 +1059,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-news" onclick="showTab('news');navGroupClose('more')">📰 News</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-team" onclick="showTab('team');navGroupClose('more')">👥 Team</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
-            <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop" onclick="piperShop_open();navGroupClose('more')" style="display:none;color:#cc44ff;font-style:italic;">🎵 ???</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-archive" onclick="argLogs_showArchive();navGroupClose('more')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
             <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more')">📋 Weekly Challenges</button>
           </div>
@@ -1087,7 +1094,14 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
 
           <button class="sidebar-nav-btn standalone" onclick="showTab('battle')">⚔️ Battle Arena</button>
-          <button class="sidebar-nav-btn standalone" onclick="showTab('shop')">🛍️ Shop</button>
+          <div class="nav-group" id="shop-nav-group-mobile">
+        <button class="sidebar-nav-btn" onclick="shopNav_toggleMobile()">
+          🛍️ Shop <span id="shop-nav-chevron-mobile" style="display:none;font-size:0.65rem;opacity:0.7;margin-left:2px;">▾</span>
+        </button>
+        <div id="shop-nav-children-mobile" style="display:none;padding-left:12px;">
+          <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop-mobile" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;animation:boss-ui-glitch 6s infinite;">🎵 .....</button>
+        </div>
+      </div>
 
           <div class="nav-group" id="navgroup-community-mobile">
             <button class="nav-group-header" onclick="navGroupToggle('community-mobile')">🌐 Community <span class="nav-group-arrow">›</span></button>
@@ -1108,7 +1122,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
               <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
               <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
-              <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop-mobile" onclick="piperShop_open();navGroupClose('more-mobile')" style="display:none;color:#cc44ff;font-style:italic;">🎵 ???</button>
               <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
               <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
             </div>
@@ -2341,13 +2354,21 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </button>
           <p style="margin-top: 10px; color: var(--text-light); font-size: 0.9rem;" id="battle-helper-text">Select a pet first</p>
         </div>
-                <!-- ── EXPEDITIONS (collapsible, at bottom) ── -->
-        <div style="margin-top:24px;">
-          <details style="border:2px solid var(--border);border-radius:14px;overflow:hidden;">
-            <summary style="padding:12px 16px;font-weight:700;font-size:0.9rem;color:var(--purple-dark);cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;background:rgba(153,102,255,0.04);">
-              🗺️ Expeditions <span style="font-size:0.75rem;font-weight:400;color:var(--text-light);margin-left:4px;">— Send pets on timed journeys</span>
-            </summary>
-            <div style="padding:14px 16px;border-top:1px solid var(--border);">
+                <!-- ── EXPEDITIONS ── -->
+        <div style="margin-top:28px;">
+          <div style="background:linear-gradient(135deg,rgba(153,102,255,0.12),rgba(255,102,204,0.08));border:2px solid rgba(153,102,255,0.3);border-radius:16px;overflow:hidden;box-shadow:0 4px 20px rgba(153,102,255,0.15);">
+            <!-- Expedition header — always visible, clickable to expand -->
+            <div onclick="document.getElementById('expedition-body').style.display=document.getElementById('expedition-body').style.display==='none'?'block':'none';this.querySelector('.exp-chevron').textContent=document.getElementById('expedition-body').style.display==='none'?'▼':'▲';" style="padding:16px 20px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span style="font-size:1.6rem;">🗺️</span>
+                <div>
+                  <div style="font-weight:700;font-size:1rem;color:var(--purple-dark);">Expeditions</div>
+                  <div style="font-size:0.75rem;color:var(--text-light);">Send your pets on timed journeys for PP, XP and items</div>
+                </div>
+              </div>
+              <span class="exp-chevron" style="font-size:0.85rem;color:var(--purple);font-weight:700;">▼</span>
+            </div>
+            <div id="expedition-body" style="display:none;padding:14px 16px;border-top:1px solid rgba(153,102,255,0.15);">
 <div id="battle-expedition-section" style="margin-bottom:24px;">
 
           <!-- Active explorations -->

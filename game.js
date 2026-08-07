@@ -728,13 +728,13 @@ var bgMusic = document.getElementById('bg-music');
 bgMusic.volume = 0.4;
 
 document.addEventListener('click', function startM() {
-  bgMusic.play().catch(function(){});
+  bgMusic.play().then(null, function(){});
   document.getElementById('music-play-btn').textContent = '\u23F8';
   document.removeEventListener('click', startM);
 }, { once: true });
 
 function toggleMusic() {
-  if (bgMusic.paused) { bgMusic.play().catch(function(){}); document.getElementById('music-play-btn').textContent = '\u23F8'; }
+  if (bgMusic.paused) { bgMusic.play().then(null, function(){}); document.getElementById('music-play-btn').textContent = '\u23F8'; }
   else { bgMusic.pause(); document.getElementById('music-play-btn').textContent = '\u25B6'; }
 }
 function stopMusic() { bgMusic.pause(); bgMusic.currentTime = 0; document.getElementById('music-play-btn').textContent = '\u25B6'; }
@@ -1583,13 +1583,13 @@ function showTab(tab) {
   // WISHES: shop visit — check for any pet that has a visit_shop wish
   if (tab === 'shop' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('visit_shop', pid).catch(function(){});
+      checkPetWishes('visit_shop', pid).then(null, function(){});
     });
   }
   // WISHES: profile visit
   if (tab === 'profile' && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
-      checkPetWishes('view_profile', pid).catch(function(){});
+      checkPetWishes('view_profile', pid).then(null, function(){});
     });
   }
   
@@ -1827,8 +1827,8 @@ async function showApp(user) {
   // Saves ~1500ms vs sequential on a 150ms-latency connection.
   setTimeout(loadDailyTip, 100);
   checkReferralCode();
-  safeSetInterval(function() { if (!document.hidden) checkSidebarStreamStatus().catch(function(){}); }, 300000);
-  safeSetInterval(function() { if (!document.hidden) updateNotificationBadge().catch(function(){}); }, 120000);
+  safeSetInterval(function() { if (!document.hidden) checkSidebarStreamStatus().then(null, function(){}); }, 300000);
+  safeSetInterval(function() { if (!document.hidden) updateNotificationBadge().then(null, function(){}); }, 120000);
 
   // Wave 1: Load caches that other functions depend on
   await Promise.all([
@@ -1916,7 +1916,7 @@ async function showApp(user) {
     .then(function(res) {
       var badge = document.getElementById('gift-inbox-badge');
       if (badge && res.count > 0) { badge.textContent = res.count; badge.style.display = 'inline'; }
-    }).catch(function(){});
+    }).then(null, function(){});
   
   // PHASE 1: Initialize cosmetics, milestones, daily features
   phase1_init();
@@ -2207,7 +2207,7 @@ function checkMelonMilestones() {
               milestone.title,
               milestone.message,
               'tab:shop'
-            ).catch(function(){});
+            ).then(null, function(){});
           }, 4000);
         })(m);
       }
@@ -2843,7 +2843,7 @@ async function confirmAdopt() {
   // Award first pet badge
   await awardBadge('first_pet');
   onPetAdopted(result.pet_id);
-  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).catch(function(){});
+  supabaseClient.rpc('increment_global_stat', { p_key: 'total_pets_adopted', p_amount: 1 }).then(null, function(){});
   
   // PHASE 8 - Process referral on first adoption
   await processReferral();
@@ -2978,17 +2978,17 @@ async function loadMyPets() {
     var happiness = pet.happiness || 0;
     var energy    = pet.energy    || 0;
     if (hunger === 0 && !petHasTitle(pet.id, 'the_hungry')) {
-      awardPetTitle(pet.id, 'the_hungry', 'Starving!').catch(function(){});
-      scrapbook_addMemory(pet.id, 'hunger_empty', {}).catch(function(){});
+      awardPetTitle(pet.id, 'the_hungry', 'Starving!').then(null, function(){});
+      scrapbook_addMemory(pet.id, 'hunger_empty', {}).then(null, function(){});
     }
     if (energy === 0 && !petHasTitle(pet.id, 'the_lazy')) {
-      awardPetTitle(pet.id, 'the_lazy', 'Fell asleep').catch(function(){});
+      awardPetTitle(pet.id, 'the_lazy', 'Fell asleep').then(null, function(){});
     }
     if (happiness <= 20 && !petHasTitle(pet.id, 'the_grumpy')) {
-      awardPetTitle(pet.id, 'the_grumpy', 'Permanently grumpy').catch(function(){});
+      awardPetTitle(pet.id, 'the_grumpy', 'Permanently grumpy').then(null, function(){});
     }
     if (happiness >= 90 && !petHasTitle(pet.id, 'the_happy')) {
-      awardPetTitle(pet.id, 'the_happy', 'Pure joy!').catch(function(){});
+      awardPetTitle(pet.id, 'the_happy', 'Pure joy!').then(null, function(){});
     }
   });
   
@@ -3318,13 +3318,13 @@ async function useItem(petId) {
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
     melonRequests_checkProgress('feed_pet', itemId);
-    addPassXP(2, 'feed').catch(function(){});
+    addPassXP(2, 'feed').then(null, function(){});
     community_increment('feed_pets', 1);
   }
   if (item.hap > 0 && !(item.h > 0)) {
     updateBingoProgress('use_toy', 1);
     updateBingoProgress('play_pet', 1);
-    addPassXP(2, 'play').catch(function(){});
+    addPassXP(2, 'play').then(null, function(){});
   }
   
   // Update UI for non-healing effects
@@ -3673,8 +3673,8 @@ function makeMyPetCard(pet) {
     personality_renderWidget(pet.id);
     // Also render quest widget and try to assign one if none active
     personality_renderQuestWidget(pet.id);
-    assignQuestArc(pet.id).catch(function(){});
-  }).catch(function(){});
+    assignQuestArc(pet.id).then(null, function(){});
+  }).then(null, function(){});
 
   // Quest widget mount point (separate from mood widget)
   var questMount = makeEl('div', { id: 'quest-widget-' + pet.id });
@@ -4753,7 +4753,7 @@ async function expedition_claim(expeditionId) {
     if (rewardItems[ri].id) {
       await supabaseClient.from('user_inventory').insert({
         user_id: currentUser.id, item_id: rewardItems[ri].id, quantity: 1
-      }).catch(function(){});
+      }).then(null, function(){});
       itemNames.push(rewardItems[ri].name || '📦');
     }
   }
@@ -4793,24 +4793,24 @@ async function expedition_claim(expeditionId) {
   }
 
   // Check for secrets
-  checkSecretDiscovery(row.pet_id, row.zone, streak).catch(function(){});
+  checkSecretDiscovery(row.pet_id, row.zone, streak).then(null, function(){});
 
   // SCRAPBOOK: Expedition complete
-  scrapbook_addMemory(row.pet_id, 'expedition_complete', { zone: (EXPEDITION_ZONES_MAP[row.zone] && EXPEDITION_ZONES_MAP[row.zone].label) || row.zone }).catch(function(){});
+  scrapbook_addMemory(row.pet_id, 'expedition_complete', { zone: (EXPEDITION_ZONES_MAP[row.zone] && EXPEDITION_ZONES_MAP[row.zone].label) || row.zone }).then(null, function(){});
 
   // ARG: chance to drop a tester log on expedition claim
-  argLogs_tryDrop('expedition').catch(function(){});
+  argLogs_tryDrop('expedition').then(null, function(){});
   // Weekly challenges
   weeklyChallenge_increment('wk_expeditions', 1);
 
   // Integrations
-  addPassXP(10, 'expedition').catch(function(){});
+  addPassXP(10, 'expedition').then(null, function(){});
   updateBingoProgress('complete_expedition', 1);
-  checkPetWishes('expedition', row.pet_id).catch(function(){});
-  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  checkPetWishes('expedition', row.pet_id).then(null, function(){});
+  progressQuestArc(row.pet_id, 'expedition').then(null, function(){});
   community_increment('expeditions', 1);
-  trackDailyStat('expeditions_completed').catch(function(){});
-  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).catch(function(){});
+  trackDailyStat('expeditions_completed').then(null, function(){});
+  checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).then(null, function(){});
 
   var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
   showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
@@ -5172,17 +5172,17 @@ async function race_start() {
 
   // Integrations
   raceState.racesLeft = Math.max(0, raceState.racesLeft - 1);
-  addPassXP(5, 'race').catch(function(){});
+  addPassXP(5, 'race').then(null, function(){});
   if (playerWon) {
-    checkPetWishes('race', winner.pet.id).catch(function(){});
-    awardBadge('speed_demon').catch(function(){});
-    progressQuestArc(winner.pet.id, 'race').catch(function(){});
+    checkPetWishes('race', winner.pet.id).then(null, function(){});
+    awardBadge('speed_demon').then(null, function(){});
+    progressQuestArc(winner.pet.id, 'race').then(null, function(){});
   }
   // Weekly leaderboard + achievement tiers
   var raceTimeMs = racerunners.length > 0 ? Math.floor(3000 + Math.random() * 2000) : null; // simulated time
   if (playerBest && !playerBest.pet.isCpu) {
-    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).catch(function(){});
-    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).catch(function(){});
+    updateWeeklyLeaderboard(playerBest.pet.id, playerWon, raceTimeMs).then(null, function(){});
+    checkAchievementTierProgress('race_wins', playerBest.pet.id, playerWon ? 1 : 0).then(null, function(){});
   }
   community_increment('races', 1);
 
@@ -5808,16 +5808,16 @@ async function feedFree(petId) {
   await addPassXP(2, 'feed');
   
   // WISHES: check feed wish
-  checkPetWishes('feed', petId).catch(function(){});
-  progressQuestArc(petId, 'feed').catch(function(){});
-  checkAchievementTierProgress('feed_count', petId, 1).catch(function(){});
+  checkPetWishes('feed', petId).then(null, function(){});
+  progressQuestArc(petId, 'feed').then(null, function(){});
+  checkAchievementTierProgress('feed_count', petId, 1).then(null, function(){});
 
   // JOURNAL: log food discovery
   if (typeof logJournalDiscovery === 'function') {
     var feedPet = petState[petId] || {};
     var feedPetType = feedPet.pet_type || (feedPet.pets && feedPet.pets.name) || null;
     if (feedPetType) {
-      logJournalDiscovery(feedPetType, 'loved', '').catch(function(){});  // free feed, no item name
+      logJournalDiscovery(feedPetType, 'loved', '').then(null, function(){});  // free feed, no item name
     }
   }
   
@@ -6129,9 +6129,9 @@ async function playFree(petId) {
     await addPassXP(2, 'play');
 
     // WISHES: check play wish
-    checkPetWishes('play', petId).catch(function(){});
-    progressQuestArc(petId, 'play').catch(function(){});
-    checkAchievementTierProgress('play_count', petId, 1).catch(function(){});
+    checkPetWishes('play', petId).then(null, function(){});
+    progressQuestArc(petId, 'play').then(null, function(){});
+    checkAchievementTierProgress('play_count', petId, 1).then(null, function(){});
     petState[petId].happiness = result.happiness;
     petState[petId].xp = result.xp;
 
@@ -6200,12 +6200,12 @@ async function playWithToy(petId, toyId, toyName) {
 
   // SCRAPBOOK: First toy use (once per pet)
   scrapbook_hasMemory(petId, 'first_toy_use').then(function(exists) {
-    if (!exists) scrapbook_addMemory(petId, 'first_toy_use', { toy: toyName }).catch(function(){});
-  }).catch(function(){});
+    if (!exists) scrapbook_addMemory(petId, 'first_toy_use', { toy: toyName }).then(null, function(){});
+  }).then(null, function(){});
 
   // WISHES: check play and use_toy wishes
-  checkPetWishes('play', petId).catch(function(){});
-  checkPetWishes('use_toy', petId).catch(function(){});
+  checkPetWishes('play', petId).then(null, function(){});
+  checkPetWishes('use_toy', petId).then(null, function(){});
   updateBar(petId, 'happiness', result.happiness, pet.max_happiness);
   updateXpBar(petId, result.xp, pet.level);
   
@@ -6268,13 +6268,13 @@ async function checkTwitchRewards() {
       showTwitchRewardNotification(reward);
       // Also log to bell notification center
       createNotification(currentUser.id, 'twitch_reward', '🎬 Twitch Reward!',
-        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').catch(function(){});
+        '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch').then(null, function(){});
       // Mark claimed
       await fetch(WORKER_URL + '/api/rewards/claim', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reward_id: reward.id, twitch_id: twitchId })
-      }).catch(function(){});
+      }).then(null, function(){});
     }
   } catch(e) { dbg('Twitch rewards check failed:', e); }
 }
@@ -6463,9 +6463,9 @@ function getItemIconHtml(item) {
     return '<img src="' + src + '" class="item-icon-img" alt="' + escapeHtml(item.food_category) + '" onerror="var p=this.parentElement;if(p){p.innerHTML=\'' + fb + '\';p.style.fontSize=\'2rem\';}">';
   }
 
-  // Name-based emoji fallback (before generic type emoji)
+  // Name-based emoji — only if no uploaded PNG and no food category image exists
   var nameEmoji = itemEmojiByName(item.name);
-  if (nameEmoji && !item.image_url) {
+  if (nameEmoji && !item.image_url && !(item.food_category && FOOD_CATEGORY_IMAGES[item.food_category])) {
     return '<span style="font-size:1.8rem;line-height:1;">' + nameEmoji + '</span>';
   }
 
@@ -7262,14 +7262,14 @@ async function useOnPet(petId,petNickname) {
   if(ef.hunger_effect>0){
     updateBingoProgress('feed_pet',1);
     updateBingoProgress('use_treat',1); // Any item-based feed counts as a treat
-    addPassXP(2,'feed').catch(function(){});
+    addPassXP(2,'feed').then(null, function(){});
     community_increment('feed_pets',1);
   }
   if(ef.happiness_effect>0 && ef.hunger_effect<=0){
     // Toy/happiness-only item counts as play
     updateBingoProgress('use_toy',1);
     updateBingoProgress('play_pet',1);
-    addPassXP(2,'play').catch(function(){});
+    addPassXP(2,'play').then(null, function(){});
   }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
@@ -8427,7 +8427,7 @@ function spinSlots() {
           // corruption up a little — small, frequent lever ("gambling
           // feeds the dark"), not a dominant one on its own
           if (netProfit > 0 && typeof supabaseClient !== 'undefined') {
-            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).catch(function(){});
+            supabaseClient.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: 0.5 }).then(null, function(){});
           }
           
           if (netProfit > 0) {
@@ -8635,7 +8635,7 @@ async function fishingLoadCollection() {
       });
     } else {
       // DB empty — check localStorage for existing data and migrate it
-      fishingMigrateLocalStorage().catch(function(){});
+      fishingMigrateLocalStorage().then(null, function(){});
     }
   } catch(e) {
     dbg('fishingLoadCollection error:', e);
@@ -8657,7 +8657,7 @@ async function fishingMigrateLocalStorage() {
     var entry = local[fid];
     var count = entry.count || 1;
     for (var j = 0; j < count; j++) {
-      await supabaseClient.rpc('fishing_record_catch', { p_fish_id: fid, p_weight: null }).catch(function(){});
+      await supabaseClient.rpc('fishing_record_catch', { p_fish_id: fid, p_weight: null }).then(null, function(){});
     }
     _fishCollection[fid] = { count: count, firstCatch: entry.firstCatch || Date.now(), bestWeight: null };
   }
@@ -8818,7 +8818,7 @@ async function castLine(power) {
       },2000);
       // Award ARG badge/title for catching Piper's fish
       awardPP(0, 'piper_fish_discovered');
-      checkPlayerTitleUnlocks('piper_angler').catch(function(){});
+      checkPlayerTitleUnlocks('piper_angler').then(null, function(){});
     }
 
     // Junk ad — Ad-pocalypse fish
@@ -8832,10 +8832,10 @@ async function castLine(power) {
     if(caught.rarity==='legendary' || caught.rarity==='epic'){
       var companionId = CompanionBuddy && CompanionBuddy.currentCompanionId;
       if(companionId){
-        scrapbook_addMemory(companionId, 'legendary_fish', { fish: caught.name + ' ' + caught.emoji }).catch(function(){});
+        scrapbook_addMemory(companionId, 'legendary_fish', { fish: caught.name + ' ' + caught.emoji }).then(null, function(){});
       }
       // ARG: higher chance on legendary/epic catch
-      argLogs_tryDrop('fishing_legendary').catch(function(){});
+      argLogs_tryDrop('fishing_legendary').then(null, function(){});
       // Weekly challenges
       weeklyChallenge_increment('wk_fish_rare', 1);
     }
@@ -8852,12 +8852,12 @@ async function castLine(power) {
         var f = FISH_POOL.find(function(ff){ return ff.id === k; });
         if (f && f.rarity !== 'junk') totalCaught += (_fishCollection[k].count || 0);
       });
-      if (totalCaught === 1 && isNew) awardBadge('fishing_first_catch').catch(function(){});
-      if (totalCaught >= 50)  { checkPlayerTitleUnlocks('avid_angler').catch(function(){}); awardBadge('fishing_50').catch(function(){}); }
-      if (totalCaught >= 100) { checkPlayerTitleUnlocks('master_angler').catch(function(){}); awardBadge('fishing_100').catch(function(){}); }
-      if (totalCaught >= 250) { checkPlayerTitleUnlocks('legendary_angler').catch(function(){}); awardBadge('fishing_250').catch(function(){}); }
-      if (caught.rarity==='legendary' && isNew) { checkPlayerTitleUnlocks('first_legendary').catch(function(){}); awardBadge('fishing_legendary').catch(function(){}); }
-      if (caught.id==='piper_fish') awardBadge('fishing_piper_fish').catch(function(){});
+      if (totalCaught === 1 && isNew) awardBadge('fishing_first_catch').then(null, function(){});
+      if (totalCaught >= 50)  { checkPlayerTitleUnlocks('avid_angler').then(null, function(){}); awardBadge('fishing_50').then(null, function(){}); }
+      if (totalCaught >= 100) { checkPlayerTitleUnlocks('master_angler').then(null, function(){}); awardBadge('fishing_100').then(null, function(){}); }
+      if (totalCaught >= 250) { checkPlayerTitleUnlocks('legendary_angler').then(null, function(){}); awardBadge('fishing_250').then(null, function(){}); }
+      if (caught.rarity==='legendary' && isNew) { checkPlayerTitleUnlocks('first_legendary').then(null, function(){}); awardBadge('fishing_legendary').then(null, function(){}); }
+      if (caught.id==='piper_fish') awardBadge('fishing_piper_fish').then(null, function(){});
     })();
     if (caught.rarity==='rare' || caught.rarity==='epic' || caught.rarity==='legendary') weeklyChallenge_increment('wk_fish_rare', 1);
     weeklyChallenge_increment('wk_fish_caught', 1);
@@ -8875,7 +8875,7 @@ async function castLine(power) {
       awardPP(fishingTotal, 'fishing'); onMinigameComplete(fishingTotal);
       setCD('fishing');
       // ARG: chance to drop a tester log when session ends
-      argLogs_tryDrop('fishing').catch(function(){});
+      argLogs_tryDrop('fishing').then(null, function(){});
       // Weekly challenges
       weeklyChallenge_increment('wk_fish_caught', fishingSessionCaught || 1);
       // Check collection bonus
@@ -9175,7 +9175,7 @@ function fishingQuest_onCatch(fishId) {
       var claimedKey = 'fq_claimed_' + currentUser.id + '_' + weekKey;
       if (!localStorage.getItem(claimedKey)) {
         localStorage.setItem(claimedKey, '1');
-        awardPP(300, 'melon_quest_complete').catch(function(){});
+        awardPP(300, 'melon_quest_complete').then(null, function(){});
         setTimeout(function() {
           showToast('🐟 Melon\'s Weekly Quest complete! +300 PP! Thanks for the fish!', 7000);
         }, 1500);
@@ -9250,7 +9250,7 @@ function fishingDaily_onCatch(caught, weightG) {
   localStorage.setItem(progKey, prog);
   if (prog >= challenge.target) {
     localStorage.setItem(claimedKey, '1');
-    awardPP(challenge.reward, 'daily_fish_challenge').catch(function(){});
+    awardPP(challenge.reward, 'daily_fish_challenge').then(null, function(){});
     showToast('🎣 Daily challenge complete: ' + challenge.label + '! +' + challenge.reward + ' PP', 5000);
     updateBingoProgress('complete_minigame', 1);
   }
@@ -9318,7 +9318,7 @@ function fishingCookFeed(fishId) {
   if (!petId) { showToast('No pet to feed!', 2000); return; }
 
   // Use the secure feed RPC
-  supabaseClient.rpc('feed_pet_secure', { p_pet_id: petId, p_item_id: null }).catch(function(){});
+  supabaseClient.rpc('feed_pet_secure', { p_pet_id: petId, p_item_id: null }).then(null, function(){});
   // Directly update hunger client-side (optimistic, server handles real value)
   if (petState[petId]) {
     petState[petId].hunger = Math.min(petState[petId].max_hunger || 100, (petState[petId].hunger || 0) + hunger);
@@ -9326,14 +9326,14 @@ function fishingCookFeed(fishId) {
 
   // Consume one fish from collection
   col.count = Math.max(0, (col.count || 1) - 1);
-  supabaseClient.rpc('fishing_record_catch', { p_fish_id: fishId, p_weight: null, p_remove: true }).catch(function(){});
+  supabaseClient.rpc('fishing_record_catch', { p_fish_id: fishId, p_weight: null, p_remove: true }).then(null, function(){});
 
   showToast('🍳 Cooked ' + fish.name + ' for your pet! +' + hunger + ' hunger.', 3000);
   updateBingoProgress('feed_pet', 1);
   weeklyChallenge_increment('wk_feeds', 1);
 
   // Re-render collection
-  fishingLoadCollection().catch(function(){});
+  fishingLoadCollection().then(null, function(){});
 }
 
 
@@ -9562,7 +9562,7 @@ async function initTwitchTab() {
   }
   await checkTwitchLinked();
   // Load Twitch stats from worker (silent if worker not reachable)
-  loadTwitchStats().catch(function(){});
+  loadTwitchStats().then(null, function(){});
   // Poll for pending worker rewards every 2 minutes
   safeSetInterval(function() { checkTwitchRewards(); }, 120000);
 }
@@ -9868,7 +9868,7 @@ async function checkTwitchLinked() {
     el('twitch-not-linked').style.display='none';
     el('twitch-linked').style.display='block';
     el('twitch-username').textContent=res.data.twitch_username;
-    loadTwitchStats().catch(function(){});
+    loadTwitchStats().then(null, function(){});
     var rewards=res.data.twitch_follow_rewards||{};
     if(rewards.embertail){var b=el('follow-ember-badge');b.textContent='Claimed';b.className='status-badge status-done';b.style.display='inline-block';}
     if(rewards.pyxshuul){var b2=el('follow-pyxs-badge');b2.textContent='Claimed';b2.className='status-badge status-done';b2.style.display='inline-block';}
@@ -10855,7 +10855,7 @@ async function loadProfile(username) {
     // Update profile action buttons (add/remove friend, block, etc.)
     // Set the profile user ID first so updateProfileButtons knows whose profile this is
     window.currentProfileUserId = profile.id;
-    updateProfileButtons().catch(function(){});
+    updateProfileButtons().then(null, function(){});
     
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
@@ -14282,35 +14282,35 @@ async function manualBattle_endBattle(victory) {
     // First win ever
     if (!localStorage.getItem('ach_first_battle_win')) {
       localStorage.setItem('ach_first_battle_win', '1');
-      awardBadge('battle_first_win').catch(function(){});
+      awardBadge('battle_first_win').then(null, function(){});
     }
 
     // Speed Demon: win in 3 turns or less
-    if (s.turn <= 3) awardBadge('battle_speed_demon').catch(function(){});
+    if (s.turn <= 3) awardBadge('battle_speed_demon').then(null, function(){});
 
     // Iron Wall: win taking less than 10 total damage
-    if (s.totalDamageTaken < 10) awardBadge('battle_iron_wall').catch(function(){});
+    if (s.totalDamageTaken < 10) awardBadge('battle_iron_wall').then(null, function(){});
 
     // Untouchable: win taking zero damage
-    if (s.totalDamageTaken === 0) awardBadge('battle_untouchable').catch(function(){});
+    if (s.totalDamageTaken === 0) awardBadge('battle_untouchable').then(null, function(){});
 
     // Comeback: win with less than 10% HP remaining
-    if (s.playerHP > 0 && (s.playerHP / s.playerMaxHP) < 0.10) awardBadge('battle_comeback').catch(function(){});
+    if (s.playerHP > 0 && (s.playerHP / s.playerMaxHP) < 0.10) awardBadge('battle_comeback').then(null, function(){});
 
     // Status Master: applied 3+ different status types in one battle
-    if (s.uniqueStatusesApplied && s.uniqueStatusesApplied.size >= 3) awardBadge('battle_status_master').catch(function(){});
+    if (s.uniqueStatusesApplied && s.uniqueStatusesApplied.size >= 3) awardBadge('battle_status_master').then(null, function(){});
 
     // Combo Master: used all 3 skills at least once in one battle
-    if (s.skillsUsedThisBattle && s.skillsUsedThisBattle.size >= 3) awardBadge('battle_combo_master').catch(function(){});
+    if (s.skillsUsedThisBattle && s.skillsUsedThisBattle.size >= 3) awardBadge('battle_combo_master').then(null, function(){});
 
     // Piper Slayer: defeat Piper
     if (isPiper) {
       if (!localStorage.getItem('ach_piper_slayer')) {
         localStorage.setItem('ach_piper_slayer', '1');
-        awardBadge('battle_piper_slayer').catch(function(){});
+        awardBadge('battle_piper_slayer').then(null, function(){});
         showToast('🎵 First Piper Defeat! Achievement unlocked.', 5000);
       } else {
-        awardBadge('battle_piper_veteran').catch(function(){});
+        awardBadge('battle_piper_veteran').then(null, function(){});
       }
     }
 
@@ -14320,37 +14320,37 @@ async function manualBattle_endBattle(victory) {
     localStorage.setItem(zoneKey, zoneWins);
     if (zoneWins === 10) {
       var zoneBadgeMap = { outskirts:'battle_outskirts_10', glade:'battle_glade_10', deepwoods:'battle_deepwoods_10', ruins:'battle_ruins_10' };
-      if (zoneBadgeMap[zone]) awardBadge(zoneBadgeMap[zone]).catch(function(){});
+      if (zoneBadgeMap[zone]) awardBadge(zoneBadgeMap[zone]).then(null, function(){});
     }
     if (zoneWins === 50) {
       var zoneBadge50Map = { outskirts:'battle_outskirts_50', glade:'battle_glade_50', deepwoods:'battle_deepwoods_50', ruins:'battle_ruins_50' };
-      if (zoneBadge50Map[zone]) awardBadge(zoneBadge50Map[zone]).catch(function(){});
+      if (zoneBadge50Map[zone]) awardBadge(zoneBadge50Map[zone]).then(null, function(){});
     }
 
     // Total battles milestone
     var totalWins = parseInt(localStorage.getItem('battle_total_wins') || '0') + 1;
     localStorage.setItem('battle_total_wins', totalWins);
-    if (totalWins === 1)   awardBadge('battle_first_win').catch(function(){});
-    if (totalWins === 25)  awardBadge('battle_25_wins').catch(function(){});
-    if (totalWins === 100) awardBadge('battle_100_wins').catch(function(){});
-    if (totalWins === 500) awardBadge('battle_500_wins').catch(function(){});
+    if (totalWins === 1)   awardBadge('battle_first_win').then(null, function(){});
+    if (totalWins === 25)  awardBadge('battle_25_wins').then(null, function(){});
+    if (totalWins === 100) awardBadge('battle_100_wins').then(null, function(){});
+    if (totalWins === 500) awardBadge('battle_500_wins').then(null, function(){});
 
-    checkPetWishes('win_battle', s.petId).catch(function(){});
-    trackDailyStat('battles_won').catch(function(){});
+    checkPetWishes('win_battle', s.petId).then(null, function(){});
+    trackDailyStat('battles_won').then(null, function(){});
     // Weekly challenges
     weeklyChallenge_increment('wk_battles_won', 1);
     if (s.totalDamageTaken === 0) weeklyChallenge_increment('wk_untouchable', 1);
     if (isBoss) weeklyChallenge_increment('wk_boss_fights', 1);
     if (isBoss) {
-      trackDailyStat('bosses_killed').catch(function(){});
+      trackDailyStat('bosses_killed').then(null, function(){});
       if (isPiper) {
-        awardPP(500, 'piper_defeated').catch(function(){});
+        awardPP(500, 'piper_defeated').then(null, function(){});
         if (Object.keys(_foundLogs || {}).length < 10) {
-          argLogs_tryDrop('battle').catch(function(){});
+          argLogs_tryDrop('battle').then(null, function(){});
         }
       }
     }
-    argLogs_tryDrop('battle').catch(function(){});
+    argLogs_tryDrop('battle').then(null, function(){});
   }
 
   // Save results
@@ -14455,7 +14455,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       if (weatherPPBonus > 0) {
         await supabaseClient.rpc('award_pp_secure', {
           p_amount: weatherPPBonus, p_reason: 'weather_pp_bonus'
-        }).catch(function(e) { dbg('[Weather] PP bonus error:', e); });
+        }).then(null, function(e) { dbg('[Weather] PP bonus error:', e); });
         ppGained += weatherPPBonus;
         dbg('[Weather] PP bonus:', weatherPPBonus, 'weather:', weatherSystem.currentWeather && weatherSystem.currentWeather.id);
       }
@@ -14488,7 +14488,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         if (weatherXPBonus > 0) expGained += weatherXPBonus;
       }
     }
-    addPassXP(battleResult.victory ? 15 : 5, 'battle').catch(function(){});
+    addPassXP(battleResult.victory ? 15 : 5, 'battle').then(null, function(){});
     var hpUpdate = await supabaseClient
       .from('user_pets')
       .update({ current_hp: battleResult.playerFinalHP })
@@ -14516,7 +14516,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     });
     
     // Increment global boss kill stat (read by Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).catch(function(){});
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_bosses_slain', p_amount: 1 }).then(null, function(){});
 
     // Track boss kill for Melon milestone
     try {
@@ -14605,7 +14605,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     community_increment('battle_wins', 1);
     updateBingoProgress('win_battle', 1);
     // Increment global community stat (read by the Stats page)
-    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).catch(function(){});
+    supabaseClient.rpc('increment_global_stat', { p_key: 'total_battles_won', p_amount: 1 }).then(null, function(){});
     
     // COMMUNITY GOALS: Track mushroom defeats
     if (enemyStats.name && enemyStats.name.toLowerCase().indexOf('mushroom') !== -1) {
@@ -14687,7 +14687,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
           battleRewards.evolutionStage = newStage;
           battleRewards.evolutionEmoji = getEvolutionEmoji(newStage);
           var evoType = newStage === 'teen' ? 'evolution_teen' : 'evolution_adult';
-          scrapbook_addMemory(petId, evoType, {}).catch(function(){});
+          scrapbook_addMemory(petId, evoType, {}).then(null, function(){});
         }
       }
     }
@@ -15181,7 +15181,7 @@ function endBattlePlayback() {
 
   // ARG: chance to drop a tester log on victory
   if (battleRewards && battleRewards.victory) {
-    argLogs_tryDrop('battle').catch(function(){});
+    argLogs_tryDrop('battle').then(null, function(){});
   }
 
   // Show rewards modal
@@ -15338,7 +15338,7 @@ async function battleExp_init() {
   await battleExp_renderForm();
   await battleExp_renderHistory();
   // Re-check every 30s for completions
-  safeSetInterval(function() { if (!document.hidden) battleExp_refreshActive().catch(function(){}); }, 60000);
+  safeSetInterval(function() { if (!document.hidden) battleExp_refreshActive().then(null, function(){}); }, 60000);
 }
 
 async function battleExp_refreshActive() {
@@ -15530,7 +15530,7 @@ function battleExp_updateBtn() {
     supabaseClient.from('user_pets').select('id, energy, level, nickname').eq('id', petId).single()
       .then(function(res) {
         if (res.data) { petState[petId] = res.data; battleExp_updateBtn(); }
-      }).catch(function(){});
+      }).then(null, function(){});
     return;
   }
 
@@ -15649,18 +15649,18 @@ async function battleExp_claim(expeditionId) {
     var bonusPP = Math.floor(pp * (expMult - 1));
     if (bonusPP > 0) { await awardPP(bonusPP, 'streak_bonus'); showToast('🔥 Streak bonus: +' + bonusPP + ' PP!', 3000); }
   }
-  checkSecretDiscovery(row.pet_id, row.zone, expStreak).catch(function(){});
+  checkSecretDiscovery(row.pet_id, row.zone, expStreak).then(null, function(){});
 
   // Award item drops
   for (var i = 0; i < items.length; i++) {
     if (items[i].id) {
-      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).catch(function(){});
+      await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: items[i].id, quantity: 1 }).then(null, function(){});
     }
   }
 
-  addPassXP(10, 'expedition').catch(function(){});
-  checkPetWishes('expedition', row.pet_id).catch(function(){});
-  progressQuestArc(row.pet_id, 'expedition').catch(function(){});
+  addPassXP(10, 'expedition').then(null, function(){});
+  checkPetWishes('expedition', row.pet_id).then(null, function(){});
+  progressQuestArc(row.pet_id, 'expedition').then(null, function(){});
   community_increment('expeditions', 1);
 
   // Show rewards modal
@@ -17971,7 +17971,7 @@ var newsTicker = {
     this.updateTicker();
     this.startScrollDetection();
     // Pre-load today's stats for dynamic headlines (non-blocking)
-    this.loadDailyStats().catch(function(){});
+    this.loadDailyStats().then(null, function(){});
   },
   
   shuffle: function() {
@@ -18343,14 +18343,14 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     newsTicker.init();
     dayNightCycle.init();
-    if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-    if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
+    if (typeof weatherSystem !== 'undefined') weatherSystem.init().then(null, function(){});
+    if (typeof worldEvents !== 'undefined') worldEvents.init().then(null, function(){});
   });
 } else {
   newsTicker.init();
   dayNightCycle.init();
-  if (typeof weatherSystem !== 'undefined') weatherSystem.init().catch(function(){});
-  if (typeof worldEvents !== 'undefined') worldEvents.init().catch(function(){});
+  if (typeof weatherSystem !== 'undefined') weatherSystem.init().then(null, function(){});
+  if (typeof worldEvents !== 'undefined') worldEvents.init().then(null, function(){});
 }
 
 // WORLD STATE: periodically check for a newly-triggered celebration buff
@@ -18872,7 +18872,7 @@ var CompanionBuddy = {
     if (currentUser) {
       supabaseClient.from('players').select('login_streak').eq('id', currentUser.id).single()
         .then(function(res) { if (res.data) self.loginStreak = res.data.login_streak || 0; })
-        .catch(function(){});
+        .then(null, function(){});
     }
     
     // Show first message after 3 seconds
@@ -20164,8 +20164,8 @@ async function guild_checkUserStatus() {
 
     // Orphaned guild_members row (guild_id points nowhere) — auto-clean
     if (data && !data.guilds) {
-      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).catch(function(){});
-      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).catch(function(){});
+      await supabaseClient.from('guild_members').delete().eq('user_id', currentUser.id).then(null, function(){});
+      await supabaseClient.from('guild_liaisons').update({ is_active: false }).eq('user_id', currentUser.id).then(null, function(){});
     }
 
     guildState.myGuild = null;
@@ -20409,12 +20409,12 @@ async function guild_join(guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(){});
+      ).then(null, function(){});
     }
 
     showToast('✅ Joined the guild!', 3000);
     await loadGuildPage();
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().then(null, function(){});
   } catch(err) {
     showToast('Could not join: ' + err.message, 3000);
   }
@@ -20754,7 +20754,7 @@ async function guild_acceptInvite(inviteId, guildId) {
       await supabaseClient.from('guild_liaisons').upsert(
         { guild_id: guildId, user_id: currentUser.id, pet_id: bestPet.id, is_active: true },
         { onConflict: 'guild_id,user_id' }
-      ).catch(function(){});
+      ).then(null, function(){});
     }
 
     showToast('🏛️ Joined the guild!', 3000);
@@ -20996,7 +20996,7 @@ async function guild_donate() {
     if (rpcErr) {
       // Treasury RPC failed — refund the player rather than silently losing their donation
       // (direct client writes to guild_treasury are blocked at the database level)
-      await awardPP(amount, 'guild_donation_refund').catch(function(){});
+      await awardPP(amount, 'guild_donation_refund').then(null, function(){});
       showToast('Could not process donation. Refunded. Please try again later.', 3500);
       return;
     }
@@ -21008,7 +21008,7 @@ async function guild_donate() {
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
 
-    awardBadge('treasury_donor').catch(function(){});
+    awardBadge('treasury_donor').then(null, function(){});
     updateBingoProgress('donate_guild', 1);
     showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
     loadGuildPage();
@@ -21133,7 +21133,7 @@ async function guild_renderTreasury() {
       '<div>' + logHtml + '</div>';
 
     // Load any newly passed votes
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().then(null, function(){});
   } catch(err) {
     mount.innerHTML = '<div class="empty-state"><p>Error loading treasury: ' + escapeHtml(err.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
   }
@@ -21206,7 +21206,7 @@ async function guild_createProposal() {
     });
     if (error) throw error;
 
-    addPassXP(10, 'guild_proposal').catch(function(){});
+    addPassXP(10, 'guild_proposal').then(null, function(){});
     closeModal();
     showToast('📊 Proposal created! Guild members can now vote.', 4000);
     guild_renderTreasury();
@@ -21230,7 +21230,7 @@ async function guild_castVote(voteId, inFavor) {
     if (updateErr) throw updateErr;
 
     updateBingoProgress('vote_in_guild', 1);
-    addPassXP(5, 'guild_vote').catch(function(){});
+    addPassXP(5, 'guild_vote').then(null, function(){});
     showToast(inFavor ? '👍 Voted Yes!' : '👎 Voted No!', 2500);
 
     // Check if this vote just passed (simple majority, 3+ votes for, more for than against)
@@ -21747,9 +21747,9 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
 
     if (ppReward > 0) await awardPP(ppReward, 'guild_dungeon');
     if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
-    addPassXP(15, 'guild_dungeon').catch(function(){});
+    addPassXP(15, 'guild_dungeon').then(null, function(){});
     updateBingoProgress('guild_dungeon', 1);
-    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).catch(function(){});
+    if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).then(null, function(){});
 
     // Log run
     await supabaseClient.from('guild_dungeon_runs').insert({
@@ -21758,7 +21758,7 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
       party: party.map(function(p) { return { pet_id: p.id, owner: p.ownerName }; }),
       enemies_defeated: wavesCleared, victory: victory, rewards_claimed: true,
       completed_at: new Date().toISOString()
-    }).catch(function(){});
+    }).then(null, function(){});
 
     // Show result
     var survivalSummary = party.map(function(p) {
@@ -21870,7 +21870,7 @@ async function checkExplorationStreak(petId, zone) {
   var bonusMsg = '';
   if (streak >= 10) {
     bonusMsg = '🔥×10 Streak! +100% rewards & guaranteed rare item!';
-    awardPlayerTitle('forest_friend').catch(function(){});
+    awardPlayerTitle('forest_friend').then(null, function(){});
   } else if (streak >= 5) {
     bonusMsg = '🔥×5 Streak! +50% rewards!';
   } else if (streak >= 3) {
@@ -21931,9 +21931,9 @@ async function checkSecretDiscovery(petId, zone, streak) {
         '</div>';
       openModal(modal);
 
-      if (secret.badge_reward) awardBadge(secret.badge_reward).catch(function(){});
-      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').catch(function(){});
-      addPassXP(20, 'secret_discovery').catch(function(){});
+      if (secret.badge_reward) awardBadge(secret.badge_reward).then(null, function(){});
+      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').then(null, function(){});
+      addPassXP(20, 'secret_discovery').then(null, function(){});
     });
   } catch(e) { dbg('checkSecretDiscovery error:', e); }
 }
@@ -22005,19 +22005,19 @@ async function checkAchievementTierProgress(achievementKey, petId, currentValue)
       // Grant tier reward
       var reward = tierRewards[newTier - 1];
       if (reward) {
-        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').catch(function(){});
-        if (reward.badge) await awardBadge(reward.badge).catch(function(){});
-        if (reward.title) await awardPlayerTitle(reward.title).catch(function(){});
+        if (reward.pp)    await awardPP(reward.pp, 'tier_reward').then(null, function(){});
+        if (reward.badge) await awardBadge(reward.badge).then(null, function(){});
+        if (reward.title) await awardPlayerTitle(reward.title).then(null, function(){});
       }
 
       // Tier milestone badges
-      if (newTier >= 5) awardBadge('gold_collector').catch(function(){});
-      else if (newTier >= 4) awardBadge('silver_collector').catch(function(){});
-      else if (newTier >= 2) awardBadge('bronze_collector').catch(function(){});
+      if (newTier >= 5) awardBadge('gold_collector').then(null, function(){});
+      else if (newTier >= 4) awardBadge('silver_collector').then(null, function(){});
+      else if (newTier >= 2) awardBadge('bronze_collector').then(null, function(){});
 
       // Show notification
       showToast('🏆 ' + escapeHtml(achievement.name || achievementKey) + ' reached Tier ' + newTier + '!', 4000);
-      addPassXP(10 * newTier, 'tier_unlock').catch(function(){});
+      addPassXP(10 * newTier, 'tier_unlock').then(null, function(){});
 
       // ACTIVITY FEED: Log so friend feeds + OBS live alerts pick it up
       logActivity('achievement_unlocked', { achievement_name: (achievement.name || achievementKey) + ' (Tier ' + newTier + ')' });
@@ -22058,7 +22058,7 @@ async function assignQuestArc(petId) {
       .update({ quest_arc: arc.quest_key, quest_day: 1, quest_data: arc })
       .eq('pet_id', petId)
       .eq('date', today)
-      .catch(function(){});
+      .then(null, function(){});
 
     if (petMoodCache[petId]) {
       petMoodCache[petId].quest_arc = arc.quest_key;
@@ -22091,8 +22091,8 @@ async function progressQuestArc(petId, actionKey) {
 
   // Day reward
   var dayReward = arc['day' + (newDay - 1) + '_reward'] || 25;
-  await awardPP(dayReward, 'quest_day_' + (newDay-1)).catch(function(){});
-  addPassXP(10, 'quest_progress').catch(function(){});
+  await awardPP(dayReward, 'quest_day_' + (newDay-1)).then(null, function(){});
+  addPassXP(10, 'quest_progress').then(null, function(){});
   updateBingoProgress('complete_quest', 1);
 
   var pet = petState[petId] || {};
@@ -22102,10 +22102,10 @@ async function progressQuestArc(petId, actionKey) {
     // Quest complete!
     questData.completed = true;
     var finalReward = arc.completion_reward || 100;
-    await awardPP(finalReward, 'quest_complete').catch(function(){});
-    addPassXP(50, 'quest_complete').catch(function(){});
-    if (arc.reward_badge) awardBadge(arc.reward_badge).catch(function(){});
-    if (arc.reward_title) awardPlayerTitle(arc.reward_title).catch(function(){});
+    await awardPP(finalReward, 'quest_complete').then(null, function(){});
+    addPassXP(50, 'quest_complete').then(null, function(){});
+    if (arc.reward_badge) awardBadge(arc.reward_badge).then(null, function(){});
+    if (arc.reward_title) awardPlayerTitle(arc.reward_title).then(null, function(){});
 
     // Celebration modal
     var modal = makeModal();
@@ -22129,7 +22129,7 @@ async function progressQuestArc(petId, actionKey) {
       .update({ quest_arc: null, quest_day: null })
       .eq('pet_id', petId)
       .eq('date', today)
-      .catch(function(){});
+      .then(null, function(){});
     delete _petQuestCache[petId];
     if (petMoodCache[petId]) { petMoodCache[petId].quest_arc = null; petMoodCache[petId].quest_day = null; }
   } else {
@@ -22138,7 +22138,7 @@ async function progressQuestArc(petId, actionKey) {
       .update({ quest_day: newDay })
       .eq('pet_id', petId)
       .eq('date', today)
-      .catch(function(){});
+      .then(null, function(){});
   }
 
   // Refresh mood widget
@@ -22434,7 +22434,7 @@ async function gp_load() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }
     }).catch(function(e) { dbg('GP auto-check failed:', e); });
-  }).catch(function(){});
+  }).then(null, function(){});
 
   try {
     // Fetch current event — RPC first, fallback to direct query if RPC missing
@@ -22674,7 +22674,7 @@ async function gp_enter() {
     if (result && result.success === false) throw new Error(result.error || 'Failed');
 
     updateAllPoints((currentPoints||0) - 100);
-    addPassXP(25, 'grand_prix_entry').catch(function(){});
+    addPassXP(25, 'grand_prix_entry').then(null, function(){});
     updateBingoProgress('enter_grand_prix', 1);
     showToast('🏁 Entered the Grand Prix! Train your pet to boost your score!', 5000);
     gp_load();
@@ -22836,10 +22836,10 @@ async function gp_train(trainingType) {
       var upd = {};
       if (t.energyCost > 0 || t.energyGain > 0) upd.energy = petState[petId].energy;
       if (t.happinessCost > 0) upd.happiness = petState[petId].happiness;
-      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).catch(function(){});
+      if (Object.keys(upd).length > 0) await supabaseClient.from('user_pets').update(upd).eq('id', petId).then(null, function(){});
     }
 
-    addPassXP(10, 'grand_prix_training').catch(function(){});
+    addPassXP(10, 'grand_prix_training').then(null, function(){});
     updateBingoProgress('train_grand_prix', 1);
     showToast('🎯 Training complete! +' + addedBonus + ' race score! (' + (currentBonus + addedBonus) + '/15)', 3000);
     gp_load();
@@ -22997,7 +22997,7 @@ async function simulateGrandPrix(eventId) {
       await supabaseClient.from('grand_prix_replays').upsert({
         event_id: eventId, user_id: te.user_id,
         replay_text: text, finish_time_ms: finishMs, rank: trnk
-      }, { onConflict: 'event_id,user_id' }).catch(function(){});
+      }, { onConflict: 'event_id,user_id' }).then(null, function(){});
     }
 
     // Mark event complete
@@ -23014,7 +23014,7 @@ async function simulateGrandPrix(eventId) {
         '🏁 Grand Prix Results Ready!',
         uname + ' placed #' + ne._rank + '! Claim your rewards now!',
         'tab:racing'
-      ).catch(function(){});
+      ).then(null, function(){});
     });
 
     showToast('🏆 Grand Prix simulation complete! ' + entries.length + ' entries ranked.', 5000);
@@ -23040,7 +23040,7 @@ async function gp_simulateMyScore() {
   await supabaseClient.from('grand_prix_entries')
     .update({ race_score: score })
     .eq('id', gpState.entry.id)
-    .catch(function(){});
+    .then(null, function(){});
   gpState.entry.race_score = score;
 
   if (!gpState.replay) {
@@ -23055,7 +23055,7 @@ async function gp_simulateMyScore() {
     await supabaseClient.from('grand_prix_replays').upsert({
       event_id: gpState.event.id, user_id: currentUser.id,
       replay_text: replay_text, finish_time_ms: finishMs, rank: 1
-    }, { onConflict: 'event_id,user_id' }).catch(function(){});
+    }, { onConflict: 'event_id,user_id' }).then(null, function(){});
   }
 }
 
@@ -23099,13 +23099,13 @@ async function gp_claimRewards() {
       : 25;
 
     await awardPP(ppReward, 'grand_prix_reward');
-    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).catch(function(){});
-    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).catch(function(){});
+    if (rewardTier && rewardTier.title_key)  await awardPlayerTitle(rewardTier.title_key).then(null, function(){});
+    if (rewardTier && rewardTier.badge_key)  await awardBadge(rewardTier.badge_key).then(null, function(){});
 
     // Pass XP
-    if (rank === 1)     addPassXP(250, 'grand_prix_winner').catch(function(){});
-    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').catch(function(){});
-    else                 addPassXP(25, 'grand_prix_entry').catch(function(){});
+    if (rank === 1)     addPassXP(250, 'grand_prix_winner').then(null, function(){});
+    else if (rank <= 10) addPassXP(100, 'grand_prix_top_10').then(null, function(){});
+    else                 addPassXP(25, 'grand_prix_entry').then(null, function(){});
 
     // Bingo
     if (rank <= 10) updateBingoProgress('grand_prix_top_10', 1);
@@ -23119,13 +23119,13 @@ async function gp_claimRewards() {
     await supabaseClient.from('grand_prix_leaderboard').upsert({
       user_id: currentUser.id, week_number: ev.week_number, year: ev.year,
       rank: rank, pet_level: (petState[entry.pet_id]||{}).level || 1
-    }, { onConflict: 'user_id,week_number,year' }).catch(function(){});
+    }, { onConflict: 'user_id,week_number,year' }).then(null, function(){});
 
     showToast('🎉 Grand Prix rewards claimed! +' + ppReward + ' PP!', 5000);
     createNotification(
       currentUser.id, 'grand_prix_claimed', '🏆 Grand Prix Rewards Claimed!',
       'You placed #' + rank + ' and earned ' + ppReward + ' PP!', 'tab:racing'
-    ).catch(function(){});
+    ).then(null, function(){});
     gp_load();
   } catch(err) {
     showToast('Failed: ' + err.message, 3000);
@@ -23272,7 +23272,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: cookieRes.data.id, quantity: 3 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).then(null, function(){});
         streakBonusItem = '3x Honey Cookies';
       }
     } else if (streak === 5) {
@@ -23291,7 +23291,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: faerieRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).then(null, function(){});
         streakBonusItem = '1x Faerie Dust Delight';
       }
       var kr2 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23304,7 +23304,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: toyRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).then(null, function(){});
         streakBonusItem = '1x Squeaky Toy';
       }
       var kr3 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23317,7 +23317,7 @@ async function checkDailyLogin() {
         await supabaseClient.from('user_inventory').upsert(
           { user_id: currentUser.id, item_id: crownRes.data.id, quantity: 1 },
           { onConflict: 'user_id,item_id' }
-        ).catch(function(){});
+        ).then(null, function(){});
         streakBonusItem = '1x Golden Crown Roast';
       }
       var kr4 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
@@ -23357,9 +23357,9 @@ async function checkDailyLogin() {
     dbg('✅ Daily login checked - Streak:', streak, 'Reward:', ppReward);
 
     // Apply furniture room happiness bonuses (non-blocking)
-    furniture_applyDailyBonus().catch(function(){});
+    furniture_applyDailyBonus().then(null, function(){});
     // Load guild perks (non-blocking)
-    loadActiveGuildPerks().catch(function(){});
+    loadActiveGuildPerks().then(null, function(){});
 
   } catch (err) {
     console.error('[DailyLogin] Error:', err);
@@ -24610,7 +24610,7 @@ async function initReferralSystem(userId) {
   if (!userId) return;
   var ref = getReferralFromURL();
   if (ref && ref !== currentUsername) {
-    supabaseClient.rpc('referral_increment', { p_referrer_username: ref }).catch(function(){});
+    supabaseClient.rpc('referral_increment', { p_referrer_username: ref }).then(null, function(){});
   }
 }
 function renderReferralWidget(mountId) {
@@ -24918,27 +24918,27 @@ async function grantReferralMilestone(userId, newCount) {
 
   // Award badge
   if (milestone.badge) {
-    await awardBadge(milestone.badge).catch(function(){});
+    await awardBadge(milestone.badge).then(null, function(){});
   }
 
   // Award player title
   if (milestone.title) {
-    await awardPlayerTitle(milestone.title, userId).catch(function(){});
+    await awardPlayerTitle(milestone.title, userId).then(null, function(){});
   }
 
   // Award skin keys
   if (milestone.skinKeys > 0) {
-    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).catch(function(){});
+    await skinkey_grantKeys(milestone.skinKeys, 'referral_milestone_' + newCount).then(null, function(){});
   }
 
   // Unlock cosmetic frame
   if (milestone.frame) {
-    await phase1_unlockCosmetic('frame', milestone.frame, userId).catch(function(){});
+    await phase1_unlockCosmetic('frame', milestone.frame, userId).then(null, function(){});
   }
 
   // Bonus PP for milestone
   var bonusPP = newCount * 10; // 10 PP per referral as milestone bonus
-  await awardPP(bonusPP, 'referral_milestone_' + newCount).catch(function(){});
+  await awardPP(bonusPP, 'referral_milestone_' + newCount).then(null, function(){});
 
   // Show celebration if it's the current user
   if (currentUser && currentUser.id === userId) {
@@ -27845,7 +27845,7 @@ var AD_POOL = [
     btn: '✨ CLAIM NOW, FREE!!',
     fine: '* One per ad. While supplies last. Melon Interactive not responsible for emotional attachment.',
     outcome: function() {
-      awardPP(25, 'adpocalypse_ad').catch(function(){});
+      awardPP(25, 'adpocalypse_ad').then(null, function(){});
       showToast('🎉 You got 25 free PP from an ad! Melon is feeling generous.', 4000);
     },
     weight: 25,
@@ -27887,7 +27887,7 @@ var AD_POOL = [
       // Deduct 50 PP but not below 0
       supabaseClient.rpc('award_pp_secure', { p_amount: -50, p_reason: 'adpocalypse_scam' })
         .then(function(r) { if (r.data) updateAllPoints(r.data); })
-        .catch(function(){});
+        .then(null, function(){});
       showToast('😈 You bought PetCare Pro™! -50 PP. The product does not exist.', 5000);
     },
     weight: 15,
@@ -27908,7 +27908,7 @@ var AD_POOL = [
         var newHap = Math.max(0, (p.happiness || 0) - 10);
         petState[pid].happiness = newHap;
         updateBar(pid, 'happiness', newHap, p.max_happiness || 100);
-        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).catch(function(){});
+        supabaseClient.from('user_pets').update({ happiness: newHap }).eq('id', pid).then(null, function(){});
       });
       showToast('😢 The guilt ad worked. All your pets lost 10 happiness.', 5000);
     },
@@ -27939,7 +27939,7 @@ var AD_POOL = [
       showToast('...noted. please continue playing.', 5000);
       // Subtle: slightly nudge corruption
       if (typeof nudgeWorldState === 'function') {
-        nudgeWorldState('corruption_level', 0.5).catch(function(){});
+        nudgeWorldState('corruption_level', 0.5).then(null, function(){});
       }
     },
     weight: 10,
@@ -28263,7 +28263,7 @@ async function melonRequests_complete(requestId, reward) {
   _melonRequestsCompleted[requestId] = { completedAt: Date.now(), reward: reward };
   try { localStorage.setItem(savedKey, JSON.stringify(_melonRequestsCompleted)); } catch(e){}
   
-  await awardPP(reward, 'melon_request').catch(function(){});
+  await awardPP(reward, 'melon_request').then(null, function(){});
   showToast('🍉 Melon\'s Request complete! +' + reward + ' PP', 4000);
   showMelonMessage('Thank you! That really helps. Here\'s ' + reward + ' PP. 🍉', { displayMs: 6000 });
   melonRequests_renderWidget('melon-requests-mount');
@@ -28328,7 +28328,7 @@ var weatherSystem = {
     this.currentDate = new Date().toISOString().slice(0, 10);
     // Fire-and-forget warm-up so getWorldStateValueSync() below has a
     // better chance of a fresh value by the time generateWeather() runs
-    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().catch(function(){});
+    if (typeof getWorldStateFlags === 'function') getWorldStateFlags().then(null, function(){});
     // Try DB first, fall back to localStorage, then generate
     var loaded = await this.loadFromDailyFeatures();
     if (!loaded) {
@@ -28340,7 +28340,7 @@ var weatherSystem = {
     }
     if (!loaded || !this.currentWeather) {
       this.generateWeather();
-      this.syncToDailyFeatures().catch(function(){});
+      this.syncToDailyFeatures().then(null, function(){});
     }
     this.applyWeather();
     this.startRotationChecker();
@@ -28495,7 +28495,7 @@ var weatherSystem = {
 
       if (dateChanged || rotationDue) {
         self.generateWeather();
-        self.syncToDailyFeatures().catch(function(){});
+        self.syncToDailyFeatures().then(null, function(){});
       }
     }, 60000); // check every minute, but only acts when a rotation window has actually elapsed
   },
@@ -28557,7 +28557,7 @@ var weatherSystem = {
       localStorage.setItem('currentWeather', JSON.stringify(weather));
       localStorage.setItem('weatherSetAt', Date.now().toString());
       this.applyWeather();
-      this.syncToDailyFeatures().catch(function(){});
+      this.syncToDailyFeatures().then(null, function(){});
     }
   }
 };
@@ -29226,10 +29226,32 @@ function piperShop_getBetaIntegrity() {
 
 function piperShop_updateVisibility() {
   var visible = piperShop_getBetaIntegrity() <= 40;
-  var btn = document.getElementById('sidebar-btn-piper-shop');
-  if (btn) btn.style.display = visible ? '' : 'none';
-  var mBtn = document.getElementById('sidebar-btn-piper-shop-mobile');
-  if (mBtn) mBtn.style.display = visible ? '' : 'none';
+  var btn  = document.getElementById('sidebar-btn-piper-shop');
+  var btnM = document.getElementById('sidebar-btn-piper-shop-mobile');
+  var chev  = document.getElementById('shop-nav-chevron');
+  var chevM = document.getElementById('shop-nav-chevron-mobile');
+  if (btn)   btn.style.display   = visible ? '' : 'none';
+  if (btnM)  btnM.style.display  = visible ? '' : 'none';
+  if (chev)  chev.style.display  = visible ? 'inline' : 'none';
+  if (chevM) chevM.style.display = visible ? 'inline' : 'none';
+}
+
+function shopNav_toggle() {
+  var piperBtn = document.getElementById('sidebar-btn-piper-shop');
+  var children = document.getElementById('shop-nav-children');
+  showTab('shop');
+  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
+  var open = children.style.display !== 'none' && children.style.display !== '';
+  children.style.display = open ? 'none' : 'block';
+}
+
+function shopNav_toggleMobile() {
+  var piperBtn = document.getElementById('sidebar-btn-piper-shop-mobile');
+  var children = document.getElementById('shop-nav-children-mobile');
+  showTab('shop');
+  if (!children || !piperBtn || piperBtn.style.display === 'none') return;
+  var open = children.style.display !== 'none' && children.style.display !== '';
+  children.style.display = open ? 'none' : 'block';
 }
 
 async function piperShop_open() {
@@ -29765,7 +29787,7 @@ function applySettings() {
     // Resume music if available
     if (typeof bgMusic !== 'undefined' && bgMusic) {
       bgMusic.volume = playerSettings.music_volume / 100;
-      bgMusic.play().catch(function(){}); // Ignore autoplay errors
+      bgMusic.play().then(null, function(){}); // Ignore autoplay errors
     }
   } else {
     // Pause music
@@ -30575,7 +30597,7 @@ async function updateBingoProgress(taskType, amount) {
       
       // Award points — use awardPP which has its own fallback, not award_pp_secure directly
       updateAllPoints(currentPoints + square.rewardPoints);
-      awardPP(square.rewardPoints, 'bingo_' + taskType).catch(function(){});
+      awardPP(square.rewardPoints, 'bingo_' + taskType).then(null, function(){});
       
       // Award Pass XP
       await addPassXP(15, 'bingo_square');
@@ -30839,13 +30861,13 @@ function onPetLevelUp(petId) {
     .eq('user_id', currentUser.id)
     .then(function(res) {
       if (!res.error && petState[petId]) petState[petId].stat_points = (petState[petId].stat_points || 0) + 1;
-    }).catch(function(){});
+    }).then(null, function(){});
 }
 
 // Hook for adoption - call this when adopting a pet
 function onPetAdopted(petId) {
   updateBingoProgress('adopt_pet', 1);
-  trackDailyStat('pets_adopted').catch(function(){});
+  trackDailyStat('pets_adopted').then(null, function(){});
 }
 
 // Hook for minigame completion
@@ -30855,7 +30877,7 @@ function onMinigameComplete(baseReward) {
   var bonus = getCalendarBonus('minigame_pp');
   if (bonus > 1 && baseReward > 0) {
     var extra = Math.floor(baseReward * (bonus - 1));
-    if (extra > 0) awardPP(extra, 'calendar_bonus').catch(function(){});
+    if (extra > 0) awardPP(extra, 'calendar_bonus').then(null, function(){});
     showToast('🎮 Minigame Monday! +' + extra + ' bonus PP!', 3000);
   }
 }
@@ -31537,13 +31559,13 @@ function weeklyChallenge_checkCompletions(stat, newValue, weekKey) {
       claimed[ch.id] = true;
       localStorage.setItem(claimedKey, JSON.stringify(claimed));
       // Award PP
-      awardPP(ch.reward, 'weekly_challenge_' + ch.id).catch(function(){});
+      awardPP(ch.reward, 'weekly_challenge_' + ch.id).then(null, function(){});
       showToast(ch.emoji + ' Weekly challenge complete: ' + ch.label + '! +' + ch.reward + ' PP', 6000);
       // Check if all 5 done
       if (Object.keys(claimed).length >= 5) {
         setTimeout(function() {
-          awardPP(250, 'weekly_all_complete').catch(function(){});
-          awardBadge('weekly_champion').catch(function(){});
+          awardPP(250, 'weekly_all_complete').then(null, function(){});
+          awardBadge('weekly_champion').then(null, function(){});
           showToast('🏆 All weekly challenges complete! +250 bonus PP!', 7000);
         }, 2000);
       }
@@ -32507,7 +32529,7 @@ async function newFeatures_init() {
           }
           // After 48h absence, add a quiet scrapbook memory
           if (hoursGone >= 48 && p.id) {
-            scrapbook_addMemory(p.id, 'neglect_recovery', {}).catch(function(){});
+            scrapbook_addMemory(p.id, 'neglect_recovery', {}).then(null, function(){});
           }
         });
         if (missedPets.length > 0) {
@@ -34695,8 +34717,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').catch(function(){});
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').catch(function(){});
+  if (shareCount === 1)  awardBadge('badge_snapshot').then(null, function(){});
+  if (shareCount === 5)  awardBadge('badge_social_butterfly').then(null, function(){});
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -35906,7 +35928,7 @@ async function gp_adminRecalcScores() {
     updated++;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_recalc_scores', details: { event_id: evId, updated } }).then(null, function(){});
   restore();
   showToast('Recalculated scores for ' + updated + ' entries', 3000);
   await gp_adminRefresh();
@@ -35934,7 +35956,7 @@ async function gp_adminFixRankings() {
     prevScore = entries[i].race_score;
   }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_fix_rankings', details: { event_id: evId, count: entries.length } }).then(null, function(){});
   showToast('Rankings fixed for ' + entries.length + ' entries', 3000);
   await gp_adminRefresh();
 }
@@ -35957,7 +35979,7 @@ async function gp_adminSetWinner(entryId, username) {
   // Give the winner a score high enough to justify rank 1
   await supabaseClient.from('grand_prix_entries').update({ final_rank: 1, race_score: 200 }).eq('id', entryId);
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_winner', details: { entryId, username } }).then(null, function(){});
   showToast(username + ' set as winner!', 3000);
   await gp_adminRefresh();
 }
@@ -36192,7 +36214,7 @@ async function gp_adminForceSimulate() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 3000); return; }
 
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).then(null, function(){});
   await simulateGrandPrix(events[0].id);
   restore();
   await gp_adminRefresh();
@@ -36205,7 +36227,7 @@ async function gp_adminAdjustPrize(delta) {
   var ev = events[0];
   var newPool = Math.max(0, (ev.prize_pool||0) + delta);
   await supabaseClient.from('grand_prix_events').update({ prize_pool: newPool }).eq('id', ev.id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_adjust_prize', details: { delta, new_pool: newPool } }).then(null, function(){});
   showToast('Prize pool: ' + newPool.toLocaleString() + ' PP', 2000);
   await gp_adminRefresh();
 }
@@ -36218,7 +36240,7 @@ async function gp_adminSetPrize() {
   var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   await supabaseClient.from('grand_prix_events').update({ prize_pool: amount }).eq('id', events[0].id);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).then(null, function(){});
   showToast('Prize pool set to ' + amount.toLocaleString() + ' PP', 2500);
   await gp_adminRefresh();
 }
@@ -36229,7 +36251,7 @@ async function gp_adminEditTraining(entryId, currentBonus) {
   if (input === null) return;
   var val = Math.min(15, Math.max(0, parseInt(input)||0));
   await supabaseClient.from('grand_prix_entries').update({ training_bonus: val }).eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_edit_training', details: { entryId, val } }).then(null, function(){});
   showToast('Training bonus updated to ' + val, 2000);
   await gp_adminRefresh();
 }
@@ -36238,7 +36260,7 @@ async function gp_adminRemoveEntry(entryId, username) {
   if (!await isAdmin()) return;
   if (!confirm('Remove entry for ' + username + '? This cannot be undone.')) return;
   await supabaseClient.from('grand_prix_entries').delete().eq('id', entryId);
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_remove_entry', details: { entryId, username } }).then(null, function(){});
   showToast('Entry removed', 2500);
   await gp_adminRefresh();
 }
@@ -36258,10 +36280,10 @@ async function gp_adminSendNotif() {
 
   var sent = 0;
   for (var i = 0; i < (targets||[]).length; i++) {
-    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').catch(function(){});
+    await createNotification(targets[i].user_id, 'grand_prix_results', '🏁 Grand Prix Admin Message', message, 'tab:racing').then(null, function(){});
     sent++;
   }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_send_notif', details: { target, message, sent } }).then(null, function(){});
   showToast('Sent to ' + sent + ' players', 3000);
 }
 
@@ -36289,7 +36311,7 @@ async function gp_adminCreateEvent() {
   });
 
   if (error) { showToast('Error: ' + error.message, 3500); return; }
-  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).catch(function(){});
+  await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_create_event', details: { week: getWeekNumber(now) } }).then(null, function(){});
   showToast('Event created!', 3000);
   await gp_adminRefresh();
 }
@@ -36904,7 +36926,7 @@ async function initTwitchTab() {
   }
   await checkTwitchLinked();
   // Load Twitch stats from worker (silent if worker not reachable)
-  loadTwitchStats().catch(function(){});
+  loadTwitchStats().then(null, function(){});
   // Poll for pending worker rewards every 2 minutes
   safeSetInterval(function() { checkTwitchRewards(); }, 120000);
 }
@@ -37210,7 +37232,7 @@ async function checkTwitchLinked() {
     el('twitch-not-linked').style.display='none';
     el('twitch-linked').style.display='block';
     el('twitch-username').textContent=res.data.twitch_username;
-    loadTwitchStats().catch(function(){});
+    loadTwitchStats().then(null, function(){});
     var rewards=res.data.twitch_follow_rewards||{};
     if(rewards.embertail){var b=el('follow-ember-badge');b.textContent='Claimed';b.className='status-badge status-done';b.style.display='inline-block';}
     if(rewards.pyxshuul){var b2=el('follow-pyxs-badge');b2.textContent='Claimed';b2.className='status-badge status-done';b2.style.display='inline-block';}
@@ -38197,7 +38219,7 @@ async function loadProfile(username) {
     // Update profile action buttons (add/remove friend, block, etc.)
     // Set the profile user ID first so updateProfileButtons knows whose profile this is
     window.currentProfileUserId = profile.id;
-    updateProfileButtons().catch(function(){});
+    updateProfileButtons().then(null, function(){});
     
   } catch (err) {
     el('profile-username').textContent = 'Error loading profile';
