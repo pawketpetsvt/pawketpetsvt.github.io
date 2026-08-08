@@ -9856,6 +9856,11 @@ body.night-mode .btn-outline:hover {
   pointer-events: none;
 }
 
+#companion-buddy .companion-sprite {
+  pointer-events: all !important;
+  cursor: pointer !important;
+}
+
 .companion-sprite {
   width: 80px;
   height: 80px;

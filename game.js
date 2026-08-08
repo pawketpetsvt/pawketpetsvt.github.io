@@ -7792,7 +7792,7 @@ async function makeGuess() {
     // Reward gradient: fewer guesses = more PP
     var ppRewards=[100,70,50,35,25,20];
     var earned=ppRewards[Math.min(guessAttempts-1,5)];
-    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete(earned);
+    await awardPP(earned, 'guess_game'); setCD('guess'); onMinigameComplete(earned, 'guess');
     
     await awardBadge('guess_first_play');
     if(guessAttempts===1){
@@ -7882,7 +7882,7 @@ function flipCard(btn) {
       var totalPairs=memoryCards.length/2;
       if(matchedPairs===totalPairs){
         // Game complete!
-        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete(memoryEarned);
+        awardPP(memoryEarned, 'memory_match'); setCD('memory'); onMinigameComplete(memoryEarned, 'memory');
         
         // Award badges
         awardBadge('memory_first_play'); // First time playing
@@ -8003,7 +8003,7 @@ function spinWheel() {
       requestAnimationFrame(animate);
     } else {
       wheelSpinning = false;
-      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete(winningPrize);
+      awardPP(winningPrize, 'treasure_wheel'); onMinigameComplete(winningPrize, 'wheel');
       setCD('wheel');
       var r = el('wheel-result');
       r.textContent = 'You won ' + winningPrize + ' PP!';
@@ -8100,7 +8100,7 @@ function endWhack() {
   clearInterval(whackTimer);
   clearInterval(whackInterval);
   var earned = parseInt(el('whack-earned').textContent||'0');
-  awardPP(earned, 'whack_a_mole'); onMinigameComplete(earned);
+  awardPP(earned, 'whack_a_mole'); onMinigameComplete(earned, 'whack');
   setCD('whack');
   var r = el('whack-result');
   r.textContent = 'Game over! Whacked '+whackScore+'! +' + earned + ' PP!';
@@ -8241,7 +8241,7 @@ function guessShell(pos) {
         shuffleShells();
       } else {
         // Won all 3 rounds!
-        awardPP(30, 'shell_game'); onMinigameComplete(30);
+        awardPP(30, 'shell_game'); onMinigameComplete(30, 'shell');
         setCD('shell');
         var r = el('shell-result');
         r.textContent = 'Perfect! +30 PP!';
@@ -8478,7 +8478,7 @@ el('typing-input').addEventListener('input', function() {
 function endTyping() {
   clearInterval(typingTimer);
   var earned = Math.min(typingScore * 3, 60);
-  awardPP(earned, 'typing_challenge'); onMinigameComplete(earned);
+  awardPP(earned, 'typing_challenge'); onMinigameComplete(earned, 'typing');
   setCD('typing');
   var r = el('typing-result');
   r.textContent = 'Time\'s up! +' + earned + ' PP!';
@@ -13083,6 +13083,8 @@ function manualBattle_showSkillTip(btn) {
 function manualBattle_hideSkillTip() {
   var tip = document.getElementById('battle-skill-tip');
   if (tip) tip.remove();
+  var stip = document.getElementById('battle-status-tip');
+  if (stip) stip.remove();
 }
 
 function manualBattle_renderStatuses(side, statuses) {
@@ -13111,9 +13113,16 @@ function manualBattle_showStatusTip(badge) {
   if (!text) return;
   var tip = document.createElement('div');
   tip.id = 'battle-status-tip';
-  tip.style.cssText = 'position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:rgba(30,0,60,0.95);color:#f0e0ff;font-size:0.75rem;padding:6px 10px;border-radius:8px;width:180px;z-index:200;line-height:1.4;pointer-events:none;border:1px solid rgba(153,102,255,0.4);white-space:normal;';
+  tip.style.cssText = 'position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:rgba(30,0,60,0.95);color:#f0e0ff;font-size:0.75rem;padding:6px 10px;border-radius:8px;width:180px;z-index:200;line-height:1.4;pointer-events:none;border:1px solid rgba(153,102,255,0.4);white-space:normal;transition:opacity 0.4s ease;';
   tip.textContent = text;
   badge.appendChild(tip);
+  // Auto-dismiss after 2.5 seconds
+  setTimeout(function() {
+    if (tip.parentNode) {
+      tip.style.opacity = '0';
+      setTimeout(function() { if (tip.parentNode) tip.remove(); }, 400);
+    }
+  }, 2500);
 }
 
 function manualBattle_renderSkillButtons() {
@@ -14233,11 +14242,27 @@ async function manualBattle_endBattle(victory) {
     manualBattle_setNarrative('🏃 ' + s.playerStats.name + ' fled from battle!');
     manualBattle_setActionButtonsEnabled(false);
     el('battle-turn-indicator').textContent = 'FLED';
+    // Save current HP to DB so pet doesn't reset to full
+    var fleeHP = s.playerHP || 1;
+    var maxHP = s.playerMaxHP || fleeHP;
+    (async function() {
+      try {
+        await supabaseClient.from('user_pets')
+          .update({ current_hp: Math.max(1, fleeHP), energy: Math.max(0, (s.playerEnergy || 0)) })
+          .eq('id', s.petId);
+        // Update local petState cache
+        if (petState && petState[s.petId]) {
+          petState[s.petId].current_hp = Math.max(1, fleeHP);
+        }
+        tabsLoaded['mypets'] = false;
+      } catch(e) { dbg('[Flee] HP save error:', e); }
+    })();
     setTimeout(function() {
       el('battle-screen').style.display = 'none';
       el('forest-exploration').style.display = 'block';
       el('manual-battle-actions').style.display = 'none';
       el('battle-narrative-box').style.display = 'none';
+      document.body.classList.remove('in-manual-battle');
       manualBattleState = null;
     }, 1800);
     return;
@@ -14439,6 +14464,12 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
+    // Also update HP client-side regardless (belt and suspenders)
+    if (battleResult.playerFinalHP !== undefined) {
+      await supabaseClient.from('user_pets')
+        .update({ current_hp: Math.max(0, battleResult.playerFinalHP) })
+        .eq('id', petId).then(null, function(){});
+    }
     // save_battle_result already credited PP server-side — refresh the displayed
     // balance with the player's real current total so the sidebar updates.
     var { data: freshPlayer } = await supabaseClient.from('players').select('pawketpoints').eq('id', currentUser.id).single();
@@ -16210,8 +16241,16 @@ async function getRandomEnemy(zone, playerLevel) {
   // removed — that species was fully removed from enemy_pets, this check
   // was only ever a workaround for it)
   var filteredEnemies = res.data.filter(function(enemy) {
-    return !!enemy.name;
+    if (!enemy.name) return false;
+    // Exclude bosses and high-is_boss from normal encounter pool
+    if (enemy.is_boss) return false;
+    // Use spawn_weight if available (higher = more common; 0 = disabled)
+    if (enemy.spawn_weight === 0) return false;
+    return true;
   });
+  
+  // Weighted random selection using spawn_weight column if present
+  var totalWeight = filteredEnemies.reduce(function(sum, e) { return sum + (e.spawn_weight || 1); }, 0);
   
   if (filteredEnemies.length === 0) {
     console.error('No valid enemies found for zone:', zone);
@@ -16219,8 +16258,14 @@ async function getRandomEnemy(zone, playerLevel) {
   }
   
   // Pick random base enemy
-  var randomIndex = Math.floor(Math.random() * filteredEnemies.length);
-  var baseEnemy = filteredEnemies[randomIndex];
+  // Weighted pick
+  var roll2 = Math.random() * totalWeight;
+  var cumW = 0;
+  var baseEnemy = filteredEnemies[filteredEnemies.length - 1]; // fallback
+  for (var wi = 0; wi < filteredEnemies.length; wi++) {
+    cumW += (filteredEnemies[wi].spawn_weight || 1);
+    if (roll2 < cumW) { baseEnemy = filteredEnemies[wi]; break; }
+  }
   
   // Pick random level within range
   var enemyLevel = minLevel + Math.floor(Math.random() * (maxLevel - minLevel + 1));
@@ -30691,14 +30736,35 @@ function onPetAdopted(petId) {
 }
 
 // Hook for minigame completion
-function onMinigameComplete(baseReward) {
+// Track which minigames completed today for daily bonus
+var _minigamesToday = {};
+function onMinigameComplete(baseReward, gameKey) {
   updateBingoProgress('complete_minigame', 1);
+  addPassXP(3, 'minigame').then(null, function(){});
+
   // Minigame Monday: award bonus PP on top of what the minigame already paid
   var bonus = getCalendarBonus('minigame_pp');
   if (bonus > 1 && baseReward > 0) {
     var extra = Math.floor(baseReward * (bonus - 1));
     if (extra > 0) awardPP(extra, 'calendar_bonus').then(null, function(){});
     showToast('🎮 Minigame Monday! +' + extra + ' bonus PP!', 3000);
+  }
+
+  // Track for daily complete bonus (50 PP when all 6 core minigames done)
+  if (gameKey) {
+    var today = new Date().toISOString().slice(0,10);
+    var saved = JSON.parse(localStorage.getItem('minigames_today') || '{"date":"","games":[]}');
+    if (saved.date !== today) saved = { date: today, games: [] };
+    if (saved.games.indexOf(gameKey) === -1) saved.games.push(gameKey);
+    localStorage.setItem('minigames_today', JSON.stringify(saved));
+    var coreGames = ['guess', 'wheel', 'whack', 'memory', 'shell', 'typing'];
+    var doneAll = coreGames.every(function(g) { return saved.games.indexOf(g) > -1; });
+    if (doneAll && !saved.bonusClaimed) {
+      saved.bonusClaimed = true;
+      localStorage.setItem('minigames_today', JSON.stringify(saved));
+      awardPP(50, 'daily_complete').then(null, function(){});
+      showToast('🌟 Daily Complete! All minigames done! +50 PP bonus!', 4000);
+    }
   }
 }
 
