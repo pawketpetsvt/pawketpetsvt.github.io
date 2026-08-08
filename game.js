@@ -8697,7 +8697,7 @@ async function castLine(power) {
     fishingSelectBait('worm');
   }
   if(baitData.cost>0){
-    var ppRes=await supabaseClient.rpc('award_pp_secure',{p_amount:-baitData.cost,p_reason:'fishing_bait'}).catch(function(){return null;});
+    var ppRes=await supabaseClient.rpc('award_pp_secure',{p_amount:-baitData.cost,p_reason:'fishing_bait'}).then(null, function(){return null;});
     if(ppRes&&ppRes.data!==undefined) updateAllPoints(ppRes.data);
   }
 
@@ -14399,7 +14399,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       if (weatherPPBonus > 0) {
         await supabaseClient.rpc('award_pp_secure', {
           p_amount: weatherPPBonus, p_reason: 'weather_pp_bonus'
-        }).catch(function(e) { dbg('[Weather] PP bonus error:', e); });
+        }).then(null, function(e) { dbg('[Weather] PP bonus error:', e); });
         ppGained += weatherPPBonus;
         dbg('[Weather] PP bonus:', weatherPPBonus, 'weather:', weatherSystem.currentWeather && weatherSystem.currentWeather.id);
       }
@@ -19768,7 +19768,7 @@ async function _furniture_buyCore(furnitureId, cost) {
       // Refund PP since the furniture grant failed
       var { data: refundedPoints } = await supabaseClient.rpc('award_pp_secure', {
         p_amount: cost, p_reason: 'furniture_purchase_refund'
-      }).catch(function(){ return { data: null }; });
+      }).then(null, function(){ return { data: null }; });
       if (refundedPoints !== null && refundedPoints !== undefined) updateAllPoints(refundedPoints);
       if (furnError.code === '23505') {
         showToast('You already own this furniture!', 3000);
@@ -23201,7 +23201,7 @@ async function checkDailyLogin() {
     } else if (streak === 5) {
       // Day 5: 1 skin key
       await supabaseClient.from('players').update({ skin_keys: supabaseClient.rpc ? undefined : 0 }).eq('id', currentUser.id);
-      await supabaseClient.rpc('increment_player_skin_keys', { p_user_id: currentUser.id, p_amount: 1 }).catch(async function() {
+      await supabaseClient.rpc('increment_player_skin_keys', { p_user_id: currentUser.id, p_amount: 1 }).then(null, async function() {
         // Fallback: direct update
         var kr = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
         if (kr.data) await supabaseClient.from('players').update({ skin_keys: (kr.data.skin_keys || 0) + 1 }).eq('id', currentUser.id);
@@ -28113,7 +28113,7 @@ async function melonRequests_loadFoodItems() {
   try {
     var res = await supabaseClient
       .from('items')
-      .select('id,name,emoji,hunger_effect')
+      .select('id,name,hunger_effect')
       .gt('hunger_effect', 0)
       .order('hunger_effect', { ascending: false })
       .limit(20);
@@ -35516,7 +35516,7 @@ var pollSystem = {
       }
 
       // Increment total_votes
-      await supabaseClient.rpc('increment_poll_votes', { poll_id_param: pollId }).catch(function() {
+      await supabaseClient.rpc('increment_poll_votes', { poll_id_param: pollId }).then(null, function() {
         // If RPC doesn't exist, just update locally
       });
 
@@ -35668,7 +35668,7 @@ async function gp_adminRecalcScores() {
   if (!confirm('Recalculate scores for all entries in the current event?')) return;
   var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Recalculating…');
 
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   var evId = events[0].id;
 
@@ -35704,7 +35704,7 @@ async function gp_adminFixRankings() {
   if (!await isAdmin()) return;
   if (!confirm('Re-sort and assign ranks for all entries by current score?')) return;
 
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   var evId = events[0].id;
 
@@ -35731,7 +35731,7 @@ async function gp_adminSetWinner(entryId, username) {
   if (!await isAdmin()) return;
   if (!confirm('Set ' + username + ' as rank #1? All other ranks will shift down by 1.')) return;
 
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   var evId = events[0].id;
 
@@ -35977,7 +35977,7 @@ async function gp_adminForceSimulate() {
   if (!confirm('Run full simulation? This scores all entries, assigns ranks, and sends notifications.')) return;
   var btn = event && event.target; var restore = gp_adminBtnLoading(btn, '⏳ Simulating…');
 
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 3000); return; }
 
   await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_force_simulate', details: { event_id: events[0].id } }).then(null, function(){});
@@ -35988,7 +35988,7 @@ async function gp_adminForceSimulate() {
 
 async function gp_adminAdjustPrize(delta) {
   if (!await isAdmin()) return;
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   var ev = events[0];
   var newPool = Math.max(0, (ev.prize_pool||0) + delta);
@@ -36003,7 +36003,7 @@ async function gp_adminSetPrize() {
   var input = document.getElementById('gp-admin-prize-input');
   var amount = parseInt(input ? input.value : '');
   if (isNaN(amount) || amount < 0) { showToast('Enter a valid amount', 2000); return; }
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
   await supabaseClient.from('grand_prix_events').update({ prize_pool: amount }).eq('id', events[0].id);
   await supabaseClient.from('admin_logs').insert({ admin_id: currentUser.id, action: 'gp_set_prize', details: { amount } }).then(null, function(){});
@@ -36037,7 +36037,7 @@ async function gp_adminSendNotif() {
   var message = (document.getElementById('gp-admin-notif-msg')||{}).value.trim();
   if (!message) { showToast('Enter a message', 2000); return; }
 
-  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').catch(function(){ return { data: null }; });
+  var { data: events } = await supabaseClient.rpc('get_current_grand_prix').then(null, function(){ return { data: null }; });
   if (!events || events.length === 0) { showToast('No active event', 2500); return; }
 
   var query = supabaseClient.from('grand_prix_entries').select('user_id, final_rank').eq('event_id', events[0].id);
