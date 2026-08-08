@@ -1678,6 +1678,7 @@ function loadTab(tab) {
   else if (tab === 'journal') initJournalTab();
   else if (tab === 'shop') { loadShop(); loadInventory(); }
   else if (tab === 'minigames') initMinigames();
+  else if (tab === 'fishing') initFishingTab();
   else if (tab === 'battle') loadBattlePets();
   else if (tab === 'news') loadNews();
   else if (tab === 'twitch') initTwitchTab();
@@ -6683,6 +6684,7 @@ async function loadShop() {
     .or('is_boss_drop.is.null,is_boss_drop.eq.false')
     .neq('id', '00000000-0000-0000-0000-000000000001')  // Exclude Skin Keys by ID
     .neq('name', 'Skin Key')                             // Exclude Skin Keys by name
+    .neq('item_type', 'ingredient')                      // Ingredients shown in Cooking only
     .order('price', {ascending: true});
   
   if (res.error||!res.data||!res.data.length) { 
@@ -6763,8 +6765,7 @@ async function loadShop() {
     { key: 'food', title: '🍕 Food', desc: 'Keep your pet well-fed and happy!' },
     { key: 'toys', title: '🎾 Toys', desc: 'Fun items to boost happiness!' },
     { key: 'energy', title: '⚡ Energy', desc: 'Restore energy for more activities!' },
-    { key: 'healing', title: '💚 Healing', desc: 'Restore HP after battles!' },
-    { key: 'equipment', title: '⚔️ Equipment', desc: 'Battle gear to make your pet stronger!' }
+    // Note: healing/medicine items appear in the Consumables tab, not Pet Care
   ];
   
   categoryConfig.forEach(function(config) {
@@ -8610,7 +8611,23 @@ async function fishingMigrateLocalStorage() {
     var entry = local[fid];
     var count = entry.count || 1;
     for (var j = 0; j < count; j++) {
-      await supabaseClient.rpc('fishing_record_catch', { p_fish_id: fid, p_weight: null }).then(null, function(){});
+      await supabaseClient.from('fish_collection').upsert({
+        user_id: currentUser.id,
+        fish_id: caught.id,
+        catch_count: 1,
+        best_weight: weightG,
+        first_caught_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id,fish_id',
+        ignoreDuplicates: false
+      }).then(function(r) {
+        if (!r.error) {
+          // Update local collection cache
+          if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count: 0 };
+          _fishCollection[caught.id].count = (_fishCollection[caught.id].count || 0) + 1;
+          if (weightG > (_fishCollection[caught.id].best || 0)) _fishCollection[caught.id].best = weightG;
+        }
+      }, function(){})
     }
     _fishCollection[fid] = { count: count, firstCatch: entry.firstCatch || Date.now(), bestWeight: null };
   }
@@ -14310,23 +14327,12 @@ async function manualBattle_endBattle(victory) {
 
   clearBossEffects();
 
-  // Show continue button pointing to rewards
-  el('battle-controls-legacy').style.display = 'block';
-  el('battle-skip-btn').style.display = 'none';
-  el('battle-continue-btn').style.display = 'block';
-  el('battle-continue-btn').textContent = victory ? '🎉 Claim Rewards' : '💔 Continue';
-  el('battle-continue-btn').onclick = function() {
-    el('battle-narrative-box').style.display = 'none';
-    el('manual-battle-actions').style.display = 'none';
-    el('battle-controls-legacy').style.display = 'none';
-    manualBattleState = null;
-    showBattleRewardsModal();
-    // Reload pets in background so HP is fresh when user visits My Pets
-    setTimeout(function() { tabsLoaded['mypets'] = false; }, 500);
-  };
-
-  tabsLoaded['mypets'] = false;
-  tabsLoaded['battle'] = false;
+  // Auto-show rewards — no button click needed
+  el('battle-narrative-box').style.display = 'none';
+  el('manual-battle-actions').style.display = 'none';
+  el('battle-controls-legacy').style.display = 'none';
+  manualBattleState = null;
+  setTimeout(function() { showBattleRewardsModal(); }, 400);
 }
 
 /**

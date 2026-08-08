@@ -17821,15 +17821,4 @@ body.in-manual-battle .right-sidebar {
 }
 
 /* ── Melon shop mascot — beside companion, not on top ───────────────────── */
-.shop-mascot,
-#section-shop .shop-mascot {
-  position: fixed !important;
-  right: 120px !important;
-  bottom: 20px !important;
-  left: auto !important;
-  top: auto !important;
-  transform: none !important;
-  margin: 0 !important;
-  width: auto !important;
-  z-index: 9999 !important;
-}
+
