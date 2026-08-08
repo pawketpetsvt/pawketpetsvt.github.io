@@ -1613,6 +1613,9 @@ function showTab(tab) {
   
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
+  // Melon visibility — show only on shop
+  var melon = document.getElementById('melon-mascot');
+  if (melon) { if (tab === 'shop') { melon.style.setProperty('display','block','important'); } else { melon.style.display = 'none'; } }
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   
@@ -8746,15 +8749,18 @@ async function castLine(power) {
     var isNew = !_fishCollection[caught.id];
     var isNewRecord = false;
     try {
-      var catchRes = await supabaseClient.rpc('fishing_record_catch', {
-        p_fish_id: caught.id,
-        p_weight:  weightG > 0 ? weightG : null
-      });
-      if (catchRes.data) {
-        isNew      = !!catchRes.data.new_fish;
-        isNewRecord = !!catchRes.data.new_record;
-      }
-    } catch(e) { dbg('fishing_record_catch error:', e); }
+      // Check if first time catching this fish
+      var prevCount = (_fishCollection[caught.id] && _fishCollection[caught.id].count) || 0;
+      isNew = (prevCount === 0);
+      var prevBest = (_fishCollection[caught.id] && _fishCollection[caught.id].bestWeight) || 0;
+      isNewRecord = (weightG > 0 && weightG > prevBest);
+      // Save to fish_collection
+      await supabaseClient.from('fish_collection').upsert({
+        user_id: currentUser.id, fish_id: caught.id,
+        catch_count: prevCount + 1, best_weight: Math.max(weightG, prevBest),
+        first_caught_at: isNew ? new Date().toISOString() : undefined
+      }, { onConflict: 'user_id,fish_id' }).then(null, function(){});
+    } catch(e) { dbg('fish_collection save error:', e); }
 
     // Update local cache
     if (!_fishCollection[caught.id]) _fishCollection[caught.id] = { count:0, firstCatch:Date.now(), bestWeight:null };
@@ -9022,8 +9028,10 @@ function castLineStart(e) {
   if (pond) { pond.textContent = '🎣 Hold to build power... Release to cast!'; pond.style.color = 'var(--purple)'; }
   var btn = document.getElementById('fishing-btn');
   if (btn) btn.textContent = '⚡ Casting... Release!';
-  // Power bar fill
-  var bar = document.getElementById('fishing-power-fill');
+  // Show and fill power bar
+  var wrap = document.getElementById('fishing-power-wrap');
+  if (wrap) wrap.style.display = 'block';
+  var bar = document.getElementById('fishing-power-bar');
   if (bar) {
     bar.style.width = '0%';
     _castTimer = setInterval(function() {
@@ -9040,8 +9048,10 @@ async function castLineRelease(e) {
   _castPressing = false;
   if (_castTimer) { clearInterval(_castTimer); _castTimer = null; }
   var power = Math.min(1.0, (Date.now() - _castStartTime) / 2000);
-  var bar = document.getElementById('fishing-power-fill');
+  var bar = document.getElementById('fishing-power-bar');
   if (bar) bar.style.width = '0%';
+  var wrap2 = document.getElementById('fishing-power-wrap');
+  if (wrap2) wrap2.style.display = 'none';
   var pond = document.getElementById('fishing-pond-text');
   if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
   var btn = document.getElementById('fishing-btn');
@@ -9291,7 +9301,10 @@ function fishingCookFeed(fishId) {
 
   // Consume one fish from collection
   col.count = Math.max(0, (col.count || 1) - 1);
-  supabaseClient.rpc('fishing_record_catch', { p_fish_id: fishId, p_weight: null, p_remove: true }).then(null, function(){});
+  supabaseClient.from('fish_collection')
+    .update({ catch_count: col.count })
+    .eq('user_id', currentUser.id).eq('fish_id', fishId)
+    .then(null, function(){});
 
   showToast('🍳 Cooked ' + fish.name + ' for your pet! +' + hunger + ' hunger.', 3000);
   updateBingoProgress('feed_pet', 1);
@@ -9301,6 +9314,41 @@ function fishingCookFeed(fishId) {
   fishingLoadCollection().then(null, function(){});
 }
 
+
+
+
+function fishingShowCastMarker(x, y) {
+  var pond = document.getElementById('fishing-pond-area');
+  if (!pond) return;
+  var existing = pond.querySelector('.cast-marker');
+  if (existing) existing.remove();
+  var marker = document.createElement('div');
+  marker.className = 'cast-marker';
+  marker.style.cssText = 'position:absolute;width:20px;height:20px;border-radius:50%;background:rgba(77,171,247,0.7);border:3px solid #fff;box-shadow:0 0 10px rgba(77,171,247,0.8);transform:translate(-50%,-50%);pointer-events:none;animation:ripple 1s ease-out infinite;left:'+x+'px;top:'+y+'px;z-index:5;';
+  pond.style.position = 'relative';
+  pond.appendChild(marker);
+  // Draw fishing line from button to marker
+  var line = pond.querySelector('.cast-line');
+  if (line) line.remove();
+  var lineEl = document.createElement('div');
+  lineEl.className = 'cast-line';
+  var pondRect = pond.getBoundingClientRect();
+  var centerX = pondRect.width / 2;
+  var angle = Math.atan2(y - pondRect.height, x - centerX) * 180 / Math.PI;
+  var dist = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - pondRect.height, 2));
+  lineEl.style.cssText = 'position:absolute;bottom:0;left:'+centerX+'px;width:'+dist+'px;height:1px;background:rgba(200,200,200,0.7);transform-origin:left center;transform:rotate('+angle+'deg);pointer-events:none;z-index:4;';
+  pond.appendChild(lineEl);
+}
+
+function fishingToggleJournal() {
+  var mount = document.getElementById('fishing-journal-mount');
+  var chevron = document.getElementById('fish-journal-chevron');
+  if (!mount) return;
+  var isOpen = mount.style.display !== 'none' && mount.style.display !== '';
+  mount.style.display = isOpen ? 'none' : 'block';
+  if (chevron) chevron.textContent = isOpen ? '▼' : '▲';
+  if (!isOpen && typeof fishingRenderJournal === 'function') fishingRenderJournal();
+}
 
 async function initFishingTab() {
   if (!currentUser) return;
@@ -14498,7 +14546,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('item_id', itemDropped.id)
-        .single();
+        .maybeSingle();
       
       if (existingItem.data) {
         await supabaseClient
@@ -15902,7 +15950,7 @@ async function handleItemEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .single();
+    .maybeSingle();
   
   if (existingItem.data) {
     await supabaseClient
@@ -15958,7 +16006,7 @@ async function handleTreasureEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .single();
+    .maybeSingle();
   
   if (existingItem.data) {
     await supabaseClient
@@ -19356,8 +19404,8 @@ async function logActivity(activityType, activityData) {
       .from('activity_feed')
       .insert([{
         user_id: currentUser.id,
-        activity_type: activityType,
-        activity_data: enrichedData,
+        activity_type: activityType || 'unknown',
+        activity_data: JSON.stringify(enrichedData || {}),
         is_public: true
       }]);
     
@@ -21823,12 +21871,12 @@ function getStreakMultiplier(petId, zone) {
 
 async function checkSecretDiscovery(petId, zone, streak) {
   try {
-    var { data: secrets } = await supabaseClient
+    var secretsRes = await supabaseClient
       .from('exploration_secrets')
       .select('*')
       .eq('zone', zone)
-      .lte('required_expedition_count', streak);
-
+      .lte('required_expedition_count', streak).then(null, function(){ return {data:null}; });
+    var secrets = secretsRes && secretsRes.data;
     if (!secrets || secrets.length === 0) return;
 
     // Check which secrets haven't been discovered by this user yet
@@ -34112,7 +34160,7 @@ async function screenshot_generate(petId) {
       supabaseClient.from('players').select('username, active_player_title_id').eq('id', pet.user_id).single(),
       supabaseClient.from('pets').select('name, image_file, special_skill').eq('id', pet.pet_id).single(),
       supabaseClient.from('player_equipment').select('equipped_slot, equipment(name, rarity)').eq('user_id', pet.user_id).eq('pet_id', petId).eq('is_equipped', true),
-      supabaseClient.from('user_pass_progress').select('level').eq('user_id', pet.user_id).single()
+      supabaseClient.from('user_pass_progress').select('level').eq('user_id', pet.user_id).maybeSingle()
     ]);
 
     // Active pet title
@@ -35340,7 +35388,7 @@ async function gift_accept(giftId, fromUserId) {
     // Add item to recipient inventory
     if (gift.item_id) {
       var { data: existing } = await supabaseClient
-        .from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', gift.item_id).single();
+        .from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', gift.item_id).maybeSingle();
       if (existing) {
         await supabaseClient.from('user_inventory').update({ quantity: existing.quantity + gift.quantity }).eq('id', existing.id);
       } else {

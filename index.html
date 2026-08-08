@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260807g">
+  <link rel="stylesheet" href="style.css?v=20260807i">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -1660,14 +1660,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
   <!-- SHOP -->
   <div class="page-section" id="section-shop">
-    <!-- Melon Mascot -->
-    <div class="shop-mascot">
-      <img src="images/melon.png" alt="Melon" class="mascot-image">
-      <div class="mascot-speech-bubble" id="melon-dialogue">
-        Welcome to the Shop! I'm Melon! Buy whatever you need!
-      </div>
-    </div>
-    
     <div class="page-wrap">
       <div class="page-hero">
         <div class="sparkle-row">&#128717; &#10022; &#128717;</div>
@@ -1949,7 +1941,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               </div>
 
               <!-- Water + cast -->
-              <div class="fishing-pond" style="min-height:90px;position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;">
+              <div class="fishing-pond" id="fishing-pond-area" onclick="(function(e){var r=this.getBoundingClientRect();fishingShowCastMarker(e.clientX-r.left,e.clientY-r.top);})(event)" style="min-height:90px;position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;cursor:crosshair;">
                 <div class="fishing-line" id="fishing-line" style="display:none;">
                   <div class="fishing-hook">🪝</div>
                 </div>
@@ -4719,5 +4711,13 @@ function ssLightboxClose() {
   window._ssLightboxOverlay = null;
 }
 </script>
+
+  <!-- MELON MASCOT — fixed to bottom-right, always visible on shop page -->
+  <div class="shop-mascot" id="melon-mascot" style="display:none;">
+    <img src="images/melon.png" alt="Melon" class="mascot-image">
+    <div class="mascot-speech-bubble" id="melon-dialogue">
+      Welcome to the Shop! I'm Melon! Buy whatever you need!
+    </div>
+  </div>
 </body>
 </html>

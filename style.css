@@ -4355,15 +4355,11 @@ body::after {
 
 /* Hide Melon on mobile/small screens */
 @media (max-width: 1200px) {
-  .shop-mascot {
-    display: none;
-  }
+  /* shop-mascot visibility controlled by JS */
 }
 
 /* Only show Melon on the shop page */
-#section-shop:not(.active) .shop-mascot {
-  display: none;
-}
+#section-shop:not(.active) /* shop-mascot visibility controlled by JS */
 
 /* ===========================================
    COLORFUL "MELON'S MELONS" SHOP TITLE
@@ -17747,30 +17743,23 @@ body.boss-ui-glitch #battle-controls-legacy {
 
 /* ── MELON POSITION OVERRIDE ────────────────────────────────────────────── */
 /* Re-assert fixed positioning in case any parent transform breaks it */
+/* MELON: always fixed bottom-right, JS controls show/hide */
 .shop-mascot {
   position: fixed !important;
   right: 20px !important;
-  bottom: 0 !important;
+  bottom: 100px !important;   /* above companion pet which is at bottom:20px */
   left: auto !important;
   top: auto !important;
   transform: none !important;
   margin: 0 !important;
+  z-index: 9000 !important;
+  pointer-events: none;
 }
 
 /* ── MELON MASCOT POSITION LOCK ─────────────────────────────────────────── */
 /* Fixed-position override — immune to parent transforms */
 .shop-mascot,
-#section-shop .shop-mascot {
-  position: fixed !important;
-  bottom: 0 !important;
-  right: 20px !important;
-  left: auto !important;
-  top: auto !important;
-  transform: none !important;
-  margin: 0 !important;
-  width: auto !important;
-  z-index: 999 !important;
-}
+#section-shop /* Melon position — see main override above */
 
 /* ── PET PAT FLOATING TEXT ──────────────────────────────────────────────── */
 .pet-pat-text {
@@ -17822,3 +17811,35 @@ body.in-manual-battle .right-sidebar {
 
 /* ── Melon shop mascot — beside companion, not on top ───────────────────── */
 
+
+/* ── Fishing cast marker ripple ─────────────────────────────────────────── */
+@keyframes ripple {
+  0%   { box-shadow: 0 0 0 0 rgba(77,171,247,0.6); transform: translate(-50%,-50%) scale(1); }
+  70%  { box-shadow: 0 0 0 14px rgba(77,171,247,0); transform: translate(-50%,-50%) scale(1.1); }
+  100% { box-shadow: 0 0 0 0 rgba(77,171,247,0); transform: translate(-50%,-50%) scale(1); }
+}
+.cast-marker { animation: ripple 1.2s ease-out infinite !important; }
+
+/* ── MELON MASCOT — true fixed position, always bottom-right ────────────── */
+/* Removing ALL previous rules in favour of this one definitive block       */
+#melon-mascot {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  left: auto !important;
+  top: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  z-index: 9000 !important;
+  pointer-events: none !important;
+  width: auto !important;
+  display: none; /* shown/hidden by JS */
+}
+#melon-mascot .mascot-image {
+  width: 200px !important;
+  height: auto !important;
+  display: block !important;
+}
+#melon-mascot .mascot-speech-bubble {
+  pointer-events: none !important;
+}
