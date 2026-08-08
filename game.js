@@ -1569,19 +1569,7 @@ function navGroupHover(id, entering) {
   // Hover disabled — nav groups now open/close only on click (navGroupToggle)
 }
 
-function showBetaIntegrityInfo() {
-  var modal = makeModal();
-  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;max-width:420px;">' +
-    '<h2 style="margin-bottom:12px;">🖥️ Beta Integrity</h2>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">Beta Integrity measures how stable the PawketPets simulation is. 100% is perfect.</p>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">Defeating bosses <strong>decreases</strong> it. Community goals and rituals <strong>restore</strong> it.</p>' +
-    '<p style="line-height:1.6;margin-bottom:10px;">At low integrity, Piper Shop becomes accessible and the world becomes unreliable.</p>' +
-    '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-light);margin-top:12px;">This is not a bug. This is intended.</div>' +
-    '<button class="btn btn-primary" onclick="closeModal(this.closest(\'.modal-overlay\'))" style="margin-top:16px;width:100%;">Got it</button>' +
-    '</div>';
-  openModal(modal);
-}
-
+function showBetaIntegrityInfo() { showToast("🖥️ Beta Integrity: Stability of the simulation. Low = Piper gains influence.", 5000); }
 
 function shopNav_toggle() {
   var piperBtn = document.getElementById('sidebar-btn-piper-shop');
@@ -1591,7 +1579,6 @@ function shopNav_toggle() {
   var open = children.style.display !== 'none' && children.style.display !== '';
   children.style.display = open ? 'none' : 'block';
 }
-
 function shopNav_toggleMobile() {
   var piperBtn = document.getElementById('sidebar-btn-piper-shop-mobile');
   var children = document.getElementById('shop-nav-children-mobile');
@@ -1600,7 +1587,6 @@ function shopNav_toggleMobile() {
   var open = children.style.display !== 'none' && children.style.display !== '';
   children.style.display = open ? 'none' : 'block';
 }
-
 function showTab(tab) {
   var mobileMenu = document.getElementById('mobile-nav-menu');
   if (mobileMenu && mobileMenu.classList.contains('open')) {
@@ -2937,15 +2923,15 @@ async function loadInventoryData() {
 
 function getEffectText(item) {
   var p = [];
-  var hunger    = item.h || item.hunger_effect || 0;
-  var energy    = item.e || item.energy_effect || 0;
+  var hunger = item.h || item.hunger_effect || 0;
+  var energy = item.e || item.energy_effect || 0;
   var happiness = item.hap || item.happiness_effect || 0;
-  var xp        = item.xp || item.xp_effect || 0;
-  if (hunger    > 0) p.push('+' + hunger    + ' Hunger');
-  if (energy    > 0) p.push('+' + energy    + ' Energy');
+  var xp = item.xp || item.xp_effect || 0;
+  if (hunger > 0) p.push('+' + hunger + ' Hunger');
+  if (energy > 0) p.push('+' + energy + ' Energy');
   if (happiness > 0) p.push('+' + happiness + ' Happiness');
-  if (xp        > 0) p.push('+' + xp        + ' XP');
-  return p.length ? p.join('  ·  ') : (item.description || 'No stat effects');
+  if (xp > 0) p.push('+' + xp + ' XP');
+  return p.length ? p.join(' · ') : (item.description || 'No stat effects');
 }
 
 async function loadMyPets() {
@@ -6753,7 +6739,7 @@ async function loadShop() {
     } else if (item.happiness_effect > 0 && (item.hunger_effect === 0 || item.happiness_effect > item.hunger_effect)) {
       categories.toys.push(item);
     } else if (item.hunger_effect > 0) {
-      categories.food.push(item); // collect all; daily rotation applied below
+      categories.food.push(item);
     } else {
       categories.other.push(item);
     }
@@ -6763,13 +6749,12 @@ async function loadShop() {
   Object.keys(categories).forEach(function(cat) {
     categories[cat].sort(function(a,b){return a.price-b.price;});
   });
-  // Daily food rotation — 8 items per day, seeded by date
   if (categories.food.length > 8) {
-    var todaySeed = parseInt(new Date().toISOString().slice(0,10).replace(/-/g,''));
-    var rng = (function(seed) { return function() { seed=(seed*1664525+1013904223)&0xffffffff; return (seed>>>0)/4294967296; }; })(todaySeed);
-    var shuffled = categories.food.slice();
-    for (var si=shuffled.length-1;si>0;si--){var sj=Math.floor(rng()*(si+1));var st=shuffled[si];shuffled[si]=shuffled[sj];shuffled[sj]=st;}
-    categories.food = shuffled.slice(0, 8);
+    var seed = parseInt(new Date().toISOString().slice(0,10).replace(/-/g,''));
+    var rng=(function(s){return function(){s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/4294967296;};})(seed);
+    var sf=categories.food.slice();
+    for(var si=sf.length-1;si>0;si--){var sj=Math.floor(rng()*(si+1));var st=sf[si];sf[si]=sf[sj];sf[sj]=st;}
+    categories.food=sf.slice(0,8);
   }
   grid.innerHTML='';
   
@@ -6909,10 +6894,9 @@ async function buyItem(itemId, itemName, price) {
     return;
   }
   
-  // Spend PP via secure RPC
+  // Call secure database function
   var spendRes = await supabaseClient.rpc('spend_pp_secure', { p_amount: price, p_reason: 'shop_purchase' });
   if (spendRes.error || !spendRes.data) { showToast('Purchase failed — not enough PP?'); return; }
-  // Add item to inventory
   var existingRow = await supabaseClient.from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', itemId).maybeSingle();
   if (existingRow.data) {
     await supabaseClient.from('user_inventory').update({ quantity: existingRow.data.quantity + 1 }).eq('id', existingRow.data.id);
@@ -6922,11 +6906,7 @@ async function buyItem(itemId, itemName, price) {
   if (currentPoints >= 500) { await awardBadge('mega_spender').then(null, function(){}); }
   else if (currentPoints >= 100) { await awardBadge('big_spender').then(null, function(){}); }
   updateAllPoints(spendRes.data);
-  showToast('Bought ' + itemName + '! 🛍️');
-  tabsLoaded['shop'] = false; 
-  loadShop(); 
-  loadInventory();
-  tabsLoaded['mypets'] = false;
+  showToast('Bought ' + itemName + '! ');
 }
 
 async function loadInventory() {
@@ -7214,28 +7194,15 @@ async function useOnPet(petId,petNickname) {
   closeUseModal();
   var invRow=await supabaseClient.from('user_inventory').select('item_id,quantity').eq('id',invId).maybeSingle();
   if(invRow.error||!invRow.data){showToast('Could not find item.');return;}
-  var itemRes=await supabaseClient.from('items').select('hunger_effect,energy_effect,happiness_effect,xp_effect,item_type').eq('id',invRow.data.item_id).single();
+  var itemRes=await supabaseClient.from('items').select('hunger_effect,energy_effect,happiness_effect,xp_effect').eq('id',invRow.data.item_id).single();
   if(itemRes.error||!itemRes.data){showToast('Could not find effects.');return;}
   var ef=itemRes.data;
-  var petRes=await supabaseClient.from('user_pets').select('hunger,max_hunger,energy,max_energy,happiness,max_happiness,xp,level,pets!inner(name)').eq('id',petId).single();
+  var petRes=await supabaseClient.from('user_pets').select('hunger,max_hunger,energy,max_energy,happiness,max_happiness,xp,level').eq('id',petId).single();
   if(petRes.error||!petRes.data){showToast('Could not find pet.');return;}
-  var pet=petRes.data;
-  var petType = pet.pets && pet.pets.name ? pet.pets.name : null;
-  var hapMultiplier = 1.0;
-  var reactionMsg = '';
-  if (petType && ef.item_type === 'food' && ef.hunger_effect > 0) {
-    var prefs = petFoodPreferences[petType];
-    if (prefs) {
-      if (prefs.loved_item && itemName === prefs.loved_item)         { hapMultiplier=1.75; reactionMsg='💖 '+petNickname+' LOVES this!'; logJournalDiscovery(petType,'loved',itemName).then(null,function(){}); }
-      else if (prefs.liked_item && itemName === prefs.liked_item)    { hapMultiplier=1.25; reactionMsg='😊 '+petNickname+' likes this!'; logJournalDiscovery(petType,'liked',itemName).then(null,function(){}); }
-      else if (prefs.hated_item && itemName === prefs.hated_item)    { hapMultiplier=0.5;  reactionMsg='😠 '+petNickname+' hates this...'; logJournalDiscovery(petType,'hated',itemName).then(null,function(){}); }
-      else if (prefs.disliked_item && itemName === prefs.disliked_item){ hapMultiplier=0.75; reactionMsg='😐 '+petNickname+" doesn't like this."; logJournalDiscovery(petType,'disliked',itemName).then(null,function(){}); }
-    }
-  }
-  var updates={};
+  var pet=petRes.data; var updates={};
   if(ef.hunger_effect>0)updates.hunger=Math.min(pet.hunger+ef.hunger_effect,pet.max_hunger);
   if(ef.energy_effect>0)updates.energy=Math.min(pet.energy+ef.energy_effect,pet.max_energy);
-  if(ef.happiness_effect>0)updates.happiness=Math.min(pet.happiness+Math.round(ef.happiness_effect*hapMultiplier),pet.max_happiness);
+  if(ef.happiness_effect>0)updates.happiness=Math.min(pet.happiness+ef.happiness_effect,pet.max_happiness);
   if(ef.xp_effect>0)updates.xp=pet.xp+ef.xp_effect;
   if(!Object.keys(updates).length){showToast('No effects configured.');return;}
   // Also update last_fed if this is a food item, so decay calculates correctly
@@ -7257,18 +7224,7 @@ async function useOnPet(petId,petNickname) {
     updateBingoProgress('play_pet',1);
     addPassXP(2,'play').then(null, function(){});
   }
-  // Progressive journal unlocks
-  if (petType && ef.hunger_effect > 0) {
-    var disc = journalDiscoveries[petType] || {};
-    var foodDiscs = ['loved','liked','disliked','hated'].filter(function(k){return disc[k];}).length;
-    if (foodDiscs >= 1) logJournalDiscovery(petType,'hobby','').then(null,function(){});
-    if (foodDiscs >= 2) logJournalDiscovery(petType,'fun_fact','').then(null,function(){});
-    if (foodDiscs >= 3) logJournalDiscovery(petType,'sleep_habit','').then(null,function(){});
-    if (foodDiscs >= 4) logJournalDiscovery(petType,'weather_preference','').then(null,function(){});
-    if ((pet.level||1) >= 5)  logJournalDiscovery(petType,'catchphrase','').then(null,function(){});
-    if ((pet.level||1) >= 10) logJournalDiscovery(petType,'secret_talent','').then(null,function(){});
-  }
-  showToast(reactionMsg || ('Used '+itemName+' on '+petNickname+'!'), reactionMsg ? 4000 : 2500);
+  showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
 }
 
@@ -9050,7 +9006,7 @@ function castLineStart(e) {
   var btn = document.getElementById('fishing-btn');
   if (btn) btn.textContent = '⚡ Casting... Release!';
   // Power bar fill
-  var bar = document.getElementById('fishing-power-bar');
+  var bar = document.getElementById('fishing-power-fill');
   if (bar) {
     bar.style.width = '0%';
     _castTimer = setInterval(function() {
@@ -9067,7 +9023,7 @@ async function castLineRelease(e) {
   _castPressing = false;
   if (_castTimer) { clearInterval(_castTimer); _castTimer = null; }
   var power = Math.min(1.0, (Date.now() - _castStartTime) / 2000);
-  var bar = document.getElementById('fishing-power-bar');
+  var bar = document.getElementById('fishing-power-fill');
   if (bar) bar.style.width = '0%';
   var pond = document.getElementById('fishing-pond-text');
   if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
@@ -12838,7 +12794,6 @@ async function executeBattle(playerStats, enemyStats, petId) {
   }
 
   isBossBattle = enemyStats.is_boss || false;
-  document.body.classList.add('in-manual-battle');
   initManualBattle(playerStats, enemyStats, petId);
 }
 
@@ -14356,15 +14311,23 @@ async function manualBattle_endBattle(victory) {
   clearBossEffects();
 
   // Show continue button pointing to rewards
-  // Auto-show reward modal — no button click needed
-  el('battle-narrative-box').style.display = 'none';
-  el('manual-battle-actions').style.display = 'none';
-  el('battle-controls-legacy').style.display = 'none';
-  manualBattleState = null;
-  setTimeout(function() {
+  el('battle-controls-legacy').style.display = 'block';
+  el('battle-skip-btn').style.display = 'none';
+  el('battle-continue-btn').style.display = 'block';
+  el('battle-continue-btn').textContent = victory ? '🎉 Claim Rewards' : '💔 Continue';
+  el('battle-continue-btn').onclick = function() {
+    el('battle-narrative-box').style.display = 'none';
+    el('manual-battle-actions').style.display = 'none';
+    el('battle-controls-legacy').style.display = 'none';
+    manualBattleState = null;
     showBattleRewardsModal();
-    tabsLoaded['mypets'] = false;
-  }, 300);
+    // Reload pets in background so HP is fresh when user visits My Pets
+    setTimeout(function() { tabsLoaded['mypets'] = false; }, 500);
+  };
+
+  tabsLoaded['mypets'] = false;
+  tabsLoaded['battle'] = false;
+}
 
 /**
  * Save battle to database
@@ -14529,7 +14492,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         .select('*')
         .eq('user_id', currentUser.id)
         .eq('item_id', itemDropped.id)
-        .maybeSingle();
+        .single();
       
       if (existingItem.data) {
         await supabaseClient
@@ -15286,7 +15249,6 @@ function closeBattleRewardsModal() {
   closeBattle();
 }
 
-
 function battleRewardDismiss() {
   var modal = document.querySelector('.modal-overlay');
   if (modal && modal._battleCountdown) clearInterval(modal._battleCountdown);
@@ -15294,9 +15256,7 @@ function battleRewardDismiss() {
   battleRewards = null;
   closeBattle();
 }
-
 function closeBattleRewardsModal() { battleRewardDismiss(); }
-
 async function closeBattle() {
   // Stop sprite animation
   var enemySprite = el('enemy-battle-sprite');
@@ -15309,7 +15269,6 @@ async function closeBattle() {
   
   el('battle-screen').style.display = 'none';
   el('forest-exploration').style.display = 'block';
-  document.body.classList.remove('in-manual-battle');
   
   // Force clear battle tab cache and reload pet selector with fresh data
   tabsLoaded['battle'] = false;
@@ -15937,7 +15896,7 @@ async function handleItemEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .maybeSingle();
+    .single();
   
   if (existingItem.data) {
     await supabaseClient
@@ -15993,7 +15952,7 @@ async function handleTreasureEncounter() {
     .select('*')
     .eq('user_id', currentUser.id)
     .eq('item_id', randomItem.id)
-    .maybeSingle();
+    .single();
   
   if (existingItem.data) {
     await supabaseClient
@@ -16056,17 +16015,32 @@ async function handleFlavorEncounter() {
 
 // Show exploration result in battle screen area
 function showExplorationResult(title, message, reward, buttonText) {
-  var modal = makeModal();
-  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;text-align:center;padding:10px;">' +
-    '<div style="font-size:1.8rem;margin-bottom:12px;">' + title + '</div>' +
-    '<div style="font-size:1rem;line-height:1.6;margin-bottom:16px;">' + message + '</div>' +
-    (reward ? '<div style="font-size:1.1rem;font-weight:700;color:var(--purple);margin-bottom:18px;">' + reward + '</div>' : '') +
-    '<button class="btn btn-primary" onclick="closeModal(this.closest(\'.modal-overlay\'))" style="min-width:120px;">' + (buttonText || 'Continue') + '</button>' +
-    '</div>';
-  openModal(modal);
-  // OLD body intentionally removed — was using battle screen causing flash
+  // Hide exploration UI, show battle screen
+  document.getElementById('forest-exploration').style.display = 'none';
+  document.getElementById('battle-screen').style.display = 'block';
+  
+  // Hide battle sprites and HP bars
+  document.querySelector('.battle-container').style.display = 'none';
+  
+  // Show battle log with result
+  var battleLog = document.getElementById('battle-log');
+  battleLog.innerHTML = 
+    '<div class="battle-log-entry" style="font-size: 1.3rem; font-weight: bold; color: var(--purple); margin-bottom: 15px;">' + title + '</div>' +
+    '<div class="battle-log-entry" style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px;">' + message + '</div>' +
+    '<div class="battle-log-entry" style="font-size: 1.2rem; font-weight: bold; color: var(--green); margin-top: 20px;">' + reward + '</div>';
+  
+  // Set up controls
+  document.getElementById('battle-skip-btn').style.display = 'none';
+  var continueBtn = document.getElementById('battle-continue-btn');
+  continueBtn.style.display = 'inline-block';
+  continueBtn.textContent = buttonText;
+  continueBtn.onclick = function() {
+    // Show battle container again
+    document.querySelector('.battle-container').style.display = 'flex';
+    // Return to exploration
+    closeBattle();
+  };
 }
-
 
 function closeExplorationModal() {
   document.getElementById('exploration-modal').classList.remove('show');
@@ -19730,9 +19704,9 @@ async function furniture_loadShop() {
 
     var html =
       // Info banner: shared across rooms + daily happiness tip
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">'
-      + '<span style="background:rgba(255,170,0,0.12);border:1px solid rgba(255,170,0,0.35);border-radius:20px;padding:4px 12px;font-size:0.72rem;color:#b37700;white-space:nowrap;">🏠 Shared — one purchase, every room</span>'
-      + '<span style="background:rgba(93,222,122,0.1);border:1px solid rgba(93,222,122,0.3);border-radius:20px;padding:4px 12px;font-size:0.72rem;color:#27ae60;white-space:nowrap;">✨ Daily happiness boost on login</span>'
+      '<div style="background:rgba(255,170,0,0.1);border:1px solid rgba(255,170,0,0.3);border-radius:12px;padding:10px 14px;margin-bottom:14px;font-size:0.78rem;color:#b37700;">'
+      + '🏠 <strong>Furniture is shared</strong>, one purchase works in every pet\'s room!'
+      + '<br>✨ Each item gives your pets a <strong>daily happiness boost</strong> on login.'
       + '</div>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:16px;padding:8px 0;">';
     furnitureCache.forEach(function(item) {
@@ -30373,7 +30347,6 @@ async function updateBingoProgress(taskType, amount) {
   
   var wasCompleted = square.completed;
   square.progress = Math.min(square.progress + (amount || 1), square.target);
-  // Save progress immediately
   try { localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo)); } catch(e) {}
   // Check if just completed
   var justCompleted = !wasCompleted && square.progress >= square.target;
@@ -35361,7 +35334,7 @@ async function gift_accept(giftId, fromUserId) {
     // Add item to recipient inventory
     if (gift.item_id) {
       var { data: existing } = await supabaseClient
-        .from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', gift.item_id).maybeSingle();
+        .from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', gift.item_id).single();
       if (existing) {
         await supabaseClient.from('user_inventory').update({ quantity: existing.quantity + gift.quantity }).eq('id', existing.id);
       } else {
@@ -39289,4 +39262,3 @@ async function statPoints_save(petId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-}
