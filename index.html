@@ -45,7 +45,7 @@
     gtag('config', 'G-0BZB5MHSLQ');
   </script>
   
-  <link rel="stylesheet" href="style.css?v=20260807l">
+  <link rel="stylesheet" href="style.css?v=20260808x">
 
   <!-- Tutorial System Styles -->
   <style>
@@ -53,9 +53,9 @@
    TUTORIAL SYSTEM STYLES
    ═══════════════════════════════════════════════════════════ */
 .tutorial-overlay{position:fixed;top:0;left:0;right:0;bottom:0;z-index:999999;pointer-events:none}
-.tutorial-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(2px);pointer-events:none}
-.tutorial-mascot{position:fixed;right:100px;bottom:280px;z-index:1000001;text-align:center;pointer-events:none;animation:tutorial-mascot-bounce 4s ease-in-out infinite}
-.tutorial-mascot-image{width:180px;height:180px;object-fit:contain;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));animation:tutorial-mascot-float 3s ease-in-out infinite}
+.tutorial-backdrop{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.45);pointer-events:none}
+.tutorial-mascot{position:fixed;left:200px;bottom:200px;z-index:1000001;text-align:center;pointer-events:none;animation:tutorial-mascot-bounce 4s ease-in-out infinite}
+.tutorial-mascot-image{width:120px;height:120px;object-fit:contain;filter:drop-shadow(0 8px 24px rgba(0,0,0,0.3));animation:tutorial-mascot-float 3s ease-in-out infinite}
 .tutorial-mascot-name{font-family:'Chewy',cursive;font-size:1.2rem;color:#fff;margin-top:12px;text-shadow:0 2px 8px rgba(0,0,0,0.5)}
 .tutorial-mascot-excited .tutorial-mascot-image{animation:tutorial-mascot-excited 0.5s ease-in-out infinite}
 .tutorial-mascot-explaining .tutorial-mascot-image{animation:tutorial-mascot-explaining 1.5s ease-in-out infinite}
@@ -63,9 +63,9 @@
 .tutorial-mascot-worried .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,100,100,0.3))}
 .tutorial-mascot-scared .tutorial-mascot-image{filter:drop-shadow(0 8px 24px rgba(255,0,0,0.5));animation:tutorial-mascot-shake 0.3s ease-in-out infinite}
 .tutorial-mascot-serious .tutorial-mascot-image{filter:grayscale(0.3) drop-shadow(0 8px 24px rgba(100,0,150,0.4))}
-.tutorial-dialogue-box{position:fixed;bottom:20px;left:20px;transform:none;width:320px;max-width:320px;z-index:1000002;background:linear-gradient(135deg,#fff,#fff5ff);border:4px solid var(--purple);border-radius:24px;padding:30px;box-shadow:0 12px 48px rgba(153,102,255,0.4);animation:tutorial-dialogue-enter 0.3s ease-out;pointer-events:all}
+.tutorial-dialogue-box{position:fixed;bottom:16px;left:16px;transform:none;width:270px;max-width:270px;z-index:1000002;background:linear-gradient(135deg,#fff,#fff5ff);border:3px solid var(--purple);border-radius:18px;padding:18px 20px;box-shadow:0 8px 32px rgba(153,102,255,0.4);animation:tutorial-dialogue-enter 0.3s ease-out;pointer-events:all}
 .tutorial-dialogue-content{position:relative}
-.tutorial-dialogue-text{font-family:'Chewy',cursive;font-size:1.3rem;color:var(--purple-dark);line-height:1.6;margin-bottom:20px;min-height:80px}
+.tutorial-dialogue-text{font-family:'Chewy',cursive;font-size:1.1rem;color:var(--purple-dark);line-height:1.5;margin-bottom:14px;min-height:60px}
 .tutorial-progress{display:flex;justify-content:center;gap:8px;margin-bottom:20px}
 .tutorial-dot{width:10px;height:10px;border-radius:50%;background:var(--purple-light);opacity:0.3;transition:all 0.3s}
 .tutorial-dot.active{opacity:1;background:var(--purple);transform:scale(1.3)}
@@ -934,7 +934,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   
   <div class="navbar-right">
     <span id="nav-user"></span>
-    <span id="nav-points"></span>
+    <span id="nav-points" onclick="pp_showHistory()" title="Click to see PP history" style="cursor:pointer;"></span>
     <button onclick="showHelpModal()" title="Game Information" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
     <button onclick="showReportModal()" title="Report a player or bug" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
 
@@ -1798,7 +1798,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           <div class="game-area">
             <div id="wheel-cooldown" class="cooldown-msg" style="display:none">Already played today! Come back tomorrow.</div>
             <div id="wheel-play">
-              <canvas id="wheel-canvas" width="300" height="300"></canvas>
+              <div style="position:relative;display:inline-block;">
+                <canvas id="wheel-canvas" width="300" height="300"></canvas>
+                <!-- Fixed pointer that never rotates -->
+                <div id="wheel-pointer" style="position:absolute;top:5px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:10px solid transparent;border-right:10px solid transparent;border-bottom:25px solid #ffdd00;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.6));z-index:10;pointer-events:none;"></div>
+              </div>
               <button class="btn btn-primary" id="wheel-btn" onclick="spinWheel()">Spin the Wheel!</button>
             </div>
             <div class="game-result" id="wheel-result"></div>
@@ -2438,18 +2442,48 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <h2 class="section-title">🏁 Racing</h2>
       </div>
       <!-- Sub-tabs -->
-      <div class="shop-tabs" style="margin-bottom:20px;">
+      <div class="shop-tabs" style="margin-bottom:20px;flex-wrap:wrap;">
+        <button class="shop-tab"        id="racing-tab-train"     onclick="racing_showTab('train')">🏋️ Train</button>
         <button class="shop-tab active" id="racing-tab-quickrace" onclick="racing_showTab('quickrace')">🏎️ Quick Race</button>
-        <button class="shop-tab"        id="racing-tab-grandprix"  onclick="racing_showTab('grandprix')">🏆 Grand Prix</button>
+        <button class="shop-tab"        id="racing-tab-league"    onclick="racing_showTab('league')">🏆 League</button>
+        <button class="shop-tab"        id="racing-tab-shop"      onclick="racing_showTab('shop')">🛒 Shop</button>
+        <button class="shop-tab"        id="racing-tab-grandprix" onclick="racing_showTab('grandprix')">🎪 Grand Prix</button>
+      </div>
+      <!-- Train panel -->
+      <div id="racing-panel-train" style="display:none;">
+        <div class="spinner"></div>
       </div>
       <!-- Quick Race panel -->
       <div id="racing-panel-quickrace">
-        <div id="racing-race-area"><div class="spinner"></div></div>
+        <div class="spinner"></div>
+      </div>
+      <!-- League panel -->
+      <div id="racing-panel-league" style="display:none;">
+        <div class="spinner"></div>
+      </div>
+      <!-- Racing Shop panel -->
+      <div id="racing-panel-shop" style="display:none;">
+        <div class="spinner"></div>
       </div>
       <!-- Grand Prix panel -->
       <div id="racing-panel-grandprix" style="display:none;">
         <div id="grand-prix-content"><div class="spinner"></div></div>
       </div>
+    </div>
+  </div>
+
+  <!-- PLAYER ROOM (HOUSING) -->
+  <div class="page-section" id="section-housing">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">🏠 ✦ 🏠</div>
+        <h1>My Room</h1>
+        <p>Decorate your space and show it off! ✨</p>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <button class="btn btn-outline" onclick="room_share()" style="font-size:0.85rem;">🔗 Share Room Link</button>
+      </div>
+      <div id="player-room-mount"></div>
     </div>
   </div>
 
@@ -3128,7 +3162,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
 
       <!-- Profile Preview Card -->
-      <div class="profile-preview-card">
+      <div style="display:flex;gap:10px;margin-bottom:12px;"><button class="btn btn-outline btn-sm" onclick="showTab('housing')" style="font-size:0.82rem;">🏠 View My Room</button></div><div class="profile-preview-card">
         <h3>Profile Preview</h3>
         <div class="profile-header">
           <div class="profile-avatar large" id="myprofile-avatar-preview">?</div>

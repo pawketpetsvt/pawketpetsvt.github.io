@@ -269,12 +269,32 @@ var supabaseClient = null;
 
 function initSupabase() {
   if (typeof supabase !== 'undefined' && supabase.createClient) {
+
+    // Custom storage adapter — falls back to in-memory when localStorage is blocked
+    // Fixes Edge/Firefox tracking prevention blocking Supabase session storage
+    var _memStorage = {};
+    var _storageAdapter = {
+      getItem: function(key) {
+        try { var v = localStorage.getItem(key); if (v !== null) return v; } catch(e) {}
+        return _memStorage[key] !== undefined ? _memStorage[key] : null;
+      },
+      setItem: function(key, value) {
+        try { localStorage.setItem(key, value); } catch(e) {}
+        _memStorage[key] = value;  // always write to memory too
+      },
+      removeItem: function(key) {
+        try { localStorage.removeItem(key); } catch(e) {}
+        delete _memStorage[key];
+      }
+    };
+
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        flowType: 'pkce'
+        flowType: 'pkce',
+        storage: _storageAdapter   // use our fallback-safe adapter
       }
     });
     dbg('✅ Supabase initialized');
@@ -1330,6 +1350,62 @@ function openModal(modalElement) {
   document.body.style.overflow = 'hidden';
 }
 
+// PP Transaction History (last 20, in-memory + localStorage)
+var _ppHistory = [];
+function pp_logTransaction(amount, reason, newBalance) {
+  var entry = {
+    amount: amount,
+    reason: reason || 'unknown',
+    balance: newBalance,
+    time: new Date().toLocaleTimeString()
+  };
+  _ppHistory.unshift(entry);
+  if (_ppHistory.length > 20) _ppHistory.pop();
+  try {
+    var stored = JSON.parse(localStorage.getItem('pp_history') || '[]');
+    stored.unshift(entry);
+    if (stored.length > 20) stored.pop();
+    localStorage.setItem('pp_history', JSON.stringify(stored));
+  } catch(e) {}
+}
+
+function pp_showHistory() {
+  var modal = makeModal();
+  var history = [];
+  try { history = JSON.parse(localStorage.getItem('pp_history') || '[]'); } catch(e) {}
+  history = history.concat(_ppHistory.filter(function(e) {
+    return !history.some(function(h) { return h.time === e.time && h.amount === e.amount; });
+  })).slice(0, 20);
+
+  var html = '<div style="font-family:Fredoka,sans-serif;min-width:280px;">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+    '<h3 style="margin:0;">💰 PP History</h3>' +
+    '<button onclick="closeModal(this.closest(\'.modal-overlay\'))" style="background:none;border:none;font-size:1.3rem;cursor:pointer;">✕</button>' +
+    '</div>';
+  if (history.length === 0) {
+    html += '<p style="color:var(--text-light);text-align:center;">No transactions yet today.</p>';
+  } else {
+    html += '<div style="display:flex;flex-direction:column;gap:6px;">';
+    history.slice(0, 20).forEach(function(tx) {
+      var positive = tx.amount >= 0;
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px;border-radius:10px;background:' + (positive?'rgba(93,222,122,0.08)':'rgba(231,76,60,0.08)') + ';">' +
+        '<div>' +
+          '<div style="font-size:0.8rem;font-weight:700;color:' + (positive?'#27ae60':'#e74c3c') + ';">' + (positive?'+':'') + tx.amount + ' PP</div>' +
+          '<div style="font-size:0.68rem;color:var(--text-light);">' + tx.reason.replace(/_/g,' ') + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:0.75rem;font-weight:700;">' + (tx.balance !== undefined ? tx.balance + ' PP' : '') + '</div>' +
+          '<div style="font-size:0.65rem;color:var(--text-light);">' + tx.time + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  modal.innerHTML = html;
+  openModal(modal);
+}
+
 function updateAllPoints(pts) {
   // Handle RPC response objects (e.g. {new_pp: 500} or {error: ...})
   if (pts !== null && typeof pts === 'object') {
@@ -1587,6 +1663,13 @@ function shopNav_toggleMobile() {
   var open = children.style.display !== 'none' && children.style.display !== '';
   children.style.display = open ? 'none' : 'block';
 }
+
+function fulfillSnapshotWish() {
+  if (!currentUser || !petState) return;
+  Object.keys(petState).forEach(function(pid) {
+    checkPetWishes('take_snapshot', pid).then(null, function(){});
+  });
+}
 function showTab(tab) {
   var mobileMenu = document.getElementById('mobile-nav-menu');
   if (mobileMenu && mobileMenu.classList.contains('open')) {
@@ -1605,7 +1688,7 @@ function showTab(tab) {
     });
   }
   // WISHES: profile visit
-  if (tab === 'profile' && currentUser) {
+  if ((tab === 'profile' || tab === 'myprofile') && currentUser) {
     Object.keys(petMoodCache).forEach(function(pid) {
       checkPetWishes('view_profile', pid).then(null, function(){});
     });
@@ -1689,6 +1772,7 @@ function loadTab(tab) {
   else if (tab === 'stats') loadStatistics();
   else if (tab === 'guild') loadGuildPage();
   else if (tab === 'racing') racing_init();
+  else if (tab === 'housing') room_init();
   // Note: leaderboard and myprofile handled in showTab()
 }
 
@@ -2728,10 +2812,19 @@ function makePetCard(pet) {
   if (totalOwnedCount === 0) {
     price = 0; // First pet is always free
   } else if (totalOwnedCount === 1) {
-    price = 100; // Second pet costs 100
+    price = 150;  // 2nd pet
+  } else if (totalOwnedCount === 2) {
+    price = 350;  // 3rd pet
+  } else if (totalOwnedCount === 3) {
+    price = 700;  // 4th pet
+  } else if (totalOwnedCount === 4) {
+    price = 1200; // 5th pet
+  } else if (totalOwnedCount === 5) {
+    price = 2000; // 6th pet
+  } else if (totalOwnedCount === 6) {
+    price = 3000; // 7th pet
   } else {
-    // 3rd pet onwards: 150, 200, 250, 300, etc.
-    price = 100 + ((totalOwnedCount - 1) * 50);
+    price = 3000 + ((totalOwnedCount - 6) * 1000); // 8th+ pet
   }
   
   var canAfford = currentPoints >= price;
@@ -7635,23 +7728,26 @@ function initMinigames() {
 }
 
 async function awardPP(amount, reason) {
-  if(!currentUser) return;
+  if (!currentUser || amount <= 0) return;
   if (!reason) reason = 'unknown';
-  
+
+  // Try secure RPC first
   var { data, error } = await supabaseClient.rpc('award_pp_secure', {
     p_amount: amount,
     p_reason: reason
   });
-  
-  if (error) {
-    console.error('PP award error:', error.message);
-    showPixelToast('Error awarding points!', 'error');
+
+  if (!error && data !== null && data !== undefined) {
+    currentPoints = data;
+    updateAllPoints(data);
+    pp_logTransaction(amount, reason, data);
+    await checkTop10Badge();
     return;
   }
-  
-  currentPoints = data;
-  updateAllPoints(data);
-  await checkTop10Badge();
+
+  // RPC failed — log it but don't silently update display (would cause mismatch)
+  dbg('[awardPP] award_pp_secure RPC failed:', error && error.message);
+  console.error('[awardPP] PP award failed for', amount, 'PP. Reason:', reason);
 }
 
 async function checkTop10Badge() {
@@ -7951,17 +8047,7 @@ function drawWheel() {
     ctx.restore();
   });
   
-  // Draw pointer
-  ctx.beginPath();
-  ctx.moveTo(centerX, 10);
-  ctx.lineTo(centerX - 10, 30);
-  ctx.lineTo(centerX + 10, 30);
-  ctx.closePath();
-  ctx.fillStyle = '#ffdd00';
-  ctx.fill();
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // Note: pointer is rendered as an HTML element, not on canvas
 }
 
 function spinWheel() {
@@ -8250,15 +8336,25 @@ function guessShell(pos) {
       }
     }, 1500);
   } else {
-    // Lost
+    // Wrong guess - still advance to next round (with a miss)
     setTimeout(function() {
-      setCD('shell');
       var r = el('shell-result');
-      r.textContent = 'Wrong! Better luck tomorrow!';
-      r.style.color = '#ff6eb4';
-      el('shell-cooldown').style.display = 'block';
-    }, 1500);
-  }
+      if (shellRound < 3) {
+        r.textContent = 'Miss! Round ' + shellRound + ' over.';
+        r.style.color = '#e74c3c';
+        shellRound++;
+        el('shell-round').textContent = shellRound;
+        setTimeout(shuffleShells, 1200);
+      } else {
+        // Done all 3 rounds
+        setCD('shell');
+        var ppWon = shellCorrect >= 3 ? 30 : shellCorrect === 2 ? 20 : shellCorrect === 1 ? 10 : 0;
+        r.textContent = shellCorrect + '/3 correct!' + (ppWon > 0 ? ' +' + ppWon + ' PP' : ' Better luck tomorrow!');
+        r.style.color = ppWon > 0 ? '#5dde7a' : '#e74c3c';
+        el('shell-cooldown').style.display = 'block';
+        if (ppWon > 0) { awardPP(ppWon, 'shell_game'); onMinigameComplete(ppWon, 'shell'); }
+      }
+    }, 1200);
 }
 
 // ── SLOT MACHINE ──────────────────────────────────
@@ -10667,6 +10763,12 @@ tabsLoaded.leaderboard = function() {
 // ══════════════════════════════════════════════════════════════════════════
 
 function viewProfile(username) {
+  // Fulfil pet wish for visiting a profile (public profile visit)
+  if (currentUser && petState) {
+    Object.keys(petState).forEach(function(pid) {
+      checkPetWishes('view_profile', pid).then(null, function(){});
+    });
+  }
   // Store the username and show profile tab
   window.currentProfileUsername = username;
   showTab('profile');
@@ -16217,6 +16319,25 @@ async function getRandomEnemy(zone, playerLevel) {
     }
   }
   
+  // ═══════════════════════════════════════════════════════════════════════
+  // ZONE BOSS ROLL — 5% chance (~1/20 fights) to encounter a zone boss
+  // Zone bosses are is_boss=true enemies (not Piper, handled separately above)
+  // ═══════════════════════════════════════════════════════════════════════
+  if (Math.random() < 0.05) {
+    var bossRes = await supabaseClient
+      .from('enemy_pets')
+      .select('*')
+      .eq('forest_zone', zone || 'outskirts')
+      .eq('is_boss', true)
+      .gt('spawn_weight', 0);   // spawn_weight=0 means Piper-only (handled above)
+    if (bossRes.data && bossRes.data.length > 0) {
+      var zoneBoss = bossRes.data[Math.floor(Math.random() * bossRes.data.length)];
+      dbg('⚔️ Zone boss encounter!', zoneBoss.name);
+      return zoneBoss;
+    }
+    // No zone boss found — fall through to normal enemy
+  }
+
   // Use ZONE_CONFIG absolute level bounds — prevents level 20 birds in the starter zone.
   // Player-relative ideal range is clamped to zone hard caps.
   var zoneConfig = ZONE_CONFIG[zone] || ZONE_CONFIG.outskirts;
@@ -17419,6 +17540,7 @@ function renderFriendCard(user, type) {
   
   if (type === 'friend') {
     html += '<button class="btn btn-outline btn-sm" onclick="viewProfile(\'' + escapeHtml(user.username) + '\')">View Profile</button>';
+    html += '<button class="btn btn-outline btn-sm" onclick="room_visitPlayer(\'' + escapeHtml(user.username) + '\')">🏠 Room</button>';
     html += '<button class="btn btn-outline btn-sm btn-danger" onclick="confirmRemoveFriend(\'' + user.friendshipId + '\', \'' + escapeHtml(user.username) + '\')">Remove Friend</button>';
   } else if (type === 'request') {
     html += '<button class="btn btn-primary btn-sm" onclick="acceptFriendRequest(\'' + user.friendshipId + '\')">Accept</button>';
@@ -19764,6 +19886,411 @@ var dailyBuffsActive = [];
 var furnitureCache   = null;  // all furniture_items rows
 var userFurnCache    = null;  // user_furniture rows for current user
 var petRoomCache     = {};    // { petId: { furniture_list:[], last_bonus_date } }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PLAYER ROOM (HOUSING) SYSTEM
+// One room per player, 7 slots, 4 themes, shareable, visitable from profile
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── CONSTANTS ─────────────────────────────────────────────────────────────────
+var ROOM_SLOTS = [
+  { id:0, zone:'wall',  label:'Wall Left',   x:'12%',  y:'22%' },
+  { id:1, zone:'wall',  label:'Wall Center', x:'42%',  y:'14%' },
+  { id:2, zone:'wall',  label:'Wall Right',  x:'72%',  y:'22%' },
+  { id:3, zone:'floor', label:'Floor Left',  x:'8%',   y:'62%' },
+  { id:4, zone:'floor', label:'Floor Ctr-L', x:'30%',  y:'68%' },
+  { id:5, zone:'floor', label:'Floor Ctr-R', x:'54%',  y:'68%' },
+  { id:6, zone:'floor', label:'Floor Right', x:'76%',  y:'62%' }
+];
+
+var ROOM_THEMES = {
+  cottage:  { name:'🌿 Cozy Cottage',  price:0,    wall:'#e8dcc8', floor:'#c4a97a', accent:'#8b5e3c', sky:'#d4e8c2', desc:'Warm wood and soft green.' },
+  aquatic:  { name:'🌊 Aquatic Den',   price:250,  wall:'#b8d4e8', floor:'#5a8fa8', accent:'#2c6080', sky:'#87ceeb', desc:'Cool blues and soft teal.' },
+  spooky:   { name:'🌑 Spooky Lair',   price:500,  wall:'#2a1f3d', floor:'#1a1025', accent:'#9944cc', sky:'#0d0820', desc:'Unlocked through Piper\'s influence.', requiresCorruption:true },
+  galactic: { name:'🌌 Galactic Suite',price:1000, wall:'#1a1040', floor:'#0d0830', accent:'#4455ff', sky:'#080418', desc:'Stars and deep space.' }
+};
+
+// Bonus type labels for display
+var ROOM_BONUS_LABELS = {
+  happiness:     '😊 +{v} Daily Happiness',
+  battle_xp:     '⚔️ +{v}% Battle XP',
+  racing_train:  '🏋️ +{v}% Racing Fitness Gain',
+  expedition_pp: '🗺️ +{v}% Expedition PP',
+  fishing_casts: '🎣 +{v} Daily Cast',
+  minigame_pp:   '🎮 +{v}% Minigame PP',
+  cooking_drops: '🌿 +{v}% Ingredient Drop Chance',
+  energy_regen:  '⚡ +{v} Energy on Login',
+  vibe:          '✨ Vibe Score +{v}'
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+var _roomState = {
+  layout:   null,   // { slots: {0:furnitureId, 1:furnitureId, ...}, theme:'cottage' }
+  catalog:  null,   // furniture_items rows
+  owned:    null,   // user_furniture rows merged with catalog
+  loaded:   false
+};
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+async function room_init() {
+  if (!currentUser) return;
+  await room_load();
+  room_render(document.getElementById('player-room-mount'));
+}
+
+async function room_load() {
+  // Load catalog
+  if (!_roomState.catalog) {
+    var catRes = await supabaseClient.from('furniture_items').select('*').order('price', {ascending:true});
+    _roomState.catalog = catRes.data || [];
+  }
+  // Load owned
+  var ownRes = await supabaseClient.from('user_furniture').select('id, furniture_id, quantity').eq('user_id', currentUser.id);
+  var owned = (ownRes.data || []).map(function(uf) {
+    var full = (_roomState.catalog || []).find(function(f) { return f.id === uf.furniture_id; });
+    return full ? Object.assign({}, full, { ownedId: uf.id, quantity: uf.quantity }) : null;
+  }).filter(Boolean);
+  _roomState.owned = owned;
+
+  // Load player room layout from players table
+  var playerRes = await supabaseClient.from('players').select('room_layout, room_theme').eq('id', currentUser.id).single();
+  if (playerRes.data) {
+    _roomState.layout = {
+      slots: playerRes.data.room_layout || {},
+      theme: playerRes.data.room_theme || 'cottage'
+    };
+  } else {
+    _roomState.layout = { slots: {}, theme: 'cottage' };
+  }
+  _roomState.loaded = true;
+}
+
+async function room_save() {
+  if (!currentUser || !_roomState.layout) return;
+  await supabaseClient.from('players').update({
+    room_layout: _roomState.layout.slots,
+    room_theme: _roomState.layout.theme
+  }).eq('id', currentUser.id);
+}
+
+// ── MAIN RENDER ───────────────────────────────────────────────────────────────
+function room_render(mount, readOnly, ownerName) {
+  if (!mount) return;
+  if (!_roomState.loaded) { mount.innerHTML = '<div class="spinner"></div>'; return; }
+  var layout = _roomState.layout;
+  var theme = ROOM_THEMES[layout.theme] || ROOM_THEMES.cottage;
+  var isReadOnly = !!readOnly;
+
+  var html = '<div class="player-room-wrap">';
+
+  // Theme selector (owner only)
+  if (!isReadOnly) {
+    html += '<div class="room-theme-bar">';
+    html += '<span style="font-size:0.8rem;color:var(--text-light);margin-right:8px;">Theme:</span>';
+    Object.entries(ROOM_THEMES).forEach(function(entry) {
+      var key = entry[0]; var t = entry[1];
+      var isCurrent = key === layout.theme;
+      var locked = t.requiresCorruption; // handled separately
+      html += '<button onclick="room_setTheme(\'' + key + '\')" style="' +
+        'padding:4px 10px;border-radius:20px;font-size:0.72rem;margin-right:4px;cursor:pointer;' +
+        'border:2px solid ' + (isCurrent ? t.accent : 'var(--border)') + ';' +
+        'background:' + (isCurrent ? t.accent : 'var(--bg)') + ';' +
+        'color:' + (isCurrent ? '#fff' : 'var(--text)') + ';' +
+        'opacity:' + (t.price > 0 && !isCurrent ? '0.8' : '1') + ';">' +
+        t.name.split(' ').slice(0,2).join(' ') +
+        (t.price > 0 && !isCurrent ? ' (' + t.price + 'PP)' : '') +
+        '</button>';
+    });
+    html += '</div>';
+  }
+
+  // Room visual
+  html += '<div class="player-room-visual" style="' +
+    'background:linear-gradient(180deg,' + theme.sky + ' 0%,' + theme.wall + ' 45%,' + theme.floor + ' 45% 100%);' +
+    'border:3px solid ' + theme.accent + ';">';
+
+  // Floor line indicator
+  html += '<div class="room-floor-line" style="top:45%;border-color:' + theme.accent + ';"></div>';
+
+  // Zone labels (owner only, subtle)
+  if (!isReadOnly) {
+    html += '<div class="room-zone-label room-zone-wall" style="color:' + theme.accent + ';">WALL</div>';
+    html += '<div class="room-zone-label room-zone-floor" style="color:' + theme.accent + ';">FLOOR</div>';
+  }
+
+  // Pet companion sits in room
+  var companion = null;
+  if (petState) {
+    var pets = Object.values(petState);
+    if (pets.length > 0) {
+      companion = pets[0]; // show first pet
+    }
+  }
+  if (companion && companion.pets && companion.pets.image_file) {
+    html += '<div class="room-pet-sprite" style="bottom:12%;left:47%;transform:translateX(-50%);">' +
+      '<img src="images/pets/' + escapeHtml(companion.pets.image_file) + '" style="width:60px;height:60px;object-fit:contain;filter:drop-shadow(0 4px 6px rgba(0,0,0,0.2));">' +
+      '<div style="text-align:center;font-size:0.65rem;color:' + theme.accent + ';margin-top:2px;">' + escapeHtml(companion.nickname || '') + '</div>' +
+    '</div>';
+  }
+
+  // Slots
+  ROOM_SLOTS.forEach(function(slot) {
+    var furnitureId = layout.slots[slot.id];
+    var item = furnitureId ? (_roomState.catalog || []).find(function(f) { return f.id === furnitureId; }) : null;
+    var slotHtml = '<div class="room-slot" style="left:' + slot.x + ';top:' + slot.y + ';" ' +
+      (isReadOnly ? '' : 'onclick="room_clickSlot(' + slot.id + ')" title="' + slot.label + '"') + '>';
+    if (item) {
+      slotHtml += '<div class="room-item-placed" style="border-color:' + theme.accent + ';">';
+      slotHtml += '<div style="font-size:1.8rem;">' + (item.emoji || '🪑') + '</div>';
+      slotHtml += '<div class="room-item-name">' + item.name + '</div>';
+      if (item.bonus_type && item.bonus_value) {
+        var bonusLabel = (ROOM_BONUS_LABELS[item.bonus_type] || '+{v} Bonus').replace('{v}', item.bonus_value);
+        slotHtml += '<div class="room-item-bonus">' + bonusLabel + '</div>';
+      }
+      if (!isReadOnly) {
+        slotHtml += '<div class="room-item-remove" onclick="event.stopPropagation();room_removeSlot(' + slot.id + ')" title="Remove">✕</div>';
+      }
+      slotHtml += '</div>';
+    } else if (!isReadOnly) {
+      slotHtml += '<div class="room-slot-empty">' +
+        '<div style="font-size:1.1rem;opacity:0.4;">+</div>' +
+        '<div style="font-size:0.55rem;opacity:0.4;">' + slot.label + '</div>' +
+        '</div>';
+    }
+    slotHtml += '</div>';
+    html += slotHtml;
+  });
+
+  html += '</div>'; // .player-room-visual
+
+  // Active bonuses panel (shown while on room page)
+  var activeBonuses = room_getActiveBonuses(layout);
+  if (activeBonuses.length > 0) {
+    html += '<div class="room-bonuses-panel">';
+    html += '<div style="font-weight:700;margin-bottom:8px;font-size:0.85rem;">✨ Room Bonuses ' + (isReadOnly ? '' : '<span style="font-size:0.7rem;color:var(--text-light);">(active while on this page)</span>') + '</div>';
+    activeBonuses.forEach(function(b) {
+      html += '<div class="room-bonus-row">' +
+        '<span>' + b.label + '</span>' +
+        '<span class="room-bonus-value">Active</span></div>';
+    });
+    html += '</div>';
+  }
+
+  // Vibe score
+  var vibeScore = room_calcVibeScore(layout);
+  html += '<div class="room-vibe">' +
+    room_vibeStars(vibeScore) + ' Vibe Score: ' + vibeScore + '/35' +
+    (isReadOnly && ownerName ? ' — ' + escapeHtml(ownerName) + '\'s Room' : '') +
+    '</div>';
+
+  // Owner controls: inventory picker is shown as a bottom sheet
+  if (!isReadOnly) {
+    html += '<div id="room-picker" style="display:none;" class="room-picker"></div>';
+  }
+
+  html += '</div>'; // .player-room-wrap
+  mount.innerHTML = html;
+
+  // Apply room bonuses to session
+  if (!isReadOnly) room_applyBonuses(activeBonuses);
+}
+
+// ── SLOT INTERACTION ──────────────────────────────────────────────────────────
+function room_clickSlot(slotId) {
+  // Toggle picker — if already open for this slot, close it
+  var picker = document.getElementById('room-picker');
+  if (!picker) return;
+  if (picker.dataset.slot == slotId && picker.style.display !== 'none') {
+    picker.style.display = 'none';
+    return;
+  }
+  picker.dataset.slot = slotId;
+  picker.style.display = 'block';
+
+  var owned = _roomState.owned || [];
+  var layout = _roomState.layout;
+  var currentFurnId = layout.slots[slotId];
+
+  if (owned.length === 0) {
+    picker.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-light);font-size:0.85rem;">You don\'t own any furniture yet!<br><br><a href="#" onclick="showTab(\'shop\')" style="color:var(--purple);">Visit the Shop →</a></div>';
+    return;
+  }
+
+  var html = '<div style="font-weight:700;font-size:0.82rem;margin-bottom:10px;">Choose furniture for ' + (ROOM_SLOTS[slotId] || {label:'this slot'}).label + ':</div>';
+  html += '<div style="display:flex;flex-wrap:wrap;gap:8px;">';
+
+  // "Empty" option
+  html += '<button onclick="room_placeItem(' + slotId + ', null)" style="' +
+    'padding:8px 10px;border-radius:10px;border:2px solid var(--border);background:var(--bg);cursor:pointer;text-align:center;min-width:80px;">' +
+    '<div style="font-size:1.4rem;">✕</div><div style="font-size:0.65rem;color:var(--text-light);">Empty</div></button>';
+
+  owned.forEach(function(item) {
+    var isPlaced = Object.values(layout.slots).indexOf(item.id) > -1;
+    var isCurrent = currentFurnId === item.id;
+    html += '<button onclick="room_placeItem(' + slotId + ', \'' + item.id + '\')" style="' +
+      'padding:8px 10px;border-radius:10px;border:2px solid ' + (isCurrent ? 'var(--purple)' : isPlaced ? 'rgba(153,102,255,0.3)' : 'var(--border)') + ';' +
+      'background:' + (isCurrent ? 'rgba(153,102,255,0.1)' : 'var(--white)') + ';cursor:pointer;text-align:center;min-width:80px;position:relative;">' +
+      (isPlaced && !isCurrent ? '<div style="position:absolute;top:2px;right:4px;font-size:0.55rem;color:var(--text-light);">placed</div>' : '') +
+      '<div style="font-size:1.6rem;">' + (item.emoji || '🪑') + '</div>' +
+      '<div style="font-size:0.65rem;font-weight:700;">' + item.name + '</div>' +
+      (item.bonus_type ? '<div style="font-size:0.58rem;color:var(--purple);">has bonus</div>' : '') +
+      '</button>';
+  });
+  html += '</div>';
+  picker.innerHTML = html;
+}
+
+async function room_placeItem(slotId, furnitureId) {
+  if (!_roomState.layout) return;
+  _roomState.layout.slots[slotId] = furnitureId || undefined;
+  if (!furnitureId) delete _roomState.layout.slots[slotId];
+  await room_save();
+  var picker = document.getElementById('room-picker');
+  if (picker) picker.style.display = 'none';
+  room_render(document.getElementById('player-room-mount'));
+}
+
+async function room_removeSlot(slotId) {
+  await room_placeItem(slotId, null);
+}
+
+// ── THEME SELECTION ───────────────────────────────────────────────────────────
+async function room_setTheme(themeKey) {
+  if (!_roomState.layout) return;
+  var t = ROOM_THEMES[themeKey];
+  if (!t) return;
+  if (t.price > 0 && _roomState.layout.theme !== themeKey) {
+    // Check if they've already unlocked it (stored as purchased)
+    var unlocked = JSON.parse(localStorage.getItem('room_themes_unlocked') || '["cottage"]');
+    if (unlocked.indexOf(themeKey) === -1) {
+      if (currentPoints < t.price) { showToast('Not enough PP! Need ' + t.price + '.'); return; }
+      var spend = await supabaseClient.rpc('spend_pp_secure', { p_amount: t.price, p_reason: 'room_theme' });
+      if (spend.error || !spend.data) { showToast('Purchase failed!'); return; }
+      updateAllPoints(spend.data);
+      unlocked.push(themeKey);
+      localStorage.setItem('room_themes_unlocked', JSON.stringify(unlocked));
+      showToast(t.name + ' unlocked! 🎨', 3000);
+    }
+  }
+  _roomState.layout.theme = themeKey;
+  await room_save();
+  room_render(document.getElementById('player-room-mount'));
+}
+
+// ── BONUSES ───────────────────────────────────────────────────────────────────
+function room_getActiveBonuses(layout) {
+  if (!layout || !_roomState.catalog) return [];
+  var bonuses = [];
+  Object.values(layout.slots).forEach(function(fid) {
+    if (!fid) return;
+    var item = _roomState.catalog.find(function(f) { return f.id === fid; });
+    if (item && item.bonus_type && item.bonus_value) {
+      var label = (ROOM_BONUS_LABELS[item.bonus_type] || item.bonus_type).replace('{v}', item.bonus_value);
+      bonuses.push({ type: item.bonus_type, value: item.bonus_value, label: label, itemName: item.name });
+    }
+  });
+  return bonuses;
+}
+
+// Session bonuses — stored so other systems can read them
+var _roomActiveBonuses = {};
+function room_applyBonuses(bonuses) {
+  _roomActiveBonuses = {};
+  bonuses.forEach(function(b) { _roomActiveBonuses[b.type] = (_roomActiveBonuses[b.type] || 0) + b.value; });
+}
+function room_getBonus(bonusType) {
+  return _roomActiveBonuses[bonusType] || 0;
+}
+
+// ── VIBE SCORE ─────────────────────────────────────────────────────────────────
+function room_calcVibeScore(layout) {
+  if (!layout || !_roomState.catalog) return 0;
+  var score = 0;
+  Object.values(layout.slots).forEach(function(fid) {
+    if (!fid) return;
+    var item = _roomState.catalog.find(function(f) { return f.id === fid; });
+    if (item) score += (item.happiness_bonus || 1) + (item.bonus_value ? 3 : 0);
+  });
+  return Math.min(35, score);
+}
+
+function room_vibeStars(score) {
+  var stars = Math.round((score / 35) * 5);
+  return '⭐'.repeat(stars) + '☆'.repeat(5 - stars);
+}
+
+// ── SHAREABLE ROOM ─────────────────────────────────────────────────────────────
+function room_share() {
+  var username = currentUsername || 'player';
+  var url = 'https://pawketpets.net/#room/' + encodeURIComponent(username);
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Room link copied! 🏠 Share it with friends.', 3000);
+    });
+  } else {
+    prompt('Your room link:', url);
+  }
+}
+
+// Visit another player's room (called from friends page or profile)
+async function room_visitPlayer(username) {
+  var modal = makeModal();
+  modal.innerHTML = '<div style="min-width:320px;text-align:center;padding:20px;"><div class="spinner"></div><div style="margin-top:10px;color:var(--text-light);font-size:0.85rem;">Loading ' + escapeHtml(username) + '\'s room...</div></div>';
+  openModal(modal);
+
+  try {
+    // Look up player
+    var playerRes = await supabaseClient.from('players').select('id, username, room_layout, room_theme').eq('username', username).maybeSingle();
+    if (!playerRes.data) { modal.innerHTML = '<div style="padding:20px;">Player not found. <button class="btn btn-outline" onclick="closeModal(this.closest(\'.modal-overlay\'))">Close</button></div>'; return; }
+    var player = playerRes.data;
+
+    // Load catalog if needed
+    if (!_roomState.catalog) {
+      var catRes = await supabaseClient.from('furniture_items').select('*');
+      _roomState.catalog = catRes.data || [];
+    }
+
+    // Build a fake roomState for rendering
+    var visitLayout = { slots: player.room_layout || {}, theme: player.room_theme || 'cottage' };
+    var savedLayout = _roomState.layout;
+    var savedOwned = _roomState.owned;
+    var savedLoaded = _roomState.loaded;
+    _roomState.layout = visitLayout;
+    _roomState.owned = [];
+    _roomState.loaded = true;
+
+    var innerDiv = document.createElement('div');
+    innerDiv.style.cssText = 'min-width:320px;max-width:500px;';
+    innerDiv.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<h3 style="margin:0;">🏠 ' + escapeHtml(player.username) + '\'s Room</h3>' +
+      '<button onclick="closeModal(this.closest(\'.modal-overlay\'))" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:var(--text-light);">✕</button>' +
+    '</div>' +
+    '<div id="room-visit-mount"></div>';
+    modal.innerHTML = '';
+    modal.appendChild(innerDiv);
+
+    room_render(innerDiv.querySelector('#room-visit-mount'), true, player.username);
+
+    // Restore state
+    _roomState.layout = savedLayout;
+    _roomState.owned  = savedOwned;
+    _roomState.loaded = savedLoaded;
+
+  } catch(e) {
+    modal.innerHTML = '<div style="padding:20px;">Could not load room. <button class="btn btn-outline" onclick="closeModal(this.closest(\'.modal-overlay\'))">Close</button></div>';
+  }
+}
+
+// Handle URL hash room visit (#room/username)
+function room_checkUrlHash() {
+  var hash = window.location.hash;
+  var match = hash.match(/^#room\/(.+)/);
+  if (match) {
+    var username = decodeURIComponent(match[1]);
+    setTimeout(function() { room_visitPlayer(username); }, 800);
+  }
+}
+
 
 var ROOM_MAX_ITEMS = 8;
 
@@ -22354,24 +22881,1032 @@ async function race_renderWeeklyLeaderboard() {
 
 var _racingActiveTab = 'quickrace';
 
-function racing_showTab(tab) {
-  _racingActiveTab = tab;
-  document.getElementById('racing-tab-quickrace').classList.toggle('active', tab === 'quickrace');
-  document.getElementById('racing-tab-grandprix').classList.toggle('active', tab === 'grandprix');
-  document.getElementById('racing-panel-quickrace').style.display = tab === 'quickrace' ? '' : 'none';
-  document.getElementById('racing-panel-grandprix').style.display = tab === 'grandprix' ? '' : 'none';
+// ═══════════════════════════════════════════════════════════════════════════
+// RACING OVERHAUL v2  —  Train · Quick Race · League · Shop · Grand Prix
+// ═══════════════════════════════════════════════════════════════════════════
 
-  if (tab === 'quickrace') {
-    race_init(); // reuse existing race system
+// ── CONSTANTS ────────────────────────────────────────────────────────────────
+var RACING_DAILY_SESSIONS = 3;   // training sessions per day
+var RACING_DAILY_RACES    = 5;   // quick races per day
+var RACING_FITNESS_DECAY  = 2;   // fitness pts lost per day without training
+var RACING_FINISH_LINE    = 100; // distance to travel per quick race
+
+var RACING_TRAINING_TYPES = {
+  sprint:    { label:'💨 Sprint Drills',   stat:'pace_rating',          gain:3, energyCost:10, desc:'Builds raw speed. +3 Pace rating.' },
+  obstacles: { label:'🚧 Obstacle Course', stat:'stamina_rating',       gain:3, energyCost:10, desc:'Builds endurance. +3 Stamina rating.' },
+  sparring:  { label:'⚔️ Sparring',        stat:'interference_rating',  gain:3, energyCost:10, desc:'Builds jostle power & resilience. +3 Interference.' },
+  rest:      { label:'😴 Rest & Recovery', stat:'fitness',              gain:8, energyCost:0,  desc:'Restore Fitness without wearing your pet out. +8 Fitness.' }
+};
+
+var RACING_LEAGUE_TIERS = ['bronze','silver','gold','diamond','champion'];
+var RACING_LEAGUE_LABELS = { bronze:'🥉 Bronze', silver:'🥈 Silver', gold:'🥇 Gold', diamond:'💎 Diamond', champion:'🌟 Champion' };
+var RACING_LEAGUE_COLORS = { bronze:'#cd7f32', silver:'#aaa', gold:'#e6a800', diamond:'#6cf', champion:'#ff99ff' };
+
+// PP rewards per placement per league
+var RACING_LEAGUE_REWARDS = {
+  bronze:   [100, 70, 50, 35, 20, 10],
+  silver:   [200, 140, 100, 70, 40, 20],
+  gold:     [350, 250, 175, 120, 70, 35],
+  diamond:  [500, 350, 250, 175, 100, 50],
+  champion: [750, 550, 400, 275, 150, 75]
+};
+// League points per placement (for promotion tracking)
+var RACING_PLACEMENT_PTS = [5, 4, 3, 2, 1, 0];
+
+// Promotion: need 3+ races AND 12+ pts.  Relegation: <2 races OR <4 pts.
+
+// ── RACING SHOP ITEMS (hardcoded, league-gated) ───────────────────────────────
+var RACING_SHOP = {
+  shoes: [
+    { key:'paw_wraps',      name:'Paw Wraps',        emoji:'🧣', league:'bronze',   price:200,  pace:3,  stamina:0,  interference:0,  resilience:0,  desc:'Starter racing wraps. +3 Pace.' },
+    { key:'sprint_cleats',  name:'Sprint Cleats',     emoji:'👟', league:'silver',   price:500,  pace:6,  stamina:0,  interference:0,  resilience:0,  desc:'Lightweight cleats. +6 Pace.' },
+    { key:'cloud_slippers', name:'Cloud Slippers',    emoji:'☁️', league:'gold',    price:1200, pace:10, stamina:2,  interference:0,  resilience:0,  desc:'Ethereally light. +10 Pace, +2 Stamina.' },
+    { key:'wind_boots',     name:'Wind Boots',        emoji:'🌬️', league:'diamond', price:2500, pace:14, stamina:3,  interference:0,  resilience:0,  desc:'Legendary speed. +14 Pace, +3 Stamina.' }
+  ],
+  outfit: [
+    { key:'padded_vest',       name:'Padded Vest',        emoji:'🧥', league:'bronze',   price:200,  pace:0, stamina:0,  interference:0, resilience:3,  desc:'Basic protection. +3 Resilience.' },
+    { key:'aerowing_suit',     name:'Aerowing Suit',      emoji:'🪶', league:'silver',   price:500,  pace:0, stamina:5,  interference:0, resilience:3,  desc:'Streamlined. +5 Stamina, +3 Resilience.' },
+    { key:'streamlined_coat',  name:'Streamlined Coat',   emoji:'💙', league:'gold',     price:1200, pace:0, stamina:8,  interference:0, resilience:5,  desc:'Advanced aerodynamics. +8 Stamina, +5 Resilience.' },
+    { key:'champion_regalia',  name:'Champion\'s Regalia',emoji:'👑', league:'diamond',  price:2500, pace:0, stamina:12, interference:0, resilience:8,  desc:'Worn only by the best. +12 Stamina, +8 Resilience.' }
+  ],
+  goggles: [
+    { key:'basic_visor',          name:'Basic Visor',        emoji:'🥽', league:'bronze',  price:200,  pace:0, stamina:0, interference:3,  resilience:0, desc:'Improves your aim. +3 Interference.' },
+    { key:'focus_lens',           name:'Focus Lens',         emoji:'🔭', league:'silver',  price:500,  pace:0, stamina:0, interference:6,  resilience:0, desc:'Precision targeting. +6 Interference.' },
+    { key:'intimidation_goggles', name:'Intimidation Goggles',emoji:'😤',league:'gold',   price:1200, pace:3, stamina:0, interference:9,  resilience:0, desc:'Unsettles rivals. +9 Interference, +3 Pace.' },
+    { key:'apex_targeting',       name:'Apex Targeting',     emoji:'🎯', league:'diamond', price:2500, pace:5, stamina:0, interference:14, resilience:0, desc:'Elite precision. +14 Interference, +5 Pace.' }
+  ],
+  charm: [
+    { key:'lucky_ribbon',     name:'Lucky Ribbon',      emoji:'🎀', league:'bronze',  price:300,  special:'jostle_resist_5',  desc:'5% chance to resist any Jostle.' },
+    { key:'rivals_token',     name:'Rival\'s Token',    emoji:'🪙', league:'silver',  price:600,  special:'underdog_pace_15', desc:'+15% Pace when in 3rd place or lower.' },
+    { key:'underdog_badge',   name:'Underdog Badge',    emoji:'🏅', league:'gold',    price:1400, special:'underdog_pace_20', desc:'+20% Pace when in 4th place or lower.' },
+    { key:'champions_spirit', name:'Champion\'s Spirit',emoji:'✨', league:'diamond', price:3000, special:'all_stats_10',     desc:'+10% to all stats.' }
+  ],
+  mount: [
+    { key:'basic_saddle',    name:'Basic Saddle',     emoji:'🐴', league:'bronze',  price:250,  pace:2,  stamina:2,  interference:0, resilience:0, desc:'Improves control. +2 Pace, +2 Stamina.' },
+    { key:'racing_saddle',   name:'Racing Saddle',    emoji:'🎠', league:'silver',  price:600,  pace:4,  stamina:4,  interference:0, resilience:0, desc:'Purpose-built. +4 Pace, +4 Stamina.' },
+    { key:'suspension_pads', name:'Suspension Pads',  emoji:'⚙️', league:'gold',   price:1400, pace:7,  stamina:7,  interference:0, resilience:0, desc:'Absorbs rough terrain. +7 Pace, +7 Stamina.' },
+    { key:'legendary_mount', name:'Legendary Mount',  emoji:'🦄', league:'diamond', price:3000, pace:10, stamina:10, interference:5, resilience:0, desc:'The peak of racing gear. +10/+10/+5.' }
+  ]
+};
+
+// ── STREAMER PHANTOMS ─────────────────────────────────────────────────────────
+var STREAMER_PHANTOMS = [
+  { id:'ph_ember',    name:"Ember's Embertail",   emoji:'🔥', streamer:'embertail',
+    personality:'aggressive',
+    pace:   { bronze:38, silver:47, gold:58, diamond:70, champion:82 },
+    interference: { bronze:12, silver:17, gold:24, diamond:31, champion:38 },
+    resilience:   { bronze:6,  silver:9,  gold:13, diamond:18, champion:23 },
+    stamina:      { bronze:7,  silver:9,  gold:12, diamond:15, champion:18 }
+  },
+  { id:'ph_pyxie',   name:"Pyxie's Sparkledog",  emoji:'✨', streamer:'pyxshuul',
+    personality:'sneaky',
+    pace:   { bronze:35, silver:44, gold:55, diamond:67, champion:79 },
+    interference: { bronze:8,  silver:12, gold:17, diamond:23, champion:29 },
+    resilience:   { bronze:10, silver:13, gold:18, diamond:24, champion:30 },
+    stamina:      { bronze:8,  silver:10, gold:13, diamond:17, champion:21 }
+  },
+  { id:'ph_aria',    name:"Aria's Moth",          emoji:'🦋', streamer:'ariadoestwitch',
+    personality:'unpredictable',
+    pace:   { bronze:36, silver:45, gold:56, diamond:68, champion:80 },
+    interference: { bronze:9,  silver:13, gold:18, diamond:24, champion:30 },
+    resilience:   { bronze:8,  silver:11, gold:15, diamond:20, champion:25 },
+    stamina:      { bronze:8,  silver:10, gold:13, diamond:16, champion:20 }
+  },
+  { id:'ph_blushimia',name:"Blushimia's Pup",    emoji:'🐶', streamer:'realblushimia',
+    personality:'chaotic',
+    pace:   { bronze:34, silver:43, gold:54, diamond:66, champion:78 },
+    interference: { bronze:14, silver:19, gold:26, diamond:33, champion:40 },
+    resilience:   { bronze:5,  silver:7,  gold:10, diamond:14, champion:18 },
+    stamina:      { bronze:6,  silver:8,  gold:11, diamond:14, champion:17 }
+  },
+  { id:'ph_cowbee',  name:"Cowbee's Cowbee",     emoji:'🐄', streamer:'cowbeevt',
+    personality:'steady',
+    pace:   { bronze:40, silver:49, gold:60, diamond:72, champion:84 },
+    interference: { bronze:4,  silver:6,  gold:9,  diamond:12, champion:15 },
+    resilience:   { bronze:7,  silver:10, gold:14, diamond:19, champion:24 },
+    stamina:      { bronze:10, silver:13, gold:17, diamond:22, champion:27 }
+  },
+  { id:'ph_kelta',   name:"Kelta's Pomeranian",  emoji:'🍊', streamer:'keltathepomeranian',
+    personality:'sneaky',
+    pace:   { bronze:36, silver:45, gold:56, diamond:68, champion:80 },
+    interference: { bronze:7,  silver:10, gold:14, diamond:19, champion:24 },
+    resilience:   { bronze:12, silver:16, gold:22, diamond:29, champion:36 },
+    stamina:      { bronze:9,  silver:12, gold:16, diamond:21, champion:26 }
+  },
+  { id:'ph_jess',    name:"Jess's Dino",          emoji:'🦕', streamer:'teatimejess',
+    personality:'retaliate',
+    pace:   { bronze:37, silver:46, gold:57, diamond:69, champion:81 },
+    interference: { bronze:11, silver:15, gold:21, diamond:28, champion:35 },
+    resilience:   { bronze:11, silver:15, gold:21, diamond:28, champion:35 },
+    stamina:      { bronze:8,  silver:10, gold:14, diamond:18, champion:22 }
+  },
+  { id:'ph_gnarly',  name:"Gnarly's Smilodon",   emoji:'🕹️', streamer:'gnarly_neon_smilodon',
+    personality:'speedrunner',
+    pace:   { bronze:42, silver:52, gold:63, diamond:75, champion:87 },
+    interference: { bronze:6,  silver:9,  gold:13, diamond:17, champion:21 },
+    resilience:   { bronze:6,  silver:9,  gold:13, diamond:17, champion:21 },
+    stamina:      { bronze:6,  silver:8,  gold:11, diamond:14, champion:17 }
+  }
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────────
+var _racingState = {
+  selectedPetId:  null,
+  racingStats:    null,   // pet_racing_stats row
+  racingEquip:    {},     // slot -> item object
+  league:         null,   // player_league row
+  sessionsLeft:   RACING_DAILY_SESSIONS,
+  racesLeft:      RACING_DAILY_RACES,
+  // Active race
+  race: null
+};
+var _racingActiveTab2 = 'quickrace';
+
+// ── TAB ROUTING ────────────────────────────────────────────────────────────────
+function racing_showTab(tab) {
+  _racingActiveTab2 = tab;
+  ['train','quickrace','league','shop','grandprix'].forEach(function(t) {
+    var btn   = document.getElementById('racing-tab-' + t);
+    var panel = document.getElementById('racing-panel-' + t);
+    if (btn)   btn.classList.toggle('active', t === tab);
+    if (panel) panel.style.display = (t === tab) ? '' : 'none';
+  });
+  if      (tab === 'train')     racing_renderTrainTab();
+  else if (tab === 'quickrace') racing_renderQuickRaceTab();
+  else if (tab === 'league')    racing_renderLeagueTab();
+  else if (tab === 'shop')      racing_renderShopTab();
+  else if (tab === 'grandprix') gp_load();
+}
+
+async function racing_init() {
+  if (!currentUser) return;
+  // Load league state and last-selected pet
+  await racing_loadLeagueState();
+  racing_showTab(_racingActiveTab2 || 'quickrace');
+}
+
+async function racing_loadLeagueState() {
+  var res = await supabaseClient.from('player_league').select('*').eq('user_id', currentUser.id).maybeSingle();
+  if (res.data) {
+    _racingState.league = res.data;
   } else {
-    gp_load();
+    // Auto-create on first visit
+    var ins = await supabaseClient.from('player_league').insert([{
+      user_id: currentUser.id, league: 'bronze', weekly_points: 0, weekly_races: 0
+    }]).select().maybeSingle();
+    _racingState.league = ins.data || { league:'bronze', weekly_points:0, weekly_races:0 };
   }
 }
 
-function racing_init() {
-  // Default to quick race on first open
-  racing_showTab(_racingActiveTab || 'quickrace');
+// ── PET SELECTOR (shared across tabs) ─────────────────────────────────────────
+function racing_petSelectorHtml(selectedId, onchange) {
+  if (!petState || Object.keys(petState).length === 0) {
+    return '<p style="color:var(--text-light);text-align:center;">Adopt a pet first to race!</p>';
+  }
+  var html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">';
+  Object.values(petState).forEach(function(pet) {
+    var sel = pet.id === selectedId;
+    html += '<button onclick="racing_selectPet(\'' + pet.id + '\')" style="' +
+      'padding:8px 14px;border-radius:12px;border:2.5px solid ' + (sel ? 'var(--purple)' : 'var(--border)') + ';' +
+      'background:' + (sel ? 'rgba(153,102,255,0.15)' : 'var(--white)') + ';' +
+      'cursor:pointer;font-family:Fredoka,sans-serif;font-size:0.88rem;font-weight:' + (sel?'700':'500') + ';' +
+      'transition:all 0.15s;">' +
+      (pet.pets && pet.pets.image_file ? '<img src="images/pets/' + pet.pets.image_file + '" style="width:24px;height:24px;vertical-align:middle;margin-right:6px;border-radius:50%;">' : '') +
+      escapeHtml(pet.nickname || (pet.pets && pet.pets.name) || 'Pet') +
+      '</button>';
+  });
+  html += '</div>';
+  return html;
 }
+
+async function racing_selectPet(petId) {
+  _racingState.selectedPetId = petId;
+
+  // Fetch full pet data including base stats (not in petState cache)
+  var petFullRes = await supabaseClient.from('user_pets')
+    .select('id, nickname, level, energy, base_speed, base_attack, base_defense, base_hp, pets(name, image_file)')
+    .eq('id', petId).eq('user_id', currentUser.id).single();
+  if (petFullRes.data) {
+    // Merge into petState so racing_calcStats can read base stats
+    if (petState[petId]) {
+      petState[petId].base_speed   = petFullRes.data.base_speed   || 5;
+      petState[petId].base_attack  = petFullRes.data.base_attack  || 5;
+      petState[petId].base_defense = petFullRes.data.base_defense || 5;
+    } else {
+      petState[petId] = petFullRes.data;
+    }
+  }
+  // Load racing stats for this pet
+  var res = await supabaseClient.from('pet_racing_stats').select('*').eq('pet_id', petId).eq('user_id', currentUser.id).maybeSingle();
+  if (res.data) {
+    // Check fitness decay (2pts per day since last trained)
+    var stats = res.data;
+    if (stats.last_trained_at) {
+      var daysSince = Math.floor((Date.now() - new Date(stats.last_trained_at + 'T00:00:00').getTime()) / 86400000);
+      if (daysSince > 0) {
+        stats.fitness = Math.max(0, stats.fitness - (daysSince * RACING_FITNESS_DECAY));
+        await supabaseClient.from('pet_racing_stats').update({ fitness: stats.fitness }).eq('id', stats.id);
+      }
+    }
+    // Reset sessions_today if it's a new day
+    if (stats.last_trained_at !== new Date().toISOString().slice(0,10)) {
+      stats.sessions_today = 0;
+    }
+    _racingState.racingStats = stats;
+    _racingState.sessionsLeft = RACING_DAILY_SESSIONS - (stats.sessions_today || 0);
+  } else {
+    // First time — create row
+    var ins = await supabaseClient.from('pet_racing_stats').insert([{
+      user_id: currentUser.id, pet_id: petId, fitness: 50
+    }]).select().maybeSingle();
+    _racingState.racingStats = ins.data || { fitness:50, pace_rating:0, stamina_rating:0, interference_rating:0, sessions_today:0 };
+    _racingState.sessionsLeft = RACING_DAILY_SESSIONS;
+  }
+  // Load racing equipment
+  var eqRes = await supabaseClient.from('pet_racing_equipment').select('*').eq('pet_id', petId).eq('user_id', currentUser.id);
+  _racingState.racingEquip = {};
+  if (eqRes.data) {
+    eqRes.data.forEach(function(row) {
+      // Find the item object
+      var items = RACING_SHOP[row.slot] || [];
+      var item = items.find(function(i) { return i.key === row.item_key; });
+      if (item) _racingState.racingEquip[row.slot] = item;
+    });
+  }
+  // Check daily races left
+  var today = new Date().toISOString().slice(0,10);
+  var countRes = await supabaseClient.from('race_history').select('id', { count:'exact', head:true }).eq('user_id', currentUser.id).eq('race_date', today);
+  _racingState.racesLeft = Math.max(0, RACING_DAILY_RACES - (countRes.count || 0));
+
+  // Re-render current tab
+  racing_showTab(_racingActiveTab2);
+}
+
+// ── CALC RACING STATS ──────────────────────────────────────────────────────────
+function racing_calcStats(pet, racingStats, equip, league) {
+  if (!pet || !racingStats) return { pace:30, stamina:5, interference:3, resilience:3 };
+  var fitness = (racingStats.fitness || 50) / 100;  // 0.0 – 1.0 modifier
+  var petData = pet.pets || {};
+
+  // Base from pet stats (read from petState which has base values)
+  var baseSpeed    = pet.base_speed    || 5;
+  var baseAttack   = pet.base_attack   || 5;
+  var baseDefense  = pet.base_defense  || 5;
+  var petLevel     = pet.level         || 1;
+
+  var pace         = Math.round((baseSpeed * 2 + (racingStats.pace_rating || 0) + petLevel) * (0.7 + fitness * 0.3));
+  var stamina      = Math.max(3, Math.round((Math.floor(petLevel / 2) + 5 + (racingStats.stamina_rating || 0)) * (0.7 + fitness * 0.3)));
+  var interference = Math.round((Math.floor(baseAttack / 2) + (racingStats.interference_rating || 0)) * (0.7 + fitness * 0.3));
+  var resilience   = Math.round((Math.floor(baseDefense / 2)));
+
+  // Equipment bonuses
+  Object.values(equip || {}).forEach(function(item) {
+    if (!item) return;
+    pace         += (item.pace          || 0);
+    stamina      += (item.stamina       || 0);
+    interference += (item.interference  || 0);
+    resilience   += (item.resilience    || 0);
+    // Charm: all_stats_10
+    if (item.special === 'all_stats_10') {
+      pace         = Math.round(pace * 1.1);
+      stamina      = Math.round(stamina * 1.1);
+      interference = Math.round(interference * 1.1);
+      resilience   = Math.round(resilience * 1.1);
+    }
+  });
+
+  return { pace: Math.max(10, pace), stamina: Math.max(3, stamina), interference: Math.max(0, interference), resilience: Math.max(0, resilience) };
+}
+
+// ── TRAIN TAB ─────────────────────────────────────────────────────────────────
+function racing_renderTrainTab() {
+  var mount = document.getElementById('racing-panel-train');
+  if (!mount) return;
+  if (!currentUser) { mount.innerHTML = '<p style="text-align:center;color:var(--text-light);">Log in to train!</p>'; return; }
+
+  var petId = _racingState.selectedPetId;
+  var stats = _racingState.racingStats;
+  var sessionsLeft = _racingState.sessionsLeft;
+
+  var fitnessColor = stats ? (stats.fitness >= 70 ? '#27ae60' : stats.fitness >= 40 ? '#e6a800' : '#e74c3c') : '#ccc';
+  var fitness = stats ? stats.fitness : 50;
+
+  var html = '<h3 style="margin-bottom:12px;">🏋️ Training</h3>';
+  html += '<p style="color:var(--text-light);font-size:0.85rem;margin-bottom:12px;">Train your pet to build racing attributes. ' +
+    'Fitness decays ' + RACING_FITNESS_DECAY + ' points per day without training — don\'t skip rest days!</p>';
+
+  // Pet selector
+  html += racing_petSelectorHtml(petId, 'racing_selectPet');
+
+  if (!petId || !stats) {
+    html += '<p style="text-align:center;color:var(--text-light);">Select a pet to begin training.</p>';
+    mount.innerHTML = html;
+    return;
+  }
+
+  // Fitness bar
+  html += '<div style="background:var(--white);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;">';
+  html += '<div style="display:flex;justify-content:space-between;margin-bottom:6px;">';
+  html += '<span style="font-weight:700;">⚡ Fitness</span>';
+  html += '<span style="font-weight:700;color:' + fitnessColor + ';">' + fitness + '/100</span></div>';
+  html += '<div style="background:var(--border);border-radius:8px;height:14px;overflow:hidden;">';
+  html += '<div style="height:100%;width:' + fitness + '%;background:' + fitnessColor + ';border-radius:8px;transition:width 0.4s;"></div></div>';
+  html += '<div style="font-size:0.75rem;color:var(--text-light);margin-top:4px;">' +
+    (fitness >= 70 ? '✅ Peak condition' : fitness >= 40 ? '⚠️ Getting tired — consider Rest' : '🚨 Exhausted — must Rest before hard training') + '</div></div>';
+
+  // Stat bars
+  html += '<div style="background:var(--white);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+  var statItems = [
+    { label:'💨 Pace Rating', val: stats.pace_rating || 0 },
+    { label:'💪 Stamina Rating', val: stats.stamina_rating || 0 },
+    { label:'⚔️ Interference', val: stats.interference_rating || 0 }
+  ];
+  statItems.forEach(function(s) {
+    html += '<div><div style="font-size:0.8rem;color:var(--text-light);">' + s.label + '</div>';
+    html += '<div style="font-weight:700;font-size:1.1rem;">' + s.val + '</div></div>';
+  });
+  html += '</div>';
+
+  // Session count
+  html += '<div style="text-align:center;margin-bottom:14px;font-size:0.88rem;color:var(--text-light);">';
+  html += 'Training sessions today: <strong>' + (RACING_DAILY_SESSIONS - sessionsLeft) + '/' + RACING_DAILY_SESSIONS + '</strong></div>';
+
+  // Training buttons
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+  Object.entries(RACING_TRAINING_TYPES).forEach(function(entry) {
+    var key = entry[0]; var t = entry[1];
+    var disabled = sessionsLeft <= 0 || (fitness < 30 && key !== 'rest');
+    var warn = (fitness < 30 && key !== 'rest') ? ' (Need Fitness ≥30)' : '';
+    html += '<button onclick="racing_doTrain(\'' + key + '\')" ' + (disabled ? 'disabled' : '') +
+      ' style="padding:12px 10px;border-radius:12px;border:2px solid var(--border);background:' +
+      (disabled ? 'var(--bg)' : 'var(--white)') + ';cursor:' + (disabled ? 'not-allowed' : 'pointer') +
+      ';opacity:' + (disabled ? '0.55' : '1') + ';text-align:left;font-family:Fredoka,sans-serif;">' +
+      '<div style="font-weight:700;font-size:0.9rem;">' + t.label + '</div>' +
+      '<div style="font-size:0.73rem;color:var(--text-light);">' + t.desc + warn + '</div>' +
+      (t.energyCost > 0 ? '<div style="font-size:0.7rem;color:#e6a800;">Costs ' + t.energyCost + ' energy</div>' : '<div style="font-size:0.7rem;color:#27ae60;">Free!</div>') +
+      '</button>';
+  });
+  html += '</div>';
+  mount.innerHTML = html;
+}
+
+async function racing_doTrain(type) {
+  if (!currentUser || !_racingState.selectedPetId || !_racingState.racingStats) return;
+  if (_racingState.sessionsLeft <= 0) { showToast('No training sessions left today!', 2500); return; }
+  var t = RACING_TRAINING_TYPES[type];
+  if (!t) return;
+  var stats = _racingState.racingStats;
+  if (stats.fitness < 30 && type !== 'rest') { showToast('Fitness too low! Your pet needs a rest day.', 3000); return; }
+
+  // Check energy if needed
+  var pet = petState[_racingState.selectedPetId];
+  if (t.energyCost > 0 && pet && (pet.energy || 0) < t.energyCost) {
+    showToast('Not enough energy! Need ' + t.energyCost + '.', 2500); return;
+  }
+
+  // Deduct energy
+  if (t.energyCost > 0 && pet) {
+    await supabaseClient.from('user_pets').update({ energy: Math.max(0, (pet.energy||0) - t.energyCost) }).eq('id', pet.id);
+    if (petState[pet.id]) petState[pet.id].energy = Math.max(0, (pet.energy||0) - t.energyCost);
+  }
+
+  // Secure RPC — server validates session cap, energy, and applies correct gain
+  var trainRes = await supabaseClient.rpc('racing_train_secure', {
+    p_pet_id:       _racingState.selectedPetId,
+    p_training_type: type
+  });
+  if (trainRes.error || (trainRes.data && trainRes.data.error)) {
+    showToast('Training failed: ' + ((trainRes.data && trainRes.data.error) || trainRes.error.message), 3000);
+    return;
+  }
+  // Update local state from server response
+  if (trainRes.data && trainRes.data.stats) {
+    Object.assign(_racingState.racingStats, trainRes.data.stats);
+    _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - (_racingState.racingStats.sessions_today || 0));
+  } else {
+    _racingState.sessionsLeft = Math.max(0, _racingState.sessionsLeft - 1);
+  }
+  updateBingoProgress('train_pet_racing', 1);
+  addPassXP(3, 'racing').then(null, function(){});
+  community_increment('races_trained', 1);
+  showToast(t.label + ' complete! ' + (t.stat === 'fitness' ? '+' + t.gain + ' Fitness' : '+' + t.gain + ' Stat') + '!', 3000);
+  racing_renderTrainTab();
+}
+
+// ── QUICK RACE TAB ─────────────────────────────────────────────────────────────
+function racing_renderQuickRaceTab() {
+  var mount = document.getElementById('racing-panel-quickrace');
+  if (!mount) return;
+  if (!currentUser) { mount.innerHTML = '<p style="text-align:center;color:var(--text-light);">Log in to race!</p>'; return; }
+  if (_racingState.race) { racing_renderRaceInProgress(); return; }
+
+  var petId = _racingState.selectedPetId;
+  var stats = _racingState.racingStats;
+  var league = (_racingState.league || {}).league || 'bronze';
+
+  var html = '<h3 style="margin-bottom:6px;">🏎️ Quick Race</h3>';
+  html += '<p style="color:var(--text-light);font-size:0.82rem;margin-bottom:12px;">8-turn sprint. Choose Sprint, Jostle, Block, or Conserve each turn. ' +
+    'Races today: <strong>' + (RACING_DAILY_RACES - _racingState.racesLeft) + '/' + RACING_DAILY_RACES + '</strong></p>';
+
+  html += racing_petSelectorHtml(petId, 'racing_selectPet');
+
+  if (!petId || !stats) {
+    html += '<p style="text-align:center;color:var(--text-light);">Select a pet to race.</p>';
+    mount.innerHTML = html;
+    return;
+  }
+
+  // Show calculated stats
+  var pet = petState[petId];
+  var calcStats = racing_calcStats(pet, stats, _racingState.racingEquip, league);
+  html += '<div style="background:var(--white);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;">';
+  html += '<div style="font-weight:700;margin-bottom:10px;">📊 Race Stats — <span style="color:' + (RACING_LEAGUE_COLORS[league]||'#ccc') + ';">' + (RACING_LEAGUE_LABELS[league]||'Bronze') + '</span></div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;text-align:center;">';
+  [['💨','Pace',calcStats.pace],['💪','Stamina',calcStats.stamina],['⚔️','Interference',calcStats.interference],['🛡️','Resilience',calcStats.resilience]].forEach(function(s) {
+    html += '<div style="background:var(--bg);border-radius:10px;padding:8px 4px;">' +
+      '<div style="font-size:1.2rem;">' + s[0] + '</div>' +
+      '<div style="font-size:0.7rem;color:var(--text-light);">' + s[1] + '</div>' +
+      '<div style="font-weight:700;font-size:1.1rem;">' + s[2] + '</div></div>';
+  });
+  html += '</div></div>';
+
+  // Equipment preview
+  var slots = ['shoes','outfit','goggles','charm','mount'];
+  var slotEmojis = { shoes:'👟', outfit:'🧥', goggles:'🥽', charm:'🎀', mount:'🐴' };
+  html += '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;">';
+  slots.forEach(function(slot) {
+    var eq = _racingState.racingEquip[slot];
+    html += '<div style="background:' + (eq?'rgba(153,102,255,0.1)':'var(--bg)') + ';border:1.5px solid var(--border);border-radius:10px;padding:6px 10px;font-size:0.75rem;text-align:center;">' +
+      '<div>' + (eq ? eq.emoji : slotEmojis[slot]) + '</div>' +
+      '<div style="color:var(--text-light);">' + (eq ? eq.name.split(' ')[0] : '—') + '</div></div>';
+  });
+  html += '</div>';
+
+  // Rivals preview
+  html += '<div style="background:rgba(153,102,255,0.06);border:1.5px solid rgba(153,102,255,0.2);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:0.82rem;">';
+  html += '<div style="font-weight:700;margin-bottom:8px;">👥 Your Rivals</div>';
+  var phantoms = racing_getPhantoms(league);
+  phantoms.forEach(function(p) {
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+      '<span>' + p.emoji + '</span>' +
+      '<span>' + escapeHtml(p.name) + '</span>' +
+      '<span style="margin-left:auto;color:var(--text-light);">Pace ~' + (p.pace[league]||40) + '</span></div>';
+  });
+  html += '</div>';
+
+  var disabled = _racingState.racesLeft <= 0;
+  html += '<button onclick="racing_startRace()" ' + (disabled ? 'disabled style="opacity:0.5;"' : '') +
+    ' class="btn btn-primary btn-lg" style="width:100%;font-size:1.05rem;padding:14px;">' +
+    (disabled ? '🏁 No Races Left Today' : '🚀 Start Race!') + '</button>';
+
+  mount.innerHTML = html;
+}
+
+function racing_getPhantoms(league) {
+  // Pick 3-4 streamer phantoms for this race
+  var shuffled = STREAMER_PHANTOMS.slice().sort(function() { return Math.random()-0.5; });
+  return shuffled.slice(0, Math.random() < 0.5 ? 3 : 4);
+}
+
+function racing_startRace() {
+  if (!currentUser || !_racingState.selectedPetId || !_racingState.racingStats) return;
+  if (_racingState.racesLeft <= 0) { showToast('No races left today!', 2500); return; }
+  var pet = petState[_racingState.selectedPetId];
+  if (!pet) return;
+
+  var league = (_racingState.league || {}).league || 'bronze';
+  var calcStats = racing_calcStats(pet, _racingState.racingStats, _racingState.racingEquip, league);
+  var phantoms = racing_getPhantoms(league);
+
+  // Build racer list
+  var playerRacer = {
+    id: 'player',
+    name: escapeHtml(pet.nickname || (pet.pets && pet.pets.name) || 'Your Pet'),
+    emoji: '🏃',
+    isPlayer: true,
+    pace: calcStats.pace,
+    stamina: calcStats.stamina,
+    maxStamina: calcStats.stamina,
+    interference: calcStats.interference,
+    resilience: calcStats.resilience,
+    position: 0,
+    jostlePenalty: 0,  // next turn pace reduction
+    blocking: false,
+    personality: 'player',
+    charm: (_racingState.racingEquip.charm || null)
+  };
+
+  var cpuRacers = phantoms.map(function(p) {
+    return {
+      id: p.id,
+      name: p.name,
+      emoji: p.emoji,
+      isPlayer: false,
+      streamer: p.streamer,
+      pace: p.pace[league] || 38,
+      stamina: p.stamina[league] || 7,
+      maxStamina: p.stamina[league] || 7,
+      interference: p.interference[league] || 10,
+      resilience: p.resilience[league] || 8,
+      position: 0,
+      jostlePenalty: 0,
+      blocking: false,
+      personality: p.personality
+    };
+  });
+
+  _racingState.race = {
+    turn: 0,
+    maxTurns: 8,
+    racers: [playerRacer].concat(cpuRacers),
+    log: [],
+    finished: false,
+    awaitingPlayerAction: true,
+    league: league
+  };
+
+  racing_renderRaceInProgress();
+}
+
+function racing_renderRaceInProgress() {
+  var mount = document.getElementById('racing-panel-quickrace');
+  if (!mount || !_racingState.race) return;
+  var r = _racingState.race;
+  var player = r.racers[0];
+
+  // Sort by position desc for ranking display
+  var ranked = r.racers.slice().sort(function(a,b) { return b.position - a.position; });
+  var playerRank = ranked.findIndex(function(x) { return x.isPlayer; }) + 1;
+
+  var html = '<div style="background:var(--white);border:2px solid var(--purple);border-radius:16px;padding:16px;margin-bottom:14px;">';
+  // Turn counter + rank
+  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">';
+  html += '<span style="font-weight:700;color:var(--purple);">Turn ' + (r.turn+1) + ' / ' + r.maxTurns + '</span>';
+  html += '<span style="font-weight:700;">Position: <span style="color:' + (playerRank === 1?'#e6a800':'var(--text)') + '">' + ['1st','2nd','3rd','4th','5th','6th'][playerRank-1] + '</span></span>';
+  html += '</div>';
+
+  // Track visualization
+  html += '<div style="margin-bottom:14px;">';
+  ranked.forEach(function(racer, idx) {
+    var pct = Math.min(100, (racer.position / RACING_FINISH_LINE) * 100);
+    var color = racer.isPlayer ? 'var(--purple)' : '#888';
+    html += '<div style="margin-bottom:6px;">';
+    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">';
+    html += '<span style="font-size:0.85rem;">' + racer.emoji + '</span>';
+    html += '<span style="font-size:0.78rem;color:' + (racer.isPlayer?'var(--purple)':'var(--text-light)') + ';font-weight:' + (racer.isPlayer?'700':'400') + ';">' + racer.name + '</span>';
+    html += '<span style="margin-left:auto;font-size:0.72rem;color:var(--text-light);">💪 ' + racer.stamina + '/' + racer.maxStamina + '</span>';
+    html += '</div>';
+    html += '<div style="background:var(--bg);border-radius:6px;height:10px;overflow:hidden;">';
+    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.3s;"></div></div>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Battle log (last 3 lines)
+  if (r.log.length > 0) {
+    html += '<div style="background:var(--bg);border-radius:10px;padding:8px 12px;margin-bottom:12px;font-size:0.78rem;color:var(--text-light);max-height:70px;overflow-y:auto;">';
+    r.log.slice(-3).forEach(function(line) { html += '<div>' + line + '</div>'; });
+    html += '</div>';
+  }
+
+  // Player stamina
+  html += '<div style="margin-bottom:12px;">';
+  html += '<div style="display:flex;justify-content:space-between;font-size:0.8rem;margin-bottom:4px;">';
+  html += '<span style="font-weight:700;">💪 Your Stamina</span><span>' + player.stamina + '/' + player.maxStamina + '</span></div>';
+  html += '<div style="background:var(--border);border-radius:6px;height:8px;overflow:hidden;">';
+  html += '<div style="height:100%;width:' + Math.round(player.stamina/player.maxStamina*100) + '%;background:var(--green);border-radius:6px;transition:width 0.3s;"></div></div></div>';
+
+  // Action buttons
+  if (r.awaitingPlayerAction && !r.finished) {
+    var noStamina = player.stamina <= 0;
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">';
+    var actions = [
+      { key:'sprint',   emoji:'💨', label:'Sprint',   desc:'Full speed. Costs 1 stamina.',        disabled: noStamina },
+      { key:'jostle',   emoji:'💥', label:'Jostle',   desc:'Slow the racer ahead of you.',        disabled: false },
+      { key:'block',    emoji:'🛡️', label:'Block',    desc:'Negate incoming Jostle. +2 stamina.', disabled: false },
+      { key:'conserve', emoji:'😮‍💨', label:'Conserve', desc:'Slower, but +2 stamina.',            disabled: false }
+    ];
+    actions.forEach(function(a) {
+      html += '<button onclick="racing_playerAction(\'' + a.key + '\')" ' + (a.disabled ? 'disabled ' : '') +
+        'style="padding:10px 8px;border-radius:12px;border:2px solid var(--border);background:var(--white);' +
+        'cursor:' + (a.disabled?'not-allowed':'pointer') + ';opacity:' + (a.disabled?'0.5':'1') + ';' +
+        'font-family:Fredoka,sans-serif;text-align:left;transition:border-color 0.15s;"' +
+        ' onmouseenter="this.style.borderColor=\'var(--purple)\'" onmouseleave="this.style.borderColor=\'var(--border)\'">' +
+        '<div style="font-weight:700;font-size:0.9rem;">' + a.emoji + ' ' + a.label + '</div>' +
+        '<div style="font-size:0.7rem;color:var(--text-light);">' + a.desc + '</div></button>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+
+  mount.innerHTML = html;
+}
+
+function racing_playerAction(action) {
+  if (!_racingState.race || !_racingState.race.awaitingPlayerAction) return;
+  var r = _racingState.race;
+  r.awaitingPlayerAction = false;
+  var player = r.racers[0];
+
+  // Execute player action
+  var line = racing_executeAction(player, r.racers, action, r.turn);
+  r.log.push('You: ' + line);
+
+  // CPU turns
+  r.racers.slice(1).forEach(function(cpu) {
+    var cpuAction = racing_cpuDecide(cpu, r.racers, r.turn);
+    var cpuLine = racing_executeAction(cpu, r.racers, cpuAction, r.turn);
+    r.log.push(cpu.name.split('\'')[0] + ': ' + cpuLine);
+  });
+
+  // Clear blocking flags
+  r.racers.forEach(function(racer) { racer.blocking = false; });
+
+  r.turn++;
+
+  // Check if race is over
+  if (r.turn >= r.maxTurns || r.racers.some(function(rc) { return rc.position >= RACING_FINISH_LINE; })) {
+    r.finished = true;
+    r.awaitingPlayerAction = false;
+    racing_endRace();
+    return;
+  }
+
+  r.awaitingPlayerAction = true;
+  racing_renderRaceInProgress();
+}
+
+function racing_executeAction(racer, allRacers, action, turn) {
+  var ranked = allRacers.slice().sort(function(a,b) { return b.position - a.position; });
+  var myRank = ranked.findIndex(function(x) { return x.id === racer.id; });
+
+  // Apply any pending jostle penalty
+  var effectivePace = Math.max(5, racer.pace - (racer.jostlePenalty || 0));
+  racer.jostlePenalty = 0;
+
+  // Check charm: underdog pace bonuses
+  if (racer.charm) {
+    if (racer.charm.special === 'underdog_pace_15' && myRank >= 2) effectivePace = Math.round(effectivePace * 1.15);
+    if (racer.charm.special === 'underdog_pace_20' && myRank >= 3) effectivePace = Math.round(effectivePace * 1.2);
+  }
+
+  switch(action) {
+    case 'sprint':
+      if (racer.stamina > 0) {
+        var dist = Math.round(effectivePace * (0.9 + Math.random() * 0.2));
+        racer.position = Math.min(RACING_FINISH_LINE, racer.position + dist);
+        racer.stamina = Math.max(0, racer.stamina - 1);
+        return '💨 Sprints! (+' + dist + ')';
+      }
+      // No stamina — forced conserve
+      var dist2 = Math.round(effectivePace * 0.5);
+      racer.position = Math.min(RACING_FINISH_LINE, racer.position + dist2);
+      return '😮‍💨 Exhausted, conserves. (+' + dist2 + ')';
+
+    case 'jostle':
+      // Target the racer directly ahead (if any)
+      var ahead = ranked.slice(0, myRank).reverse()[0];
+      if (ahead) {
+        // Charm resist check
+        if (ahead.charm && ahead.charm.special === 'jostle_resist_5' && Math.random() < 0.05) {
+          return '💥 Jostles ' + ahead.name.split('\'')[0] + '... resisted!';
+        }
+        var impact = Math.max(0, racer.interference - ahead.resilience + Math.floor(Math.random() * 4));
+        if (ahead.blocking) { impact = Math.round(impact * 0.3); }
+        ahead.jostlePenalty = (ahead.jostlePenalty || 0) + impact;
+        // Still move (jostle costs speed too)
+        var jDist = Math.round(effectivePace * 0.6);
+        racer.position = Math.min(RACING_FINISH_LINE, racer.position + jDist);
+        return '💥 Jostles ' + ahead.name.split('\'')[0] + '! (-' + impact + ' pace next turn) (+' + jDist + ')';
+      }
+      // Already in 1st — no one to jostle, sprint instead
+      var f1Dist = Math.round(effectivePace * (0.9 + Math.random() * 0.2));
+      racer.position = Math.min(RACING_FINISH_LINE, racer.position + f1Dist);
+      racer.stamina = Math.max(0, racer.stamina - 1);
+      return '💨 Already leading — Sprints! (+' + f1Dist + ')';
+
+    case 'block':
+      racer.blocking = true;
+      racer.stamina = Math.min(racer.maxStamina, racer.stamina + 2);
+      var bDist = Math.round(effectivePace * 0.65);
+      racer.position = Math.min(RACING_FINISH_LINE, racer.position + bDist);
+      return '🛡️ Blocks! (+2 stamina, +' + bDist + ')';
+
+    case 'conserve':
+    default:
+      racer.stamina = Math.min(racer.maxStamina, racer.stamina + 2);
+      var cDist = Math.round(effectivePace * 0.6);
+      racer.position = Math.min(RACING_FINISH_LINE, racer.position + cDist);
+      return '😮‍💨 Conserves. (+2 stamina, +' + cDist + ')';
+  }
+}
+
+function racing_cpuDecide(racer, allRacers, turn) {
+  var ranked = allRacers.slice().sort(function(a,b) { return b.position - a.position; });
+  var myRank = ranked.findIndex(function(x) { return x.id === racer.id; }) + 1; // 1=1st
+  var totalRacers = allRacers.length;
+
+  switch(racer.personality) {
+    case 'aggressive': // Ember — jostle leader most turns
+      if (myRank === 1) return 'sprint';
+      return (turn < 6 && myRank <= totalRacers - 1) ? 'jostle' : 'sprint';
+
+    case 'speedrunner': // Gnarly — conserve start, burst finish
+      if (turn <= 3) return 'conserve';
+      if (turn <= 5) return (myRank > 2) ? 'sprint' : 'conserve';
+      return 'sprint';
+
+    case 'unpredictable': // Aria — mixed
+      var opts = ['sprint','sprint','jostle','block','conserve'];
+      return opts[Math.floor(Math.random() * opts.length)];
+
+    case 'chaotic': // Blushimia — always jostle whoever is directly ahead
+      return myRank === 1 ? 'sprint' : 'jostle';
+
+    case 'steady': // Cowbee — pure sprint, never jostle
+      return racer.stamina > 1 ? 'sprint' : 'conserve';
+
+    case 'sneaky': // Kelta / Pyxie — block early, sprint late
+      if (turn === 0) return 'block';
+      if (turn >= 5 && myRank > 2) return 'sprint';
+      return myRank > 3 ? 'sprint' : 'conserve';
+
+    case 'retaliate': // Jess — alternate jostle/block
+      return turn % 2 === 0 ? 'jostle' : 'block';
+
+    default:
+      return racer.stamina > 2 ? 'sprint' : 'conserve';
+  }
+}
+
+async function racing_endRace() {
+  var r = _racingState.race;
+  if (!r) return;
+  var ranked = r.racers.slice().sort(function(a,b) { return b.position - a.position; });
+  var playerRank = ranked.findIndex(function(x) { return x.isPlayer; }) + 1;
+  var league = r.league || 'bronze';
+  var ppRewards = RACING_LEAGUE_REWARDS[league] || RACING_LEAGUE_REWARDS.bronze;
+  var ppEarned = ppRewards[Math.min(playerRank - 1, ppRewards.length - 1)] || 0;
+  var leaguePts = RACING_PLACEMENT_PTS[Math.min(playerRank - 1, RACING_PLACEMENT_PTS.length - 1)] || 0;
+  var placeLabel = ['1st 🥇','2nd 🥈','3rd 🥉','4th','5th','6th'][playerRank-1] || (playerRank + 'th');
+
+  // Check "Beat All Streamers" badge
+  // beatAll: true when player beats EVERY streamer phantom (all non-player racers ranked behind player)
+  var beatAll = playerRank === 1; // can only beat all streamers if in 1st place
+  var beatAllBonus = 0;
+  if (beatAll) {
+    beatAllBonus = 150;
+    // beatAllBonus is added server-side via the secure RPC result already
+    // Just show it in the modal — don't double-award
+    awardBadge('racing_beat_all').then(null, function(){});
+  }
+
+  // Secure RPC — server calculates actual PP from its own rewards table, records result
+  var raceRes = await supabaseClient.rpc('racing_record_result_secure', {
+    p_pet_id:       _racingState.selectedPetId,
+    p_placement:    playerRank,
+    p_total_racers: r.racers.length,
+    p_league:       league
+  });
+  if (raceRes.data && raceRes.data.success) {
+    ppEarned = raceRes.data.pp_earned || ppEarned;  // use server value
+    leaguePts = raceRes.data.league_pts || leaguePts;
+    if (raceRes.data.new_pp !== undefined) updateAllPoints(raceRes.data.new_pp);
+    if (_racingState.league) {
+      _racingState.league.weekly_points = (_racingState.league.weekly_points || 0) + leaguePts;
+      _racingState.league.weekly_races  = (_racingState.league.weekly_races  || 0) + 1;
+    }
+    // Award beat-all-streamers bonus separately (server doesn't know about phantom racers)
+    if (beatAll && beatAllBonus > 0) {
+      await awardPP(beatAllBonus, 'beat_all_streamers').then(null, function(){});
+      ppEarned += beatAllBonus;
+    }
+  } else {
+    // Fallback: award PP client side if RPC not yet deployed
+    if (ppEarned > 0) await awardPP(ppEarned, 'quick_race').then(null, function(){});
+    dbg('[Race] RPC not available, using client fallback:', raceRes.error);
+  }
+  _racingState.racesLeft = Math.max(0, _racingState.racesLeft - 1);
+
+  // Bingo progress
+  updateBingoProgress('complete_race', 1);
+  if (playerRank <= 3) updateBingoProgress('race_podium', 1);
+  addPassXP(5 + (6 - playerRank), 'racing').then(null, function(){});  // 1st=10xp, 6th=5xp
+  community_increment('races_completed', 1);
+
+  // Racing badges
+  if (playerRank === 1) awardBadge('racing_first_win').then(null, function(){});
+  if (_racingState.league && _racingState.league.weekly_races >= 10) awardBadge('racing_veteran').then(null, function(){});
+
+  // Check pet wishes
+  if (_racingState.selectedPetId) {
+    checkPetWishes('race', _racingState.selectedPetId).then(null, function(){});
+  }
+
+  // Show results modal
+  var modal = makeModal();
+  var streamerBeaten = ranked.filter(function(rc,idx) { return !rc.isPlayer && idx > ranked.indexOf(ranked.find(function(x){return x.isPlayer;})); });
+  modal.innerHTML = '<div style="font-family:Fredoka,sans-serif;text-align:center;padding:8px;max-width:380px;">' +
+    '<div style="font-size:2.5rem;margin-bottom:8px;">' + (playerRank === 1 ? '🏆' : playerRank <= 3 ? '🎖️' : '🏁') + '</div>' +
+    '<h2 style="margin-bottom:6px;">Race Complete!</h2>' +
+    '<div style="font-size:1.3rem;font-weight:700;color:' + (playerRank===1?'#e6a800':playerRank<=3?'var(--purple)':'var(--text)') + ';margin-bottom:12px;">' + placeLabel + '</div>' +
+    '<div style="background:var(--bg);border-radius:12px;padding:10px 14px;margin-bottom:12px;">' +
+    '<div style="font-size:1.1rem;font-weight:700;color:#e6a800;">+' + ppEarned + ' PP</div>' +
+    (beatAllBonus > 0 ? '<div style="font-size:0.8rem;color:var(--purple);">Includes +' + beatAllBonus + ' Beat All Streamers bonus! 🌟</div>' : '') +
+    '<div style="font-size:0.82rem;color:var(--text-light);margin-top:4px;">+' + leaguePts + ' League Point' + (leaguePts !== 1 ? 's' : '') + '</div>' +
+    '</div>' +
+    '<div style="font-size:0.8rem;text-align:left;margin-bottom:12px;">' +
+    '<div style="font-weight:700;margin-bottom:6px;">Full Results:</div>' +
+    ranked.map(function(rc, idx) {
+      return '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;' + (rc.isPlayer?'font-weight:700;color:var(--purple);':'') + '">' +
+        '<span style="width:28px;text-align:center;font-size:0.9rem;">' + ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣'][idx] + '</span>' +
+        '<span>' + rc.emoji + ' ' + rc.name + '</span>' +
+        '<span style="margin-left:auto;font-size:0.75rem;color:var(--text-light);">' + Math.round(rc.position) + '</span>' +
+        '</div>';
+    }).join('') +
+    '</div>' +
+    (streamerBeaten.length > 0 ? '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;">Beat: ' + streamerBeaten.map(function(s){return s.emoji+' '+s.name.split('\'')[0];}).join(', ') + '</div>' : '') +
+    '<button class="btn btn-primary" onclick="racing_closeResults()" style="width:100%;">Awesome!</button>' +
+    '</div>';
+  _racingState.race = null;
+  openModal(modal);
+}
+
+function racing_closeResults() {
+  var modal = document.querySelector('.modal-overlay');
+  if (modal) closeModal(modal);
+  racing_renderQuickRaceTab();
+}
+
+// ── LEAGUE TAB ────────────────────────────────────────────────────────────────
+function racing_renderLeagueTab() {
+  var mount = document.getElementById('racing-panel-league');
+  if (!mount) return;
+  var league = _racingState.league;
+  if (!league) { mount.innerHTML = '<div class="spinner"></div>'; return; }
+
+  var tier     = league.league || 'bronze';
+  var pts      = league.weekly_points || 0;
+  var races    = league.weekly_races  || 0;
+  var color    = RACING_LEAGUE_COLORS[tier] || '#ccc';
+  var label    = RACING_LEAGUE_LABELS[tier]  || tier;
+
+  var html = '<h3 style="margin-bottom:12px;">🏆 League Standing</h3>';
+
+  // Current tier display
+  html += '<div style="background:var(--white);border:3px solid ' + color + ';border-radius:16px;padding:20px;text-align:center;margin-bottom:16px;">';
+  html += '<div style="font-size:2.5rem;margin-bottom:6px;">' + label + '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">';
+  html += '<div style="background:var(--bg);border-radius:10px;padding:10px;">';
+  html += '<div style="font-size:0.75rem;color:var(--text-light);">Races This Week</div>';
+  html += '<div style="font-size:1.5rem;font-weight:700;">' + races + ' / 3+</div></div>';
+  html += '<div style="background:var(--bg);border-radius:10px;padding:10px;">';
+  html += '<div style="font-size:0.75rem;color:var(--text-light);">League Points</div>';
+  html += '<div style="font-size:1.5rem;font-weight:700;">' + pts + ' / 12+</div></div>';
+  html += '</div></div>';
+
+  // Promotion/relegation status
+  var canPromote = (tier !== 'champion') && races >= 3 && pts >= 12;
+  var willRelegateCheck = races < 2 || pts < 4;
+  var safeCheck = !willRelegateCheck && !canPromote;
+  var nextTier  = RACING_LEAGUE_TIERS[RACING_LEAGUE_TIERS.indexOf(tier) + 1];
+  var prevTier  = RACING_LEAGUE_TIERS[RACING_LEAGUE_TIERS.indexOf(tier) - 1];
+
+  html += '<div style="border-radius:12px;padding:12px 16px;margin-bottom:16px;background:' +
+    (canPromote ? 'rgba(39,174,96,0.1);border:2px solid #27ae60' :
+     willRelegateCheck && tier !== 'bronze' ? 'rgba(231,76,60,0.1);border:2px solid #e74c3c' :
+     'rgba(153,102,255,0.07);border:2px solid rgba(153,102,255,0.2)') + ';">';
+  if (canPromote) {
+    html += '<div style="font-weight:700;color:#27ae60;">✅ Ready to Promote!</div>';
+    html += '<div style="font-size:0.82rem;margin-top:4px;">Great week! You\'ll move up to ' + (RACING_LEAGUE_LABELS[nextTier]||'Champion') + ' when the week resets.</div>';
+  } else if (willRelegateCheck && tier !== 'bronze') {
+    html += '<div style="font-weight:700;color:#e74c3c;">⚠️ Relegation Risk</div>';
+    html += '<div style="font-size:0.82rem;margin-top:4px;">Race more or earn more points to stay in ' + label + '. Need 2+ races & 4+ pts.</div>';
+  } else {
+    html += '<div style="font-weight:700;">📊 On Track</div>';
+    html += '<div style="font-size:0.82rem;margin-top:4px;">Keep racing! Need 3 races & 12 pts to promote' + (nextTier ? ' to ' + (RACING_LEAGUE_LABELS[nextTier]||'') : '') + '.</div>';
+  }
+  html += '</div>';
+
+  // Tier rewards preview
+  html += '<div style="background:var(--white);border:2px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;">';
+  html += '<div style="font-weight:700;margin-bottom:10px;">Weekly Placement Rewards — ' + label + '</div>';
+  var rewards = RACING_LEAGUE_REWARDS[tier] || [];
+  var places = ['🥇 1st','🥈 2nd','🥉 3rd','4th','5th','6th'];
+  html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">';
+  rewards.slice(0,6).forEach(function(pp, i) {
+    html += '<div style="background:var(--bg);border-radius:8px;padding:6px;text-align:center;">';
+    html += '<div style="font-size:0.72rem;color:var(--text-light);">' + (places[i]||'') + '</div>';
+    html += '<div style="font-weight:700;color:#e6a800;">' + pp + ' PP</div></div>';
+  });
+  html += '</div></div>';
+
+  // All tiers
+  html += '<div style="background:var(--white);border:2px solid var(--border);border-radius:14px;padding:14px 16px;">';
+  html += '<div style="font-weight:700;margin-bottom:10px;">All Leagues</div>';
+  RACING_LEAGUE_TIERS.forEach(function(t) {
+    var tc = RACING_LEAGUE_COLORS[t] || '#ccc';
+    var isCurrentTier = t === tier;
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;margin-bottom:4px;' + (isCurrentTier ? 'background:rgba(153,102,255,0.08);border:1.5px solid rgba(153,102,255,0.3)' : '') + '">';
+    html += '<span style="font-size:1.1rem;color:' + tc + ';">' + (RACING_LEAGUE_LABELS[t]||t) + '</span>';
+    html += '<span style="margin-left:auto;font-size:0.75rem;color:var(--text-light);">1st: ' + (RACING_LEAGUE_REWARDS[t]||[])[0] + ' PP</span>';
+    if (isCurrentTier) html += '<span style="font-size:0.72rem;color:var(--purple);font-weight:700;"> ← You</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  mount.innerHTML = html;
+}
+
+// ── SHOP TAB ──────────────────────────────────────────────────────────────────
+function racing_renderShopTab() {
+  var mount = document.getElementById('racing-panel-shop');
+  if (!mount) return;
+  if (!currentUser) { mount.innerHTML = '<p style="text-align:center;color:var(--text-light);">Log in to shop!</p>'; return; }
+
+  var league = (_racingState.league || {}).league || 'bronze';
+  var tierIndex = RACING_LEAGUE_TIERS.indexOf(league);
+  var ownedKeys = {};
+  Object.values(_racingState.racingEquip).forEach(function(item) { if (item) ownedKeys[item.key] = true; });
+
+  var slotLabels = { shoes:'👟 Shoes / Hooves', outfit:'🧥 Outfit', goggles:'🥽 Goggles', charm:'🎀 Charm', mount:'🐴 Mount Accessory' };
+  var html = '<h3 style="margin-bottom:6px;">🛒 Racing Shop</h3>';
+  html += '<p style="color:var(--text-light);font-size:0.82rem;margin-bottom:4px;">Equipment just for racing. Select a pet, then buy to equip!</p>';
+  html += '<div style="font-size:0.8rem;color:var(--purple);margin-bottom:14px;">Current League: <strong>' + (RACING_LEAGUE_LABELS[league]||league) + '</strong> — ' + (tierIndex < 3 ? 'Next tier unlocks better gear.' : 'Elite gear available!') + '</div>';
+
+  html += racing_petSelectorHtml(_racingState.selectedPetId, 'racing_selectPet');
+
+  Object.entries(RACING_SHOP).forEach(function(entry) {
+    var slotKey = entry[0]; var items = entry[1];
+    html += '<div style="margin-bottom:18px;">';
+    html += '<div style="font-weight:700;margin-bottom:8px;">' + (slotLabels[slotKey]||slotKey) + '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">';
+    items.forEach(function(item) {
+      var itemTierIdx = RACING_LEAGUE_TIERS.indexOf(item.league);
+      var locked = itemTierIdx > tierIndex + 1; // show next tier greyed, but lock anything 2+ above
+      var owned = ownedKeys[item.key];
+      var equipped = _racingState.racingEquip[slotKey] && _racingState.racingEquip[slotKey].key === item.key;
+      var tierColor = RACING_LEAGUE_COLORS[item.league] || '#ccc';
+      html += '<div style="background:var(--white);border:2px solid ' + (equipped?'var(--purple)':owned?'#27ae60':'var(--border)') + ';border-radius:12px;padding:10px 12px;opacity:' + (locked?'0.45':'1') + ';">';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+      html += '<span style="font-size:1.4rem;">' + item.emoji + '</span>';
+      html += '<div><div style="font-weight:700;font-size:0.88rem;">' + item.name + '</div>';
+      html += '<div style="font-size:0.65rem;color:' + tierColor + ';font-weight:700;">' + (RACING_LEAGUE_LABELS[item.league]||item.league).split(' ').slice(1).join(' ') + ' Tier</div></div>';
+      html += '</div>';
+      html += '<div style="font-size:0.72rem;color:var(--text-light);margin-bottom:6px;">' + item.desc + '</div>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+      html += '<span style="font-weight:700;color:#e6a800;">' + item.price + ' PP</span>';
+      if (equipped) {
+        html += '<span style="font-size:0.72rem;color:var(--purple);font-weight:700;">✅ Equipped</span>';
+      } else if (owned) {
+        html += '<button onclick="racing_equipItem(\'' + slotKey + '\',\'' + item.key + '\')" style="font-size:0.72rem;padding:4px 10px;border-radius:8px;border:1.5px solid var(--purple);background:none;cursor:pointer;color:var(--purple);font-weight:700;">Equip</button>';
+      } else if (locked) {
+        html += '<span style="font-size:0.7rem;color:var(--text-light);">🔒 Reach ' + (RACING_LEAGUE_LABELS[item.league]||item.league) + '</span>';
+      } else {
+        html += '<button onclick="racing_buyShopItem(\'' + slotKey + '\',\'' + item.key + '\')" style="font-size:0.72rem;padding:4px 10px;border-radius:8px;border:none;background:var(--purple);cursor:pointer;color:#fff;font-weight:700;">Buy</button>';
+      }
+      html += '</div></div>';
+    });
+    html += '</div></div>';
+  });
+  mount.innerHTML = html;
+}
+
+async function racing_buyShopItem(slot, itemKey) {
+  if (!currentUser || !_racingState.selectedPetId) { showToast('Select a pet first!'); return; }
+  var items = RACING_SHOP[slot] || [];
+  var item = items.find(function(i) { return i.key === itemKey; });
+  if (!item) return;
+  if (currentPoints < item.price) { showToast('Not enough PP! Need ' + item.price + '.'); return; }
+
+  var spendRes = await supabaseClient.rpc('spend_pp_secure', { p_amount: item.price, p_reason: 'racing_shop' });
+  if (spendRes.error || !spendRes.data) { showToast('Purchase failed!'); return; }
+  updateAllPoints(spendRes.data);
+
+  // Save to pet_racing_equipment
+  await supabaseClient.from('pet_racing_equipment').upsert({
+    user_id: currentUser.id, pet_id: _racingState.selectedPetId, slot: slot, item_key: itemKey
+  }, { onConflict: 'user_id,pet_id,slot' });
+
+  _racingState.racingEquip[slot] = item;
+  showToast(item.emoji + ' Bought & equipped ' + item.name + '!', 3000);
+  racing_renderShopTab();
+}
+
+async function racing_equipItem(slot, itemKey) {
+  if (!currentUser || !_racingState.selectedPetId) return;
+  var items = RACING_SHOP[slot] || [];
+  var item = items.find(function(i) { return i.key === itemKey; });
+  if (!item) return;
+
+  await supabaseClient.from('pet_racing_equipment').upsert({
+    user_id: currentUser.id, pet_id: _racingState.selectedPetId, slot: slot, item_key: itemKey
+  }, { onConflict: 'user_id,pet_id,slot' });
+  _racingState.racingEquip[slot] = item;
+  showToast(item.emoji + ' Equipped ' + item.name + '!', 2500);
+  racing_renderShopTab();
+}
+
 
 // Alias — some tests and edge function pings reference this name
 var gp_renderGrandPrix = gp_load;
@@ -24894,12 +26429,8 @@ async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
       .single();
     
     if (newUserData) {
-      await supabaseClient
-        .from('players')
-        .update({
-          pawketpoints: (newUserData.pawketpoints || 0) + 100
-        })
-        .eq('id', newUserId);
+      // Award new user referral bonus via their own RPC
+      await supabaseClient.rpc('award_pp_secure', { p_amount: 100, p_reason: 'referral_welcome' }).then(null, function(){});
       
       dbg('💰 Awarded 100 PP to new user');
       
@@ -30453,15 +31984,17 @@ async function updateBingoProgress(taskType, amount) {
   if (justCompleted) {
     square.completed = true;
     
-    // Create unique notification key for today + this task
-    var notificationKey = dailyBingo.date + '_' + taskType;
+    // Persistent claimed check — survives tab switches and page focuses
+    var claimedKey = 'bingo_claimed_' + dailyBingo.date;
+    var claimedList = [];
+    try { claimedList = JSON.parse(localStorage.getItem(claimedKey) || '[]'); } catch(e) {}
     
-    // Only notify if we haven't already today
-    if (!bingoNotificationsShown[notificationKey]) {
-      bingoNotificationsShown[notificationKey] = true;
+    // Only award if not already claimed today (persisted to localStorage)
+    if (claimedList.indexOf(taskType) === -1) {
+      claimedList.push(taskType);
+      try { localStorage.setItem(claimedKey, JSON.stringify(claimedList)); } catch(e) {}
       
-      // Award points — use awardPP which has its own fallback, not award_pp_secure directly
-      updateAllPoints(currentPoints + square.rewardPoints);
+      // Award points
       awardPP(square.rewardPoints, 'bingo_' + taskType).then(null, function(){});
       
       // Award Pass XP
@@ -39382,3 +40915,4 @@ async function statPoints_save(petId) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+}
