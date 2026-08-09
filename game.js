@@ -12299,7 +12299,7 @@ var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:
 
 var PET_SKILLS = {
   ember: [
-    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:0,
+    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:1,
       flavor:"I've been burning for eleven years. You get used to it. 🔥",
       desc:'A focused fire blast. 20% chance to Burn (3 dmg/turn for 3 turns).',
       damageMulti:1.2, applyStatus:{type:'burn',chance:0.20,tickDmg:3,duration:3} },
@@ -12313,7 +12313,7 @@ var PET_SKILLS = {
       damageMulti:1.8, applyStatus:{type:'burn',chance:0.60,tickDmg:3,duration:3}, selfCostHpPct:0.15 }
   ],
   pyxie: [
-    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:0,
+    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:1,
       flavor:"I have a plan. It involves sparkles. ✨",
       desc:'1.1x damage. 30% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.1, applyStatus:{type:'confuse',chance:0.30} },
@@ -12327,7 +12327,7 @@ var PET_SKILLS = {
       damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalDouble:'confuse' }
   ],
   gnarly: [
-    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:0,
+    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:1,
       flavor:"I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️",
       desc:'1.3x damage. 15% chance to Stun (enemy loses next turn).',
       damageMulti:1.3, applyStatus:{type:'skip',chance:0.15} },
@@ -12341,7 +12341,7 @@ var PET_SKILLS = {
       damageMulti:2.0, scalingPer:'skillsUsed', scalingAmt:0.05, maxScaling:0.50 }
   ],
   kelta: [
-    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:0,
+    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:1,
       flavor:"Yip yap teehee I opened a portal! 🌀",
       desc:'1.0x damage. 40% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.0, applyStatus:{type:'confuse',chance:0.40} },
@@ -12355,7 +12355,7 @@ var PET_SKILLS = {
       damageMulti:1.6, special:'chaos_portal' }
   ],
   aria: [
-    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:0,
+    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:1,
       flavor:"Do you want to see my bones? 🦋",
       desc:'1.2x damage. 20% chance to lower enemy DEF by 10% for 2 turns.',
       damageMulti:1.2, applyStatus:{type:'petrify',chance:0.20} },
@@ -12369,7 +12369,7 @@ var PET_SKILLS = {
       damageMulti:1.5, lifestealChance:1.0, lifestealPct:0.20, applyStatus:{type:'infatuate',chance:0.40} }
   ],
   jess: [
-    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:0,
+    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:1,
       flavor:"This fossil is 65 million years cuter than you. 🦕",
       desc:'1.3x damage. 15% chance to Petrify (enemy -10% DEF for 2 turns).',
       damageMulti:1.3, applyStatus:{type:'petrify',chance:0.15} },
@@ -12383,7 +12383,7 @@ var PET_SKILLS = {
       damageMulti:1.9, applyStatus:{type:'skip',chance:0.40}, conditionalDouble:'petrify' }
   ],
   blushimia: [
-    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:0,
+    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:1,
       flavor:"WHAT THE GLOB????!!!! 👑",
       desc:'1.1x damage. 30% chance to Glitch enemy (20% fail chance for 2 turns).',
       damageMulti:1.1, applyStatus:{type:'glitch',chance:0.30} },
@@ -12397,7 +12397,7 @@ var PET_SKILLS = {
       damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalGuarantee:{status:'glitch',effect:'skip'} }
   ],
   steve: [
-    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:0,
+    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:1,
       flavor:"CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔",
       desc:'1.2x damage. 15% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.2, applyStatus:{type:'confuse',chance:0.15} },
@@ -15665,7 +15665,7 @@ async function battleExp_start() {
 
   // If petState not loaded, fetch directly from DB
   if (!pet) {
-    var { data: dbPet } = await supabaseClient.from('user_pets').select('*').eq('id', petId).single().catch(function(){ return { data: null }; });
+    var { data: dbPet } = await supabaseClient.from('user_pets').select('*').eq('id', petId).maybeSingle().then(null, function(){ return { data: null }; });
     if (!dbPet) { showToast('Pet not found. Try refreshing', 2500); return; }
     petState[petId] = dbPet;
     pet = dbPet;
@@ -24803,20 +24803,15 @@ async function checkDailyLogin() {
       .from('players')
       .update({
         last_login: new Date().toISOString(),
-        login_streak: streak,
-        pawketpoints: (player.pawketpoints || 0) + ppReward
+        login_streak: streak
       })
       .eq('id', currentUser.id);
     
     // Update local storage
     localStorage.setItem('lastLoginDate_' + currentUser.id, today);
     
-    // Award PP via RPC (for tracking)
-    await supabaseClient.rpc('award_pp_secure', {
-      p_user_id: currentUser.id,
-      p_amount: ppReward,
-      p_reason: 'Daily login day ' + streak
-    });
+    // Award PP via secure RPC (single source of truth - no direct pawketpoints write)
+    await awardPP(ppReward, 'daily_login_day_' + streak);
     
     // Milestone item rewards
     var streakBonusItem = null;
@@ -25196,7 +25191,6 @@ async function awardShareBonus() {
   try {
     // Award 100 PP for sharing
     await supabaseClient.rpc('award_pp_secure', {
-      p_user_id: currentUser.id,
       p_amount: 100,
       p_reason: 'Shared progress on social media'
     });
@@ -25352,7 +25346,9 @@ async function processReferral() {
     // Award referrer
     var referralLabel = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'a new player';
     await supabaseClient.rpc('award_pp_secure', {
-      p_user_id: referrer.id,
+      // NOTE: p_user_id is not a valid param for award_pp_secure (uses session user).
+      // Cross-user referral awards require a server-side RPC - this is a known deferred bug.
+      // For now this silently fails for the referrer; the new user still gets their welcome bonus.
       p_amount: 250,
       p_reason: 'Referral: ' + referralLabel
     });
@@ -31479,9 +31475,8 @@ async function grantPassReward(level, reward) {
     case 'points':
       updateAllPoints(currentPoints + reward.amount);
       await supabaseClient.rpc('award_pp_secure', {
-        p_user_id: currentUser.id,
         p_amount: reward.amount,
-        p_reason: 'Pass Level ' + level
+        p_reason: 'pass_level_' + level
       });
       showToast('✨ +' + reward.amount + ' PawketPoints!', 'success');
       break;
@@ -31582,7 +31577,7 @@ async function claimSeasonPassReward(seasonKey, level) {
     if (reward.reward_type === 'points') {
       var amount = parseInt(reward.reward_value) || 0;
       updateAllPoints(currentPoints + amount);
-      await supabaseClient.rpc('award_pp_secure', { p_user_id: currentUser.id, p_amount: amount, p_reason: 'Season Pass Level ' + level });
+      await awardPP(amount, 'season_pass_level_' + level);
       showToast('✨ +' + amount + ' PawketPoints!', 'success');
     } else if (reward.reward_type === 'item') {
       await addItemToInventory(reward.reward_value, 1);
@@ -31858,6 +31853,9 @@ var BINGO_TASKS = [
   { id: 'grand_prix_winner',name: '🏆 Win Grand Prix',       target: 1,   taskType: 'grand_prix_winner',rewardPoints: 300 },
   // ── Quest tasks ───────────────────────────────────────────────────────────
   { id: 'complete_quest',   name: '📜 Complete a Quest',    target: 1,   taskType: 'complete_quest',   rewardPoints: 100 },
+  { id: 'complete_race',      name: 'Finish a Race',        target: 1,   taskType: 'complete_race',      rewardPoints: 50  },
+  { id: 'race_podium',        name: 'Race Top 3 Finish',    target: 1,   taskType: 'race_podium',        rewardPoints: 150 },
+  { id: 'train_pet_racing',   name: 'Train for Racing',     target: 1,   taskType: 'train_pet_racing',   rewardPoints: 30  },
 ];
 
 var dailyBingo = {

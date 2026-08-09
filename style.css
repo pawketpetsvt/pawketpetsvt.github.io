@@ -9562,6 +9562,11 @@ body.night-mode .btn-outline:hover {
   * {
     max-width: 100% !important;
   }
+
+  /* Hide right sidebar at 900px so community pages aren't dominated by streamers widget */
+  .right-sidebar {
+    display: none !important;
+  }
   
   /* Show Hamburger Button on mobile */
   .hamburger-menu-btn {
