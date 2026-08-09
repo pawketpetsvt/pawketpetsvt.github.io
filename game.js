@@ -7289,37 +7289,41 @@ async function useOnPet(petId,petNickname) {
   if(!selectedInvItem)return;
   var invId=selectedInvItem.invId; var itemName=selectedInvItem.itemName;
   closeUseModal();
-  var invRow=await supabaseClient.from('user_inventory').select('item_id,quantity').eq('id',invId).maybeSingle();
-  if(invRow.error||!invRow.data){showToast('Could not find item.');return;}
-  var itemRes=await supabaseClient.from('items').select('hunger_effect,energy_effect,happiness_effect,xp_effect').eq('id',invRow.data.item_id).single();
-  if(itemRes.error||!itemRes.data){showToast('Could not find effects.');return;}
-  var ef=itemRes.data;
-  var petRes=await supabaseClient.from('user_pets').select('hunger,max_hunger,energy,max_energy,happiness,max_happiness,xp,level').eq('id',petId).single();
-  if(petRes.error||!petRes.data){showToast('Could not find pet.');return;}
-  var pet=petRes.data; var updates={};
-  if(ef.hunger_effect>0)updates.hunger=Math.min(pet.hunger+ef.hunger_effect,pet.max_hunger);
-  if(ef.energy_effect>0)updates.energy=Math.min(pet.energy+ef.energy_effect,pet.max_energy);
-  if(ef.happiness_effect>0)updates.happiness=Math.min(pet.happiness+ef.happiness_effect,pet.max_happiness);
-  if(ef.xp_effect>0)updates.xp=pet.xp+ef.xp_effect;
-  if(!Object.keys(updates).length){showToast('No effects configured.');return;}
-  // Also update last_fed if this is a food item, so decay calculates correctly
-  if(ef.hunger_effect>0) updates.last_fed = new Date().toISOString();
-  await supabaseClient.from('user_pets').update(updates).eq('id',petId);
-  var qty=invRow.data.quantity;
-  if(qty<=1)await supabaseClient.from('user_inventory').delete().eq('id',invId);
-  else await supabaseClient.from('user_inventory').update({quantity:qty-1}).eq('id',invId);
-  // Track bingo + PassXP the same way feedWithItem does
-  if(ef.hunger_effect>0){
+  // Secure RPC: verifies pet ownership, validates inventory, applies effects, decrements qty
+  var { data: result, error } = await supabaseClient.rpc('use_item_secure', {
+    p_pet_id: petId,
+    p_inv_id: invId
+  });
+  if(error){ showToast('Error: ' + error.message); return; }
+  if(result && result.error){ showToast(result.error); return; }
+  var ef = result;
+  // Sync local petState with returned values
+  if(petState[petId]){
+    if(ef.hunger    !== undefined) petState[petId].hunger    = ef.hunger;
+    if(ef.energy    !== undefined) petState[petId].energy    = ef.energy;
+    if(ef.happiness !== undefined) petState[petId].happiness = ef.happiness;
+    if(ef.xp        !== undefined) petState[petId].xp        = ef.xp;
+    if(ef.leveled_up && ef.new_level) petState[petId].level = ef.new_level;
+  }
+  // Track bingo + PassXP based on what the RPC actually changed
+  // RPC returns final stat values; we infer item type from which stats moved
+  var didFeed    = ef.hunger    !== undefined && ef.hunger    > (petState[petId] && petState[petId].hunger    || 0);
+  var didPlay    = ef.happiness !== undefined && ef.happiness > (petState[petId] && petState[petId].happiness || 0) && !didFeed;
+  if(didFeed){
     updateBingoProgress('feed_pet',1);
-    updateBingoProgress('use_treat',1); // Any item-based feed counts as a treat
+    updateBingoProgress('use_treat',1);
     addPassXP(2,'feed').then(null, function(){});
     community_increment('feed_pets',1);
   }
-  if(ef.happiness_effect>0 && ef.hunger_effect<=0){
-    // Toy/happiness-only item counts as play
+  if(didPlay){
     updateBingoProgress('use_toy',1);
     updateBingoProgress('play_pet',1);
     addPassXP(2,'play').then(null, function(){});
+  }
+  if(ef.leveled_up && ef.new_level){
+    showToast(petNickname+' leveled up to '+ef.new_level+'!');
+    updateBingoProgress('level_up_pet',1);
+    tabsLoaded['mypets']=false;
   }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
@@ -12299,7 +12303,7 @@ var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:
 
 var PET_SKILLS = {
   ember: [
-    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:1,
+    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:0,
       flavor:"I've been burning for eleven years. You get used to it. 🔥",
       desc:'A focused fire blast. 20% chance to Burn (3 dmg/turn for 3 turns).',
       damageMulti:1.2, applyStatus:{type:'burn',chance:0.20,tickDmg:3,duration:3} },
@@ -12313,7 +12317,7 @@ var PET_SKILLS = {
       damageMulti:1.8, applyStatus:{type:'burn',chance:0.60,tickDmg:3,duration:3}, selfCostHpPct:0.15 }
   ],
   pyxie: [
-    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:1,
+    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:0,
       flavor:"I have a plan. It involves sparkles. ✨",
       desc:'1.1x damage. 30% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.1, applyStatus:{type:'confuse',chance:0.30} },
@@ -12327,7 +12331,7 @@ var PET_SKILLS = {
       damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalDouble:'confuse' }
   ],
   gnarly: [
-    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:1,
+    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:0,
       flavor:"I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️",
       desc:'1.3x damage. 15% chance to Stun (enemy loses next turn).',
       damageMulti:1.3, applyStatus:{type:'skip',chance:0.15} },
@@ -12341,7 +12345,7 @@ var PET_SKILLS = {
       damageMulti:2.0, scalingPer:'skillsUsed', scalingAmt:0.05, maxScaling:0.50 }
   ],
   kelta: [
-    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:1,
+    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:0,
       flavor:"Yip yap teehee I opened a portal! 🌀",
       desc:'1.0x damage. 40% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.0, applyStatus:{type:'confuse',chance:0.40} },
@@ -12355,7 +12359,7 @@ var PET_SKILLS = {
       damageMulti:1.6, special:'chaos_portal' }
   ],
   aria: [
-    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:1,
+    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:0,
       flavor:"Do you want to see my bones? 🦋",
       desc:'1.2x damage. 20% chance to lower enemy DEF by 10% for 2 turns.',
       damageMulti:1.2, applyStatus:{type:'petrify',chance:0.20} },
@@ -12369,7 +12373,7 @@ var PET_SKILLS = {
       damageMulti:1.5, lifestealChance:1.0, lifestealPct:0.20, applyStatus:{type:'infatuate',chance:0.40} }
   ],
   jess: [
-    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:1,
+    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:0,
       flavor:"This fossil is 65 million years cuter than you. 🦕",
       desc:'1.3x damage. 15% chance to Petrify (enemy -10% DEF for 2 turns).',
       damageMulti:1.3, applyStatus:{type:'petrify',chance:0.15} },
@@ -12383,7 +12387,7 @@ var PET_SKILLS = {
       damageMulti:1.9, applyStatus:{type:'skip',chance:0.40}, conditionalDouble:'petrify' }
   ],
   blushimia: [
-    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:1,
+    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:0,
       flavor:"WHAT THE GLOB????!!!! 👑",
       desc:'1.1x damage. 30% chance to Glitch enemy (20% fail chance for 2 turns).',
       damageMulti:1.1, applyStatus:{type:'glitch',chance:0.30} },
@@ -12397,7 +12401,7 @@ var PET_SKILLS = {
       damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalGuarantee:{status:'glitch',effect:'skip'} }
   ],
   steve: [
-    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:1,
+    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:0,
       flavor:"CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔",
       desc:'1.2x damage. 15% chance to Confuse (enemy may miss next turn).',
       damageMulti:1.2, applyStatus:{type:'confuse',chance:0.15} },
@@ -15665,7 +15669,7 @@ async function battleExp_start() {
 
   // If petState not loaded, fetch directly from DB
   if (!pet) {
-    var { data: dbPet } = await supabaseClient.from('user_pets').select('*').eq('id', petId).maybeSingle().then(null, function(){ return { data: null }; });
+    var { data: dbPet } = await supabaseClient.from('user_pets').select('*').eq('id', petId).single().catch(function(){ return { data: null }; });
     if (!dbPet) { showToast('Pet not found. Try refreshing', 2500); return; }
     petState[petId] = dbPet;
     pet = dbPet;
@@ -24803,15 +24807,19 @@ async function checkDailyLogin() {
       .from('players')
       .update({
         last_login: new Date().toISOString(),
-        login_streak: streak
+        login_streak: streak,
+        pawketpoints: (player.pawketpoints || 0) + ppReward
       })
       .eq('id', currentUser.id);
     
     // Update local storage
     localStorage.setItem('lastLoginDate_' + currentUser.id, today);
     
-    // Award PP via secure RPC (single source of truth - no direct pawketpoints write)
-    await awardPP(ppReward, 'daily_login_day_' + streak);
+    // Award PP via RPC (for tracking)
+    await supabaseClient.rpc('award_pp_secure', {
+      p_amount: ppReward,
+      p_reason: 'daily_login_day_' + streak
+    });
     
     // Milestone item rewards
     var streakBonusItem = null;
@@ -24829,12 +24837,7 @@ async function checkDailyLogin() {
       }
     } else if (streak === 5) {
       // Day 5: 1 skin key
-      await supabaseClient.from('players').update({ skin_keys: supabaseClient.rpc ? undefined : 0 }).eq('id', currentUser.id);
-      await supabaseClient.rpc('increment_player_skin_keys', { p_user_id: currentUser.id, p_amount: 1 }).then(null, async function() {
-        // Fallback: direct update
-        var kr = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
-        if (kr.data) await supabaseClient.from('players').update({ skin_keys: (kr.data.skin_keys || 0) + 1 }).eq('id', currentUser.id);
-      });
+      await skinkey_grantKeys(1, 'login_streak_day_5').then(null, function(){});
       streakBonusSkinKeys = 1;
     } else if (streak === 7) {
       // Day 7: Faerie Dust Delight + 1 skin key
@@ -24846,8 +24849,7 @@ async function checkDailyLogin() {
         ).then(null, function(){});
         streakBonusItem = '1x Faerie Dust Delight';
       }
-      var kr2 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
-      if (kr2.data) await supabaseClient.from('players').update({ skin_keys: (kr2.data.skin_keys || 0) + 1 }).eq('id', currentUser.id);
+      await skinkey_grantKeys(1, 'login_streak_day_7').then(null, function(){});
       streakBonusSkinKeys = 1;
     } else if (streak === 14) {
       // Day 14: Squeaky Toy + 2 skin keys
@@ -24859,8 +24861,7 @@ async function checkDailyLogin() {
         ).then(null, function(){});
         streakBonusItem = '1x Squeaky Toy';
       }
-      var kr3 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
-      if (kr3.data) await supabaseClient.from('players').update({ skin_keys: (kr3.data.skin_keys || 0) + 2 }).eq('id', currentUser.id);
+      await skinkey_grantKeys(2, 'login_streak_day_14').then(null, function(){});
       streakBonusSkinKeys = 2;
     } else if (streak === 30) {
       // Day 30: Golden Crown Roast + 3 skin keys
@@ -24872,8 +24873,7 @@ async function checkDailyLogin() {
         ).then(null, function(){});
         streakBonusItem = '1x Golden Crown Roast';
       }
-      var kr4 = await supabaseClient.from('players').select('skin_keys').eq('id', currentUser.id).single();
-      if (kr4.data) await supabaseClient.from('players').update({ skin_keys: (kr4.data.skin_keys || 0) + 3 }).eq('id', currentUser.id);
+      await skinkey_grantKeys(3, 'login_streak_day_30').then(null, function(){});
       streakBonusSkinKeys = 3;
     }
 
@@ -25192,7 +25192,7 @@ async function awardShareBonus() {
     // Award 100 PP for sharing
     await supabaseClient.rpc('award_pp_secure', {
       p_amount: 100,
-      p_reason: 'Shared progress on social media'
+      p_reason: 'social_share'
     });
     
     localStorage.setItem('lastShareBonus_' + currentUser.id, today);
@@ -25345,13 +25345,11 @@ async function processReferral() {
     
     // Award referrer
     var referralLabel = currentUser.user_metadata?.username || currentUser.email?.split('@')[0] || 'a new player';
-    await supabaseClient.rpc('award_pp_secure', {
-      // NOTE: p_user_id is not a valid param for award_pp_secure (uses session user).
-      // Cross-user referral awards require a server-side RPC - this is a known deferred bug.
-      // For now this silently fails for the referrer; the new user still gets their welcome bonus.
+    await supabaseClient.rpc('award_pp_to_user_secure', {
+      p_target_user_id: referrer.id,
       p_amount: 250,
-      p_reason: 'Referral: ' + referralLabel
-    });
+      p_reason: 'referral_milestone'
+    }).then(null, function(){});
     
     // Increment referral count
     await supabaseClient
@@ -26403,13 +26401,17 @@ async function awardReferralRewards(referrerId, newUserId, referrerUsername) {
     
     if (referrerData) {
       var newCount = (referrerData.referrals_count || 0) + 1;
+      // Update referral count only (no direct pawketpoints write)
       await supabaseClient
         .from('players')
-        .update({
-          pawketpoints: (referrerData.pawketpoints || 0) + 200,
-          referrals_count: newCount
-        })
+        .update({ referrals_count: newCount })
         .eq('id', referrerId);
+      // Award PP via secure cross-user RPC
+      await supabaseClient.rpc('award_pp_to_user_secure', {
+        p_target_user_id: referrerId,
+        p_amount: 200,
+        p_reason: 'referral_award'
+      }).then(null, function(){});
       
       dbg('💰 Awarded 200 PP to referrer');
 
@@ -31577,7 +31579,7 @@ async function claimSeasonPassReward(seasonKey, level) {
     if (reward.reward_type === 'points') {
       var amount = parseInt(reward.reward_value) || 0;
       updateAllPoints(currentPoints + amount);
-      await awardPP(amount, 'season_pass_level_' + level);
+      await supabaseClient.rpc('award_pp_secure', { p_amount: amount, p_reason: 'season_pass_level_' + level });
       showToast('✨ +' + amount + ' PawketPoints!', 'success');
     } else if (reward.reward_type === 'item') {
       await addItemToInventory(reward.reward_value, 1);
@@ -31853,9 +31855,6 @@ var BINGO_TASKS = [
   { id: 'grand_prix_winner',name: '🏆 Win Grand Prix',       target: 1,   taskType: 'grand_prix_winner',rewardPoints: 300 },
   // ── Quest tasks ───────────────────────────────────────────────────────────
   { id: 'complete_quest',   name: '📜 Complete a Quest',    target: 1,   taskType: 'complete_quest',   rewardPoints: 100 },
-  { id: 'complete_race',      name: 'Finish a Race',        target: 1,   taskType: 'complete_race',      rewardPoints: 50  },
-  { id: 'race_podium',        name: 'Race Top 3 Finish',    target: 1,   taskType: 'race_podium',        rewardPoints: 150 },
-  { id: 'train_pet_racing',   name: 'Train for Racing',     target: 1,   taskType: 'train_pet_racing',   rewardPoints: 30  },
 ];
 
 var dailyBingo = {
@@ -34894,10 +34893,19 @@ async function skinkey_unlockVariant(userPetId, variantId) {
     return false;
   }
   try {
-    var { error: updateError } = await supabaseClient.from('players').update({ skin_keys: skinKeyState.keys - cost }).eq('id', currentUser.id);
+    var { data: spendResult, error: updateError } = await supabaseClient.rpc('spend_skin_key_secure', {
+      p_amount: cost,
+      p_reason: 'variant_unlock_' + variantId
+    });
     if (updateError) throw updateError;
+    if (spendResult && spendResult.error) throw new Error(spendResult.error);
     var { error: unlockError } = await supabaseClient.from('unlocked_variants').insert({ user_pet_id: userPetId, variant_id: variantId });
-    if (unlockError) throw unlockError;
+    if (unlockError) {
+      // Refund if unlock insert fails
+      await supabaseClient.rpc('award_skin_key_secure', { p_amount: cost, p_reason: 'variant_unlock_refund' });
+      throw unlockError;
+    }
+    if (spendResult && spendResult.skin_keys !== undefined) skinKeyState.keys = spendResult.skin_keys;
     skinKeyState.keys -= cost;
     if (!skinKeyState.unlockedVariants[userPetId]) {
       skinKeyState.unlockedVariants[userPetId] = [];
@@ -35180,9 +35188,13 @@ function skinkey_updateVariantButtons() {
 async function skinkey_grantKeys(amount, reason) {
   if (!currentUser) return false;
   try {
-    var newTotal = skinKeyState.keys + amount;
-    var { error } = await supabaseClient.from('players').update({ skin_keys: newTotal }).eq('id', currentUser.id);
+    var { data: rpcResult, error } = await supabaseClient.rpc('award_skin_key_secure', {
+      p_amount: amount,
+      p_reason: reason || 'award'
+    });
     if (error) throw error;
+    if (rpcResult && rpcResult.error) throw new Error(rpcResult.error);
+    var newTotal = (rpcResult && rpcResult.skin_keys !== undefined) ? rpcResult.skin_keys : skinKeyState.keys + amount;
     skinKeyState.keys = newTotal;
     skinkey_updateDisplay();
     // Refresh from DB to ensure displayed count is accurate
