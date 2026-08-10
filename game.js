@@ -5144,7 +5144,11 @@ async function race_renderSetup() {
 function race_petAvatar(p) {
   if (p.isCpu) return p.emoji || '🐾';
   var imgFile = p.image_file || (p.pets && p.pets.image_file);
-  if (imgFile) return '<img src="images/' + imgFile + '" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'🐾\';">';
+  if (imgFile) {
+    // Normalize path: if no slash present, prepend 'pets/' so both 'ember.png' and 'pets/ember.png' work
+    var imgPath = imgFile.indexOf('/') === -1 ? 'pets/' + imgFile : imgFile;
+    return '<img src="images/' + imgPath + '" style="width:28px;height:28px;object-fit:contain;" onerror="this.outerHTML=\'🐾\';">';
+  }
   return '🐾';
 }
 
@@ -7053,7 +7057,14 @@ async function loadInventory() {
 }
 
 function openUseModal(invId,itemName) {
-  selectedInvItem={invId:invId,itemName:itemName};
+  // Look up item data from cache for effect detection (needed for HP healing path)
+  var itemData = inventoryItems.find(function(i){ return i.invId === invId; }) || {};
+  selectedInvItem={
+    invId: invId,
+    itemName: itemName,
+    itemEffect: itemData.effect || '',
+    itemValue: itemData.value || itemData.effect_value || 0
+  };
   el('use-modal-title').textContent='Use '+itemName;
   el('use-modal-desc').textContent='Which pet?';
   var list=el('pet-select-list'); list.innerHTML='';
@@ -7289,7 +7300,37 @@ async function checkSidebarStreamStatus() {
 async function useOnPet(petId,petNickname) {
   if(!selectedInvItem)return;
   var invId=selectedInvItem.invId; var itemName=selectedInvItem.itemName;
+  var itemEffect=selectedInvItem.itemEffect || '';
+  var itemValue=selectedInvItem.itemValue || 0;
   closeUseModal();
+
+  // Healing items (HP restore) use a direct path since use_item_secure handles
+  // hunger/energy/happiness/xp but not HP (different column: effect='healing', value=healAmt)
+  if (itemEffect === 'healing' && itemValue > 0) {
+    var petRow = await supabaseClient.from('user_pets').select('current_hp,max_hp').eq('id',petId).maybeSingle();
+    if (!petRow.data) { showToast('Could not find pet.'); return; }
+    var curHP = petRow.data.current_hp; var maxHP = petRow.data.max_hp;
+    if (curHP >= maxHP) { showToast('Pet is already at full HP!'); return; }
+    var newHP = Math.min(curHP + itemValue, maxHP);
+    var healed = newHP - curHP;
+    // Update HP in DB
+    await supabaseClient.from('user_pets').update({ current_hp: newHP }).eq('id', petId).then(null, function(){});
+    // Decrement inventory
+    var invRow = await supabaseClient.from('user_inventory').select('quantity').eq('id',invId).maybeSingle();
+    if (invRow.data) {
+      if (invRow.data.quantity <= 1) {
+        await supabaseClient.from('user_inventory').delete().eq('id',invId).then(null, function(){});
+      } else {
+        await supabaseClient.from('user_inventory').update({quantity: invRow.data.quantity - 1}).eq('id',invId).then(null, function(){});
+      }
+    }
+    // Sync local petState HP
+    if (petState[petId]) petState[petId].current_hp = newHP;
+    showToast('💚 Healed ' + healed + ' HP! (' + newHP + '/' + maxHP + ')');
+    await loadInventory(); tabsLoaded['mypets'] = false;
+    return;
+  }
+
   // Secure RPC: verifies pet ownership, validates inventory, applies effects, decrements qty
   var { data: result, error } = await supabaseClient.rpc('use_item_secure', {
     p_pet_id: petId,
@@ -7300,11 +7341,18 @@ async function useOnPet(petId,petNickname) {
   var ef = result;
   // Sync local petState with returned values
   if(petState[petId]){
-    if(ef.hunger    !== undefined) petState[petId].hunger    = ef.hunger;
-    if(ef.energy    !== undefined) petState[petId].energy    = ef.energy;
-    if(ef.happiness !== undefined) petState[petId].happiness = ef.happiness;
-    if(ef.xp        !== undefined) petState[petId].xp        = ef.xp;
+    if(ef.hunger     !== undefined) petState[petId].hunger     = ef.hunger;
+    if(ef.energy     !== undefined) petState[petId].energy     = ef.energy;
+    if(ef.happiness  !== undefined) petState[petId].happiness  = ef.happiness;
+    if(ef.current_hp !== undefined) petState[petId].current_hp = ef.current_hp;
+    if(ef.xp         !== undefined) petState[petId].xp         = ef.xp;
     if(ef.leveled_up && ef.new_level) petState[petId].level = ef.new_level;
+  }
+  // Show HP heal toast if applicable (from updated use_item_secure)
+  if(ef.healed && ef.healed > 0){
+    showToast('Healed ' + ef.healed + ' HP! (' + ef.current_hp + '/' + ef.max_hp + ')');
+    await loadInventory(); tabsLoaded['mypets']=false;
+    return;
   }
   // Track bingo + PassXP based on what the RPC actually changed
   // RPC returns final stat values; we infer item type from which stats moved
@@ -17722,6 +17770,27 @@ async function sendFriendRequest() {
   if (!currentUser || !currentProfileUserId) return;
   
   try {
+    // Check for existing friendship/request in either direction before inserting
+    var { data: existing } = await supabaseClient
+      .from('friendships')
+      .select('id, status')
+      .or(
+        'and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentProfileUserId + '),' +
+        'and(requester_id.eq.' + currentProfileUserId + ',addressee_id.eq.' + currentUser.id + ')'
+      )
+      .maybeSingle();
+    
+    if (existing) {
+      if (existing.status === 'accepted') {
+        showToast('You are already friends!', 'info');
+      } else if (existing.status === 'pending') {
+        showToast('Friend request already sent!', 'info');
+      } else {
+        showToast('A friendship record already exists.', 'info');
+      }
+      return;
+    }
+
     var { error } = await supabaseClient
       .from('friendships')
       .insert([{
@@ -17732,12 +17801,12 @@ async function sendFriendRequest() {
     
     if (error) throw error;
     
-    showToast('Friend request sent! 🎉');
-    updateProfileButtons(); // Refresh button state
+    showToast('Friend request sent!');
+    updateProfileButtons();
     
   } catch (err) {
-    showToast('Error: ' + err.message);
     console.error('Error sending friend request:', err);
+    showToast('Could not send friend request. Please try again.');
   }
 }
 
@@ -17937,7 +18006,7 @@ async function updateProfileButtons() {
       .select('id')
       .eq('blocker_id', currentUser.id)
       .eq('blocked_user_id', currentProfileUserId)
-      .single();
+      .maybeSingle();
     
     if (blockCheck) {
       // User is blocked
@@ -17954,7 +18023,7 @@ async function updateProfileButtons() {
       .from('friendships')
       .select('id, status, requester_id, addressee_id')
       .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentProfileUserId + '),and(requester_id.eq.' + currentProfileUserId + ',addressee_id.eq.' + currentUser.id + ')')
-      .single();
+      .maybeSingle();
     
     if (friendship) {
       currentFriendshipId = friendship.id;
@@ -23337,15 +23406,40 @@ async function racing_doTrain(type) {
     p_training_type: type
   });
   if (trainRes.error || (trainRes.data && trainRes.data.error)) {
-    showToast('Training failed: ' + ((trainRes.data && trainRes.data.error) || trainRes.error.message), 3000);
-    return;
-  }
-  // Update local state from server response
-  if (trainRes.data && trainRes.data.stats) {
-    Object.assign(_racingState.racingStats, trainRes.data.stats);
-    _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - (_racingState.racingStats.sessions_today || 0));
+    // RPC not deployed yet — apply training client-side as fallback
+    var errMsg = (trainRes.data && trainRes.data.error) || (trainRes.error && trainRes.error.message) || '';
+    var isNotFound = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('does not exist') ||
+                     (trainRes.error && (trainRes.error.code === 'PGRST202' || String(trainRes.error.code) === '404'));
+    if (!isNotFound) {
+      showToast('Training failed: ' + errMsg, 3000);
+      return;
+    }
+    // Client-side fallback: apply stat gain directly
+    var today = new Date().toISOString().slice(0, 10);
+    var newStats = Object.assign({}, stats);
+    if (t.stat === 'fitness') {
+      newStats.fitness = Math.min(100, (newStats.fitness || 0) + t.gain);
+    } else {
+      newStats[t.stat] = Math.min(100, (newStats[t.stat] || 0) + t.gain);
+    }
+    newStats.sessions_today = (newStats.sessions_today || 0) + 1;
+    newStats.last_trained_at = today;
+    await supabaseClient.from('pet_racing_stats').update({
+      [t.stat]: newStats[t.stat] !== undefined ? newStats[t.stat] : newStats.fitness,
+      sessions_today: newStats.sessions_today,
+      last_trained_at: today
+    }).eq('id', newStats.id).then(null, function(){});
+    Object.assign(_racingState.racingStats, newStats);
+    _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - newStats.sessions_today);
+    dbg('[Train] Used client fallback (RPC not deployed)');
   } else {
-    _racingState.sessionsLeft = Math.max(0, _racingState.sessionsLeft - 1);
+    // Update local state from server response
+    if (trainRes.data && trainRes.data.stats) {
+      Object.assign(_racingState.racingStats, trainRes.data.stats);
+      _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - (_racingState.racingStats.sessions_today || 0));
+    } else {
+      _racingState.sessionsLeft = Math.max(0, _racingState.sessionsLeft - 1);
+    }
   }
   updateBingoProgress('train_pet_racing', 1);
   addPassXP(3, 'racing').then(null, function(){});
@@ -29127,7 +29221,7 @@ function makeMyPetCardWithTitles(pet) {
   // Pet image with variant effect
   var imageWrap = makeEl('div', {class: 'pet-image-wrap ' + getPetVariantClass(pet.variant)});
   var img = makeEl('img', {
-    src: 'images/' + (pet.image_file || (pet.pets && pet.pets.image_file) || 'pets/placeholder.png'),
+    src: (function(f) { return 'images/' + (f.indexOf('/') === -1 ? 'pets/' + f : f); })(pet.image_file || (pet.pets && pet.pets.image_file) || 'pets/placeholder.png'),
     alt: pet.nickname,
     onerror: "this.style.display='none';"
   });
@@ -31934,6 +32028,7 @@ function loadDailyBingo() {
       dailyBingo = parsed;
       
       // Mark all already-completed OR already-at-target squares as notified (prevent spam on page load)
+      var needsSave = false;
       dailyBingo.squares.forEach(function(square) {
         if (square.completed || (square.progress >= square.target)) {
           var notificationKey = dailyBingo.date + '_' + square.taskType;
@@ -31941,9 +32036,14 @@ function loadDailyBingo() {
           // Also ensure completed flag is set if progress is already at target
           if (square.progress >= square.target && !square.completed) {
             square.completed = true;
+            needsSave = true;
           }
         }
       });
+      // Persist any fixups so the top-bar counter stays correct across page loads
+      if (needsSave) {
+        try { localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo)); } catch(e) {}
+      }
       
       return;
     }
@@ -32030,8 +32130,7 @@ async function updateBingoProgress(taskType, amount) {
   
   var wasCompleted = square.completed;
   square.progress = Math.min(square.progress + (amount || 1), square.target);
-  try { localStorage.setItem('daily_bingo', JSON.stringify(dailyBingo)); } catch(e) {}
-  // Check if just completed
+  // Check if just completed (do this BEFORE saving so completed=true is persisted together)
   var justCompleted = !wasCompleted && square.progress >= square.target;
   
   if (justCompleted) {
@@ -32187,7 +32286,7 @@ function showBingoModal() {
   var skinKeyStatus = hasClaimedWeeklySkinKey ? '(claimed this week)' : '(available!)';
   
   header.innerHTML = '<h2 style="color:var(--purple);margin-bottom:10px;">🎯 Daily Bingo</h2>' +
-    '<div style="font-size:1.1rem;color:var(--text);">Completed: ' + completed + ' / 12</div>' +
+    '<div style="font-size:1.1rem;color:var(--purple);font-weight:600;">Completed: ' + completed + ' / 12</div>' +
     '<div style="font-size:0.9rem;color:var(--text-light);margin-top:5px;">Lines: ' + dailyBingo.completedLines.length + ' / 10 • Blackout: ' + (dailyBingo.blackoutCompleted ? '✓' : '✗') + '</div>' +
     '<div style="font-size:0.85rem;color:#ff6b35;margin-top:5px;">🔑 Weekly Blackout Bonus: ' + skinKeyStatus + '</div>';
   content.appendChild(header);
@@ -37047,7 +37146,7 @@ async function gift_loadInbox() {
 
 async function gift_accept(giftId, fromUserId) {
   try {
-    var { data: gift } = await supabaseClient.from('gifts').select('*').eq('id', giftId).single();
+    var { data: gift } = await supabaseClient.from('gifts').select('*').eq('id', giftId).maybeSingle();
     if (!gift) { showToast('Gift not found', 2000); return; }
 
     // Add item to recipient inventory
