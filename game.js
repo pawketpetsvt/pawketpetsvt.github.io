@@ -10428,7 +10428,7 @@ async function redeemCode() {
       .select('id, code, pp_reward, lore_page, description, max_uses, times_used, is_active')
       .eq('code', code)
       .eq('is_active', true)
-      .single();
+      .maybeSingle();
 
     if (codeRes.error || !codeRes.data) {
       errEl.textContent = 'That code doesn\'t exist or is no longer active. Check for typos!';
@@ -17559,7 +17559,7 @@ async function loadFriendRequests() {
     container.innerHTML = html;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading requests: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading requests. Please try again.</p></div>';
     console.error('Error loading friend requests:', err);
   }
 }
@@ -17611,7 +17611,7 @@ async function loadBlockedUsers() {
     document.getElementById('blocked-count-badge').style.display = 'inline';
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading blocked users. Please try again.</p></div>';
     console.error('Error loading blocked users:', err);
   }
 }
@@ -17806,6 +17806,12 @@ async function sendFriendRequestToUser(userId, username) {
 // Send friend request from profile page
 async function sendFriendRequest() {
   if (!currentUser || !currentProfileUserId) return;
+
+  // Prevent self-friending
+  if (currentProfileUserId === currentUser.id) {
+    showToast("You can't send a friend request to yourself!", 'info');
+    return;
+  }
   
   try {
     // Check for existing friendship/request in either direction before inserting
@@ -21774,7 +21780,7 @@ async function guild_donate() {
 
     // Increment member contributions
     var { data: m } = await supabaseClient.from('guild_members').select('total_contributions')
-      .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id).single();
+      .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id).maybeSingle();
     await supabaseClient.from('guild_members')
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
@@ -23350,7 +23356,7 @@ async function racing_selectPet(petId) {
   // Fetch full pet data including base stats (not in petState cache)
   var petFullRes = await supabaseClient.from('user_pets')
     .select('id, nickname, level, energy, base_speed, base_attack, base_defense, base_hp, pets(name, image_file)')
-    .eq('id', petId).eq('user_id', currentUser.id).single();
+    .eq('id', petId).eq('user_id', currentUser.id).maybeSingle();
   if (petFullRes.data) {
     // Merge into petState so racing_calcStats can read base stats
     if (petState[petId]) {
@@ -25050,14 +25056,21 @@ async function checkDailyLogin() {
   }
   
   try {
-    // Get player data
+    // Get player data — use maybeSingle so new users (no row yet) don't throw
     var { data: player, error } = await supabaseClient
       .from('players')
       .select('last_login, login_streak, pawketpoints')
       .eq('id', currentUser.id)
-      .single();
+      .maybeSingle();
     
     if (error) throw error;
+    
+    // New user whose player row hasn't been created yet — retry after 2s
+    if (!player) {
+      dbg('[DailyLogin] Player row not found yet, retrying in 2s...');
+      safeSetTimeout(checkDailyLogin, 2000);
+      return;
+    }
     
     var streak = player.login_streak || 0;
     var lastDate = player.last_login ? new Date(player.last_login).toISOString().split('T')[0] : null;
@@ -25096,9 +25109,6 @@ async function checkDailyLogin() {
         login_streak: streak
       })
       .eq('id', currentUser.id);
-    
-    // Update local storage
-    localStorage.setItem('lastLoginDate_' + currentUser.id, today);
     
     // Award PP via secure RPC (single source of truth)
     await awardPP(ppReward, 'daily_login_day_' + streak);
@@ -25159,6 +25169,9 @@ async function checkDailyLogin() {
       streakBonusSkinKeys = 3;
     }
 
+    // Mark as claimed for today — set AFTER all rewards awarded so errors don't block future claims
+    localStorage.setItem('lastLoginDate_' + currentUser.id, today);
+    
     // Show reward notification
     showDailyLoginReward(streak, ppReward, streakBonusItem, streakBonusSkinKeys);
     
@@ -26348,7 +26361,7 @@ function triggerRandomEvent() {
   if (!modal) return;
   
   document.getElementById('exploration-title').textContent = event.icon + ' Random Event!';
-  document.getElementById('exploration-result').innerHTML = event.text;
+  document.getElementById('exploration-result').innerHTML = escapeHtml(event.text || '');
   
   var rewardsHTML = '';
   if (event.pp > 0) {
@@ -27139,7 +27152,7 @@ async function initForum() {
       .from('forum_moderators')
       .select('id')
       .eq('user_id', currentUser.id)
-      .single();
+      .maybeSingle();
     
     if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
       console.error('Error checking mod status:', error);
@@ -27217,10 +27230,10 @@ async function loadForumCategories() {
       })(cat.id, cat.name);
       
       card.innerHTML = `
-        <div class="forum-category-icon">${cat.icon}</div>
+        <div class="forum-category-icon">${escapeHtml(cat.icon||'')} </div>
         <div class="forum-category-info">
-          <div class="forum-category-name">${cat.name}</div>
-          <div class="forum-category-desc">${cat.description || ''}</div>
+          <div class="forum-category-name">${escapeHtml(cat.name||'')} </div>
+          <div class="forum-category-desc">${escapeHtml(cat.description||'')} </div>
         </div>
         <div class="forum-category-stats">
           <div class="forum-stat-number">${count || 0}</div>
@@ -32631,6 +32644,7 @@ var _patMessages = ['*PAT*', '*PET*', '*BOOP*', '*SCRITCH*', '*PAT PAT*', '♥',
 var _patIndex = 0;
 
 function companionPat(evt) {
+  if (!canPerformAction('companion_pat', 300)) return; // max ~3 pats/second
   var sprite = document.getElementById('companion-sprite');
   if (!sprite) return;
 
@@ -34698,7 +34712,7 @@ async function phase1_checkMilestone(milestoneType, currentValue) {
       .select('milestone_type, notified')
       .eq('user_id', currentUser.id)
       .eq('milestone_type', milestoneType)
-      .single();
+      .maybeSingle();
     
     if (existing) {
       dbg('ℹ️ Phase 1: Milestone already achieved:', milestoneType);
@@ -35538,7 +35552,7 @@ async function getDailyRemaining() {
       .from('user_daily_limits')
       .select('feed_total, play_total, battle_total')
       .eq('user_id', currentUser.id)
-      .single();
+      .maybeSingle();
     
     return {
       feedsRemaining: Math.max(0, 50 - (data?.feed_total || 0)),
@@ -37059,7 +37073,7 @@ var giftSystem = {
       .select('created_at, status')
       .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + toUserId + '),and(requester_id.eq.' + toUserId + ',addressee_id.eq.' + currentUser.id + ')')
       .eq('status', 'accepted')
-      .single();
+      .maybeSingle();
 
     if (!friendship) return { ok: false, reason: 'You can only gift friends.' };
     var friendDays = (Date.now() - new Date(friendship.created_at).getTime()) / 86400000;
