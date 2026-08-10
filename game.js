@@ -538,6 +538,11 @@ function cosmetics_isOwned(type, id) {
 }
 
 function cosmetics_equip(type, id) {
+  // Security: only allow equipping from our own profile (not when viewing others)
+  if (window.currentProfileUserId && window.currentProfileUserId !== (currentUser && currentUser.id)) {
+    showToast('You can only change your own cosmetics!', 2500);
+    return;
+  }
   if (!cosmetics_isOwned(type, id)) { showToast('🔒 Cosmetic not unlocked yet!', 2500); return; }
   var catalog = COSMETICS_CATALOG[type + 's'] || [];
   var item = catalog.find(function(c) { return c.id === id; });
@@ -1843,7 +1848,11 @@ async function initApp() {
   streamerLanding_init();
 }
 
+var _showAppRunning = false;
 async function showApp(user) {
+  // Supabase fires onAuthStateChange on every token refresh — guard against re-entrant calls
+  if (_showAppRunning) { dbg('[showApp] Re-entrant call blocked'); return; }
+  _showAppRunning = true;
   document.body.classList.remove('guest');
   var _gh = document.getElementById('guest-hide');
   if (_gh) _gh.parentNode.removeChild(_gh);
@@ -1948,7 +1957,7 @@ async function showApp(user) {
   // Wave 2: Now that caches are populated, run checks and remaining parallel work
   await Promise.all([
     loadActivePlayerTitle().catch(function(){}),
-    checkPlayerTitleUnlocks().catch(function(){}), // Safe now — playerTitlesCache is populated
+    (typeof checkPlayerTitleUnlocks === 'function' ? checkPlayerTitleUnlocks() : Promise.resolve()).catch(function(){}), // Guard against scope issues
     awardBadge('welcome').catch(function(){}),
     initReferralSystem(user.id).catch(function(){}),
     checkTutorialStatus().catch(function(){}),
@@ -1957,6 +1966,7 @@ async function showApp(user) {
     updateNotificationBadge().catch(function(){}),
     argLogs_init().catch(function(){}),
     weeklyChallenge_init(),
+    todayCard_init().catch(function(){}),         // integrity box + melon quests
   ]);
 
   var bonus = await checkDailyBonus(user.id);
@@ -2034,6 +2044,9 @@ async function showApp(user) {
   cleanupExpiredLocalStorage();
   // Also clean up every hour for long sessions
   safeSetInterval(cleanupExpiredLocalStorage, 3600000);
+
+  // Release re-entrant guard after a tick so token-refresh auth events don't block
+  safeSetTimeout(function() { _showAppRunning = false; }, 5000);
 }
 
 function showAuth() {
@@ -2078,7 +2091,7 @@ async function updateSidebarStats() {
     // Get player data (use maybeSingle to avoid errors if missing)
     var { data: player, error: playerError } = await supabaseClient
       .from('players')
-      .select('pawketpoints')
+      .select('pawketpoints, login_streak')
       .eq('id', currentUser.id)
       .maybeSingle();
     
@@ -2113,10 +2126,12 @@ async function updateSidebarStats() {
       });
     }
     
-    // Calculate day streak — prefer DB value (dailyLoginStreak) for consistency with Today card
-    var streak = (typeof dailyLoginStreak !== 'undefined' && dailyLoginStreak > 0)
-      ? dailyLoginStreak
-      : calculateDayStreak();
+    // Use DB value for streak — most reliable source
+    var streak = (player && player.login_streak > 0)
+      ? player.login_streak
+      : (typeof dailyLoginStreak !== 'undefined' && dailyLoginStreak > 0)
+        ? dailyLoginStreak
+        : calculateDayStreak();
     
     // Update sidebar display
     var petCountEl = document.getElementById('sidebar-pet-count');
@@ -6055,6 +6070,14 @@ async function feedWithItem(petId, itemId, itemName) {
   
   showFlash(petId, reactionMsg, reactionType === 'loved' ? '#ff66cc' : reactionType === 'hated' ? '#999' : '#5dde7a');
   
+  // JOURNAL: log food preference discovery
+  var feedPetType = pet.pet_type || (pet.pets && pet.pets.name) || '';
+  if (feedPetType && reactionType && reactionType !== 'normal') {
+    if (typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(feedPetType, reactionType, itemName).then(null, function(){});
+    }
+  }
+
   // Reload inventory and pets to reflect item usage
   tabsLoaded['mypets'] = false;
   loadInventory();
@@ -7373,6 +7396,14 @@ async function useOnPet(petId,petNickname) {
     showToast(petNickname+' leveled up to '+ef.new_level+'!');
     updateBingoProgress('level_up_pet',1);
     tabsLoaded['mypets']=false;
+  }
+  // JOURNAL: log food discovery from item use
+  if (ef && !ef.healed) {
+    var usePetType = petState[petId] && (petState[petId].pet_type || (petState[petId].pets && petState[petId].pets.name));
+    var useReaction = ef.reaction_type || '';
+    if (usePetType && useReaction && useReaction !== 'normal' && typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(usePetType, useReaction, itemName).then(null, function(){});
+    }
   }
   showToast('Used '+itemName+' on '+petNickname+'!');
   await loadInventory(); tabsLoaded['mypets']=false;
@@ -21253,6 +21284,26 @@ async function guild_renderMemberView(mount) {
           (g.description ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;margin-top:6px;">"' + escapeHtml(g.description) + '"</div>' : '') +
         '</div>' +
 
+        // Active guild perks banner — shown to all members at the top of guild view
+        (function() {
+          var now = Date.now();
+          var activePerks = Object.keys(_activeGuildPerks).filter(function(k) {
+            return _activeGuildPerks[k] && _activeGuildPerks[k].expiresAt > now;
+          });
+          if (!activePerks.length) return '';
+          return '<div style="background:rgba(93,222,122,0.1);border:1px solid rgba(93,222,122,0.3);border-radius:10px;padding:10px 12px;margin-bottom:14px;">' +
+            '<div style="font-weight:700;font-size:0.8rem;color:#2d8a4e;margin-bottom:6px;">✨ Active Guild Perks</div>' +
+            activePerks.map(function(k) {
+              var p = _activeGuildPerks[k];
+              var minsLeft = Math.floor((p.expiresAt - now) / 60000);
+              var hrsLeft = Math.floor(minsLeft / 60);
+              var timeStr = hrsLeft > 0 ? hrsLeft + 'h ' + (minsLeft % 60) + 'm' : minsLeft + 'm';
+              var label = k === 'xp_boost' ? '⚡ XP Boost' : k === 'discount' ? '🛒 Shop Discount' : k === 'reward_boost' ? '💰 Reward Boost' : k;
+              return '<div style="font-size:0.78rem;color:#2d8a4e;">' + label + ' · ' + timeStr + ' remaining</div>';
+            }).join('') +
+          '</div>';
+        })() +
+
         '<div style="margin-bottom:16px;">' +
           '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-light);"><span>Guild XP</span><span>' + xpCurrent + '/' + xpNeeded + '</span></div>' +
           '<div style="background:rgba(153,102,255,0.12);border-radius:20px;height:8px;overflow:hidden;"><div style="width:' + xpPct + '%;height:100%;background:linear-gradient(90deg,#9966ff,#ff66cc);border-radius:20px;"></div></div>' +
@@ -21695,7 +21746,15 @@ async function guild_donate() {
   if ((currentPoints||0) < amount) { showToast('Not enough PP!', 2500); return; }
   if (!guildState.myGuild) return;
   try {
-    await awardPP(-amount, 'guild_donation');
+    // Deduct PP via secure RPC before adding to treasury
+    var { data: spendRes, error: spendErr } = await supabaseClient.rpc('spend_pp_secure', {
+      p_amount: amount, p_reason: 'guild_donation'
+    });
+    if (spendErr || (spendRes && spendRes.error)) {
+      showToast('Not enough PP or error deducting. Please try again.', 3000);
+      return;
+    }
+    if (typeof spendRes === 'number') { currentPoints = spendRes; updateAllPoints(spendRes); }
 
     // Use RPC to atomically add to treasury and log
     var { data: rpcResult, error: rpcErr } = await supabaseClient.rpc('add_to_guild_treasury', {
@@ -21707,10 +21766,9 @@ async function guild_donate() {
     });
 
     if (rpcErr) {
-      // Treasury RPC failed — refund the player rather than silently losing their donation
-      // (direct client writes to guild_treasury are blocked at the database level)
+      // Treasury RPC failed — refund the player since PP was already deducted
       await awardPP(amount, 'guild_donation_refund').then(null, function(){});
-      showToast('Could not process donation. Refunded. Please try again later.', 3500);
+      showToast('Could not add to treasury. Your PP has been refunded.', 3500);
       return;
     }
 
@@ -21794,10 +21852,17 @@ async function guild_renderTreasury() {
               '<span style="color:#5dde7a;">👍 ' + (v.votes_for||0) + ' For</span>' +
               '<span style="color:#ff6b6b;">👎 ' + (v.votes_against||0) + ' Against</span>' +
             '</div>' +
-            '<div style="display:flex;gap:8px;">' +
-              '<button class="btn btn-primary btn-sm" onclick="guild_castVote(\'' + v.id + '\',true)" style="flex:1;">👍 Vote Yes</button>' +
-              '<button class="btn btn-outline btn-sm" onclick="guild_castVote(\'' + v.id + '\',false)" style="flex:1;color:#ff6b6b;border-color:#ff6b6b;">👎 Vote No</button>' +
-            '</div>' +
+            (function() {
+              var voteKey = 'guild_voted_' + v.id + '_' + (currentUser ? currentUser.id : '');
+              var alreadyVoted = !!localStorage.getItem(voteKey);
+              if (alreadyVoted) {
+                return '<div style="text-align:center;font-size:0.78rem;color:var(--text-light);padding:6px;background:rgba(255,255,255,0.04);border-radius:8px;">✅ You have already voted</div>';
+              }
+              return '<div style="display:flex;gap:8px;">' +
+                '<button class="btn btn-primary btn-sm" onclick="guild_castVote(\'' + v.id + '\',true)" style="flex:1;">👍 Vote Yes</button>' +
+                '<button class="btn btn-outline btn-sm" onclick="guild_castVote(\'' + v.id + '\',false)" style="flex:1;color:#ff6b6b;border-color:#ff6b6b;">👎 Vote No</button>' +
+              '</div>';
+            })() +
           '</div>';
         }).join('')
       : '<div style="color:var(--text-light);font-size:0.82rem;font-style:italic;margin-bottom:14px;">No active proposals.</div>';
@@ -21928,6 +21993,14 @@ async function guild_createProposal() {
 
 async function guild_castVote(voteId, inFavor) {
   if (!canPerformAction('guild_vote', 2000)) return;
+
+  // Prevent double-voting via localStorage
+  var voteKey = 'guild_voted_' + voteId + '_' + currentUser.id;
+  if (localStorage.getItem(voteKey)) {
+    showToast('You have already voted on this proposal.', 2500);
+    return;
+  }
+
   try {
     // Fetch current vote counts
     var { data: vote, error: fetchErr } = await supabaseClient
@@ -21935,12 +22008,23 @@ async function guild_castVote(voteId, inFavor) {
     if (fetchErr) throw fetchErr;
     if (!vote || vote.status !== 'active') { showToast('This proposal is no longer active.', 2500); return; }
 
-    var field = inFavor ? 'votes_for' : 'votes_against';
-    var { error: updateErr } = await supabaseClient
-      .from('guild_treasury_votes')
-      .update({ [field]: (vote[field] || 0) + 1 })
-      .eq('id', voteId);
-    if (updateErr) throw updateErr;
+    // Use RPC increment to avoid race condition between simultaneous votes
+    var { error: updateErr } = await supabaseClient.rpc('increment_guild_vote', {
+      p_vote_id: voteId,
+      p_field:   inFavor ? 'votes_for' : 'votes_against'
+    });
+    if (updateErr) {
+      // Fallback: direct update if RPC not deployed
+      var field = inFavor ? 'votes_for' : 'votes_against';
+      var { error: fallbackErr } = await supabaseClient
+        .from('guild_treasury_votes')
+        .update({ [field]: (vote[field] || 0) + 1 })
+        .eq('id', voteId);
+      if (fallbackErr) throw fallbackErr;
+    }
+
+    // Mark as voted locally so UI prevents double-tap before DB syncs
+    try { localStorage.setItem(voteKey, '1'); } catch(e) {}
 
     updateBingoProgress('vote_in_guild', 1);
     addPassXP(5, 'guild_vote').then(null, function(){});
@@ -22214,8 +22298,18 @@ async function guild_startDungeon() {
       return;
     }
 
-    // Deduct entry cost
-    await awardPP(-dungeon.entry_cost_pp, 'guild_dungeon_entry');
+    // Deduct entry cost via secure RPC
+    if (dungeon.entry_cost_pp > 0) {
+      var { data: entrySpend, error: entryErr } = await supabaseClient.rpc('spend_pp_secure', {
+        p_amount: dungeon.entry_cost_pp, p_reason: 'guild_dungeon_entry'
+      });
+      if (entryErr || (entrySpend && entrySpend.error)) {
+        showToast('Could not deduct entry cost. Please try again.', 3000);
+        if (btn) { btn.disabled = false; guild_updateDungeonBtn(); }
+        return;
+      }
+      if (typeof entrySpend === 'number') { currentPoints = entrySpend; updateAllPoints(entrySpend); }
+    }
 
     // Build party — my pet first
     var myPetRaw = petState[guildState.liaisonPetId] || {};
@@ -23225,7 +23319,14 @@ async function racing_loadLeagueState() {
 // ── PET SELECTOR (shared across tabs) ─────────────────────────────────────────
 function racing_petSelectorHtml(selectedId, onchange) {
   if (!petState || Object.keys(petState).length === 0) {
-    return '<p style="color:var(--text-light);text-align:center;">Adopt a pet first to race!</p>';
+    // petState not loaded yet - show loading state, trigger reload
+    if (currentUser) {
+      loadMyPets && loadMyPets().then(function() {
+        racing_showTab(_racingActiveTab2 || 'quickrace');
+      }).catch(function(){});
+      return '<p style="color:var(--text-light);text-align:center;">Loading your pets...</p>';
+    }
+    return '<p style="color:var(--text-light);text-align:center;">Log in to race!</p>';
   }
   var html = '<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;">';
   Object.values(petState).forEach(function(pet) {
@@ -23235,7 +23336,7 @@ function racing_petSelectorHtml(selectedId, onchange) {
       'background:' + (sel ? 'rgba(153,102,255,0.15)' : 'var(--white)') + ';' +
       'cursor:pointer;font-family:Fredoka,sans-serif;font-size:0.88rem;font-weight:' + (sel?'700':'500') + ';' +
       'transition:all 0.15s;">' +
-      (pet.pets && pet.pets.image_file ? '<img src="images/pets/' + pet.pets.image_file + '" style="width:24px;height:24px;vertical-align:middle;margin-right:6px;border-radius:50%;">' : '') +
+      (pet.pets && pet.pets.image_file ? (function(f){ var fn = f.split('/').pop(); return '<img src="images/pets/' + fn + '" style="width:24px;height:24px;vertical-align:middle;margin-right:6px;border-radius:50%;" onerror="this.style.display=\'none\'">'; })(pet.pets.image_file) : '') +
       escapeHtml(pet.nickname || (pet.pets && pet.pets.name) || 'Pet') +
       '</button>';
   });
@@ -25731,12 +25832,14 @@ function loadDailyTip() {
     return;
   }
   
-  // Get today's date as seed for consistent daily tip
-  var today = new Date();
-  var seed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-  
-  // Use seed to pick consistent tip for the day
-  var tipIndex = seed % dailyTips.length;
+  // Pick a random tip each page load (use sessionStorage so it stays stable during the session
+  // but changes on a full reload/new tab)
+  var sessionKey = 'dailyTipIndex';
+  var tipIndex = parseInt(sessionStorage.getItem(sessionKey) || '-1');
+  if (tipIndex < 0 || tipIndex >= dailyTips.length) {
+    tipIndex = Math.floor(Math.random() * dailyTips.length);
+    try { sessionStorage.setItem(sessionKey, tipIndex); } catch(e) {}
+  }
   var tip = dailyTips[tipIndex];
   
   dbg('💡 Selected tip:', tip);
@@ -32537,20 +32640,31 @@ function companionPat(evt) {
 
   // Spawn the floating text near where the click happened
   var el = document.createElement('div');
-  el.className = 'companion-pat-text';
   el.textContent = msg;
-
-  // Randomise horizontal offset slightly so stacked pats don't overlap exactly
+  // Float upward from above the pet's head, fade out — appended to body so it escapes any container
   var rect = sprite.getBoundingClientRect();
-  var x = rect.left + rect.width / 2 + (Math.random() * 40 - 20);
-  var y = rect.top - 8;
-  el.style.left = x + 'px';
-  el.style.top  = y + 'px';
+  var x = rect.left + rect.width / 2 + (Math.random() * 30 - 15);
+  var y = rect.top - 10; // start just above the sprite
+  el.style.cssText = [
+    'position:fixed',
+    'left:' + x + 'px',
+    'top:' + y + 'px',
+    'transform:translateX(-50%)',
+    'pointer-events:none',
+    'z-index:9999',
+    'font-size:1.1rem',
+    'font-weight:800',
+    'color:var(--pink,#ff66cc)',
+    'font-family:Chewy,Fredoka,sans-serif',
+    'white-space:nowrap',
+    'text-shadow:0 1px 6px rgba(0,0,0,0.25)',
+    'animation:companionPatFloat 1.4s ease-out forwards'
+  ].join(';');
 
   document.body.appendChild(el);
 
   // Remove after animation completes
-  safeSetTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1300);
+  safeSetTimeout(function() { if (el.parentNode) el.parentNode.removeChild(el); }, 1400);
 
   // Wobble the sprite
   sprite.style.transition = 'transform 0.1s';

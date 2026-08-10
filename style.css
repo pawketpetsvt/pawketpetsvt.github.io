@@ -9562,11 +9562,6 @@ body.night-mode .btn-outline:hover {
   * {
     max-width: 100% !important;
   }
-
-  /* Hide right sidebar at 900px so community pages aren't dominated by streamers widget */
-  .right-sidebar {
-    display: none !important;
-  }
   
   /* Show Hamburger Button on mobile */
   .hamburger-menu-btn {
@@ -17788,6 +17783,13 @@ body.boss-ui-glitch #battle-controls-legacy {
   0%   { opacity: 1; transform: translateY(0) scale(1); }
   60%  { opacity: 1; transform: translateY(-40px) scale(1.1); }
   100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
+}
+
+/* Companion pat floating text — appended to body so it escapes container clipping */
+@keyframes companionPatFloat {
+  0%   { opacity: 1;   transform: translateX(-50%) translateY(0)     scale(1);   }
+  50%  { opacity: 1;   transform: translateX(-50%) translateY(-35px)  scale(1.15); }
+  100% { opacity: 0;   transform: translateX(-50%) translateY(-70px)  scale(0.85); }
 }
 
 /* ── Remove browser focus ring on nav buttons ────────────────────────────── */
