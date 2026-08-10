@@ -443,7 +443,7 @@ var COSMETICS_CATALOG = {
     { id:'bg_midnight',   name:'Midnight Stars', emoji:'🌙', gradient:'linear-gradient(135deg,#2c3e50,#3498db)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
     { id:'bg_candy',      name:'Candy Land',     emoji:'🍬', gradient:'linear-gradient(135deg,#ff6b9d,#ffb3c6,#ffdee9)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
     { id:'bg_cafe',       name:'Cozy Café',      emoji:'☕', gradient:'linear-gradient(135deg,#d4a373,#faedcd,#fefae0)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
-    { id:'bg_galaxy',     name:'Cosmic Void',    emoji:'🌌', gradient:'linear-gradient(135deg,#1a1a2e,#16213e,#0f3460)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
+    { id:'bg_galaxy',     name:'Cosmic Void',    emoji:'🌌', gradient:'linear-gradient(135deg,#2d1b5e,#3d1d78,#4a2090)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
     { id:'bg_garden',     name:'Garden',         emoji:'🌸', gradient:'linear-gradient(135deg,#a8edea,#fed6e3)', alwaysUnlocked:true, unlockHint:'Free for everyone' },
     // ── Earned ──
     { id:'bg_forest',     name:'Forest Glade',   emoji:'🌲', gradient:'linear-gradient(135deg,#134e5e,#71b280)',  unlockHint:'Reach player level 10' },
@@ -11014,9 +11014,7 @@ async function loadProfile(username) {
     
     if (petsRes.data.length === 0) {
       petsGrid.innerHTML = '<div class="empty-state"><p>No pets yet! 🐾</p></div>';
-      return;
-    }
-    
+    } else {
     // Render pets
     var html = '';
     petsRes.data.forEach(function(userPet) {
@@ -11042,12 +11040,19 @@ async function loadProfile(username) {
     });
     
     petsGrid.innerHTML = html;
+    } // end else (has pets)
     
-    // Load badges
+    // Load badges (always, regardless of pet count)
     await loadProfileBadges(profile.id);
-    
+
+    // Load guestbook entries for this profile
+    loadGuestbookEntries(profile.id).then(null, function(){});
+
+    // Hide cosmetics panel - this is ANOTHER user's profile, not ours
+    var cosMount = document.getElementById('cosmetics-mount');
+    if (cosMount) cosMount.style.display = 'none';
+
     // Update profile action buttons (add/remove friend, block, etc.)
-    // Set the profile user ID first so updateProfileButtons knows whose profile this is
     window.currentProfileUserId = profile.id;
     updateProfileButtons().then(null, function(){});
     
@@ -11164,6 +11169,8 @@ async function loadMyProfile() {
     }
 
     // Render cosmetics equip panel and apply current cosmetics
+    var cosMount = document.getElementById('cosmetics-mount');
+    if (cosMount) cosMount.style.display = '';  // Show on MY profile
     cosmetics_renderFullPanel('cosmetics-mount');
     cosmetics_applyToProfile();
 
@@ -17800,6 +17807,16 @@ async function sendFriendRequest() {
       }]);
     
     if (error) throw error;
+
+    // Notify the recipient so their bell lights up
+    await createNotification(
+      currentProfileUserId,
+      'friend_request',
+      '👋 Friend Request',
+      (currentUsername || 'Someone') + ' sent you a friend request!',
+      '/friends',
+      currentUser.id
+    ).then(null, function(){});
     
     showToast('Friend request sent!');
     updateProfileButtons();
@@ -18015,46 +18032,45 @@ async function updateProfileButtons() {
       return;
     }
     
-    // Show block button
-    if (blockBtn) blockBtn.style.display = 'inline-block';
-    
-    // Check friendship status
+    // Check friendship status first, then show exactly the right buttons
     var { data: friendship } = await supabaseClient
       .from('friendships')
       .select('id, status, requester_id, addressee_id')
       .or('and(requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentProfileUserId + '),and(requester_id.eq.' + currentProfileUserId + ',addressee_id.eq.' + currentUser.id + ')')
       .maybeSingle();
-    
+
+    // Always clean up any stale gift button before deciding what to show
+    var existingGiftBtn = document.getElementById('send-gift-profile-btn');
+    if (existingGiftBtn) existingGiftBtn.remove();
+
     if (friendship) {
       currentFriendshipId = friendship.id;
-      
-      if (friendship.status === 'accepted') {
-        // Already friends
-        if (alreadyFriendsBtn) alreadyFriendsBtn.style.display = 'inline-block';
-        if (removeFriendBtn) removeFriendBtn.style.display = 'inline-block';
 
-        // Add Send Gift button (only when friends)
-        var existingGiftBtn = document.getElementById('send-gift-profile-btn');
-        if (!existingGiftBtn) {
-          var giftBtn = document.createElement('button');
-          giftBtn.id = 'send-gift-profile-btn';
-          giftBtn.className = 'btn btn-primary';
-          giftBtn.textContent = '🎁 Send Gift';
-          giftBtn.onclick = function() {
-            gift_showSendModal(currentProfileUserId, el('profile-username').textContent.split('\n')[0].trim());
-          };
-          actionsDiv.appendChild(giftBtn);
-        }
+      if (friendship.status === 'accepted') {
+        // Friends: show Friends badge + Remove + Block + Send Gift
+        if (alreadyFriendsBtn) alreadyFriendsBtn.style.display = 'inline-block';
+        if (removeFriendBtn)   removeFriendBtn.style.display   = 'inline-block';
+        if (blockBtn)          blockBtn.style.display          = 'inline-block';
+        var giftBtn = document.createElement('button');
+        giftBtn.id = 'send-gift-profile-btn';
+        giftBtn.className = 'btn btn-primary';
+        giftBtn.textContent = '🎁 Send Gift';
+        giftBtn.onclick = function() {
+          gift_showSendModal(currentProfileUserId, el('profile-username').textContent.split('\n')[0].trim());
+        };
+        actionsDiv.appendChild(giftBtn);
       } else if (friendship.status === 'pending') {
-        // Request pending
+        // Pending: only show Request Pending + Block
         if (pendingBtn) pendingBtn.style.display = 'inline-block';
+        if (blockBtn)   blockBtn.style.display   = 'inline-block';
       }
     } else {
-      // No friendship - show add friend button
+      // No relationship: Add Friend + Block
       currentFriendshipId = null;
       if (addFriendBtn) addFriendBtn.style.display = 'inline-block';
+      if (blockBtn)     blockBtn.style.display     = 'inline-block';
     }
-    
+
     // Show guestbook form if not blocked
     if (guestbookForm) guestbookForm.style.display = 'block';
     
@@ -19502,18 +19518,25 @@ async function deleteGuestbookEntry(entryId) {
   if (!confirm('Delete this message?')) return;
   
   try {
+    // Try to delete: RLS should allow if user is author OR profile owner
+    // We pass an additional filter for the profile_user_id to help RLS match
     var { error } = await supabaseClient
       .from('guestbook_entries')
       .delete()
       .eq('id', entryId);
     
-    if (error) throw error;
+    if (error) {
+      // If RLS blocks it (403), it means this user isn't allowed — show friendly error
+      showToast('You can only delete your own messages, or messages on your profile.');
+      console.error('Delete guestbook error:', error);
+      return;
+    }
     
     showToast('Message deleted');
     loadGuestbookEntries(currentProfileUserId);
     
   } catch (err) {
-    showToast('Error: ' + err.message);
+    showToast('Could not delete message.');
     console.error('Error deleting guestbook entry:', err);
   }
 }
@@ -19986,16 +20009,27 @@ async function updateNotificationBadge() {
 // Create a notification (helper function)
 async function createNotification(userId, type, title, message, link, fromUserId) {
   try {
-    await supabaseClient
-      .from('notifications')
-      .insert([{
-        user_id: userId,
-        type: type,
-        title: title,
-        message: message,
-        link: link || null,
+    // Use SECURITY DEFINER RPC for cross-user notifications (friend requests, guestbook, gifts)
+    // Falls back to direct insert if RPC not deployed
+    var rpcRes = await supabaseClient.rpc('create_notification_secure', {
+      p_user_id:      userId,
+      p_type:         type,
+      p_title:        title,
+      p_message:      message,
+      p_link:         link || null,
+      p_from_user_id: fromUserId || null
+    });
+    if (rpcRes.error && (rpcRes.error.code === 'PGRST202' || String(rpcRes.error.code) === '404')) {
+      // RPC not deployed yet — fall back to direct insert
+      await supabaseClient.from('notifications').insert([{
+        user_id:      userId,
+        type:         type,
+        title:        title,
+        message:      message,
+        link:         link || null,
         from_user_id: fromUserId || null
-      }]);
+      }]).then(null, function(){});
+    }
   } catch (err) {
     console.error('Error creating notification:', err);
   }
@@ -36884,7 +36918,7 @@ dbg('✅ Centered modal notification system loaded');
 var giftSystem = {
   DAILY_SEND_LIMIT:    5,
   DAILY_RECV_LIMIT:    10,
-  FRIENDSHIP_DAYS_MIN: 7,
+  FRIENDSHIP_DAYS_MIN: 1,
   ACCOUNT_AGE_DAYS:    14,
   EXPIRY_DAYS:         7,
 
@@ -36917,7 +36951,7 @@ var giftSystem = {
     var friendDays = (Date.now() - new Date(friendship.created_at).getTime()) / 86400000;
     if (friendDays < this.FRIENDSHIP_DAYS_MIN) {
       var daysLeft = Math.ceil(this.FRIENDSHIP_DAYS_MIN - friendDays);
-      return { ok: false, reason: 'You must be friends for ' + this.FRIENDSHIP_DAYS_MIN + ' days first. (' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to go)' };
+      return { ok: false, reason: 'You must be friends for at least ' + this.FRIENDSHIP_DAYS_MIN + ' day first. (' + daysLeft + ' day' + (daysLeft !== 1 ? 's' : '') + ' to go)' };
     }
 
     // Daily send limit
