@@ -1497,7 +1497,7 @@ async function handleOverlayRequest(request) {
       .from('players')
       .select('id, username, companion_pet_id')
       .ilike('username', streamerName)
-      .single();
+      .maybeSingle();
     
     if (playerError || !player) {
       return new Response(JSON.stringify({ error: 'Streamer not found' }), {
@@ -2986,6 +2986,7 @@ async function confirmAdopt() {
   if (selectedPet) ownedPetIds.push(selectedPet.id); 
   totalOwnedCount++;
   tabsLoaded['mypets'] = false;
+  updateSidebarStats();
   btn.textContent = 'Adopt!'; 
   btn.disabled = false;
 }
@@ -4584,8 +4585,8 @@ async function expedition_init() {
     .eq('claimed', false)
     .order('started_at', { ascending: false })
     .limit(1)
-    .single()
-    .catch(function() { return { data: null }; });
+    .maybeSingle()
+    .then(null, function() { return { data: null }; });
 
   expeditionState.active = active || null;
 
@@ -7484,7 +7485,7 @@ async function awardBadge(badgeKey) {
       .from('badges')
       .select('*')
       .eq('badge_key', badgeKey)
-      .single();
+      .maybeSingle();
     
     if (badgeError || !badge) {
       dbg('[Badges] Badge not found in database:', badgeKey);
@@ -9144,6 +9145,11 @@ function castLineStart(e) {
   }
 }
 
+function fishingTimingClick() {
+  // HTML onclick alias for the hold-to-cast timing bar click
+  castLineRelease({ type: 'click' });
+}
+
 async function castLineRelease(e) {
   if (!_castPressing) return;
   _castPressing = false;
@@ -9570,7 +9576,7 @@ async function loadSidebarNews() {
   res.data.forEach(function(post){
     var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', {month:'short',day:'numeric'});
     var item = makeEl('div', {class:'news-item'});
-    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + (post.content || 'No content') + '</div>';
+    item.innerHTML = '<div class="news-date">' + date + '</div><div class="news-title">' + escapeHtml(post.content || 'No content') + '</div>';
     widget.appendChild(item);
   });
 }
@@ -9653,6 +9659,17 @@ async function handleTwitchCallback(token) {
     console.error('Twitch callback error:', e);
     showPixelToast('Error linking Twitch account', 'error');
   }
+}
+
+function copyToken() {
+  var td = document.getElementById('token-display');
+  if (!td || !td.value) { showToast('No token to copy.', 'info'); return; }
+  navigator.clipboard.writeText(td.value).then(function() {
+    showToast('Token copied to clipboard!', 'success');
+  }, function() {
+    td.select(); document.execCommand('copy');
+    showToast('Token copied!', 'success');
+  });
 }
 
 async function initTwitchTab() {
@@ -10122,6 +10139,19 @@ safeSetInterval(function() {
 }, 4000); // check every 4 seconds
 
 // Clean up any leftover spooky effects on page load
+function piperShop_open() {
+  // Piper's shop — ARG feature, not yet fully implemented.
+  // Silently do nothing if triggered before unlock; the button stays display:none until unlocked.
+  var modal = document.getElementById('piper-shop-modal');
+  if (modal) modal.classList.add('show');
+}
+
+function closeCreepyPopup() {
+  // Close the Piper ARG creepy popup overlay
+  var popup = document.getElementById('creepy-popup');
+  if (popup) popup.style.display = 'none';
+}
+
 function cleanupSpookyEffects() {
   var overlay = document.getElementById('spooky-overlay');
   if (overlay && overlay.parentNode) {
@@ -10751,7 +10781,7 @@ async function loadLeaderboard(type) {
 
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Failed to load leaderboard.</p></div>';
   }
 }
 
@@ -11430,26 +11460,26 @@ async function _buyEquipmentCore(equipmentId, equipmentName, price) {
     return;
   }
   
-  // Deduct points
-  var newPoints = currentPoints - price;
-  
-  // Get current total_spent
-  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id', currentUser.id).single();
-  var newTotalSpent = (playerRes.data?.total_spent || 0) + price;
-  
-  var updateRes = await supabaseClient
-    .from('players')
-    .update({ 
-      pawketpoints: newPoints,
-      total_spent: newTotalSpent
-    })
-    .eq('id', currentUser.id);
-  
-  if (updateRes.error) {
-    showToast('Error deducting points!');
+  // Deduct points via secure RPC (prevents client-side price manipulation)
+  var { data: spendResult, error: spendError } = await supabaseClient.rpc('spend_pp_secure', {
+    p_amount: price,
+    p_reason: 'equipment_purchase'
+  });
+  if (spendError) {
+    showToast(spendError.message || 'Not enough PawketPoints!');
     return;
   }
-  
+  if (spendResult && spendResult.error) {
+    showToast(spendResult.error);
+    return;
+  }
+  var newPoints = (spendResult !== null && spendResult !== undefined) ? spendResult : currentPoints - price;
+
+  // Update total_spent separately (non-critical stat tracking)
+  var playerRes = await supabaseClient.from('players').select('total_spent').eq('id', currentUser.id).maybeSingle();
+  var newTotalSpent = (playerRes.data && playerRes.data.total_spent || 0) + price;
+  await supabaseClient.from('players').update({ total_spent: newTotalSpent }).eq('id', currentUser.id).then(null, function(){});
+
   // Check spending badges
   if (newTotalSpent >= 500) {
     await awardBadge('mega_spender');
@@ -17373,7 +17403,7 @@ async function loadFriendsList() {
     document.getElementById('friends-count-badge').textContent = friends.length;
     
   } catch (err) {
-    container.innerHTML = '<div class="empty-state"><p>Error loading friends: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Error loading friends.</p></div>';
     console.error('Error loading friends:', err);
   }
 }
@@ -19311,11 +19341,27 @@ async function postGuestbookMessage() {
 }
 
 // Load guestbook entries
-async function loadGuestbookEntries(profileUserId) {
+var _guestbookProfileUserId = null;
+var _guestbookOffset = 0;
+var _guestbookPageSize = 10;
+
+function loadMoreGuestbookEntries() {
+  if (!_guestbookProfileUserId) return;
+  _guestbookOffset += _guestbookPageSize;
+  loadGuestbookEntries(_guestbookProfileUserId, true);
+}
+
+async function loadGuestbookEntries(profileUserId, append) {
   var container = document.getElementById('guestbook-entries');
   if (!container) return;
-  
-  container.innerHTML = '<div class="spinner"></div>';
+
+  // Reset pagination when loading a new profile
+  if (!append) {
+    _guestbookProfileUserId = profileUserId;
+    _guestbookOffset = 0;
+  }
+
+  if (!append) container.innerHTML = '<div class="spinner"></div>';
   
   try {
     // Get guestbook entries with author info
@@ -19324,7 +19370,7 @@ async function loadGuestbookEntries(profileUserId) {
       .select('id, author_id, message, created_at, players!guestbook_entries_author_id_fkey(username)')
       .eq('profile_user_id', profileUserId)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .range(_guestbookOffset, _guestbookOffset + _guestbookPageSize - 1);
     
     if (error) throw error;
     
@@ -19364,10 +19410,20 @@ async function loadGuestbookEntries(profileUserId) {
       html += '</div>';
     });
     
-    container.innerHTML = html;
+    if (append) {
+      container.insertAdjacentHTML('beforeend', html);
+    } else {
+      container.innerHTML = html;
+    }
+
+    // Show/hide load-more button
+    var loadMoreBtn = document.getElementById('guestbook-load-more');
+    if (loadMoreBtn) {
+      loadMoreBtn.style.display = entries.length >= _guestbookPageSize ? 'block' : 'none';
+    }
     
   } catch (err) {
-    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages: ' + err.message + '</p></div>';
+    container.innerHTML = '<div class="guestbook-empty"><p>Error loading messages.</p></div>';
     console.error('Error loading guestbook entries:', err);
   }
 }
@@ -19430,7 +19486,7 @@ loadProfile = async function(username) {
     .from('players')
     .select('id')
     .ilike('username', username)
-    .single();
+    .maybeSingle();
   
   if (profileRes.data) {
     currentProfileUserId = profileRes.data.id;
@@ -20456,7 +20512,7 @@ async function furniture_openRoom(petId) {
         .from('pet_rooms')
         .insert({ pet_id: petId, furniture_list: [] })
         .select()
-        .single();
+        .maybeSingle();
       roomRow = (!insertErr && newRoom) ? newRoom : { pet_id: petId, furniture_list: [] };
     }
 
@@ -22047,7 +22103,7 @@ async function guild_startDungeon() {
   if (btn) { btn.disabled = true; btn.textContent = '⚔️ Loading battle…'; }
 
   try {
-    var { data: dungeon } = await supabaseClient.from('guild_dungeons').select('*').eq('dungeon_key', _selectedDungeonKey).single();
+    var { data: dungeon } = await supabaseClient.from('guild_dungeons').select('*').eq('dungeon_key', _selectedDungeonKey).maybeSingle();
     if (!dungeon) throw new Error('Dungeon not found');
     if ((currentPoints||0) < dungeon.entry_cost_pp) {
       showToast('Need ' + dungeon.entry_cost_pp + ' PP to enter!', 3000);
@@ -25325,7 +25381,7 @@ async function processReferral() {
       .from('players')
       .select('id, username, referral_count')
       .eq('referral_code', refCode)
-      .single();
+      .maybeSingle();
     
     if (error || !referrer) {
       dbg('[Referral] Referrer not found');
@@ -26339,7 +26395,7 @@ async function processReferralOnSignup(newUserId, referralCode) {
       .from('players')
       .select('id, username, referrals_count')
       .eq('referral_code', referralCode)
-      .single();
+      .maybeSingle();
     
     if (findError || !referrer) {
       dbg('⚠️ Referral code not found or invalid');
@@ -26977,7 +27033,7 @@ async function loadForumThreads(categoryId) {
       .from('forum_bans')
       .select('id')
       .eq('user_id', currentUser.id)
-      .single();
+      .maybeSingle();
     
     if (ban) {
       list.innerHTML = '<div class="forum-empty-state"><div class="forum-empty-state-icon">🚫</div><p>You have been banned from posting</p></div>';
@@ -27210,7 +27266,7 @@ async function submitNewThread() {
     .from('forum_bans')
     .select('id')
     .eq('user_id', currentUser.id)
-    .single();
+    .maybeSingle();
   
   if (ban) {
     showToast('You are banned from posting');
@@ -27264,7 +27320,7 @@ async function submitReply() {
     .from('forum_bans')
     .select('id')
     .eq('user_id', currentUser.id)
-    .single();
+    .maybeSingle();
   
   if (ban) {
     showToast('You are banned from posting');
@@ -27486,7 +27542,7 @@ async function banUser() {
     .from('players')
     .select('id')
     .eq('username', username)
-    .single();
+    .maybeSingle();
   
   if (!user) {
     showToast('User not found');
@@ -27847,7 +27903,7 @@ async function awardPetTitle(petId, titleKey, reason) {
       .from('pet_titles')
       .select('*')
       .eq('title_key', titleKey)
-      .single();
+      .maybeSingle();
     
     if (titleRes.error || !titleRes.data) {
       console.error('[Pet Title] Title not found:', titleKey);
@@ -28470,7 +28526,7 @@ async function awardPlayerTitle(titleKey, reason) {
       .from('player_titles')
       .select('*')
       .eq('title_key', titleKey)
-      .single();
+      .maybeSingle();
     
     if (titleRes.error || !titleRes.data) {
       console.error('[Player Title] Title not found:', titleKey);
@@ -31500,7 +31556,7 @@ async function grantPassReward(level, reward) {
         .from('titles')
         .select('display_name')
         .eq('title_key', reward.titleKey)
-        .single();
+        .maybeSingle();
       
       if (titleData.data) {
         showToast('🏆 Title unlocked: "' + titleData.data.display_name + '"!', 'success', true);
@@ -32870,7 +32926,7 @@ async function scrapbook_saveNote(memoryId, areaId) {
     try {
         // Fetch existing entry_data then merge note in (RLS enforces ownership)
         var { data: existing } = await supabaseClient
-            .from('pet_memories').select('entry_data').eq('id', memoryId).single();
+            .from('pet_memories').select('entry_data').eq('id', memoryId).maybeSingle();
         var merged = Object.assign({}, (existing && existing.entry_data) || {}, { player_note: note });
         var { error } = await supabaseClient
             .from('pet_memories').update({ entry_data: merged }).eq('id', memoryId);
@@ -34211,7 +34267,7 @@ async function phase1_generatePetOfTheDay() {
       .select('memory_text')
       .eq('user_pet_id', selected.id)
       .limit(1)
-      .single();
+      .maybeSingle();
     
     // Save to database - FIXED: Use UPSERT to handle conflicts
     var { error: insertError } = await supabaseClient
@@ -34281,7 +34337,7 @@ async function phase1_loadWeeklySpotlight() {
       .from('weekly_spotlight')
       .select('*')
       .eq('week_start', monday)
-      .single();
+      .maybeSingle();
     
     if (error && error.code !== 'PGRST116') {
       throw error;
@@ -37620,7 +37676,7 @@ async function gp_adminForceStatus(status) {
   if (!evId) {
     // Fall back: most recent non-complete event
     try {
-      var anyRes = await supabaseClient.from('grand_prix_events').select('id').neq('status','complete').order('week_number',{ascending:false}).limit(1).single();
+      var anyRes = await supabaseClient.from('grand_prix_events').select('id').neq('status','complete').order('week_number',{ascending:false}).limit(1).maybeSingle();
       if (anyRes.data) evId = anyRes.data.id;
     } catch(e) {}
   }
