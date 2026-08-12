@@ -869,7 +869,7 @@ a:hover { color: var(--pink) !important; }
   margin: 30px 0 !important;
 }
 .quicklink-card {
-  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7)) !important;
+  background: linear-gradient(135deg, var(--card-bg, rgba(255,255,255,0.08)), var(--card-bg, rgba(255,255,255,0.04))) !important;
   border: 4px solid var(--border) !important;
   border-radius: var(--radius-xl) !important;
   padding: 28px 20px !important;
@@ -17785,13 +17785,6 @@ body.boss-ui-glitch #battle-controls-legacy {
   100% { opacity: 0; transform: translateY(-70px) scale(0.9); }
 }
 
-/* Companion pat floating text — appended to body so it escapes container clipping */
-@keyframes companionPatFloat {
-  0%   { opacity: 1;   transform: translateX(-50%) translateY(0)     scale(1);   }
-  50%  { opacity: 1;   transform: translateX(-50%) translateY(-35px)  scale(1.15); }
-  100% { opacity: 0;   transform: translateX(-50%) translateY(-70px)  scale(0.85); }
-}
-
 /* ── Remove browser focus ring on nav buttons ────────────────────────────── */
 .sidebar-nav-btn:focus,
 .sidebar-nav-btn:focus-visible,
@@ -18071,4 +18064,104 @@ body.in-manual-battle .right-sidebar {
   margin-top: 10px;
   max-height: 240px;
   overflow-y: auto;
+}
+
+
+/* ── Night mode: additional container visibility fixes ── */
+body.night-mode .modal-content-custom,
+body.night-mode .centered-modal-container {
+  background: #2a2a3a !important;
+  color: #e8d5ff !important;
+  border-color: #9966ff !important;
+}
+
+/* Empty state cards should use dark bg in night mode */
+body.night-mode .empty-state {
+  background: rgba(153, 102, 255, 0.06) !important;
+  border-color: rgba(153, 102, 255, 0.2) !important;
+  color: var(--text-light) !important;
+}
+
+/* makeModal white background — override via class added in JS */
+body.night-mode .modal-content-custom {
+  background: #1e1e2e !important;
+}
+
+/* Guild browser cards in night mode */
+body.night-mode .guild-card {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(153,102,255,0.2) !important;
+}
+
+/* Form inputs general dark mode fix */
+body.night-mode input:not([type="range"]),
+body.night-mode textarea,
+body.night-mode select {
+  background: rgba(255,255,255,0.06) !important;
+  color: var(--text) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+}
+
+body.night-mode input::placeholder,
+body.night-mode textarea::placeholder {
+  color: rgba(232, 213, 255, 0.4) !important;
+}
+
+/* Page sections with hard white backgrounds */
+body.night-mode .page-section > .page-wrap > .card,
+body.night-mode .card {
+  background: var(--card-bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* Profile/guestbook entry backgrounds */
+body.night-mode .guestbook-entry {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(153,102,255,0.15) !important;
+}
+
+/* Battle log entries */
+body.night-mode .battle-log-entry {
+  color: var(--text) !important;
+}
+
+/* Forum containers */
+body.night-mode .forum-category-card,
+body.night-mode .forum-thread-card {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: rgba(153,102,255,0.2) !important;
+}
+
+/* Bingo cards */
+body.night-mode .bingo-card {
+  border-color: rgba(153,102,255,0.15) !important;
+}
+
+/* Racing/stat rows */
+body.night-mode .stat-row,
+body.night-mode .racing-stat-row {
+  background: rgba(255,255,255,0.04) !important;
+}
+
+/* Pet cards in mypets */
+body.night-mode .pet-card {
+  background: var(--card-bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* Inventory cards */
+body.night-mode .inventory-item {
+  background: rgba(255,255,255,0.05) !important;
+  border-color: rgba(153,102,255,0.2) !important;
+}
+
+/* News items */
+body.night-mode .news-item {
+  background: rgba(255,255,255,0.04) !important;
+}
+
+/* Today card */
+body.night-mode .today-card,
+body.night-mode .today-card-content {
+  background: rgba(255,255,255,0.04) !important;
 }

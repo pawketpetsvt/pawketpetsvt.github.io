@@ -1309,7 +1309,7 @@ function makeModal() {
   
   var modal = makeEl('div');
   modal.className = 'modal-content-custom';
-  modal.style.cssText = 'background:white;border-radius:20px;padding:30px;max-width:90%;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 10px 40px rgba(0,0,0,0.3);';
+  modal.style.cssText = 'background:var(--card-bg,#fff);border-radius:20px;padding:30px;max-width:90%;max-height:90vh;overflow-y:auto;position:relative;box-shadow:0 10px 40px rgba(0,0,0,0.3);border:1px solid var(--border);color:var(--text);';
   
   overlay.appendChild(modal);
   
@@ -3090,6 +3090,18 @@ async function loadMyPets() {
     // Only regen HP if > 0 (don't auto-revive fainted pets)
     var regenedHP = currentHP > 0 ? calculateHPRegen(currentHP, maxHP, hpRegenRef) : 0;
 
+    // Recalculate max_hp from base + evolution to keep DB in sync
+    var _evoStage   = getEvolutionStage(pet.level || 1);
+    var _evoBonuses = getEvolutionBonuses(_evoStage);
+    var _correctMaxHP = (pet.base_hp || 30) + _evoBonuses.hp;
+    // If DB max_hp is stale (lower than it should be), patch it silently
+    if ((pet.max_hp || 0) < _correctMaxHP) {
+      supabaseClient.from('user_pets')
+        .update({ max_hp: _correctMaxHP })
+        .eq('id', pet.id)
+        .then(null, function(){});
+      pet.max_hp = _correctMaxHP;
+    }
     petState[pet.id] = Object.assign({}, pet, { current_hp: regenedHP });
 
     // Cache titles from joined query
@@ -3373,7 +3385,11 @@ async function useItem(petId) {
   dbg('Heal value calculated:', healValue);
   dbg('Is healing item?', item.effect === 'healing', healValue > 0);
   
-  if (item.effect === 'healing' && healValue > 0) {
+  // Detect full-heal items that might have effect variants or no explicit value
+  if (!healValue && (item.effect === 'healing' || item.effect === 'full_heal' || item.effect === 'revive')) {
+    healValue = 9999; // treat as full restore, capped at maxHP
+  }
+  if ((item.effect === 'healing' || item.effect === 'full_heal' || item.effect === 'revive') && healValue > 0) {
     // Get current HP and max HP from database
     var petRes = await supabaseClient
       .from('user_pets')
@@ -7231,7 +7247,7 @@ async function checkSidebarStreamStatus() {
     // We need to use a token to check streams - try to get from user if linked
     var token = null;
     if (currentUser) {
-      var pr = await supabaseClient.from('players').select('twitch_token').eq('id', currentUser.id).single();
+      var pr = await supabaseClient.from('players').select('twitch_token').eq('id', currentUser.id).maybeSingle();
       if (pr.data && pr.data.twitch_token) {
         token = pr.data.twitch_token;
       }
@@ -7329,7 +7345,13 @@ async function useOnPet(petId,petNickname) {
 
   // Healing items (HP restore) use a direct path since use_item_secure handles
   // hunger/energy/happiness/xp but not HP (different column: effect='healing', value=healAmt)
-  if (itemEffect === 'healing' && itemValue > 0) {
+  // Also detect items that restore full HP by name pattern or effect variant
+  var effectiveHealValue = itemValue;
+  if (!effectiveHealValue && (itemEffect === 'healing' || itemEffect === 'full_heal' || itemEffect === 'revive')) {
+    effectiveHealValue = 9999; // full restore - capped at maxHP below
+  }
+  if ((itemEffect === 'healing' || itemEffect === 'full_heal' || itemEffect === 'revive') && effectiveHealValue > 0) {
+    var itemValue = effectiveHealValue; // use effective value
     var petRow = await supabaseClient.from('user_pets').select('current_hp,max_hp').eq('id',petId).maybeSingle();
     if (!petRow.data) { showToast('Could not find pet.'); return; }
     var curHP = petRow.data.current_hp; var maxHP = petRow.data.max_hp;
@@ -11200,9 +11222,12 @@ async function loadMyProfile() {
     }
 
     // Render cosmetics equip panel and apply current cosmetics
-    var cosMount = document.getElementById('cosmetics-mount');
-    if (cosMount) cosMount.style.display = '';  // Show on MY profile
-    cosmetics_renderFullPanel('cosmetics-mount');
+    // Render into the MY PROFILE section's own cosmetics mount (not the other-profile one)
+    var cosMount = document.getElementById('myprofile-cosmetics-mount');
+    if (cosMount) {
+      cosMount.style.display = '';
+      cosmetics_renderFullPanel('myprofile-cosmetics-mount');
+    }
     cosmetics_applyToProfile();
 
   } catch (err) {
@@ -16337,17 +16362,24 @@ function showExplorationResult(title, message, reward, buttonText) {
     '<div class="battle-log-entry" style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px;">' + message + '</div>' +
     '<div class="battle-log-entry" style="font-size: 1.2rem; font-weight: bold; color: var(--green); margin-top: 20px;">' + reward + '</div>';
   
-  // Set up controls
+  // Set up controls — also show the parent wrapper (overrides the !important on the legacy div)
   document.getElementById('battle-skip-btn').style.display = 'none';
+  var legacyControls = document.getElementById('battle-controls-legacy');
+  if (legacyControls) legacyControls.style.cssText = 'display:flex!important;justify-content:center;margin-top:16px;';
   var continueBtn = document.getElementById('battle-continue-btn');
-  continueBtn.style.display = 'inline-block';
-  continueBtn.textContent = buttonText;
-  continueBtn.onclick = function() {
-    // Show battle container again
-    document.querySelector('.battle-container').style.display = 'flex';
-    // Return to exploration
-    closeBattle();
-  };
+  if (continueBtn) {
+    continueBtn.style.display = 'inline-block';
+    continueBtn.textContent = buttonText;
+    continueBtn.onclick = function() {
+      // Hide legacy controls again
+      if (legacyControls) legacyControls.style.cssText = 'display:none!important';
+      // Show battle container again
+      var bc = document.querySelector('.battle-container');
+      if (bc) bc.style.display = 'flex';
+      // Return to exploration
+      closeBattle();
+    };
+  }
 }
 
 function closeExplorationModal() {

@@ -3219,6 +3219,16 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
         <button class="btn btn-primary btn-lg" id="save-profile-btn" onclick="saveProfile()">💾 Save Changes</button>
       </div>
 
+      <!-- Cosmetics Panel (My Profile only) -->
+      <div class="section-header" style="margin-top:32px;">
+        <h2>🎨 Cosmetics</h2>
+        <div class="section-line"></div>
+      </div>
+      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:16px;">
+        Equip backgrounds, frames, and badges to customize your profile. Unlock more through milestones!
+      </p>
+      <div id="myprofile-cosmetics-mount" class="cosmetics-panel"></div>
+
       <!-- Stats Overview -->
       <div class="section-header" style="margin-top: 40px;">
         <h2>Your Stats</h2>
@@ -3763,58 +3773,64 @@ var Tutorial = {
 
   steps: [
     {id:'welcome', tab:'home', dialogue:[
-      {text:"Hi there! I'm Melon, your guide to PawketPets! 🍈", mascot:"excited"},
-      {text:"This is your Home page. You can always come back here to see what's new!", mascot:"explaining", highlightTab:"home"},
-      {text:"Ready to meet your first pet? Let's go!", mascot:"excited"}
+      {text:"Hi! I'm Melon 🍈 — your guide to PawketPets! I'll walk you through the basics so you feel right at home.", mascot:"excited"},
+      {text:"This is your Home page. Your daily login bonus, Melon's requests, world events, and tips all show up right here!", mascot:"explaining", highlightTab:"home"},
+      {text:"You'll earn PawketPoints — PP — by playing, and you can see your stats in the bottom-left corner. Ready? Let's get you a pet!", mascot:"excited"}
     ]},
     {id:'adoption', tab:'adopt', dialogue:[
-      {text:"Welcome to the Adoption Center! This is where you'll find your new companion.", mascot:"happy", highlightTab:"adopt"},
-      {text:"Your FIRST pet is completely FREE! But each pet after that costs PawketPoints.", mascot:"explaining"},
-      {text:"Pets have different personalities and looks. Choose one you like!", mascot:"happy"},
-      {text:"Go ahead - click on a pet to adopt them! I'll wait here while you choose! 😊", mascot:"excited", waitForPet:true}
+      {text:"Welcome to the Adoption Center! 🐾 Each pet belongs to one of our VTuber streamers.", mascot:"happy", highlightTab:"adopt"},
+      {text:"Your FIRST pet is completely FREE! Each pet after that costs PP — the price goes up by 50 PP per pet you own.", mascot:"explaining"},
+      {text:"Go ahead — click a pet to adopt them! I'll wait right here. 😊", mascot:"excited", waitForPet:true}
     ]},
     {id:'mypets', tab:'mypets', requiresPet:true, dialogue:[
-      {text:"Aww, what a cutie! Welcome to your new friend! 💕", mascot:"excited"},
-      {text:"This is your My Pets page. You can see all your pets here!", mascot:"explaining", highlightTab:"mypets"},
-      {text:"Pets have Hunger and Energy levels. Keep them fed and rested to keep them happy!", mascot:"explaining"},
-      {text:"Use the Feed and Play buttons to care for them, and equip gear from the Equipment section!", mascot:"excited"}
+      {text:"Aww, look at them! 💕 Welcome to your new companion!", mascot:"excited"},
+      {text:"This is My Pets. Each pet has Hunger, Energy, and Happiness stats — feed them, play with them, and check in daily!", mascot:"explaining", highlightTab:"mypets"},
+      {text:"As pets level up they get stronger for battles. You can also set a Companion — they'll hang out in the corner of your screen!", mascot:"happy"},
+      {text:"The Pet Journal tab (also in this section) unlocks lore entries as you feed your pets different foods. It's worth exploring!", mascot:"excited"}
     ]},
     {id:'equipment', tab:'mypets', dialogue:[
-      {text:"Speaking of gear - see that Equipment section on each pet card? ⚔️", mascot:"explaining"},
-      {text:"Click Manage to equip weapons and armor. Better gear means stronger battles!", mascot:"excited"},
-      {text:"You can buy equipment from the Shop. Keep an eye on the rotating stock!", mascot:"happy"}
+      {text:"See the Equipment section on each pet card? ⚔️ Click Manage to equip weapons and armor.", mascot:"explaining"},
+      {text:"Better gear makes your pets tougher in battle. You can buy equipment from the Shop!", mascot:"excited"}
     ]},
-    {id:'shop', tab:'shop', dialogue:[
-      {text:"The Shop is where you buy items with PawketPoints (PP).", mascot:"explaining", highlightTab:"shop"},
-      {text:"You can buy food, toys, equipment, and more! Stock rotates so check back often!", mascot:"happy"},
-      {text:"But how do you earn PP? Let me show you!", mascot:"excited"}
+    {id:'fishing', tab:'fishing', dialogue:[
+      {text:"The Fishing tab is tucked in the Games section of the sidebar! 🎣", mascot:"happy", highlightTab:"fishing"},
+      {text:"Hold the Cast button to charge power, release when the bar fills up, then click the timing bar when the indicator hits the green zone.", mascot:"explaining"},
+      {text:"Rare catches reward bonus PP and unlock your Fish Journal. You can upgrade your rod and set bait for better odds!", mascot:"excited"}
     ]},
     {id:'minigames', tab:'minigames', dialogue:[
-      {text:"The Minigames page is where you earn PP!", mascot:"excited", highlightTab:"minigames"},
-      {text:"Play games like Memory Match, Dice Roll, and more!", mascot:"happy"},
-      {text:"Each game gives you PP as a reward. You can play most of them once per day!", mascot:"explaining"},
-      {text:"Try them out whenever you like! The more you play, the more you earn!", mascot:"excited"}
+      {text:"Minigames are another great way to earn PP! 🕹️", mascot:"excited", highlightTab:"minigames"},
+      {text:"Shell Game, Slot Machine, Dice Roll, Typing Challenge — most can be played once per day for a PP reward.", mascot:"explaining"},
+      {text:"The more you play each day, the more you earn. Mix in fishing and minigames with pet care for a solid daily routine!", mascot:"happy"}
     ]},
     {id:'battle', tab:'battle', dialogue:[
-      {text:"The Battle Arena lets your pets fight opponents and earn rewards!", mascot:"explaining", highlightTab:"battle"},
-      {text:"Battles are automatic - just click Battle and watch! Your pet's stats determine who wins.", mascot:"happy"},
-      {text:"Win battles to earn PP, items, and level up your pets!", mascot:"excited"}
+      {text:"Battle Arena is where your pets fight wild enemies and earn XP and PP! ⚔️", mascot:"explaining", highlightTab:"battle"},
+      {text:"Battles are TURN-BASED — you pick your action each turn: Attack, use a Skill, or Flee. Your pet's level and equipment matter!", mascot:"excited"},
+      {text:"Defeat enough enemies and you'll eventually face the Shadow of Piper... if you're brave enough. 👀", mascot:"serious"}
+    ]},
+    {id:'racing', tab:'racing', dialogue:[
+      {text:"Racing is a whole competitive system! 🏁 Check the sidebar — there's a Racing section with Train, Quick Race, and Grand Prix.", mascot:"excited", highlightTab:"racing"},
+      {text:"Train your pet's stats like Pace, Stamina, and Interference — up to 3 sessions per day. Then enter Quick Races for PP!", mascot:"explaining"},
+      {text:"Win enough races to climb the League ladder: Bronze → Silver → Gold → Diamond → Champion. Weekly prizes await at the top!", mascot:"happy"}
+    ]},
+    {id:'shop', tab:'shop', dialogue:[
+      {text:"The Shop is where you spend PP on food, toys, healing items, and equipment. 🛒", mascot:"explaining", highlightTab:"shop"},
+      {text:"Stock rotates weekly so check back often. Guild members may also get a Shop discount if their treasury vote passes!", mascot:"happy"}
+    ]},
+    {id:'guild', tab:'guild', dialogue:[
+      {text:"Guilds let you team up with other players! 🏛️", mascot:"happy", highlightTab:"guild"},
+      {text:"Join or create a guild, donate PP to its treasury, and vote on buffs — like bonus XP or shop discounts — that help everyone.", mascot:"explaining"},
+      {text:"Guilds also have Dungeons! Form a party with your guildmates' pets and tackle waves of enemies together for PP and guild XP.", mascot:"excited"}
     ]},
     {id:'pass', tab:null, dialogue:[
-      {text:"See that 🎫 Pass button in the top bar? That's the PawketPass!", mascot:"excited"},
-      {text:"Every time you play, feed pets, or battle, you earn Pass XP and level up!", mascot:"explaining"},
-      {text:"Each Pass level unlocks a reward - PP, items, even rare cosmetics! Claim them from the Pass screen.", mascot:"happy"}
-    ]},
-    {id:'bingo', tab:null, dialogue:[
-      {text:"And the 🎯 Bingo button? That's your Daily Bingo card!", mascot:"excited"},
-      {text:"Each day you get a fresh bingo card with tasks like 'Feed a pet' or 'Win a battle'.", mascot:"explaining"},
-      {text:"Complete a full row, column, or diagonal for bonus rewards. Blackout the whole card for a big prize! 🎉", mascot:"happy"}
+      {text:"See the 🎫 Pass and 🎯 Bingo buttons in the top bar?", mascot:"excited"},
+      {text:"The PawketPass levels up as you play — every feed, battle, race, and minigame gives Pass XP. Each level rewards PP, items, or cosmetics!", mascot:"explaining"},
+      {text:"The Daily Bingo card gives you tasks to complete each day. Finish a row for bonus rewards, or blackout the whole card for a big prize! 🎉", mascot:"happy"}
     ]},
     {id:'spooky', tab:null, dialogue:[
-      {text:"Almost done! But... I've been here a while, and something feels off about this place.", mascot:"worried"},
-      {text:"Sometimes I see things. Shadows. Glitches in the code. Strange encounters...", mascot:"scared"},
-      {text:"There are rumors of creepy bosses, unsettling events, and hidden secrets.", mascot:"serious"},
-      {text:"Are you okay with things that go bump in the night?", mascot:"serious", showChoice:true}
+      {text:"Almost done! But... I should mention something.", mascot:"worried"},
+      {text:"PawketPets is still technically in beta. I've been here a long time and I notice things — glitches, shadows, strange encounters.", mascot:"scared"},
+      {text:"There are hidden lore fragments, creepy bosses, and a character named Piper who seems very interested in what we're building here.", mascot:"serious"},
+      {text:"Are you okay with things that go bump in the night? 👻", mascot:"serious", showChoice:true}
     ]}
   ],
 
@@ -3834,6 +3850,18 @@ var Tutorial = {
     if (!tabId) return;
     var btn = document.getElementById('sidebar-btn-' + tabId);
     if (!btn) return;
+
+    // Open the nav group containing this tab so the button is visible and measurable
+    var tabGroups = {
+      adopt:'pets', mypets:'pets', journal:'pets',
+      minigames:'games', fishing:'games', racing:'games',
+      guild:'community', friends:'community', leaderboard:'community',
+      forum:'community', stats:'community',
+      twitch:'more', redeem:'more', news:'more', settings:'more'
+    };
+    var group = tabGroups[tabId];
+    if (group && typeof navGroupOpen === 'function') navGroupOpen(group);
+
     this._highlightedTab = btn;
     btn.classList.add('tutorial-tab-highlight');
     // Reduce backdrop so highlighted button is clearly visible
@@ -3844,12 +3872,30 @@ var Tutorial = {
       backdrop.style.backdropFilter = 'blur(1px)';
       backdrop.style.background     = 'rgba(0,0,0,0.3)';
     }
-    // Position bouncing arrow
-    var rect = btn.getBoundingClientRect();
+    // Wait one frame so the group animation completes before measuring rect
+    var self = this;
+    requestAnimationFrame(function() {
+      var rect = btn.getBoundingClientRect();
+      // If rect is zero (group still animating or button hidden), retry after 200ms
+      if (rect.height === 0) {
+        setTimeout(function() {
+          rect = btn.getBoundingClientRect();
+          self._placeArrow(btn, rect);
+        }, 220);
+      } else {
+        self._placeArrow(btn, rect);
+      }
+    });
+  },
+
+  _placeArrow: function(btn, rect) {
+    if (this._arrowEl && this._arrowEl.parentNode) {
+      this._arrowEl.parentNode.removeChild(this._arrowEl);
+    }
     var arrow = document.createElement('div');
     arrow.className = 'tutorial-tab-arrow';
     arrow.textContent = '👈';
-    arrow.style.top = (rect.top + rect.height / 2 - 16) + 'px';
+    arrow.style.top  = (rect.top  + rect.height / 2 - 16) + 'px';
     arrow.style.left = (rect.right + 8) + 'px';
     document.body.appendChild(arrow);
     this._arrowEl = arrow;
@@ -3940,7 +3986,7 @@ var Tutorial = {
     if (!step) { this.complete(false); return; }
     this._saveProgress();
     // Unblur background for steps requiring player interaction
-    var interactiveIds = ['adoption', 'shop', 'mypets', 'equipment', 'battle', 'minigames'];
+    var interactiveIds = ['adoption', 'shop', 'mypets', 'equipment', 'battle', 'minigames', 'fishing', 'racing', 'guild'];
     var backdrop = document.querySelector('.tutorial-backdrop');
     if (backdrop) {
       if (interactiveIds.indexOf(step.id) !== -1) {
@@ -3951,7 +3997,18 @@ var Tutorial = {
         backdrop.style.background = 'rgba(0,0,0,0.5)';
       }
     }
-    if (step.tab && typeof showTab === 'function') { showTab(step.tab); }
+    if (step.tab && typeof showTab === 'function') {
+      // Open the containing nav group BEFORE navigating so the tab is visible
+      var tabGroups = {
+        adopt:'pets', mypets:'pets', journal:'pets',
+        minigames:'games', fishing:'games', racing:'games',
+        guild:'community', friends:'community', leaderboard:'community',
+        forum:'community', stats:'community'
+      };
+      var grp = tabGroups[step.tab];
+      if (grp && typeof navGroupOpen === 'function') navGroupOpen(grp);
+      showTab(step.tab);
+    }
     var self = this;
     setTimeout(function() { self.showDialogue(0); }, 500);
   },
