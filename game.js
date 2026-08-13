@@ -2205,7 +2205,7 @@ function showMelonMessage(text, opts) {
   ].join(';');
 
   // Melon sprite (use existing companion sprite style)
-  var spriteUrl = 'images/melon.png'; // existing melon image
+  var spriteUrl = 'images/Melon2.png'; // matches the shop mascot image
   var sprite = document.createElement('div');
   sprite.style.cssText = [
     'width:72px','height:72px','flex-shrink:0',
@@ -2248,7 +2248,11 @@ function showMelonMessage(text, opts) {
 }
 
 function _melonPopupDismiss(wrap) {
-  if (!wrap || !wrap.parentNode) return;
+  if (!wrap || !wrap.parentNode) {
+    // Wrap already gone — still release the lock so future messages can show
+    _melonPopupActive = false;
+    return;
+  }
   wrap.style.bottom = '-160px';
   safeSetTimeout(function() {
     if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
@@ -2805,7 +2809,10 @@ async function loadAdopt() {
   var res = await supabaseClient.from('pets').select('*').order('created_at', {ascending:true});
   if (res.error || !res.data) { grid.textContent = 'Could not load pets.'; return; }
   grid.innerHTML = '';
-  res.data.forEach(function(pet) { grid.appendChild(makePetCard(pet)); });
+  // Always sort: real pets first (by created_at), ??? placeholders always last
+  var realPets = res.data.filter(function(p){ return p.name !== '???'; });
+  var placeholders = res.data.filter(function(p){ return p.name === '???'; });
+  realPets.concat(placeholders).forEach(function(pet) { grid.appendChild(makePetCard(pet)); });
 
   // If player arrived via streamer landing, highlight and scroll to that pet
   var suggestedPet = localStorage.getItem('suggestedFirstPet');
@@ -6879,6 +6886,21 @@ async function loadShop() {
   res.data.forEach(function(item){ var k=item.name.toLowerCase().trim(); if(!seen[k]||item.price<seen[k].price)seen[k]=item; });
   Object.values(seen).forEach(function(i){deduped.push(i);});
   
+  // Show Melon greeting on shop open (first time in session; doesn't interrupt other popups)
+  var shopMelonKey = 'melonShopGreeted_' + new Date().toISOString().slice(0,10);
+  if (!sessionStorage.getItem(shopMelonKey)) {
+    try { sessionStorage.setItem(shopMelonKey, '1'); } catch(e) {}
+    var greetings = [
+      'Welcome to the shop! Let me know if you need anything! 🍉',
+      'Psst — check the equipment tab if you want to buff up your pet! 🍉',
+      'Stock rotates weekly, so check back often! 🍉',
+      'Guild members might get a shop discount if their treasury vote passes! 🍉',
+      'Looking for healing items? Check the consumables tab! 🍉'
+    ];
+    var g = greetings[Math.floor(Math.random() * greetings.length)];
+    safeSetTimeout(function() { showMelonMessage(g, { displayMs: 10000 }); }, 800);
+  }
+  
   // MINI SEASONS: filter out seasonal items unless their season is
   // currently active AND it's their week to appear (separate 1-4 rotation
   // from the regular A/B/C weekly rotation below, see getSeasonalWeekSlot())
@@ -9968,7 +9990,13 @@ function streamerLanding_init() {
 }
 
 function streamerLanding_buildHero(member) {
-  var petImageFile = member.petName.toLowerCase() + '.png';
+  // Map pet names to their actual filenames (some differ from lowercase petName)
+  var _petImgMap = {
+    'Ember':'ember.png','Pyxie':'pyxie.png','Aria':'aria.png',
+    'Blushimia':'blushimia.png','Steve':'cowbee.png','Kleat':'kelta.png',
+    'Jess':'jess.png','Gnarly':'gnarly.png','Cypurr':'cy.png'
+  };
+  var petImageFile = _petImgMap[member.petName] || (member.petName.toLowerCase() + '.png');
   var accent = member.accentColor || '#9966ff';
   var bg = member.bgGradient || 'linear-gradient(135deg,#1a0a2e 0%,#0a0a1a 100%)';
 
@@ -10074,7 +10102,7 @@ async function loadTeamShowcase() {
   try {
     var user = currentUser;
     if (user) {
-      var pr = await supabaseClient.from('players').select('twitch_token').eq('id', user.id).single();
+      var pr = await supabaseClient.from('players').select('twitch_token').eq('id', user.id).maybeSingle();
       if (pr.data && pr.data.twitch_token) {
         var logins = TEAM_MEMBERS.map(function(m){ return 'user_login='+m.login; }).join('&');
         var resp = await fetch('https://api.twitch.tv/helix/streams?' + logins, {
