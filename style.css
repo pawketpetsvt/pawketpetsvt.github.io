@@ -18165,3 +18165,47 @@ body.night-mode .today-card,
 body.night-mode .today-card-content {
   background: rgba(255,255,255,0.04) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BATTLE SPRITE ANIMATIONS
+   Classes toggled by battleAnim_playerAttack(), battleAnim_enemyHit(), etc.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* Player lunges forward toward the enemy */
+@keyframes battleAttack {
+  0%   { transform: translateX(0)    scale(1);   }
+  25%  { transform: translateX(18px) scale(1.08); }
+  50%  { transform: translateX(10px) scale(1.04); }
+  75%  { transform: translateX(16px) scale(1.06); }
+  100% { transform: translateX(0)    scale(1);   }
+}
+
+/* Target recoils and flashes red when hit */
+@keyframes battleHit {
+  0%   { transform: translateX(0)     rotate(0deg);   filter: none; }
+  20%  { transform: translateX(-10px) rotate(-4deg);  filter: brightness(2) saturate(0); }
+  45%  { transform: translateX(6px)   rotate(2deg);   filter: brightness(1.5) hue-rotate(330deg); }
+  70%  { transform: translateX(-4px)  rotate(-1deg);  filter: brightness(1.2); }
+  100% { transform: translateX(0)     rotate(0deg);   filter: none; }
+}
+
+/* Enemy lunges toward player */
+@keyframes battleAttackEnemy {
+  0%   { transform: translateX(0)     scale(1);    }
+  25%  { transform: translateX(-16px) scale(1.07); }
+  50%  { transform: translateX(-8px)  scale(1.03); }
+  75%  { transform: translateX(-14px) scale(1.05); }
+  100% { transform: translateX(0)     scale(1);    }
+}
+
+.battle-anim-attack {
+  animation: battleAttack 0.45s ease-in-out forwards;
+}
+
+.battle-anim-hit {
+  animation: battleHit 0.4s ease-out forwards;
+}
+
+.battle-anim-attack-enemy {
+  animation: battleAttackEnemy 0.4s ease-in-out forwards;
+}

@@ -13044,11 +13044,22 @@ async function startBattleWithEnemy(petId, enemy) {
     specialVariant: enemy.specialVariant || null
   };
   
-  // BOSS ENTRANCE SEQUENCE!
+  // BOSS ENTRANCE SEQUENCE + MUSIC
+  var _isPiperBoss = enemy.is_boss && (
+    String(enemy.id) === '10' ||
+    (enemy.name && enemy.name.toLowerCase().includes('piper'))
+  );
   if (enemy.is_boss) {
-    triggerBossEntrance();
+    triggerBossEntrance();  // visual entrance
+    if (_isPiperBoss) {
+      BattleMusic.play('piper');
+    } else {
+      BattleMusic.play('boss');
+    }
+  } else {
+    BattleMusic.play('normal');
   }
-  
+
   // Continue with battle logic...
   await executeBattle(playerStats, enemyStats, petId);
 }
@@ -13293,6 +13304,40 @@ function initManualBattle(playerStats, enemyStats, petId) {
   manualBattle_setNarrative(initNarr);
 }
 
+// ─── Battle sprite animation helpers ──────────────────────────────────────
+function battleAnim_playerAttack() {
+  var sprite = document.getElementById('player-battle-sprite');
+  if (!sprite) return;
+  sprite.classList.remove('battle-anim-attack', 'battle-anim-hit');
+  void sprite.offsetWidth; // force reflow
+  sprite.classList.add('battle-anim-attack');
+  setTimeout(function() { sprite.classList.remove('battle-anim-attack'); }, 500);
+}
+function battleAnim_enemyHit() {
+  var sprite = document.getElementById('enemy-battle-sprite');
+  if (!sprite) return;
+  sprite.classList.remove('battle-anim-hit');
+  void sprite.offsetWidth;
+  sprite.classList.add('battle-anim-hit');
+  setTimeout(function() { sprite.classList.remove('battle-anim-hit'); }, 450);
+}
+function battleAnim_playerHit() {
+  var sprite = document.getElementById('player-battle-sprite');
+  if (!sprite) return;
+  sprite.classList.remove('battle-anim-hit');
+  void sprite.offsetWidth;
+  sprite.classList.add('battle-anim-hit');
+  setTimeout(function() { sprite.classList.remove('battle-anim-hit'); }, 450);
+}
+function battleAnim_enemyAttack() {
+  var sprite = document.getElementById('enemy-battle-sprite');
+  if (!sprite) return;
+  sprite.classList.remove('battle-anim-attack-enemy');
+  void sprite.offsetWidth;
+  sprite.classList.add('battle-anim-attack-enemy');
+  setTimeout(function() { sprite.classList.remove('battle-anim-attack-enemy'); }, 450);
+}
+
 function manualBattle_render() {
   var s = manualBattleState;
   if (!s) return;
@@ -13482,8 +13527,13 @@ async function _manualBattle_doTurn(type, skillIdx) {
   if (s.playerHP <= 0) { manualBattle_render(); await manualBattle_endBattle(false); return; }
 
   // ── ENEMY ACTS ────────────────────────────────────────────────────
+  var _playerHPBefore = s.playerHP;
+  battleAnim_enemyAttack(); // enemy lunges
   var enemyNarrative = manualBattle_enemyTurn(s);
   lines.push(enemyNarrative);
+  if (s.playerHP < _playerHPBefore) {
+    setTimeout(battleAnim_playerHit, 180); // player recoils after being hit
+  }
   if (s.playerHP <= 0) { s.playerHP = 0; manualBattle_render(); await manualBattle_endBattle(false); return; }
 
   // ── ENEMY STATUS TICKS ────────────────────────────────────────────
@@ -13556,6 +13606,8 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
   if (type === 'attack') {
     s.attackUseCount++;
     manualBattle_tickInfluence(8);
+    battleAnim_playerAttack(); // pet lunges forward
+    setTimeout(battleAnim_enemyHit, 220); // enemy recoils after hit lands
     var intMod = s.integrityMod || {};
     if (intMod.skillFailChance && Math.random() < intMod.skillFailChance) {
       return '⚡ Beta glitch! Attack misfires!';
@@ -13585,6 +13637,7 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
     if ((s.skillCooldowns[skill.id] || 0) > 0) return 'Skill not ready!';
     s.skillUseCount++;
     manualBattle_tickInfluence(5);
+    battleAnim_playerAttack(); // animate skill use as a player attack
     if (s.skillsUsedThisBattle && skill.id) s.skillsUsedThisBattle.add(skill.id);
     // Weekly challenges
     weeklyChallenge_increment('wk_skills_used', 1);
@@ -14505,6 +14558,7 @@ async function manualBattle_endBattle(victory) {
         tabsLoaded['mypets'] = false;
       } catch(e) { dbg('[Flee] HP save error:', e); }
     })();
+    BattleMusic.stop(true); // fade out on flee
     setTimeout(function() {
       el('battle-screen').style.display = 'none';
       el('forest-exploration').style.display = 'block';
@@ -15003,6 +15057,92 @@ var currentBattleLog = [];
 var currentBattleIndex = 0;
 var battlePlaybackInterval = null;
 var isBossBattle = false;  // Track if current battle is against a boss
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BATTLE MUSIC MANAGER
+// Handles normal fight, boss, and Piper music with smooth fade transitions.
+// Files expected at: /music/normalfightsong.mp3, /music/bossong.mp3, /music/pipersong.ogg
+// ═══════════════════════════════════════════════════════════════════════════
+var BattleMusic = {
+  _current: null,   // currently playing Audio object
+  _track:   null,   // 'normal' | 'boss' | 'piper' | null
+  _fadeTimer: null,
+
+  _files: {
+    normal: '/music/normalfightsong.mp3',
+    boss:   '/music/bossong.mp3',
+    piper:  '/music/pipersong.ogg'
+  },
+
+  // Returns true if player has sounds/music enabled
+  _enabled: function() {
+    try {
+      var s = JSON.parse(localStorage.getItem('playerSettings') || '{}');
+      // Respect both the SOUNDS_ENABLED flag and a musicEnabled flag if present
+      if (s.musicEnabled === false) return false;
+      if (s.soundsEnabled === false) return false;
+    } catch(e) {}
+    return true;
+  },
+
+  play: function(trackKey) {
+    if (!this._enabled()) return;
+    if (this._track === trackKey && this._current && !this._current.paused) return; // already playing
+    this.stop(false); // stop previous without long fade
+    this._track = trackKey;
+    var src = this._files[trackKey];
+    if (!src) return;
+    var audio = new Audio(src);
+    audio.loop    = true;
+    audio.volume  = 0;
+    audio.onerror = function() { dbg('[BattleMusic] Could not load:', src); };
+    this._current = audio;
+    audio.play().then(function() {
+      BattleMusic._fadeIn(audio);
+    }, function(e) { dbg('[BattleMusic] Autoplay blocked or error:', e); });
+  },
+
+  _fadeIn: function(audio) {
+    var target = this._track === 'piper' ? 0.28 : (this._track === 'boss' ? 0.22 : 0.18);
+    var step   = target / 20; // 20 steps
+    var ticks  = 0;
+    var timer  = setInterval(function() {
+      if (!audio || audio !== BattleMusic._current) { clearInterval(timer); return; }
+      ticks++;
+      audio.volume = Math.min(target, ticks * step);
+      if (ticks >= 20) clearInterval(timer);
+    }, 50); // 50ms * 20 = 1s fade-in
+  },
+
+  stop: function(fade) {
+    if (this._fadeTimer) { clearInterval(this._fadeTimer); this._fadeTimer = null; }
+    var audio = this._current;
+    this._current = null;
+    this._track   = null;
+    if (!audio) return;
+    if (fade === false || audio.volume < 0.01) {
+      audio.pause();
+      audio.src = '';
+      return;
+    }
+    // Fade out over 0.8 seconds
+    var startVol = audio.volume;
+    var steps = 16;
+    var ticks = 0;
+    this._fadeTimer = setInterval(function() {
+      ticks++;
+      audio.volume = Math.max(0, startVol * (1 - ticks / steps));
+      if (ticks >= steps) {
+        clearInterval(BattleMusic._fadeTimer);
+        BattleMusic._fadeTimer = null;
+        audio.pause();
+        audio.src = '';
+      }
+    }, 50);
+  }
+};
+
+
 var selectedBattlePetId = null;
 var selectedBattleZone = 'outskirts'; // Default to easy zone
 
@@ -15573,6 +15713,7 @@ function showBattleRewardsModal() {
 function closeBattleRewardsModal() {
   var modal = el('battle-rewards-modal');
   if (modal) modal.classList.remove('show');
+  BattleMusic.stop(true); // fade out when leaving rewards screen
   
   // Always reload My Pets tab to show updated HP and stats
   tabsLoaded['mypets'] = false;
@@ -15591,6 +15732,7 @@ function battleRewardDismiss() {
 }
 
 async function closeBattle() {
+  BattleMusic.stop(true); // fade out on any battle close
   // Stop sprite animation
   var enemySprite = el('enemy-battle-sprite');
   if (enemySprite) {
@@ -16821,30 +16963,15 @@ function triggerBossEntrance() {
   // Add UI fragmentation effect to entire page
   document.body.classList.add('boss-ui-glitch');
   
-  // Stop ALL audio on the page (normal music, any other sounds)
-  document.querySelectorAll('audio').forEach(function(audio) {
-    audio.pause();
-    audio.volume = 0;
+  // Music is handled by BattleMusic.play('boss'/'piper') called before triggerBossEntrance.
+  // Stop any non-battle audio that may be playing (e.g. ambient, SFX leftover).
+  document.querySelectorAll('audio:not([data-battle-music])').forEach(function(a) {
+    try { a.pause(); } catch(e) {}
   });
-  
-  // Play boss theme at lower volume
   if (!window.bossThemeAudio) {
-    window.bossThemeAudio = new Audio('/boss-theme.mp3');
-    window.bossThemeAudio.loop = true;
-    window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
-    window.bossThemeAudio.onerror = function() {
-      dbg('⚠️ Boss music file not found: /boss-theme.mp3');
-      dbg('💡 Upload boss-theme.mp3 to your repo root to enable boss music!');
-    };
+    window.bossThemeAudio = { pause: function(){}, volume: 0 }; // stub — replaced by BattleMusic
   }
-  window.bossThemeAudio.currentTime = 0;
-  window.bossThemeAudio.volume = 0.16;  // Reduced 20% (was 0.20)
-  
-  window.bossThemeAudio.play().then(function() {
-    dbg('🎵 Boss music playing!');
-  }).catch(function(err) {
-    dbg('⚠️ Boss music failed to play:', err.message);
-  });
+  // BattleMusic.play() called before triggerBossEntrance handles all audio.
   
   // Add screen glitch effect - STAYS FOR ENTIRE FIGHT!
   var glitchOverlay = document.createElement('div');
@@ -22739,12 +22866,19 @@ function getStreakMultiplier(petId, zone) {
 
 async function checkSecretDiscovery(petId, zone, streak) {
   try {
+    // Fetch all secrets for this zone — filter streak requirement client-side
+    // (avoids 400 if column name differs slightly between environments)
     var secretsRes = await supabaseClient
       .from('exploration_secrets')
       .select('*')
-      .eq('zone', zone)
-      .lte('required_expedition_count', streak).then(null, function(){ return {data:null}; });
-    var secrets = secretsRes && secretsRes.data;
+      .eq('zone', zone);
+    if (secretsRes.error) { dbg('[Secrets] query error:', secretsRes.error.message); return; }
+    var allSecrets = secretsRes.data || [];
+    // Support both 'required_expedition_count' and 'min_expeditions' column names
+    var secrets = allSecrets.filter(function(s) {
+      var threshold = s.required_expedition_count || s.min_expeditions || s.expedition_count || 0;
+      return streak >= threshold;
+    });
     if (!secrets || secrets.length === 0) return;
 
     // Check which secrets haven't been discovered by this user yet
