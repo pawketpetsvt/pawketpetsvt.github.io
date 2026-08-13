@@ -330,7 +330,9 @@ var STREAMER_IDS = {
   cowbee:    '203845195',
   kelta:     '121490227',
   jess:      '88727356',
-  gnarly:    '531222973'
+  gnarly:    '531222973',
+  cypurr:    '755193792',
+  cypurractive: '755193792'
 };
 
 // ── GLOBALS ──────────────────────────────
@@ -696,6 +698,7 @@ var petBackstories = {
   'Kleat': 'A grand mage studying void and galaxy magic! Can open portals to anywhere! ✨🌌',
   'Gnarly': 'A radical gal running the PaleoPlex arcade! Loves Furbies and nachos! 🎮🦖',
   'Aria': 'A rosy maple moth fae who collects bones! Don\'t worry, she lets you keep yours until you\'re done with them. 🦋💀',
+  'Cypurr': 'A cybergoth catgirl whose consciousness was uploaded to the internet! She streams from cyberspace while her body rests safely in stasis. 🐱💜',
 };
 
 /**
@@ -4416,6 +4419,40 @@ var PET_PERSONALITIES = {
     missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
   },
 
+  'Cypurr': {
+    thriving: [
+      "FULLY ONLINE. All systems green. Vibes: maximum. OwO 💜",
+      "Thriving in cyberspace! Connection stable, heart full. ^o^",
+      "Digital bliss! The internet is kind today and I am FED. 🐱",
+      "Everything is good! I may be made of data but I feel very real right now. 💻",
+    ],
+    happy: [
+      "Pretty good! The signal is strong and my whiskers are pointing up. OwO",
+      "Happy! Exploring the network and finding nice things. ^o^",
+      "Doing well! Someone said something sweet in chat. 💜",
+      "Good connection, good mood. This is nice. 🐱",
+    ],
+    meh: [
+      "Low signal. Could use a snack and a buffering spinner to stare at.",
+      "Okay. The lag is emotional today. OwO?",
+      "Medium mood. Sending a help request. Please respond. ^-^",
+      "Existing in the background processes. Not crashing. Just... paused. 💜",
+    ],
+    sad: [
+      "Connection unstable. Feeling the packet loss today. ;-;",
+      "Low energy. Missing the physical world a little bit.",
+      "The internet is vast and cold and I would like a fish please. 🐱",
+      "404: happiness not found. Please send snacks and kind words. OwO",
+    ],
+    neglected: [
+      "I have sent seventeen help requests. My uptime is suffering.",
+      "Still here. Still waiting. The ping is through the roof. ;-;",
+      "I uploaded my consciousness to the internet for THIS?? Feed me. 💜",
+      "Even my digital whiskers are drooping. Please. OwO",
+    ],
+    missed_you: "Cypurr's ears perk up and her tail flicks. 'OH! You're back online! I was starting to think you disconnected. ...I'm glad you're back.' OwO 💜",
+  },
+
   'Jess': {
     thriving: [
       "Thriving! The potions are working and the fossils are beautiful today. 🦕",
@@ -7532,6 +7569,19 @@ var petFoodPreferences = {
     catchphrase: 'High score? Watch me. 🎮',
     secret_talent: 'Has never lost a game of Pac-Man. Not once.'
   },
+
+  'Cypurr': {
+    loved_item: 'Grilled Salmon',
+    liked_item: 'Honey Cookies',
+    disliked_item: 'Spicy Burrito',
+    hated_item: 'Fresh Bread',
+    hobby: 'Digital art and gaming from the internet',
+    fun_fact: 'Her consciousness was uploaded to cyberspace as part of a medical experiment!',
+    sleep_habit: 'night owl',
+    weather_preference: 'loves rain',
+    catchphrase: 'OwO and ^o^ are my whole personality. 💜',
+    secret_talent: 'Can block and report anyone in under three seconds flat'
+  },
   
   'Jess': {
     loved_item: 'Mango Delight',
@@ -9863,6 +9913,17 @@ var TEAM_MEMBERS = [
     bio: 'A neon Smilodon with retro arcade energy. Gnarly streams games with big personality and zero chill, in the best way.',
     accentColor: '#ff4488', bgGradient: 'linear-gradient(135deg,#1a0d00 0%,#1a001a 100%)',
     socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/gnarly_neon_smilodon', icon: '🎮' }]
+  },
+  {
+    name: 'CypurrActive', login: 'cypurractive', twitchUrl: 'https://twitch.tv/cypurractive',
+    petName: 'Cypurr', twitchId: '755193792',
+    bio: 'Cybergoth Vtuber, Gamer, and Artist! Her consciousness was uploaded to the internet — she streams from cyberspace while her body rests in stasis.',
+    accentColor: '#a855d7', bgGradient: 'linear-gradient(135deg,#1a0033 0%,#0d0020 100%)',
+    socialLinks: [
+      { label: 'Twitch',   url: 'https://www.twitch.tv/cypurractive',         icon: '🎮' },
+      { label: 'YouTube',  url: 'https://www.youtube.com/@cypurractive',       icon: '▶️' },
+      { label: 'TikTok',   url: 'https://www.tiktok.com/@cypurractive',        icon: '🎵' }
+    ]
   }
 ];
 
@@ -10045,7 +10106,8 @@ async function loadTeamShowcase() {
       'Steve': 'cowbee.png',
       'Kleat': 'kelta.png',
       'Jess': 'jess.png',
-      'Gnarly': 'gnarly.png'
+      'Gnarly': 'gnarly.png',
+      'Cypurr': 'cy.png'
     };
     
     var imageName = petImageMap[member.petName] || member.petName.toLowerCase() + '.png';
@@ -12214,6 +12276,22 @@ var PET_SKILLS = {
       flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
   ],
 
+  cypurr: [
+    { id: 'blocked_reported', name: 'Blocked & Reported', icon: '🚫', unlockLevel: 1, cooldown: 2,
+      damageMult: 0, evasionBuff: 0.40, defBuff: { amount: 0.20, turns: 3 },
+      desc: 'No damage. 40% chance the next enemy attack misses. +20% Defense for 3 turns.',
+      flavor: "Blocked. Reported. Goodbye. 🚫" },
+    { id: 'ragebait', name: 'Ragebait', icon: '😤', unlockLevel: 5, cooldown: 3,
+      damageMult: 0, status: { type: 'confuse', chance: 0.60 }, taunt: { turnsAtkDebuff: -0.15, turns: 2 },
+      desc: 'No damage. 60% chance to Confuse enemy (30% miss chance for 2 turns). Enemy also loses 15% Attack for 2 turns.',
+      flavor: "You fell for it. You always fall for it. OwO" },
+    { id: 'like_and_subscribe', name: 'Like & Subscribe', icon: '💜', unlockLevel: 10, cooldown: 4,
+      damageMult: 0, healPct: 0.30, teamHealChance: { chance: 1.0 },
+      atkBuff: { amount: 0.10, turns: 3 }, defBuff: { amount: 0.10, turns: 3 },
+      desc: 'No damage. Restores 30% max HP. Gain +10% Attack and +10% Defense for 3 turns.',
+      flavor: "Subscribe for more heals. Follow for the glow-up. 💜" }
+  ],
+
   jess: [
     { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 1,
       damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
@@ -12266,7 +12344,8 @@ function getSkillsForPet(petName, petLevel) {
   // Handle name variants: pyxshuul → pyxie name in DB
   var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
     gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
-    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve' };
+    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve',
+    cypurr: 'cypurr', cypurractive: 'cypurr' };
   var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
   if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
   return PET_SKILLS[mappedKey].filter(function(s) { return (petLevel || 1) >= s.unlockLevel; });
@@ -18911,7 +18990,10 @@ var CompanionBuddy = {
       "Let's go on an adventure! 🌟",
       "I love spending time with you! 🎉",
       "What should we do next? 🤔",
-      "This is so cozy! 🛏️"
+      "This is so cozy! 🛏️",
+      "OwO what's this? 💜",
+      "^o^ Enjoying the internet today!",
+      "Signal strong. Vibes: immaculate. 💻"
     ],
     shop: [
       "Ooh, that looks tasty! 🍕",
@@ -19403,7 +19485,7 @@ document.addEventListener('DOMContentLoaded', function() {
 // ══════════════════════════════════════════════════════════════════════════
 
 var currentJournalPage = 0;
-var journalPetTypes = ['Ember', 'Pyxie', 'Steve', 'Kleat', 'Blushimia', 'Aria', 'Gnarly', 'Jess'];
+var journalPetTypes = ['Ember', 'Pyxie', 'Steve', 'Kleat', 'Blushimia', 'Aria', 'Gnarly', 'Jess', 'Cypurr'];
 var journalDiscoveries = {}; // { petType: { loved: true, liked: false, ... } }
 
 async function loadJournalDiscoveries() {
@@ -19490,7 +19572,8 @@ function renderJournalPage() {
     'Blushimia': 'blushimia.png',
     'Aria':      'aria.png',
     'Jess':      'jess.png',
-    'Gnarly':    'gnarly.png'
+    'Gnarly':    'gnarly.png',
+    'Cypurr':    'cy.png'
   };
   
   var imageSrc = 'images/pets/' + (petImageMap[petType] || petType.toLowerCase() + '.png');
@@ -23436,6 +23519,13 @@ var STREAMER_PHANTOMS = [
     interference: { bronze:6,  silver:9,  gold:13, diamond:17, champion:21 },
     resilience:   { bronze:6,  silver:9,  gold:13, diamond:17, champion:21 },
     stamina:      { bronze:6,  silver:8,  gold:11, diamond:14, champion:17 }
+  },
+  { id:'ph_cypurr',  name:"Cypurr's Catgirl",     emoji:'💜', streamer:'cypurractive',
+    personality:'steady',
+    pace:   { bronze:35, silver:44, gold:55, diamond:67, champion:79 },
+    interference: { bronze:5,  silver:7,  gold:10, diamond:14, champion:18 },
+    resilience:   { bronze:14, silver:19, gold:26, diamond:34, champion:42 },
+    stamina:      { bronze:10, silver:13, gold:17, diamond:22, champion:27 }
   }
 ];
 
@@ -32806,7 +32896,7 @@ function onCompanionMessage() {
 // ── PAT / PET GIMMICK ────────────────────────────────────────────────────────
 // Click the floating companion sprite to spawn stacking *PAT* / *PET* text.
 // Pure visual — no game mechanics, just fun.
-var _patMessages = ['*PAT*', '*PET*', '*BOOP*', '*SCRITCH*', '*PAT PAT*', '♥', '(^・ω・^)'];
+var _patMessages = ['*PAT*', '*PET*', '*BOOP*', '*SCRITCH*', '*PAT PAT*', '♥', '(^・ω・^)', 'OwO', '^o^', '💜'];
 var _patIndex = 0;
 
 function companionPat(evt) {
@@ -36363,7 +36453,7 @@ async function screenshot_generate(petId) {
     var imgLoaded = false;
     var imgPaths = [];
     if (species.image_file) imgPaths.push('images/' + species.image_file);
-    var nameMap = { Ember:'ember.png', Pyxie:'pyxie.png', Steve:'cowbee.png', Kleat:'kelta.png', Blushimia:'blushimia.png', Aria:'aria.png', Jess:'jess.png', Gnarly:'gnarly.png' };
+    var nameMap = { Ember:'ember.png', Pyxie:'pyxie.png', Steve:'cowbee.png', Kleat:'kelta.png', Blushimia:'blushimia.png', Cypurr:'cy.png', Aria:'aria.png', Jess:'jess.png', Gnarly:'gnarly.png' };
     if (nameMap[petType]) imgPaths.push('images/pets/' + nameMap[petType]);
     imgPaths.push('images/pets/' + petType.toLowerCase() + '.png');
     imgPaths.push('images/pets/' + petType.toLowerCase() + '.gif');
@@ -38694,6 +38784,17 @@ var TEAM_MEMBERS = [
     bio: 'A neon Smilodon with retro arcade energy. Gnarly streams games with big personality and zero chill, in the best way.',
     accentColor: '#ff4488', bgGradient: 'linear-gradient(135deg,#1a0d00 0%,#1a001a 100%)',
     socialLinks: [{ label: 'Twitch', url: 'https://twitch.tv/gnarly_neon_smilodon', icon: '🎮' }]
+  },
+  {
+    name: 'CypurrActive', login: 'cypurractive', twitchUrl: 'https://www.twitch.tv/cypurractive',
+    petName: 'Cypurr', twitchId: '755193792',
+    bio: 'Cybergoth Vtuber, Gamer, and Artist! Her consciousness was uploaded to the internet — she streams from cyberspace while her body rests in stasis.',
+    accentColor: '#a855d7', bgGradient: 'linear-gradient(135deg,#1a0033 0%,#0d0020 100%)',
+    socialLinks: [
+      { label: 'Twitch',   url: 'https://www.twitch.tv/cypurractive',         icon: '🎮' },
+      { label: 'YouTube',  url: 'https://www.youtube.com/@cypurractive',       icon: '▶️' },
+      { label: 'TikTok',   url: 'https://www.tiktok.com/@cypurractive',        icon: '🎵' }
+    ]
   }
 ];
 
