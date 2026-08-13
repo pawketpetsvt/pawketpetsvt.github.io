@@ -4038,14 +4038,14 @@ body::after {
 }
 
 .battle-sprite {
-  image-rendering: pixelated;
-  image-rendering: -moz-crisp-edges;
-  image-rendering: crisp-edges;
-  width: 64px;
-  height: 64px;
+  image-rendering: auto;
+  width: 100px;
+  height: 100px;
   /* background-size now set dynamically via JavaScript */
   background-repeat: no-repeat !important;  /* CRITICAL: Prevent tiling */
-  overflow: hidden !important;  /* CRITICAL: Hide frames outside viewport */
+  background-size: contain !important;
+  background-position: center !important;
+  overflow: visible !important;  /* CRITICAL: Hide frames outside viewport */
   display: block !important;  /* CRITICAL: Proper block display */
   transition: transform 0.1s ease;
 }

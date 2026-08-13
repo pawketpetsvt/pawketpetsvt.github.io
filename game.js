@@ -1688,6 +1688,10 @@ function showTab(tab) {
   }
   // CRITICAL: Clean up all timers when switching tabs to prevent memory leaks
   cleanupAllTimers();
+  // Stop battle music if navigating away from battle tab
+  if (tab !== 'battle' && typeof BattleMusic !== 'undefined' && BattleMusic._track) {
+    BattleMusic.stop(true);
+  }
 
   // WISHES: shop visit — check for any pet that has a visit_shop wish
   if (tab === 'shop' && currentUser) {
@@ -1748,8 +1752,12 @@ function showTab(tab) {
     tabsLoaded['friends'] = false;
     loadTab('friends');
   } else if (tab === 'battle') {
-    // Always run both systems when battle tab opens
-    setTimeout(function() { loadBattlePets(); }, 100);
+    // Only reload pet list if not recently loaded (prevents jarring flicker on re-visit)
+    var _now = Date.now();
+    if (!window._battlePetsLoadedAt || _now - window._battlePetsLoadedAt > 30000) {
+      window._battlePetsLoadedAt = _now;
+      setTimeout(function() { loadBattlePets(); }, 100);
+    }
     setTimeout(function() { battleExp_init(); }, 150);
   } else if (!tabsLoaded[tab]) { 
     tabsLoaded[tab] = true; 
@@ -2086,13 +2094,13 @@ function showAuth() {
 
 async function updateSidebarStats() {
   if (!currentUser) return;
-  // Skip re-query if player data was just fetched (within 30 seconds of login)
+  // Apply cached PP/username if fresh (within 30s) but always continue to fetch pets/items/streak
   if (window._cachedPlayerData && window._cachedPlayerDataTime &&
       Date.now() - window._cachedPlayerDataTime < 30000) {
     if (window._cachedPlayerData.username) currentUsername = window._cachedPlayerData.username;
     if (window._cachedPlayerData.pawketpoints !== undefined) updateAllPoints(window._cachedPlayerData.pawketpoints);
     window._cachedPlayerData = null;
-    return;
+    // Do NOT return here — continue to fetch pet count, items, streak below
   }
   
   try {
@@ -6886,19 +6894,19 @@ async function loadShop() {
   res.data.forEach(function(item){ var k=item.name.toLowerCase().trim(); if(!seen[k]||item.price<seen[k].price)seen[k]=item; });
   Object.values(seen).forEach(function(i){deduped.push(i);});
   
-  // Show Melon greeting on shop open (first time in session; doesn't interrupt other popups)
-  var shopMelonKey = 'melonShopGreeted_' + new Date().toISOString().slice(0,10);
-  if (!sessionStorage.getItem(shopMelonKey)) {
-    try { sessionStorage.setItem(shopMelonKey, '1'); } catch(e) {}
-    var greetings = [
-      'Welcome to the shop! Let me know if you need anything! 🍉',
-      'Psst — check the equipment tab if you want to buff up your pet! 🍉',
-      'Stock rotates weekly, so check back often! 🍉',
-      'Guild members might get a shop discount if their treasury vote passes! 🍉',
-      'Looking for healing items? Check the consumables tab! 🍉'
-    ];
-    var g = greetings[Math.floor(Math.random() * greetings.length)];
-    safeSetTimeout(function() { showMelonMessage(g, { displayMs: 10000 }); }, 800);
+  // Update the Melon mascot dialogue bubble every shop visit (always visible, no popup needed)
+  var greetings = [
+    'Welcome to the shop! Let me know if you need anything! 🍉',
+    'Psst — check the equipment tab if you want to buff up your pet! 🍉',
+    'Stock rotates weekly, so check back often! 🍉',
+    'Guild members might get a shop discount if their treasury vote passes! 🍉',
+    'Looking for healing items? Check the consumables tab! 🍉',
+    'Got a promo code? Head to the Redeem tab! 🍉',
+    'Feeding your pets different foods unlocks Journal entries! 🍉'
+  ];
+  var _melonDialogue = document.getElementById('melon-dialogue');
+  if (_melonDialogue) {
+    _melonDialogue.textContent = greetings[Math.floor(Math.random() * greetings.length)];
   }
   
   // MINI SEASONS: filter out seasonal items unless their season is
@@ -9293,8 +9301,22 @@ function autoFisherRenderWidget() {
     });
     mount.innerHTML = html;
   } else {
-    var tier = AUTO_FISHER_TIERS[_autoFisherLevel - 1];
-    mount.innerHTML = '<div style="color:var(--purple-dark);font-weight:700">🤖 ' + tier.name + ' Auto-Fisher active</div><div style="font-size:0.8rem;color:var(--text-light)">' + tier.desc + '</div>';
+    // Show all tiers: owned tier marked, higher tiers upgradeable
+    var html = '<div style="font-weight:700;margin-bottom:8px;color:var(--purple-dark);">🤖 Auto-Fisher</div>';
+    AUTO_FISHER_TIERS.forEach(function(tier, i) {
+      var tierLevel = i + 1;
+      if (tierLevel < _autoFisherLevel) {
+        // Lower tier — already owned, superseded
+        html += '<div style="padding:6px 0;opacity:0.5;"><b>' + tier.name + '</b>: ' + tier.desc + ' <span style="color:var(--green);font-size:0.8rem;">✓ Owned</span></div>';
+      } else if (tierLevel === _autoFisherLevel) {
+        // Currently active tier
+        html += '<div style="padding:6px 0;background:rgba(153,102,255,0.1);border-radius:8px;padding:8px;"><b>' + tier.name + '</b>: ' + tier.desc + ' <span style="color:var(--purple);font-weight:700;">✓ Active</span></div>';
+      } else {
+        // Higher tier — upgradeable
+        html += '<div style="padding:6px 0"><b>' + tier.name + '</b>: ' + tier.desc + ' <button class="btn btn-sm" onclick="autoFisherPurchase(' + tierLevel + ')" title="Upgrade to ' + tier.name + '">' + tier.cost + ' PP Upgrade</button></div>';
+      }
+    });
+    mount.innerHTML = html;
   }
 }
 
@@ -9302,7 +9324,7 @@ async function autoFisherPurchase(level) {
   var tier = AUTO_FISHER_TIERS[level - 1];
   if (!tier || currentPoints < tier.cost) { showToast('Not enough PP!'); return; }
   try {
-    await supabaseClient.rpc('award_pp_secure', { p_amount: -tier.cost, p_reason: 'auto_fisher_purchase' });
+    await supabaseClient.rpc('spend_pp_secure', { p_amount: tier.cost, p_reason: 'auto_fisher_purchase' });
     await supabaseClient.from('players').update({ auto_fisher_level: level }).eq('id', currentUser.id);
     _autoFisherLevel = level;
     updateAllPoints(currentPoints - tier.cost);
@@ -13320,7 +13342,7 @@ function initManualBattle(playerStats, enemyStats, petId) {
   var pSprite = el('player-battle-sprite');
   if (pSprite && playerStats.imageFile) {
     pSprite.style.backgroundImage = 'url(images/' + playerStats.imageFile + ')';
-    pSprite.style.backgroundSize = 'cover';
+    pSprite.style.backgroundSize = 'contain';
     pSprite.style.backgroundPosition = 'center';
     pSprite.textContent = '';
   }
@@ -13751,6 +13773,10 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
     var archMult  = manualBattle_dmgMultiplier(s, isCorrEnemy);
     var finalDmg  = Math.max(1, Math.round(rawDmg * (isNaN(archMult) ? 1 : archMult)));
     s.enemyHP     = Math.max(0, s.enemyHP - finalDmg);
+    // Play hit SFX based on variance (light/normal/crit)
+    var _pVariance = (dmgResult && !isNaN(dmgResult.variance)) ? dmgResult.variance : 0;
+    if (dmgResult && dmgResult.isCrit) _pVariance = 1;
+    playBattleSound(getBattleSoundKey('player', _pVariance));
     var line = ((dmgResult && dmgResult.isCrit) ? '⚡ CRITICAL! ' : '') + s.playerStats.name + ' attacks for ' + finalDmg + ' damage!';
     if (archMult > 1.05) line += ' (Archive boost!)';
     var passiveLines = manualBattle_applyEquipPassives(s, finalDmg);
@@ -13768,6 +13794,7 @@ function manualBattle_resolvePlayerAction(type, skillIdx, s) {
     s.skillUseCount++;
     manualBattle_tickInfluence(5);
     battleAnim_playerAttack(); // animate skill use as a player attack
+    playBattleSound('playerNormal'); // skills use normal hit sound
     if (s.skillsUsedThisBattle && skill.id) s.skillsUsedThisBattle.add(skill.id);
     // Weekly challenges
     weeklyChallenge_increment('wk_skills_used', 1);
@@ -14410,6 +14437,11 @@ function manualBattle_enemyTurn(s) {
   s.playerHP     = Math.max(0, s.playerHP - dmg);
   s.totalDamageTaken += dmg;
 
+  // Play enemy hit SFX based on variance
+  var _eVariance = (atkResult && !isNaN(atkResult.variance)) ? atkResult.variance : 0;
+  if (atkResult && atkResult.isCrit) _eVariance = 1;
+  var _eIsBoss = !!(enemy && (enemy.is_boss || (enemy.name && enemy.name.includes('Piper'))));
+  playBattleSound(getBattleSoundKey(_eIsBoss ? 'boss' : 'enemy', _eVariance));
   var line = (atkLabel ? atkLabel + ' ' : '') + enemy.name + ' attacks for ' + dmg + ' damage!';
   if (defend.lines.length) line += ' ' + defend.lines.join(' ');
 
@@ -14725,7 +14757,32 @@ async function manualBattle_endBattle(victory) {
   }
   manualBattle_setNarrative(resultText);
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
-  BattleMusic.stop(true); // fade out battle music on victory or defeat
+  if (victory) {
+    // Play victory fanfare, then resume theme
+    BattleMusic.stop(false); // cut battle music immediately on win
+    safeSetTimeout(function() {
+      var vic = new Audio('/music/victory.mp3');
+      vic.volume = 0.30;
+      vic.onerror = function() {
+        // victory.mp3 missing — just resume theme
+        var bg = document.getElementById('bg-music');
+        if (bg && BattleMusic._bgWasPlaying) { bg.play().then(null,function(){}); BattleMusic._bgWasPlaying = false; }
+      };
+      vic.play().then(function() {
+        vic.onended = function() {
+          var bg = document.getElementById('bg-music');
+          if (bg) { bg.play().then(null, function(){}); }
+          BattleMusic._bgWasPlaying = false;
+        };
+      }, function() {
+        // autoplay blocked — just resume theme
+        var bg = document.getElementById('bg-music');
+        if (bg && BattleMusic._bgWasPlaying) { bg.play().then(null,function(){}); BattleMusic._bgWasPlaying = false; }
+      });
+    }, 200);
+  } else {
+    BattleMusic.stop(true); // fade out battle music on defeat
+  }
 
   // Build battleResult for existing reward system
   var battleResult = {
@@ -16456,6 +16513,7 @@ async function goExploring() {
     showPixelToast('Select a pet first!', 'warning');
     return;
   }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
   
   // Check daily energy cap
   var today = new Date().toISOString().split('T')[0];
