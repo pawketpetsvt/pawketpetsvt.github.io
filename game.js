@@ -1653,7 +1653,7 @@ function navGroupHover(id, entering) {
   // Hover disabled — nav groups now open/close only on click (navGroupToggle)
 }
 
-function showBetaIntegrityInfo() { showToast("🖥️ Beta Integrity: Stability of the simulation. Low = Piper gains influence.", 5000); }
+function showBetaIntegrityInfo() { showToast("🖥️ Beta Integrity: Measures simulation stability. As it degrades, something in the code... wakes up.", 5000); }
 
 function shopNav_toggle() {
   var piperBtn = document.getElementById('sidebar-btn-piper-shop');
@@ -1743,6 +1743,10 @@ function showTab(tab) {
     loadMyProfile();
   } else if (tab === 'profile' && window.currentProfileUsername) {
     loadProfile(window.currentProfileUsername);
+  } else if (tab === 'friends') {
+    // Always refresh friends list on tab open (list changes dynamically)
+    tabsLoaded['friends'] = false;
+    loadTab('friends');
   } else if (tab === 'battle') {
     // Always run both systems when battle tab opens
     setTimeout(function() { loadBattlePets(); }, 100);
@@ -1781,6 +1785,7 @@ function loadTab(tab) {
   else if (tab === 'guild') loadGuildPage();
   else if (tab === 'racing') racing_init();
   else if (tab === 'housing') room_init();
+  else if (tab === 'friends') { updateFriendRequestBadge().catch(function(){}); switchFriendsTab('list'); }
   // Note: leaderboard and myprofile handled in showTab()
 }
 
@@ -2219,7 +2224,7 @@ function showMelonMessage(text, opts) {
     'border-radius:16px 16px 16px 4px',
     'padding:10px 14px',
     'font-size:0.82rem','line-height:1.5',
-    'max-width:260px',
+    'max-width:320px','width:max-content','max-width:min(320px,70vw)',
     'box-shadow:0 4px 16px rgba(0,0,0,0.15)',
     'pointer-events:auto','cursor:pointer',
     'font-family:inherit',
@@ -2238,7 +2243,7 @@ function showMelonMessage(text, opts) {
   safeSetTimeout(function() { wrap.style.bottom = '12px'; }, 50);
 
   // Auto-dismiss after display time
-  var displayMs = opts.displayMs || 9000;
+  var displayMs = opts.displayMs || 12000; // 12s default, shop messages stay longer
   safeSetTimeout(function() { _melonPopupDismiss(wrap); }, displayMs);
 }
 
@@ -18089,7 +18094,7 @@ async function sendFriendRequest() {
       'friend_request',
       '👋 Friend Request',
       (currentUsername || 'Someone') + ' sent you a friend request!',
-      '/friends',
+      'tab:friends',
       currentUser.id
     ).then(null, function(){});
     
@@ -19871,10 +19876,9 @@ loadProfile = async function(username) {
 };
 
 // Add friends tab to tabsLoaded
-tabsLoaded.friends = function() {
-  updateFriendRequestBadge();
-  switchFriendsTab('list');
-};
+// Friends tab now handled by loadTab routing above.
+// Reset on each visit so the list always refreshes:
+// (tabsLoaded.friends remains false/undefined so loadTab fires every time)
 
 // Poll for friend requests every 30 seconds
 safeSetInterval(updateFriendRequestBadge, 300000);
@@ -26059,7 +26063,7 @@ postGuestbookMessage = async function() {
         'guestbook_message',
         'New Guestbook Message',
         username + ' left a message on your guestbook!',
-        'tab:profile',
+        'tab:myprofile',
         currentUser.id
       );
     }
@@ -30187,7 +30191,11 @@ function renderEventCalendar(mountId) {
   days.forEach(function(d) {
     var ev = EVENT_CALENDAR[d];
     var isToday = d === today;
-    html += '<div class="event-cal-day' + (isToday ? ' event-cal-today' : '') + '" title="' + ev.name + ': ' + ev.bonus + '">' +
+    var dayClickHandler = 'showToast(\'' + ev.icon + ' ' + ev.name.replace(/\'/g, '') + ': ' + ev.bonus.replace(/\'/g, '') + '\', 4000)';
+    html += '<div class="event-cal-day' + (isToday ? ' event-cal-today' : '') + '"' +
+      ' title="' + ev.name + ': ' + ev.bonus + '"' +
+      ' onclick="' + dayClickHandler + '"' +
+      ' style="cursor:pointer;">' +
       '<div class="event-cal-day-label">' + dayShort[d] + '</div>' +
       '<div class="event-cal-day-icon">' + ev.icon + '</div>' +
     '</div>';
@@ -32868,24 +32876,36 @@ function petPat(spriteEl) {
   _petPatCount++;
 
   var text = _petPatTexts[Math.floor(Math.random() * _petPatTexts.length)];
-  var span = document.createElement('span');
-  span.className = 'pet-pat-text';
-  span.textContent = text;
-
-  // Random horizontal spread from click point
-  var offsetX = (Math.random() - 0.5) * 60;
-  span.style.left = 'calc(50% + ' + offsetX + 'px)';
-  span.style.bottom = '100%';
-
-  // Alternate colors
   var colors = ['var(--pink)','var(--purple)','#ff9f43','#5dde7a'];
-  span.style.color = colors[Math.floor(Math.random() * colors.length)];
+  var color  = colors[Math.floor(Math.random() * colors.length)];
 
-  spriteEl.style.position = 'relative'; // ensure parent is positioned
-  spriteEl.appendChild(span);
+  // Get sprite position in viewport — append to body so text escapes any clipping container
+  var rect   = spriteEl.getBoundingClientRect();
+  var x = rect.left + rect.width  / 2 + (Math.random() - 0.5) * 50;
+  var y = rect.top  - 8; // start just above the sprite, then float UP
 
-  span.addEventListener('animationend', function() {
-    if (span.parentNode) span.parentNode.removeChild(span);
+  var el = document.createElement('div');
+  el.textContent = text;
+  el.style.cssText = [
+    'position:fixed',
+    'left:' + x + 'px',
+    'top:'  + y + 'px',
+    'transform:translateX(-50%)',
+    'pointer-events:none',
+    'z-index:9999',
+    'font-size:1.1rem',
+    'font-weight:800',
+    'color:' + color,
+    'font-family:Chewy,Fredoka One,sans-serif',
+    'white-space:nowrap',
+    'text-shadow:0 1px 6px rgba(0,0,0,0.25)',
+    'animation:companionPatFloat 1.4s ease-out forwards'
+  ].join(';');
+
+  document.body.appendChild(el);
+
+  el.addEventListener('animationend', function() {
+    if (el.parentNode) el.parentNode.removeChild(el);
     _petPatCount = Math.max(0, _petPatCount - 1);
   });
 }

@@ -4211,6 +4211,7 @@ body::after {
   bottom: 0;
   z-index: 9999;
   pointer-events: none;
+  width: 680px;      /* wide enough for bubble (280px) + gap + image (350px) */
 }
 
 .mascot-image {
@@ -4229,8 +4230,10 @@ body::after {
   border: 3px solid var(--purple);
   border-radius: 16px;
   padding: 16px 20px; /* Slightly smaller padding */
-  max-width: 280px; /* Reduced from 330px */
-  font-size: 1.15rem; /* Reduced from 1.35rem */
+  max-width: 300px;
+  width: max-content;
+  max-width: min(300px, 45vw);
+  font-size: 1.05rem;
   font-weight: 600;
   color: var(--text-dark);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -18208,4 +18211,11 @@ body.night-mode .today-card-content {
 
 .battle-anim-attack-enemy {
   animation: battleAttackEnemy 0.4s ease-in-out forwards;
+}
+
+/* Companion / pet pat floating text — body-appended, escapes all clipping */
+@keyframes companionPatFloat {
+  0%   { opacity: 1;   transform: translateX(-50%) translateY(0)     scale(1);    }
+  50%  { opacity: 1;   transform: translateX(-50%) translateY(-36px)  scale(1.15); }
+  100% { opacity: 0;   transform: translateX(-50%) translateY(-72px)  scale(0.85); }
 }
