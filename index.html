@@ -1058,6 +1058,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-settings" onclick="showTab('settings');navGroupClose('more')">⚙️ Settings</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-archive" onclick="argLogs_showArchive();navGroupClose('more')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
             <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more')">📋 Weekly Challenges</button>
+            <button class="sidebar-nav-btn child" onclick="window.open('https://tally.so/r/0Q0ADQ','_blank');navGroupClose('more')" style="color:#ff9f43;font-weight:700;">📝 Give Feedback</button>
           </div>
         </div>
 
@@ -1119,6 +1120,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
               <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
               <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
+            <button class="sidebar-nav-btn child" onclick="window.open('https://tally.so/r/0Q0ADQ','_blank');navGroupClose('more-mobile')" style="color:#ff9f43;font-weight:700;">📝 Give Feedback</button>
             </div>
           </div>
 
@@ -3813,9 +3815,10 @@ var Tutorial = {
 
   steps: [
     {id:'welcome', tab:'home', dialogue:[
-      {text:"Hi! I'm Melon 🍈 — your guide to PawketPets! I'll walk you through the basics so you feel right at home.", mascot:"excited"},
-      {text:"This is your Home page. Your daily login bonus, Melon's requests, world events, and tips all show up right here!", mascot:"explaining", highlightTab:"home"},
-      {text:"You'll earn PawketPoints — PP — by playing, and you can see your stats in the bottom-left corner. Ready? Let's get you a pet!", mascot:"excited"}
+      {text:"Hi! I'm Melon 🍈 — welcome to PawketPets! You've been accepted into the beta!", mascot:"excited"},
+      {text:"Fair warning: the game isn't fully finished. The code is... fragmenting. You'll see a Beta Integrity bar — that tracks how stable things are. But don't worry, your presence here actually helps stabilize it.", mascot:"worried"},
+      {text:"Things will get better with time. And there may be... something watching the cracks. But we don't need to talk about that right now! Let's focus on getting you a pet!", mascot:"serious"},
+      {text:"This is your Home page. Your daily login bonus, my requests, world events, and tips all show up here. You can see your stats in the bottom-left corner too!", mascot:"explaining", highlightTab:"home"}
     ]},
     {id:'adoption', tab:'adopt', dialogue:[
       {text:"Welcome to the Adoption Center! 🐾 Each pet belongs to one of our VTuber streamers.", mascot:"happy", highlightTab:"adopt"},

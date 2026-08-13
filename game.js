@@ -4747,7 +4747,7 @@ function expedition_renderSelector() {
       '<div id="expedition-pet-selected" style="margin-bottom:12px;font-size:0.82rem;color:var(--text-light);text-align:center;">No pet selected</div>' +
       '<div style="font-weight:700;color:var(--purple-dark);margin-bottom:8px;font-size:0.9rem;">2️⃣ Choose a Zone:</div>' +
       zoneOptions +
-      '<button id="expedition-start-btn" class="btn btn-primary" onclick="expedition_start()" disabled style="width:100%;margin-top:14px;opacity:0.5;">Select a pet and zone</button>' +
+      '<button id="expedition-start-btn" class="btn btn-primary" onclick="expedition_start()" disabled style="width:100%;margin-top:14px;opacity:0.5;font-weight:800;font-size:1rem;letter-spacing:0.3px;">🚀 Send a Pet on Expedition to Gain Resources!</button>' +
     '</div>';
 }
 
@@ -16117,7 +16117,7 @@ async function battleExp_renderForm() {
       '<div style="display:flex;gap:6px;">' + zoneCards + '</div>' +
     '</div>' +
     '<div id="battle-exp-info" style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;min-height:18px;"></div>' +
-    '<button id="battle-exp-btn" class="btn btn-primary" onclick="battleExp_start()" disabled style="width:100%;opacity:0.5;">🚀 Send on Expedition</button>';
+    '<button id="battle-exp-btn" class="btn btn-primary" onclick="battleExp_start()" disabled style="width:100%;opacity:0.5;font-weight:800;">🚀 Send a Pet on Expedition to Gain Resources!</button>';
 
   } catch(err) {
     form.innerHTML = '<div style="color:#ff6b6b;font-size:0.82rem;">Error loading pets: ' + escapeHtml(err.message) + '</div>';
@@ -16480,11 +16480,49 @@ async function loadBattlePets() {
 
     var helperText = el('battle-helper-text');
     if (helperText) helperText.textContent = 'Select a pet to battle (' + availablePets.length + ' available)';
+    // Add Quick Heal button below grid
+    var healBtn = document.getElementById('quick-heal-btn');
+    if (!healBtn) {
+      healBtn = makeEl('button');
+      healBtn.id = 'quick-heal-btn';
+      healBtn.className = 'btn btn-outline';
+      healBtn.style.cssText = 'margin-top:10px;width:100%;color:var(--green);border-color:var(--green);font-size:0.85rem;';
+      healBtn.title = 'Restores selected pet to full HP. Must select a pet first.';
+      healBtn.onclick = quickHeal;
+      if (grid && grid.parentNode) grid.parentNode.insertBefore(healBtn, grid.nextSibling);
+    }
+    healBtn.textContent = '💚 Quick Heal (250 PP)';
 
   } catch(err) {
     dbg('loadBattlePets error:', err);
     grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + escapeHtml(err.message) + '</p>' +
       '<button class="btn btn-primary" onclick="loadBattlePets()" style="margin-top:8px;">Retry</button></div>';
+  }
+}
+
+async function quickHeal() {
+  if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
+  var HEAL_COST = 250;
+  if (currentPoints < HEAL_COST) { showToast('Not enough PP! Quick Heal costs ' + HEAL_COST + ' PP.', 'info'); return; }
+  var pet = petState[selectedBattlePetId];
+  var maxHP = pet ? (pet.max_hp || pet.base_hp || 30) : 30;
+  var curHP = pet ? (pet.current_hp || 0) : 0;
+  if (curHP >= maxHP) { showToast('Pet is already at full HP!', 'info'); return; }
+  try {
+    var btn = document.getElementById('quick-heal-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Healing...'; }
+    await supabaseClient.rpc('spend_pp_secure', { p_amount: HEAL_COST, p_reason: 'quick_heal' });
+    await supabaseClient.from('user_pets').update({ current_hp: maxHP }).eq('id', selectedBattlePetId);
+    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].current_hp = maxHP;
+    updateAllPoints(currentPoints - HEAL_COST);
+    showToast('💚 Pet fully healed! (' + maxHP + '/' + maxHP + ' HP)');
+    window._battlePetsLoadedAt = 0; // force pet list refresh
+    await loadBattlePets();
+  } catch(e) {
+    showToast('Heal failed: ' + escapeHtml(e.message), 'error');
+  } finally {
+    var btn2 = document.getElementById('quick-heal-btn');
+    if (btn2) { btn2.disabled = false; btn2.textContent = '💚 Quick Heal (250 PP)'; }
   }
 }
 
@@ -32337,7 +32375,7 @@ async function showSeasonPassModal(seasonKey) {
   modal.style.maxWidth = '96vw';
   
   var content = makeEl('div', {class: 'pass-modal-content'});
-  content.style.cssText = 'padding:20px;max-width:1500px;width:95vw;max-height:88vh;overflow-y:auto;';
+  content.style.cssText = 'padding:20px;max-width:1500px;width:95vw;max-height:88vh;overflow-y:auto;background:linear-gradient(160deg,rgba(20,5,45,0.03) 0%,rgba(153,102,255,0.05) 100%);border-radius:16px;';
   
   var header = makeEl('div');
   header.style.cssText = 'text-align:center;margin-bottom:30px;';
@@ -32357,7 +32395,11 @@ async function showSeasonPassModal(seasonKey) {
     var claimed = (progress.claimed_levels || []).indexOf(level) !== -1;
     
     var card = makeEl('div', {class: 'pass-reward-card'});
-    card.style.cssText = 'background:' + (unlocked ? '#fff' : '#f5f5f5') + ';border:2px solid ' + (claimed ? '#4CAF50' : unlocked ? 'var(--purple)' : '#ddd') + ';border-radius:12px;padding:15px;text-align:center;position:relative;' + (unlocked ? '' : 'opacity:0.6;');
+    var _cardBg = unlocked
+  ? 'linear-gradient(135deg,rgba(153,102,255,0.12) 0%,rgba(255,102,204,0.08) 100%)'
+  : 'rgba(100,80,140,0.06)';
+var _cardBorder = claimed ? '#4CAF50' : unlocked ? 'rgba(153,102,255,0.7)' : 'rgba(153,102,255,0.2)';
+card.style.cssText = 'background:' + _cardBg + ';border:2px solid ' + _cardBorder + ';border-radius:12px;padding:15px;text-align:center;position:relative;' + (unlocked ? '' : 'opacity:0.55;');
     
     var badge = makeEl('div');
     badge.textContent = 'Lv.' + level;
@@ -32432,7 +32474,7 @@ function showPassModal() {
   header.style.cssText = 'text-align:center;margin-bottom:30px;';
   header.innerHTML = '<h2 style="color:var(--purple);margin-bottom:10px;">🎫 PawketPass Season 1</h2>' +
     '<div style="font-size:1.2rem;color:var(--text);">Level ' + passProgress.level + ' / 50</div>' +
-    '<div class="pass-xp-bar-large" style="width:100%;height:30px;background:#ddd;border-radius:15px;margin-top:15px;overflow:hidden;">' +
+    '<div class="pass-xp-bar-large" style="width:100%;height:30px;background:rgba(153,102,255,0.15);border:1px solid rgba(153,102,255,0.3);border-radius:15px;margin-top:15px;overflow:hidden;">' +
     '<div style="width:' + ((passProgress.xp / passProgress.xpToNextLevel) * 100) + '%;height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));transition:width 0.3s;"></div>' +
     '</div>' +
     '<div style="margin-top:8px;color:var(--text-light);">' + passProgress.xp + ' / ' + passProgress.xpToNextLevel + ' XP</div>';
