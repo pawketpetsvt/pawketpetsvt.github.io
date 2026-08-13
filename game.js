@@ -7719,7 +7719,25 @@ async function awardBadge(badgeKey) {
         badge_icon: badge.icon
       });
     }
-    
+
+    // Notify friends with proper badge name (avoids DB trigger generic message)
+    try {
+      var { data: friendships } = await supabaseClient
+        .from('friendships')
+        .select('requester_id, addressee_id')
+        .eq('status', 'accepted')
+        .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id);
+      if (friendships && friendships.length > 0) {
+        var friendIds = friendships.map(function(f) {
+          return f.requester_id === currentUser.id ? f.addressee_id : f.requester_id;
+        });
+        var notifMsg = (currentUsername || 'Someone') + ' just earned the ' + badge.name + '! ' + (badge.icon || '🎖️');
+        friendIds.forEach(function(fid) {
+          createNotification(fid, 'badge_earned', 'Badge Earned! ' + (badge.icon || '🎖️'), notifMsg, null, currentUser.id).then(null, function(){});
+        });
+      }
+    } catch(e) { dbg('[Badges] Could not notify friends:', e); }
+
     dbg('[Badges] Awarded:', badgeKey, '-', badge.name);
     
   } catch (err) {
@@ -14707,6 +14725,7 @@ async function manualBattle_endBattle(victory) {
   }
   manualBattle_setNarrative(resultText);
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
+  BattleMusic.stop(true); // fade out battle music on victory or defeat
 
   // Build battleResult for existing reward system
   var battleResult = {
@@ -15202,12 +15221,24 @@ var BattleMusic = {
     if (this._track === trackKey && this._current && !this._current.paused) return; // already playing
     this.stop(false); // stop previous without long fade
     this._track = trackKey;
+    // Pause the background/theme music while battle music plays
+    var bgMusicEl = document.getElementById('bg-music');
+    if (bgMusicEl && !bgMusicEl.paused) {
+      bgMusicEl.pause();
+      this._bgWasPlaying = true;
+    } else {
+      this._bgWasPlaying = false;
+    }
     var src = this._files[trackKey];
     if (!src) return;
     var audio = new Audio(src);
     audio.loop    = true;
     audio.volume  = 0;
-    audio.onerror = function() { dbg('[BattleMusic] Could not load:', src); };
+    audio.onerror = function() {
+      dbg('[BattleMusic] Track unavailable (check /music/ folder):', src);
+      BattleMusic._current = null; // release so stop() can resume bgMusic
+      BattleMusic.stop(false);
+    };
     this._current = audio;
     audio.play().then(function() {
       BattleMusic._fadeIn(audio);
@@ -15231,6 +15262,14 @@ var BattleMusic = {
     var audio = this._current;
     this._current = null;
     this._track   = null;
+    // Resume background music when battle music stops
+    if (this._bgWasPlaying) {
+      this._bgWasPlaying = false;
+      var bgMusicEl = document.getElementById('bg-music');
+      if (bgMusicEl && bgMusicEl.paused) {
+        bgMusicEl.play().then(null, function(){});
+      }
+    }
     if (!audio) return;
     if (fade === false || audio.volume < 0.01) {
       audio.pause();
@@ -15829,6 +15868,22 @@ function closeBattleRewardsModal() {
   
   // Always reload My Pets tab to show updated HP and stats
   tabsLoaded['mypets'] = false;
+
+function battleGoAgain() {
+  // Close rewards, immediately go again with same pet + zone — no scrolling needed
+  var modal = el('battle-rewards-modal');
+  if (modal) modal.classList.remove('show');
+  BattleMusic.stop(false);
+  tabsLoaded['mypets'] = false;
+  if (!selectedBattlePetId) {
+    showTab('battle');
+    return;
+  }
+  // Short delay so modal closes cleanly, then jump straight into exploring
+  safeSetTimeout(function() {
+    goExploring();
+  }, 300);
+}
   
   // Reset battle state
   battleRewards = null;

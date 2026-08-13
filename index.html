@@ -2893,6 +2893,45 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
           </div>
         </div>
         
+        <!-- CypurrActive -->
+        <div class="team-profile-card">
+          <div class="team-profile-header">
+            <div class="team-profile-avatar">
+              <img src="images/pets/cy.png" alt="CypurrActive" onerror="this.style.display='none';" />
+            </div>
+            <div class="team-profile-info">
+              <h2 class="team-profile-name">CypurrActive</h2>
+              <div class="team-profile-role">Cybergoth Catgirl of the Internet 🐱💜</div>
+            </div>
+          </div>
+          <div class="team-profile-body">
+            <p class="team-profile-bio">
+              Cybergoth Vtuber, Gamer, and Artist! Her consciousness was uploaded to the internet as part of a medical experiment — she streams from cyberspace while her body rests safely in stasis. 🐱💜
+            </p>
+            <div class="team-profile-stats">
+              <div class="team-stat">
+                <span class="team-stat-label">Vibe</span>
+                <span class="team-stat-value">Cybergoth Catgirl</span>
+              </div>
+              <div class="team-stat">
+                <span class="team-stat-label">Status</span>
+                <span class="team-stat-value">Uploaded &amp; Online</span>
+              </div>
+            </div>
+            <div class="team-profile-socials">
+              <a href="https://www.twitch.tv/cypurractive" target="_blank" class="team-social-btn twitch">
+                <span class="social-icon">📺</span> Twitch
+              </a>
+              <a href="https://www.youtube.com/@cypurractive" target="_blank" class="team-social-btn youtube">
+                <span class="social-icon">▶️</span> YouTube
+              </a>
+              <a href="https://www.tiktok.com/@cypurractive" target="_blank" class="team-social-btn tiktok">
+                <span class="social-icon">🎵</span> TikTok
+              </a>
+            </div>
+          </div>
+        </div>
+
         <!-- Placeholder for future members -->
         <div class="team-profile-card team-join-card">
           <div class="team-join-content">
@@ -3456,7 +3495,8 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
     <p id="rewards-pp" style="font-size:1.3rem;font-weight:800;color:#e6a800;margin:8px 0;">+0 PP</p>
     <p id="rewards-item" style="font-size:0.95rem;color:var(--text-light);display:none;margin:8px 0;"></p>
     <div style="display:flex;gap:10px;margin-top:8px;">
-      <button class="btn btn-primary" onclick="closeBattleRewardsModal()" style="width:100%;">Continue</button>
+      <button class="btn btn-outline" onclick="closeBattleRewardsModal()" style="flex:1;">Continue</button>
+      <button class="btn btn-primary" id="go-again-btn" onclick="battleGoAgain()" style="flex:1;" title="Fight another battle with the same pet and zone">⚔️ Go Again!</button>
     </div>
   </div>
 </div>
