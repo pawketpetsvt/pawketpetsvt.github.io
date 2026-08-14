@@ -18440,3 +18440,42 @@ body.night-mode .legal-doc,
 body.night-mode .legal-doc p,
 body.night-mode .legal-doc li { color: var(--text) !important; }
 body.night-mode .legal-doc h2 { color: #c4a0ff !important; border-color: rgba(153,102,255,0.2) !important; }
+
+/* ── ACCESSIBILITY MODES ─────────────────────────────────────────────────── */
+
+/* Reduced Motion — disables animations, transitions, floating effects */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High Contrast — stronger borders and text */
+body.high-contrast {
+  --border: #000 !important;
+  --text: #000 !important;
+  --text-light: #222 !important;
+  --card-bg: #fff !important;
+}
+body.high-contrast.night-mode {
+  --border: #fff !important;
+  --text: #fff !important;
+  --text-light: #ddd !important;
+  --card-bg: #000 !important;
+}
+body.high-contrast .btn,
+body.high-contrast button {
+  border-width: 3px !important;
+}
+
+/* Large Text — bumps base font up by ~25% */
+body.large-text {
+  font-size: 18px !important;
+}
+body.large-text .btn { font-size: 1.05rem !important; }
+body.large-text input, body.large-text select, body.large-text textarea {
+  font-size: 18px !important;
+}

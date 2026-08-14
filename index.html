@@ -899,6 +899,21 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <script>document.body.classList.add('guest');</script>
 
 
+<!-- SVG Colorblind Filters (invisible) -->
+<svg width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true">
+  <defs>
+    <filter id="cb-deuteranopia">
+      <feColorMatrix type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0"/>
+    </filter>
+    <filter id="cb-protanopia">
+      <feColorMatrix type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0"/>
+    </filter>
+    <filter id="cb-tritanopia">
+      <feColorMatrix type="matrix" values="0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0"/>
+    </filter>
+  </defs>
+</svg>
+
 <audio id="bg-music" loop><source src="music.mp3" type="audio/mpeg" /></audio>
 
 <!-- Consolidated Navigation Bar -->
@@ -3565,6 +3580,32 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             Choose a theme for the site. Unlock more through achievements and the PawketPass!
           </p>
           <div id="theme-selector-mount"></div>
+
+          <!-- Accessibility Settings -->
+          <div class="settings-group" style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border);">
+            <h3 style="margin-bottom:14px;color:var(--purple-dark);">♿ Accessibility</h3>
+            <div class="setting-row" style="margin-bottom:14px;">
+              <label style="font-weight:600;margin-bottom:6px;display:block;">Colorblind Mode</label>
+              <select id="setting-colorblind" onchange="setColorblindMode(this.value)" style="width:100%;padding:8px 12px;border:2px solid var(--border);border-radius:10px;font-size:1rem;background:var(--card-bg);color:var(--text);">
+                <option value="none">None (Default)</option>
+                <option value="deuteranopia">Deuteranopia (Red-Green)</option>
+                <option value="protanopia">Protanopia (Red Blind)</option>
+                <option value="tritanopia">Tritanopia (Blue-Yellow)</option>
+              </select>
+            </div>
+            <div class="setting-row" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+              <div><div style="font-weight:600;">Reduced Motion</div><div style="font-size:0.8rem;color:var(--text-light);">Disables animations and transitions</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="setting-reduced-motion" onchange="setReducedMotion(this.checked)"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="setting-row" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+              <div><div style="font-weight:600;">High Contrast</div><div style="font-size:0.8rem;color:var(--text-light);">Increases text and border contrast</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="setting-high-contrast" onchange="setHighContrast(this.checked)"><span class="toggle-slider"></span></label>
+            </div>
+            <div class="setting-row" style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;">
+              <div><div style="font-weight:600;">Larger Text</div><div style="font-size:0.8rem;color:var(--text-light);">Increases base font size across the game</div></div>
+              <label class="toggle-switch"><input type="checkbox" id="setting-large-text" onchange="setLargeText(this.checked)"><span class="toggle-slider"></span></label>
+            </div>
+          </div>
         </div>
 
         <!-- Admin Panel — only visible to admins via JS -->
@@ -3966,6 +4007,7 @@ var Tutorial = {
 
   steps: [
     {id:'welcome', tab:'home', dialogue:[
+      {text:"Hi! I'm Melon 🍈 — before anything else: do you need any accessibility features? You can enable colorblind mode, reduced motion, high contrast, or larger text in ⚙️ Settings anytime. We want everyone to be able to enjoy PawketPets!", mascot:"explaining"},
       {text:"Hi! I'm Melon 🍈 — welcome to PawketPets! You've been accepted into the beta!", mascot:"excited"},
       {text:"Fair warning: the game isn't fully finished. The code is... fragmenting. You'll see a Beta Integrity bar — that tracks how stable things are. But don't worry, your presence here actually helps stabilize it.", mascot:"worried"},
       {text:"Things will get better with time. And there may be... something watching the cracks. But we don't need to talk about that right now! Let's focus on getting you a pet!", mascot:"serious"},

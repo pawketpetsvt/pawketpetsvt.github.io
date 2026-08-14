@@ -342,6 +342,43 @@ var currentPoints = 0;
 var tabsLoaded = {};
 
 // ── TUTORIAL & SETTINGS ──────────────────
+
+// ── ACCESSIBILITY ─────────────────────────────────────────────────────────
+var COLORBLIND_FILTERS = {
+  none:         '',
+  deuteranopia: 'url(#cb-deuteranopia)',
+  protanopia:   'url(#cb-protanopia)',
+  tritanopia:   'url(#cb-tritanopia)'
+};
+
+function applyAccessibilitySettings() {
+  var s = playerSettings;
+  var filter = COLORBLIND_FILTERS[s.colorblind_mode] || '';
+  document.documentElement.style.filter = filter;
+  document.body.classList.toggle('reduced-motion', !!s.reduced_motion);
+  document.body.classList.toggle('high-contrast',  !!s.high_contrast);
+  document.body.classList.toggle('large-text',      !!s.large_text);
+}
+
+function setColorblindMode(mode) { playerSettings.colorblind_mode = mode; _savePlayerSettingsLocal(); applyAccessibilitySettings(); }
+function setReducedMotion(on)    { playerSettings.reduced_motion  = !!on;  _savePlayerSettingsLocal(); applyAccessibilitySettings(); }
+function setHighContrast(on)     { playerSettings.high_contrast   = !!on;  _savePlayerSettingsLocal(); applyAccessibilitySettings(); }
+function setLargeText(on)        { playerSettings.large_text      = !!on;  _savePlayerSettingsLocal(); applyAccessibilitySettings(); }
+
+function _savePlayerSettingsLocal() {
+  try {
+    if (window.currentUser) localStorage.setItem('playerSettings_' + currentUser.id, JSON.stringify(playerSettings));
+  } catch(e) {}
+}
+
+// XP required to advance from `level` to `level+1`
+function xpForLevel(level) {
+  var base = (typeof GAME_CONSTANTS !== 'undefined') ? GAME_CONSTANTS.XP_PER_LEVEL : 100;
+  if (level <= 2) return Math.round(level * 60);   // L1→2: 60, L2→3: 120
+  if (level <= 4) return Math.round(level * 75);   // L3→4: 225, L4→5: 300
+  return level * base;                              // L5+: level * 100
+}
+
 var playerSettings = {
   spooky_enabled: false,
   music_enabled: true,
@@ -350,7 +387,12 @@ var playerSettings = {
   daynight_enabled: true,
   weather_enabled: true,
   tutorial_completed: false,
-  active_theme: 'classic'
+  active_theme: 'classic',
+  // Accessibility
+  colorblind_mode: 'none',   // 'none' | 'deuteranopia' | 'protanopia' | 'tritanopia'
+  reduced_motion: false,
+  high_contrast: false,
+  large_text: false
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -896,7 +938,7 @@ function makeEl(tag, attrs, text) {
 // GAME CONSTANTS — named values instead of scattered magic numbers
 // ══════════════════════════════════════════════════════════════════════════
 var GAME_CONSTANTS = {
-  XP_PER_LEVEL:        120,   // XP needed per level (currentLevel * this)
+  XP_PER_LEVEL:        100,   // XP needed per level (currentLevel * this, but early levels use lower thresholds)
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
   BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
@@ -3628,7 +3670,7 @@ function getLastSeenText(lastFed, lastPlayed) {
 
 function makeMyPetCard(pet) {
   var info = pet.pets || {};
-  var xpNext = pet.level * GAME_CONSTANTS.XP_PER_LEVEL;
+  var xpNext = xpForLevel(pet.level);
   var hPct = Math.round(pet.hunger/pet.max_hunger*100);
   var hapPct = Math.round(pet.happiness/pet.max_happiness*100);
   var ePct = Math.round(pet.energy/pet.max_energy*100);
@@ -4622,7 +4664,7 @@ function getPetMood(hunger, energy, happiness, maxHunger, maxEnergy, maxHappines
 // ══════════════════════════════════════════════════════════════════════════
 
 function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness, currentHP, currentAtk, currentDef, currentSpd) {
-  var xpNeeded = currentLevel * GAME_CONSTANTS.XP_PER_LEVEL;
+  var xpNeeded = xpForLevel(currentLevel);
   
   if (newXp >= xpNeeded) {
     // Level up! Calculate stat increases
@@ -6476,7 +6518,7 @@ function updateBar(petId,stat,val,max) {
   var v=el(stat+'-val-'+petId); if(v)v.textContent=val+'/'+max;
 }
 function updateXpBar(petId,xp,level) {
-  var next=level*(typeof GAME_CONSTANTS!=='undefined'?GAME_CONSTANTS.XP_PER_LEVEL:120);
+  var next = xpForLevel(level);
   var pct=Math.min(xp/next*100,100);
   var b=el('xp-bar-'+petId); if(b)b.style.width=pct+'%';
   var v=el('xp-val-'+petId); if(v)v.textContent=xp+'/'+next;
@@ -9286,9 +9328,9 @@ function fishingRenderRodShop() {
 
 // ── AUTO-FISHER ───────────────────────────────────────────────────────────────
 var AUTO_FISHER_TIERS = [
-  { level:1, name:'Basic',   cost:1000,  interval:3600, desc:'Catches 1 fish/hour' },
-  { level:2, name:'Advanced',cost:5000,  interval:1800, desc:'Catches 1 fish/30min' },
-  { level:3, name:'Elite',   cost:15000, interval:600,  desc:'Catches 1 fish/10min' },
+  { level:1, name:'Basic',   cost:1000,  interval:3600, maxHaul:16, desc:'1 fish/hour — haul max 16' },
+  { level:2, name:'Advanced',cost:5000,  interval:1800, maxHaul:24, desc:'1 fish/30min — haul max 24' },
+  { level:3, name:'Elite',   cost:15000, interval:600,  maxHaul:36, desc:'1 fish/10min — haul max 36' },
 ];
 var _autoFisherLevel = 0;
 var _autoFisherLastCatch = null;
@@ -9314,16 +9356,123 @@ async function autoFisherCheck() {
   var elapsed = Math.floor((now - last) / 1000);
   var catches = Math.floor(elapsed / tier.interval);
   if (catches <= 0) return;
-  catches = Math.min(catches, 10); // cap at 10 offline catches
+  catches = Math.min(catches, tier.maxHaul || 20); // cap per tier
+
+  // Build the haul — generate catch details using fishingGetCatch
+  var haul = [];
+  for (var i = 0; i < catches; i++) {
+    var power = 0.4 + Math.random() * 0.4; // mid power for auto-fisher
+    var caught = fishingGetCatch(power);
+    haul.push({ name: caught.name, emoji: caught.emoji || '🐟', pp: caught.pp, rarity: caught.rarity });
+  }
+
+  // Store haul in localStorage — player collects on next fishing tab visit
   try {
-    var ppGain = catches * 5;
-    await supabaseClient.rpc('award_pp_secure', { p_amount: ppGain, p_reason: 'auto_fisher' });
+    var haulKey = 'autofisher_haul_' + currentUser.id;
+    var existing = JSON.parse(localStorage.getItem(haulKey) || '[]');
+    existing = existing.concat(haul);
+    // Cap stored haul to prevent infinite buildup
+    if (existing.length > 50) existing = existing.slice(-50);
+    localStorage.setItem(haulKey, JSON.stringify(existing));
+  } catch(e) {}
+
+  // Update last catch timestamp in DB
+  try {
     await supabaseClient.from('players').update({ auto_fisher_last_catch: new Date().toISOString() }).eq('id', currentUser.id);
     _autoFisherLastCatch = new Date().toISOString();
-    updateAllPoints(currentPoints + ppGain);
-    showToast('🤖 Auto-fisher caught ' + catches + ' fish while you were away! +' + ppGain + ' PP');
   } catch(e) {}
+
   autoFisherRenderWidget();
+}
+
+async function autoFisherCollectHaul() {
+  if (!currentUser) return;
+  var haulKey = 'autofisher_haul_' + currentUser.id;
+  var haul = [];
+  try { haul = JSON.parse(localStorage.getItem(haulKey) || '[]'); } catch(e) {}
+  if (!haul.length) return;
+
+  // Award PP for the full haul
+  var totalPP = haul.reduce(function(sum, c) { return sum + (c.pp || 0); }, 0);
+  if (totalPP > 0) {
+    try {
+      await supabaseClient.rpc('award_pp_secure', { p_amount: totalPP, p_reason: 'auto_fisher_haul' });
+      updateAllPoints(currentPoints + totalPP);
+    } catch(e) {}
+  }
+
+  // Clear the haul
+  try { localStorage.removeItem(haulKey); } catch(e) {}
+
+  // Show the haul modal
+  _showAutoFisherHaulModal(haul, totalPP);
+  autoFisherRenderWidget();
+}
+
+function _showAutoFisherHaulModal(haul, totalPP) {
+  var modal = makeModal ? makeModal() : null;
+  if (!modal) {
+    // Fallback if makeModal not available
+    showToast('🤖 Haul collected! +' + totalPP + ' PP from ' + haul.length + ' catches!');
+    return;
+  }
+  modal.style.maxWidth = '480px';
+  modal.style.textAlign = 'center';
+
+  // Group by name for cleaner display
+  var grouped = {};
+  haul.forEach(function(c) {
+    var key = c.name;
+    if (!grouped[key]) grouped[key] = { emoji: c.emoji, name: c.name, rarity: c.rarity, count: 0, pp: 0 };
+    grouped[key].count++;
+    grouped[key].pp += c.pp;
+  });
+
+  var rows = Object.values(grouped).sort(function(a,b){ return b.pp - a.pp; });
+
+  var html = '<h2 style="margin-bottom:4px;">🤖 Auto-Fisher Haul!</h2>';
+  html += '<p style="color:var(--text-light);margin-bottom:16px;font-size:0.88rem;">Your fisher was busy while you were away</p>';
+  html += '<div style="max-height:300px;overflow-y:auto;margin-bottom:16px;border:1px solid var(--border);border-radius:12px;padding:4px;">';
+  rows.forEach(function(r) {
+    var rarityColor = { junk:'#888', common:'var(--text)', uncommon:'#4caf50', rare:'#2196f3', epic:'#9c27b0', legendary:'#ff9800' }[r.rarity] || 'var(--text)';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid var(--border);">'
+      + '<span style="font-size:1.1rem;">' + (r.emoji||'🐟') + ' <b style="color:' + rarityColor + ';">' + escapeHtml(r.name) + '</b>'
+      + (r.count > 1 ? ' <span style="color:var(--text-light);font-size:0.8rem;">×' + r.count + '</span>' : '')
+      + '</span>'
+      + '<span style="color:var(--purple);font-weight:700;">+' + r.pp + ' PP</span>'
+      + '</div>';
+  });
+  html += '</div>';
+  html += '<div style="font-size:1.4rem;font-weight:800;color:var(--purple);margin-bottom:16px;">Total: +' + totalPP + ' PP 🎉</div>';
+
+  modal.innerHTML = html;
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-primary';
+  closeBtn.style.width = '100%';
+  closeBtn.textContent = 'Collect Haul!';
+  closeBtn.onclick = function() { if (typeof closeModal === 'function') closeModal(); };
+  modal.appendChild(closeBtn);
+  if (typeof openModal === 'function') openModal(modal);
+}
+
+// Check for pending haul when fishing tab loads
+function autoFisherCheckPendingHaul() {
+  if (!currentUser || _autoFisherLevel === 0) return;
+  var haulKey = 'autofisher_haul_' + currentUser.id;
+  var haul = [];
+  try { haul = JSON.parse(localStorage.getItem(haulKey) || '[]'); } catch(e) {}
+  if (!haul.length) return;
+
+  // Show a banner prompting collection
+  var mount = document.getElementById('fishing-autofisher');
+  if (!mount) return;
+  var totalPP = haul.reduce(function(s,c){return s+(c.pp||0);},0);
+  var banner = document.createElement('div');
+  banner.style.cssText = 'background:linear-gradient(135deg,rgba(153,102,255,0.15),rgba(255,102,204,0.1));border:2px solid var(--purple);border-radius:12px;padding:14px;margin-bottom:12px;text-align:center;';
+  banner.innerHTML = '<div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;">🤖 Auto-Fisher caught ' + haul.length + ' fish!</div>'
+    + '<div style="color:var(--text-light);font-size:0.85rem;margin-bottom:10px;">Estimated: ~' + totalPP + ' PP waiting for you</div>'
+    + '<button class="btn btn-primary" onclick="autoFisherCollectHaul()" style="width:100%;">🎣 Collect Haul!</button>';
+  mount.parentNode.insertBefore(banner, mount);
 }
 
 function autoFisherRenderWidget() {
@@ -9711,6 +9860,8 @@ function fishingToggleJournal() {
 }
 
 async function initFishingTab() {
+  // Check if autofisher has a pending haul to collect
+  setTimeout(function() { autoFisherCheckPendingHaul(); }, 500);
   if (!currentUser) return;
   fishingCasts = fishingCasts || 10;
   await Promise.all([
@@ -15042,7 +15193,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     console.error('❌ Battle save error:', rpcError || result.error);
     // Fall back to client-side calculation — but actually award it via the secure RPC
     // this time, instead of just computing a display number with nothing behind it.
-    expGained = battleResult.victory ? (enemyStats.exp_reward || 10) : 0;
+    expGained = battleResult.victory ? (enemyStats.exp_reward || 15) : 0; // slightly higher fallback
     ppGained = battleResult.victory ? Math.round((enemyStats.pp_reward || 10) * 1.5) : 0;
     if (ppGained > 0) {
       var { data: fallbackNewTotal, error: fallbackPpErr } = await supabaseClient.rpc('award_pp_secure', {
@@ -31968,6 +32119,7 @@ async function loadSettings() {
     if (localSettings) {
       var saved = JSON.parse(localSettings);
       Object.assign(playerSettings, saved);
+  applyAccessibilitySettings();
     }
     
     if (res.data) {
@@ -32005,6 +32157,17 @@ async function loadSettings() {
     
     // Apply settings immediately
     applySettings();
+    applyAccessibilitySettings();
+
+    // Sync accessibility UI controls
+    var cbSel = el('setting-colorblind');
+    if (cbSel) cbSel.value = playerSettings.colorblind_mode || 'none';
+    var rmTog = el('setting-reduced-motion');
+    if (rmTog) rmTog.checked = !!playerSettings.reduced_motion;
+    var hcTog = el('setting-high-contrast');
+    if (hcTog) hcTog.checked = !!playerSettings.high_contrast;
+    var ltTog = el('setting-large-text');
+    if (ltTog) ltTog.checked = !!playerSettings.large_text;
 
     // Render theme selector if container exists
     theme_renderSelector('theme-selector-mount');
@@ -32033,6 +32196,17 @@ async function saveSettings() {
     playerSettings.sfx_volume = sfxVolumeSlider ? parseInt(sfxVolumeSlider.value) : 80;
     playerSettings.daynight_enabled = daynightToggle ? daynightToggle.checked : true;
     playerSettings.weather_enabled = weatherToggle ? weatherToggle.checked : true;
+
+    // Accessibility settings
+    var cbSel2 = el('setting-colorblind');
+    if (cbSel2) playerSettings.colorblind_mode = cbSel2.value;
+    var rmTog2 = el('setting-reduced-motion');
+    if (rmTog2) playerSettings.reduced_motion = rmTog2.checked;
+    var hcTog2 = el('setting-high-contrast');
+    if (hcTog2) playerSettings.high_contrast = hcTog2.checked;
+    var ltTog2 = el('setting-large-text');
+    if (ltTog2) playerSettings.large_text = ltTog2.checked;
+    applyAccessibilitySettings();
     
     // Update volume displays
     var musicDisplay = el('music-volume-display');
