@@ -2022,8 +2022,30 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   <!-- NEWS -->
   <div class="page-section" id="section-news">
     <div class="page-wrap">
-      <div class="page-hero"><div class="sparkle-row">&#128240; &#10022; &#128240;</div><h1>News &amp; Announcements</h1><p>Stay up to date! &#10024;</p></div>
-      <div id="news-container"><div class="spinner"></div></div>
+      <div class="page-hero"><div class="sparkle-row">&#128240; &#10022; &#128240;</div><h1>News &amp; Updates</h1><p>Stay up to date! &#10024;</p></div>
+
+      <!-- News sub-tab buttons -->
+      <div class="shop-tabs" id="news-tabs" style="margin-bottom:20px;">
+        <button class="shop-tab active" id="news-tab-btn-announcements" onclick="switchNewsTab('announcements')">📢 Announcements</button>
+        <button class="shop-tab" id="news-tab-btn-patchnotes" onclick="switchNewsTab('patchnotes')">🔧 Patch Notes</button>
+        <button class="shop-tab" id="news-tab-btn-comingsoon" onclick="switchNewsTab('comingsoon')">🚀 Coming Soon</button>
+      </div>
+
+      <!-- Announcements panel -->
+      <div id="news-panel-announcements">
+        <div id="news-container"><div class="spinner"></div></div>
+      </div>
+
+      <!-- Patch Notes panel -->
+      <div id="news-panel-patchnotes" style="display:none;">
+        <div id="patchnotes-container"><div class="spinner"></div></div>
+      </div>
+
+      <!-- Coming Soon panel -->
+      <div id="news-panel-comingsoon" style="display:none;">
+        <div id="comingsoon-container"><div class="spinner"></div></div>
+      </div>
+
     </div>
   </div>
 

@@ -736,7 +736,7 @@ function getEvolutionBonuses(stage) {
 }
 // Helper: get correct max HP accounting for evolution bonuses
 function getCorrectMaxHP(pet) {
-  var base = (pet && pet.base_hp) ? pet.base_hp : 30;
+  var base = (pet && pet.base_hp) ? pet.base_hp : 60;
   var evo  = getEvolutionBonuses(getEvolutionStage((pet && pet.level) ? pet.level : 1));
   return base + evo.hp;
 }
@@ -900,7 +900,7 @@ var GAME_CONSTANTS = {
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
   BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
-  HP_REGEN_PER_HOUR:   3,     // HP regenerated per hour out of battle
+  HP_REGEN_PER_HOUR:   5,     // HP regenerated per hour out of battle
   PASS_XP_PER_FEED:    2,     // Pass XP awarded for feeding a pet
   REFERRAL_PP_REWARD:  250,   // PP awarded to referrer
   TUTORIAL_PP_REWARD:  100,   // PP awarded for completing tutorial
@@ -3141,7 +3141,7 @@ async function loadMyPets() {
   // Use DB values directly — do NOT apply client-side decay on top or it double-counts.
   // HP regen has no cron job so we still calculate that client-side.
   res.data.forEach(function(pet) {
-    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 25);
+    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 60);
     var maxHP = getCorrectMaxHP(pet);
     var hpRegenRef = pet.last_played || pet.last_fed || null;
 
@@ -3151,7 +3151,7 @@ async function loadMyPets() {
     // Recalculate max_hp from base + evolution to keep DB in sync
     var _evoStage   = getEvolutionStage(pet.level || 1);
     var _evoBonuses = getEvolutionBonuses(_evoStage);
-    var _correctMaxHP = (pet.base_hp || 30) + _evoBonuses.hp;
+    var _correctMaxHP = (pet.base_hp || 60) + _evoBonuses.hp;
     // If DB max_hp is stale (lower than it should be), patch it silently
     if ((pet.max_hp || 0) < _correctMaxHP) {
       supabaseClient.from('user_pets')
@@ -3772,7 +3772,7 @@ function makeMyPetCard(pet) {
     battleStats.style.cssText = 'display:flex;justify-content:space-around;padding:12px;margin:10px 0;background:rgba(176,106,255,0.1);border:2px solid var(--purple-light);border-radius:12px;';
     
     // HP with current/max display
-    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
+    var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 60);
     var maxHP = getCorrectMaxHP(pet);
     var hpPercent = Math.round((currentHP / maxHP) * 100);
     var hpColor = hpPercent > 50 ? '#5dde7a' : hpPercent > 25 ? '#ffaa00' : '#ff6b6b';
@@ -5012,7 +5012,7 @@ async function expedition_claim(expeditionId) {
       var pd = petXPRes.data;
       var newXP = (pd.xp || 0) + zoneXP;
       var lu = calculateLevelUp(newXP, pd.level, pd.max_hunger, pd.max_energy, pd.max_happiness,
-        pd.base_hp || 25, pd.base_attack || 4, pd.base_defense || 2, pd.base_speed || 3);
+        pd.base_hp || 60, pd.base_attack || 4, pd.base_defense || 2, pd.base_speed || 3);
       var xpUpdates = { xp: lu.leveled ? lu.xp : newXP };
       if (lu.leveled) {
         xpUpdates.level = lu.level;
@@ -8840,10 +8840,10 @@ var FISH_SPOTS = {
 };
 
 var FISH_BAIT = {
-  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    minPP: 0,  description: 'Free! Catches common fish.' },
-  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.15, minPP: 6,  description: '+15% rare chance. Min 6 PP payout.' },
-  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.30, minPP: 14, description: '+30% rare chance. Min 14 PP payout.' },
-  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.50, minPP: 35, description: '+50% rare chance. Min 35 PP payout.' }
+  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    description: 'Free! Catches common fish.' },
+  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.15, description: '+15% rare catch chance.' },
+  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.30, description: '+30% rare catch chance.' },
+  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.50, description: '+50% rare catch chance.' }
 };
 
 // Fish pool — spot:rarity:weather-bonus
@@ -9074,11 +9074,7 @@ async function castLine(power) {
     
     var caught = fishingGetCatch(power);
     fishingCasts--;
-    // Apply bait minimum PP guarantee — paid bait should always return at least its cost
-    var _castPP = caught.pp;
-    var _baitMin = (FISH_BAIT[_fishingBait] || FISH_BAIT.worm).minPP || 0;
-    if (_baitMin > 0 && _castPP < _baitMin) { _castPP = _baitMin; caught = Object.assign({}, caught, {pp: _castPP}); }
-    fishingTotal += _castPP;
+    fishingTotal += caught.pp;
 
     // Generate catch weight
     var weightG = 0;
@@ -9838,29 +9834,81 @@ async function loadSidebarNews() {
   });
 }
 
-async function loadNews() {
-  var container = el('news-container');
+var _newsTabLoaded = {};
+
+function switchNewsTab(tab) {
+  // Update tab buttons
+  ['announcements','patchnotes','comingsoon'].forEach(function(t) {
+    var btn = el('news-tab-btn-' + t);
+    var panel = el('news-panel-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+  });
+  // Load content if not yet loaded
+  if (!_newsTabLoaded[tab]) {
+    _newsTabLoaded[tab] = true;
+    _loadNewsPanel(tab);
+  }
+}
+
+async function _loadNewsPanel(tab) {
+  var containerMap = { announcements: 'news-container', patchnotes: 'patchnotes-container', comingsoon: 'comingsoon-container' };
+  var typeMap = { announcements: 'announcement', patchnotes: 'patch_note', comingsoon: 'coming_soon' };
+  var emptyMap = {
+    announcements: '📢 No announcements yet. Check back soon!',
+    patchnotes:    '🔧 No patch notes yet — still cooking!',
+    comingsoon:    '🚀 Nothing announced yet — stay tuned for surprises!'
+  };
+  var container = el(containerMap[tab]);
   if (!container) return;
   try {
-    var res = await supabaseClient.from('news').select('*').eq('is_published', true).order('published_at', { ascending: false });
+    // Query by post_type if the column exists, otherwise fall back to all posts for announcements
+    var query = supabaseClient.from('news').select('*').eq('is_published', true).order('published_at', { ascending: false });
+    if (tab !== 'announcements') {
+      query = query.eq('post_type', typeMap[tab]);
+    } else {
+      // Announcements = posts that are not patch notes or coming soon
+      query = query.not('post_type', 'in', '(patch_note,coming_soon)');
+    }
+    var res = await query;
+    // If post_type column doesn't exist, fall back gracefully
+    if (res.error && res.error.message && res.error.message.includes('post_type')) {
+      if (tab === 'announcements') {
+        res = await supabaseClient.from('news').select('*').eq('is_published', true).order('published_at', { ascending: false });
+      } else {
+        container.innerHTML = _newsEmptyState(emptyMap[tab]);
+        return;
+      }
+    }
     if (res.error || !res.data || !res.data.length) {
-      container.innerHTML = '<div class="card" style="text-align:center;padding:56px 36px;"><div style="font-size:2.8rem;margin-bottom:14px;">&#128235;</div><h2 style="color:var(--purple-dark);margin-bottom:10px;">No news yet!</h2><p style="color:var(--text-light)">Check back soon!</p></div>';
+      container.innerHTML = _newsEmptyState(emptyMap[tab]);
       return;
     }
     container.innerHTML = '';
     res.data.forEach(function(post) {
       var date = new Date(post.published_at || post.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       var div = makeEl('div', { class: 'news-post news-card' });
+      if (post.version) div.appendChild(makeEl('div', { class: 'news-version-badge', style: 'display:inline-block;background:var(--purple);color:white;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;margin-bottom:8px;' }, 'v' + escapeHtml(post.version)));
       div.appendChild(makeEl('div', { class: 'news-post-date news-date' }, date));
-      div.appendChild(makeEl('h3', {}, post.title || 'Untitled'));
-      div.appendChild(makeEl('p', {}, post.content || ''));
-      if (post.author) div.appendChild(makeEl('div', { class: 'news-author' }, '- ' + post.author));
+      div.appendChild(makeEl('h3', {}, escapeHtml(post.title || 'Untitled')));
+      div.appendChild(makeEl('p', {}, escapeHtml(post.content || '')));
+      if (post.author) div.appendChild(makeEl('div', { class: 'news-author' }, '— ' + escapeHtml(post.author)));
       container.appendChild(div);
     });
   } catch(err) {
     dbg('loadNews error:', err);
-    if (container) container.innerHTML = '<div class="empty-state"><p>Could not load news.</p></div>';
+    if (container) container.innerHTML = _newsEmptyState(emptyMap[tab]);
   }
+}
+
+function _newsEmptyState(msg) {
+  return '<div class="card" style="text-align:center;padding:48px 32px;"><div style="font-size:2.5rem;margin-bottom:12px;">📭</div><p style="color:var(--text-light);font-size:1rem;">' + escapeHtml(msg) + '</p></div>';
+}
+
+async function loadNews() {
+  // Load announcements tab by default
+  _newsTabLoaded = {}; // reset so each tab reloads fresh
+  switchNewsTab('announcements');
 }
 
 // ── TWITCH ───────────────────────────────
@@ -12120,7 +12168,7 @@ async function calculatePetStats(petId) {
   var evolutionBonuses = getEvolutionBonuses(evolutionStage);
   
   // Calculate max HP from base + evolution + equipment
-  var maxHP = (pet.base_hp || 30) + evolutionBonuses.hp;
+  var maxHP = (pet.base_hp || 60) + evolutionBonuses.hp;
   
   // Get equipped items for THIS specific pet (for battle stats)
   var equipRes = await supabaseClient
@@ -15222,7 +15270,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
         pet.max_hunger,
         pet.max_energy,
         pet.max_happiness,
-        pet.base_hp || 25,
+        pet.base_hp || 60,
         pet.base_attack || 4,
         pet.base_defense || 2,
         pet.base_speed || 3
@@ -16496,8 +16544,8 @@ async function loadBattlePets() {
       card.appendChild(levelEl);
 
       var stats = makeEl('div', { class: 'battle-pet-card-stats' });
-      var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
-      var maxHP = pet.max_hp || pet.base_hp || 30;
+      var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 60);
+      var maxHP = pet.max_hp || pet.base_hp || 60;
 
       var hpStat = makeEl('div', { class: 'battle-pet-stat' });
       hpStat.setAttribute('data-tooltip', '❤️ HP. Carries over between battles. At 0 your pet faints.');
@@ -16555,13 +16603,13 @@ async function loadBattlePets() {
 
 async function quickHeal() {
   if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
-  var HEAL_COST = 250;
+  var HEAL_COST = 100; // Reduced from 250 — battles should be profitable not punishing
   if (currentPoints < HEAL_COST) { showToast('Not enough PP! Quick Heal costs ' + HEAL_COST + ' PP.', 'info'); return; }
   var pet = petState[selectedBattlePetId];
   // Recalculate maxHP from evolution (same as loadMyPets sync) to avoid stale DB value
   var _evoStage = getEvolutionStage(pet ? (pet.level || 1) : 1);
   var _evoBonuses = getEvolutionBonuses(_evoStage);
-  var _baseHP = (pet && pet.base_hp) ? pet.base_hp : 30;
+  var _baseHP = (pet && pet.base_hp) ? pet.base_hp : 60;
   var maxHP = _baseHP + _evoBonuses.hp;
   // Patch stale DB max_hp
   if (pet && (pet.max_hp || 0) < maxHP) {
@@ -22855,8 +22903,8 @@ async function guild_startDungeon() {
       isPlayer: true,
       icon:     '🐾',
       variant:  myPetRaw.current_variant || null,
-      maxHp:    myPetRaw.max_hp || myPetRaw.base_hp || 30,
-      currentHp:myPetRaw.current_hp || myPetRaw.base_hp || 30,
+      maxHp:    myPetRaw.max_hp || myPetRaw.base_hp || 60,
+      currentHp:myPetRaw.current_hp || myPetRaw.base_hp || 60,
       attack:   myPetRaw.base_attack || 5,
       defense:  myPetRaw.base_defense || 3,
       speed:    myPetRaw.base_speed || 4
@@ -26729,7 +26777,7 @@ async function completeDungeon() {
       pet.max_hunger,
       pet.max_energy,
       pet.max_happiness,
-      pet.base_hp || 25,
+      pet.base_hp || 60,
       pet.base_attack || 4,
       pet.base_defense || 2,
       pet.base_speed || 3
@@ -34629,166 +34677,7 @@ function community_init() {
 }
 
 
-// ════════════════════════════════════════════════════════════════════════════
-// MOBILE-ONLY MENU SYSTEM (DESKTOP COMPLETELY UNTOUCHED)
-// ════════════════════════════════════════════════════════════════════════════
-
-(function() {
-  // CRITICAL: Only run on mobile devices
-  function isMobile() {
-    return window.innerWidth <= 768;
-  }
-  
-  // Exit immediately if desktop
-  if (!isMobile()) {
-    dbg('Desktop mode - mobile menu disabled');
-    return;
-  }
-  
-  dbg('Mobile mode - initializing mobile menu');
-  
-  // Initialize mobile menu on DOM ready
-  function initMobileMenu() {
-    // Exit if already initialized
-    if (document.getElementById('mobile-menu')) {
-      return;
-    }
-    
-    // Create hamburger button
-    var hamburger = document.createElement('button');
-    hamburger.id = 'hamburger-btn';
-    hamburger.className = 'hamburger-btn';
-    hamburger.innerHTML = '☰';
-    hamburger.setAttribute('aria-label', 'Open menu');
-    document.body.appendChild(hamburger);
-    
-    // Create overlay
-    var overlay = document.createElement('div');
-    overlay.id = 'mobile-overlay';
-    overlay.className = 'mobile-overlay';
-    document.body.appendChild(overlay);
-    
-    // Create mobile menu
-    var menu = document.createElement('div');
-    menu.id = 'mobile-menu';
-    menu.className = 'mobile-menu';
-    
-    // Menu items
-    var menuItems = [
-      { icon: '🏠', text: 'Home', tab: 'home' },
-      { icon: '🐾', text: 'My Pets', tab: 'mypets' },
-      { icon: '🐣', text: 'Adopt', tab: 'adopt' },
-      { icon: '⚔️', text: 'Battle', tab: 'battle' },
-      { icon: '🛒', text: 'Shop', tab: 'shop' },
-      { icon: '🎯', text: 'Pass', action: 'showPassModal' },
-      { icon: '🎲', text: 'Bingo', action: 'showBingoModal' },
-      { icon: '🌍', text: 'Community', tab: 'community-goals' },
-      { icon: '📊', text: 'Statistics', tab: 'statistics' },
-      { icon: '👤', text: 'Profile', tab: 'profile' },
-      { icon: '🚪', text: 'Logout', action: 'logout' }
-    ];
-    
-    menuItems.forEach(function(item) {
-      var menuItem = document.createElement('div');
-      menuItem.className = 'mobile-menu-item mobile-nav-item';
-      menuItem.innerHTML = '<span class="mobile-nav-icon">' + item.icon + '</span>' +
-                           '<span class="mobile-nav-text mobile-menu-text">' + item.text + '</span>';
-      
-      menuItem.addEventListener('click', function() {
-        if (item.tab) {
-          if (typeof showTab === 'function') {
-            showTab(item.tab);
-          }
-        } else if (item.action === 'showPassModal') {
-          if (typeof showPassModal === 'function') {
-            showPassModal();
-          }
-        } else if (item.action === 'showBingoModal') {
-          if (typeof showBingoModal === 'function') {
-            showBingoModal();
-          }
-        } else if (item.action === 'logout') {
-          if (typeof logout === 'function') {
-            logout();
-          }
-        }
-        
-        // Close menu after selection
-        closeMobileMenu();
-      });
-      
-      menu.appendChild(menuItem);
-    });
-    
-    document.body.appendChild(menu);
-    
-    // Toggle menu function
-    function toggleMobileMenu() {
-      var isActive = menu.classList.contains('active');
-      if (isActive) {
-        closeMobileMenu();
-      } else {
-        openMobileMenu();
-      }
-    }
-    
-    function openMobileMenu() {
-      menu.classList.add('active');
-      overlay.classList.add('active');
-      hamburger.innerHTML = '✕';
-      document.body.style.overflow = 'hidden';
-    }
-    
-    // Event listeners
-    hamburger.addEventListener('click', toggleMobileMenu);
-    overlay.addEventListener('click', closeMobileMenu);
-    
-    // Close menu on escape key
-    document.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape' && menu.classList.contains('active')) {
-        closeMobileMenu();
-      }
-    });
-    
-    dbg('Mobile menu initialized');
-  }
-  
-  // Initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initMobileMenu);
-  } else {
-    initMobileMenu();
-  }
-  
-  // Handle window resize - reinitialize or cleanup
-  // Store reference so it can be removed if needed (prevent duplicate listeners)
-  if (window._mobileResizeHandler) {
-    window.removeEventListener('resize', window._mobileResizeHandler);
-  }
-  window._mobileResizeHandler = function() {
-    if (!isMobile()) {
-      // Desktop mode - remove mobile elements
-      var menu = document.getElementById('mobile-menu');
-      var hamburger = document.getElementById('hamburger-menu-btn');
-      var overlay = document.getElementById('mobile-overlay');
-      
-      if (menu) menu.style.display = 'none';
-      // Only hide/show via JS on mobile — CSS handles desktop hiding
-      if (hamburger && window.innerWidth <= 768) hamburger.style.display = 'none';
-      if (overlay) overlay.style.display = 'none';
-      document.body.style.overflow = '';
-    } else {
-      // Mobile mode - ensure elements visible
-      var menu = document.getElementById('mobile-menu');
-      var hamburger = document.getElementById('hamburger-menu-btn');
-      
-      if (menu) menu.style.display = '';
-      if (hamburger && window.innerWidth <= 768) hamburger.style.display = '';
-    }
-  };
-  window.addEventListener('resize', window._mobileResizeHandler);
-  
-})();
+// Mobile menu handled by DOMContentLoaded block in Phase 1 (Block 1 above)
 
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -36747,7 +36636,7 @@ async function screenshot_generate(petId) {
     var typeEmoji  = typeEmojis[pet.pet_type] || '🐾';
 
     // HP percent
-    var hpPct = Math.min(1, (pet.current_hp || pet.base_hp || 30) / Math.max(1, (pet.max_hp || pet.base_hp || 30)));
+    var hpPct = Math.min(1, (pet.current_hp || pet.base_hp || 60) / Math.max(1, (pet.max_hp || pet.base_hp || 60)));
 
     // ── Canvas setup ──
     var W = 600, H = 820;

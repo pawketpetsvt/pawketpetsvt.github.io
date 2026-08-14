@@ -11905,25 +11905,7 @@ body[data-theme="dark"] .modal-content {
   /* ========== HAMBURGER BUTTON VISIBILITY (MOBILE ONLY) ========== */
   
   .hamburger-btn,
-  #hamburger-btn,
-  [id*="hamburger"] {
-    position: fixed !important;
-    top: 10px !important;
-    left: 10px !important;
-    z-index: 10001 !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 44px !important;
-    height: 44px !important;
-    background: rgba(153, 102, 255, 0.9) !important;
-    border: 2px solid rgba(255, 255, 255, 0.2) !important;
-    border-radius: 8px !important;
-    cursor: pointer !important;
-    font-size: 24px !important;
-    color: white !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
-  }
+  /* Old floating hamburger rule removed — button lives in navbar now */
   
   .hamburger-btn:hover,
   #hamburger-btn:hover {
