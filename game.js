@@ -1794,6 +1794,7 @@ function loadTab(tab) {
   else if (tab === 'racing') racing_init();
   else if (tab === 'housing') room_init();
   else if (tab === 'friends') { updateFriendRequestBadge().catch(function(){}); switchFriendsTab('list'); }
+  else if (tab === 'privacy') { /* static page — no init needed */ }
   // Note: leaderboard and myprofile handled in showTab()
 }
 
@@ -1810,6 +1811,9 @@ function showForgotPassword() {
 }
 
 async function initApp() {
+  // Set DOB field max to today (can't be born in the future)
+  var dobField = document.getElementById('reg-dob');
+  if (dobField) dobField.max = new Date().toISOString().split('T')[0];
   // Guard: wait for Supabase client to be ready
   if (!supabaseClient) {
     dbg('Waiting for Supabase client to initialize...');
@@ -1873,6 +1877,8 @@ async function showApp(user) {
   var _gh = document.getElementById('guest-hide');
   if (_gh) _gh.parentNode.removeChild(_gh);
   dbg('showApp called with user:', user?.id || 'null');
+  var _footer = document.getElementById('site-footer');
+  if (_footer) _footer.style.display = 'block';
 
   // Guard: ensure user is valid before proceeding
   if (!user || !user.id) {
@@ -1897,6 +1903,8 @@ async function showApp(user) {
   if (navRight)     navRight.style.visibility    = '';
   document.body.classList.remove('logged-out');
   el('nav-profile').style.display = 'inline-block';
+  var _mP = document.getElementById('mobile-profile-btn'); if (_mP) _mP.style.display = 'block';
+  var _mL = document.getElementById('mobile-logout-btn');  if (_mL) _mL.style.display = 'block';
   
   // Show Pass and Bingo buttons
   var passBtn = el('pass-button');
@@ -2070,8 +2078,12 @@ function showAuth() {
   window._cachedPlayerData = null;
   el('auth-gate').style.display = 'block';
   el('app-content').style.display = 'none';
+  var _footerA = document.getElementById('site-footer');
+  if (_footerA) _footerA.style.display = 'block';
   el('nav-logout').style.display = 'none';
   el('nav-profile').style.display = 'none';
+  var _mP2 = document.getElementById('mobile-profile-btn'); if (_mP2) _mP2.style.display = 'none';
+  var _mL2 = document.getElementById('mobile-logout-btn');  if (_mL2) _mL2.style.display = 'none';
   el('nav-user').textContent = '';
   el('nav-points').textContent = '';
   tabsLoaded = {};
@@ -2662,7 +2674,23 @@ async function handleRegister() {
   var suc = el('reg-success');
   err.classList.remove('show');
   suc.classList.remove('show');
+  var dob    = el('reg-dob') ? el('reg-dob').value : '';
+  var terms  = el('reg-terms') ? el('reg-terms').checked : false;
   if (!username||!email||!password||!confirm) { err.textContent='Fill in all fields!'; err.classList.add('show'); return; }
+  // Date of birth validation (COPPA — must be 13+)
+  if (!dob) { err.textContent='Please enter your date of birth.'; err.classList.add('show'); return; }
+  var _dobDate = new Date(dob);
+  var _today   = new Date();
+  var _age     = _today.getFullYear() - _dobDate.getFullYear()
+                 - (_today < new Date(_today.getFullYear(), _dobDate.getMonth(), _dobDate.getDate()) ? 1 : 0);
+  if (isNaN(_age) || _age < 13) {
+    err.textContent = 'You must be at least 13 years old to register. If you are under 13, please ask a parent or guardian to contact us.';
+    err.classList.add('show');
+    return;
+  }
+  if (_age > 120) { err.textContent='Please enter a valid date of birth.'; err.classList.add('show'); return; }
+  // Terms checkbox
+  if (!terms) { err.textContent='Please read and accept the Privacy Policy to continue.'; err.classList.add('show'); return; }
   if (username.length < 3) { err.textContent='Username must be 3+ chars!'; err.classList.add('show'); return; }
   if (username.length > 20) { err.textContent='Username must be 20 characters or fewer!'; err.classList.add('show'); return; }
   if (!/^[a-zA-Z0-9_\- ]+$/.test(username)) { err.textContent='Username can only contain letters, numbers, spaces, _ and -'; err.classList.add('show'); return; }
@@ -13315,6 +13343,13 @@ function initManualBattle(playerStats, enemyStats, petId) {
   // Set up existing battle screen elements
   el('forest-exploration').style.display = 'none';
   el('battle-screen').style.display = 'block';
+  // Mobile: scroll to battle screen so HP bars and buttons are visible
+  if (window.innerWidth <= 768) {
+    setTimeout(function() {
+      var bs = el('battle-screen');
+      if (bs) bs.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+  }
 
   // Hide legacy controls, show manual panel
   var legacy = el('battle-log-container');
@@ -13602,7 +13637,12 @@ function manualBattle_renderSkillButtons() {
 
 function manualBattle_setNarrative(html) {
   var box = el('battle-narrative-box');
-  if (box) box.innerHTML = html;
+  if (box) {
+    box.innerHTML = html;
+    // Auto-scroll the battle log container to latest action (critical on mobile)
+    var logContainer = el('battle-log-container');
+    if (logContainer) logContainer.scrollTop = logContainer.scrollHeight;
+  }
 }
 
 function manualBattle_setActionButtonsEnabled(enabled) {
@@ -32459,6 +32499,37 @@ card.style.cssText = 'background:' + _cardBg + ';border:2px solid ' + _cardBorde
 }
 
 // Show Pass modal
+function showPrivacyPolicy() {
+  if (currentUser) {
+    showTab('privacy');
+  } else {
+    showPrivacyModal();
+  }
+}
+
+function showPrivacyModal() {
+  var modal = makeModal();
+  modal.style.maxWidth = '800px';
+  modal.style.maxHeight = '85vh';
+  modal.style.overflowY = 'auto';
+  var sec = document.getElementById('section-privacy');
+  if (sec) {
+    var clone = sec.querySelector('.legal-doc');
+    if (clone) {
+      var wrap = document.createElement('div');
+      wrap.innerHTML = '<h2 style="margin-bottom:16px;">Privacy Policy</h2>' + clone.outerHTML;
+      modal.appendChild(wrap);
+    }
+  }
+  var closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-primary';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.marginTop = '20px';
+  closeBtn.onclick = closeModal;
+  modal.appendChild(closeBtn);
+  openModal(modal);
+}
+
 function showPassModal() {
   var modal = makeModal();
   modal.classList.add('pass-modal');

@@ -18219,3 +18219,242 @@ body.night-mode .today-card-content {
   50%  { opacity: 1;   transform: translateX(-50%) translateY(-36px)  scale(1.15); }
   100% { opacity: 0;   transform: translateX(-50%) translateY(-72px)  scale(0.85); }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE QOL OVERHAUL — max-width: 768px
+   All rules use @media so desktop is 100% unaffected.
+═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── GLOBAL SPACING ──────────────────────────────────────────────────── */
+  .page-section { padding: 0 !important; }
+  .page-wrap    { padding: 8px !important; }
+  .section-inner { padding: 0 8px !important; }
+  .page-hero    { padding: 20px 12px !important; }
+  .page-hero h1 { font-size: 1.5rem !important; }
+
+  /* ── NAVBAR ─────────────────────────────────────────────────────────── */
+  .navbar-inner { padding: 6px 10px !important; gap: 6px !important; }
+  .navbar-right { gap: 4px !important; }
+  /* Hide non-essential navbar items on small screens */
+  #nav-user { display: none !important; }
+  .music-controls { display: none !important; }
+  /* Shrink skin key display */
+  #nav-skin-key-display { padding: 3px 7px !important; }
+  /* Keep pass/bingo accessible */
+  .pass-button, .bingo-button { font-size: 0.78rem !important; padding: 5px 8px !important; }
+  /* Weather widget compact */
+  .event-status-widget { padding: 4px 8px !important; font-size: 0.78rem !important; }
+  .event-status-text { display: none !important; } /* show only icon */
+
+  /* ── SHOP MASCOT — hide on mobile (too large, obstructs content) ────── */
+  .shop-mascot { display: none !important; }
+
+  /* ── PET CARDS (adopt page) ─────────────────────────────────────────── */
+  #pets-grid, .pets-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .pet-card { padding: 14px 10px !important; }
+  .pet-image-wrap img { width: 80px !important; height: 80px !important; }
+  .pet-name { font-size: 0.95rem !important; }
+  .pet-price { font-size: 0.85rem !important; }
+  .btn-adopt { font-size: 0.85rem !important; padding: 8px 10px !important; }
+
+  /* ── MY PETS ─────────────────────────────────────────────────────────── */
+  .pet-cards-grid { grid-template-columns: 1fr !important; }
+  .pet-card-inner { flex-direction: column !important; align-items: center !important; }
+  .pet-actions { flex-wrap: wrap !important; gap: 6px !important; }
+  .pet-actions .btn { flex: 1 1 40% !important; font-size: 0.8rem !important; }
+
+  /* ── BATTLE ARENA ────────────────────────────────────────────────────── */
+  .battle-arena-layout, #section-battle .section-inner {
+    padding: 8px !important;
+  }
+  /* Battle action buttons — bigger tap targets on mobile */
+  #battle-action-grid {
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  #battle-btn-attack, #battle-btn-item, #battle-btn-flee {
+    padding: 14px 6px !important;
+    font-size: 0.8rem !important;
+    min-height: 48px !important;
+  }
+  /* Skills row wraps nicely */
+  #battle-skill-row { gap: 6px !important; }
+  .battle-skill-btn { flex: 1 1 45% !important; font-size: 0.78rem !important; min-height: 44px !important; }
+  /* Battle pet selection grid */
+  #battle-pet-select { grid-template-columns: repeat(2,1fr) !important; gap: 8px !important; }
+  .battle-pet-card { padding: 10px 6px !important; font-size: 0.85rem !important; }
+  /* Battle arena sprites */
+  .battle-sprite { width: 80px !important; height: 80px !important; }
+  .battle-sprite-container { width: 90px !important; height: 90px !important; }
+  /* HP bars full width */
+  .battle-hp-container { width: 100% !important; }
+  /* Battle log smaller */
+  .battle-log-container { max-height: 120px !important; }
+  /* Expedition button full width */
+  #battle-exp-btn { font-size: 0.85rem !important; white-space: normal !important; height: auto !important; padding: 10px !important; }
+
+  /* ── FISHING ─────────────────────────────────────────────────────────── */
+  #fishing-pond { height: 160px !important; }
+  #fishing-btn  { font-size: 1rem !important; padding: 14px !important; min-height: 52px !important; }
+  .fishing-power-bar-container { height: 20px !important; }
+  .fishing-result { font-size: 1rem !important; }
+
+  /* ── RACING ──────────────────────────────────────────────────────────── */
+  .shop-tabs { flex-wrap: wrap !important; gap: 4px !important; }
+  .shop-tab  { flex: 1 1 auto !important; font-size: 0.78rem !important; padding: 7px 4px !important; }
+
+  /* ── SHOP ────────────────────────────────────────────────────────────── */
+  #shop-grid, .shop-grid { grid-template-columns: repeat(2,1fr) !important; gap: 10px !important; }
+  .shop-item-card { padding: 10px 8px !important; }
+  .shop-item-name { font-size: 0.85rem !important; }
+  .shop-item-price { font-size: 0.8rem !important; }
+  .btn-buy { font-size: 0.78rem !important; padding: 7px !important; }
+  /* Shop tabs */
+  #shop-tab-btn, #equip-tab-btn, #furn-tab-btn, #inv-tab-btn, #consumables-tab-btn {
+    font-size: 0.78rem !important; padding: 7px 6px !important;
+  }
+
+  /* ── GUILD ───────────────────────────────────────────────────────────── */
+  #guild-content { padding: 8px !important; }
+  .guild-card { padding: 12px !important; }
+  .guild-member-card { flex-direction: column !important; }
+
+  /* ── MINIGAMES ───────────────────────────────────────────────────────── */
+  .minigame-grid { grid-template-columns: 1fr !important; }
+  .minigame-card { padding: 16px 12px !important; }
+
+  /* ── PROFILE ─────────────────────────────────────────────────────────── */
+  .profile-header { flex-direction: column !important; align-items: center !important; text-align: center !important; }
+  .profile-actions { flex-wrap: wrap !important; justify-content: center !important; }
+  .profile-actions .btn { font-size: 0.82rem !important; }
+
+  /* ── FRIENDS ─────────────────────────────────────────────────────────── */
+  .friend-card { flex-direction: column !important; align-items: flex-start !important; }
+  .friend-actions { flex-wrap: wrap !important; gap: 6px !important; }
+  .friend-actions .btn { font-size: 0.78rem !important; }
+
+  /* ── MODALS ──────────────────────────────────────────────────────────── */
+  .modal-content-custom {
+    max-width: 96vw !important;
+    max-height: 90vh !important;
+    padding: 16px !important;
+    margin: 0 auto !important;
+    overflow-y: auto !important;
+  }
+  .modal { max-width: 95vw !important; padding: 16px !important; }
+
+  /* ── INVENTORY ───────────────────────────────────────────────────────── */
+  .inventory-grid { grid-template-columns: repeat(3,1fr) !important; gap: 8px !important; }
+  .inventory-item { padding: 8px 4px !important; font-size: 0.78rem !important; }
+
+  /* ── LEADERBOARD ─────────────────────────────────────────────────────── */
+  .leaderboard-entry { gap: 8px !important; }
+  .leaderboard-name { font-size: 0.85rem !important; }
+
+  /* ── HOUSING (room view) ─────────────────────────────────────────────── */
+  .room-grid { grid-template-columns: repeat(2,1fr) !important; }
+  .furniture-slot { min-height: 80px !important; }
+
+  /* ── NOTIFICATION DROPDOWN ───────────────────────────────────────────── */
+  .notification-dropdown {
+    width: 95vw !important;
+    right: -10px !important;
+    left: auto !important;
+  }
+
+  /* ── TODAY CARD / HOME ───────────────────────────────────────────────── */
+  .today-card { padding: 12px !important; }
+  .today-summary { flex-wrap: wrap !important; gap: 6px !important; }
+
+  /* ── STATS BAR (bottom-left) ─────────────────────────────────────────── */
+  #sidebar-stats-box {
+    bottom: 4px !important;
+    left: 4px !important;
+    padding: 6px 8px !important;
+    font-size: 0.72rem !important;
+    gap: 6px !important;
+  }
+
+  /* ── COMPANION PET ───────────────────────────────────────────────────── */
+  #companion-buddy {
+    bottom: 50px !important; /* above the stats bar */
+    right: 6px !important;
+  }
+  .companion-sprite { width: 60px !important; height: 60px !important; }
+  .companion-bubble { max-width: 160px !important; font-size: 0.72rem !important; }
+
+  /* ── PASS MODAL ──────────────────────────────────────────────────────── */
+  .pass-rewards-track { grid-template-columns: repeat(2,1fr) !important; gap: 8px !important; }
+  .pass-reward-card { padding: 10px 6px !important; }
+
+  /* ── FORMS / INPUTS ──────────────────────────────────────────────────── */
+  input[type="text"], input[type="email"], input[type="password"], textarea, select {
+    font-size: 16px !important; /* prevents iOS zoom on focus */
+    padding: 10px 12px !important;
+  }
+
+  /* ── BUTTONS — minimum tap targets ──────────────────────────────────── */
+  .btn { min-height: 40px !important; }
+  .btn-sm { min-height: 34px !important; font-size: 0.8rem !important; }
+
+  /* ── JOURNAL ─────────────────────────────────────────────────────────── */
+  .journal-grid { grid-template-columns: repeat(2,1fr) !important; }
+
+  /* ── BINGO MODAL ─────────────────────────────────────────────────────── */
+  .bingo-grid { grid-template-columns: repeat(5,1fr) !important; gap: 3px !important; }
+  .bingo-cell { padding: 4px !important; font-size: 0.65rem !important; min-height: 44px !important; }
+
+  /* ── SIDEBAR STATS BOX ───────────────────────────────────────────────── */
+  .sidebar-stats-item-label { display: none !important; } /* show only icon + number */
+
+}
+
+/* Extra small phones */
+@media (max-width: 400px) {
+  #pets-grid, .pets-grid { grid-template-columns: 1fr !important; }
+  .battle-skill-btn { flex: 1 1 100% !important; }
+  #battle-action-grid { grid-template-columns: 1fr 1fr !important; }
+  #battle-btn-flee { grid-column: 1 / -1 !important; }
+  .shop-tab { font-size: 0.72rem !important; padding: 6px 3px !important; }
+  .inventory-grid { grid-template-columns: repeat(2,1fr) !important; }
+}
+
+/* ── LEGAL DOCUMENTS ─────────────────────────────────────────────────────── */
+.legal-doc {
+  line-height: 1.75;
+  color: var(--text);
+}
+.legal-doc h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--purple-dark);
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid rgba(153,102,255,0.15);
+}
+.legal-doc h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 16px 0 6px;
+  color: var(--text);
+}
+.legal-doc h2:first-child { margin-top: 0; }
+.legal-doc p { margin: 0 0 12px; color: var(--text); }
+.legal-doc ul {
+  margin: 8px 0 14px 20px;
+  padding: 0;
+}
+.legal-doc li { margin-bottom: 6px; }
+.legal-doc strong { color: var(--text); }
+.legal-doc a { color: var(--purple); }
+
+body.night-mode .legal-doc,
+body.night-mode .legal-doc p,
+body.night-mode .legal-doc li { color: var(--text) !important; }
+body.night-mode .legal-doc h2 { color: #c4a0ff !important; border-color: rgba(153,102,255,0.2) !important; }
