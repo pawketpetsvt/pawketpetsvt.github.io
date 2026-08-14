@@ -1894,6 +1894,7 @@ function loadTab(tab) {
   else if (tab === 'guild') loadGuildPage();
   else if (tab === 'racing') racing_init();
   else if (tab === 'housing') room_init();
+  else if (tab === 'cooking') cooking_init().then(null, function(){});
   else if (tab === 'friends') { updateFriendRequestBadge().catch(function(){}); switchFriendsTab('list'); }
   else if (tab === 'privacy') { /* static page — no init needed */ }
   // Note: leaderboard and myprofile handled in showTab()
@@ -5134,6 +5135,8 @@ async function expedition_claim(expeditionId) {
 
   // ARG: chance to drop a tester log on expedition claim
   argLogs_tryDrop('expedition').then(null, function(){});
+  // Cooking ingredient drops from expedition
+  cooking_rollExpeditionDrop(row.zone).then(null, function(){});
   // Weekly challenges
   weeklyChallenge_increment('wk_expeditions', 1);
 
@@ -9257,6 +9260,10 @@ async function castLine(power) {
     fishingDaily_onCatch(caught, weightG);
     fishingShoal_onCast();
 
+    // Cooking ingredient drops from fishing
+    if (caught.rarity !== 'junk') {
+      cooking_rollFishingDrop(caught.name).then(null, function(){});
+    }
 
     // Fishing achievements
     (function(){
@@ -13786,6 +13793,11 @@ function initManualBattle(playerStats, enemyStats, petId) {
   }
 
   manualBattle_render();
+
+  // Render active buff pills (weather, world events, guild perks) above action buttons
+  var buffPillContainer = el('battle-buff-pills');
+  if (buffPillContainer) renderGlobalBuffPills(buffPillContainer);
+
   var initNarr = manualBattleState._battleStartMsg
     ? '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>' + manualBattleState._battleStartMsg
     : '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>What will you do?';
@@ -15228,6 +15240,8 @@ async function manualBattle_endBattle(victory) {
       }
     }
     argLogs_tryDrop('battle').then(null, function(){});
+    // Cooking ingredient drops on battle win
+    cooking_rollBattleDrop(s.enemyStats).then(null, function(){});
   }
 
   // Save results
@@ -39776,3 +39790,741 @@ var PET_SKILLS = {
 
 
 // ═══════════════════════════════════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COOKING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// All ingredient definitions (id -> display info)
+var COOKING_INGREDIENTS = {
+  // Battle drops
+  meat_chunk:     { name: 'Raw Meat',        emoji: '🥩', source: 'Battle (animals)' },
+  tough_meat:     { name: 'Tough Meat',       emoji: '🍖', source: 'Battle (elder animals)' },
+  small_bone:     { name: 'Small Bone',       emoji: '🦴', source: 'Battle (any animal)' },
+  feather:        { name: 'Feather',          emoji: '🪶', source: 'Battle (birds)' },
+  mushroom:       { name: 'Forest Mushroom',  emoji: '🍄', source: 'Battle (deepwoods/ruins)' },
+  glitch_residue: { name: 'Glitch Residue',  emoji: '⁉️',  source: 'Battle (rare drop, any)' },
+  // Fishing drops
+  fresh_salmon:   { name: 'Fresh Salmon',     emoji: '🐟', source: 'Fishing (salmon catch)' },
+  fresh_cod:      { name: 'Fresh Cod',        emoji: '🐠', source: 'Fishing (cod catch)' },
+  shellfish:      { name: 'Shellfish',         emoji: '🦐', source: 'Fishing (10% any cast)' },
+  seaweed:        { name: 'Seaweed',           emoji: '🌿', source: 'Fishing (15% any cast)' },
+  // Expedition drops
+  wild_herb:      { name: 'Wild Herb',         emoji: '🌱', source: 'Expedition (outskirts/glade)' },
+  forest_berry:   { name: 'Forest Berry',      emoji: '🍇', source: 'Expedition (glade)' },
+  honey:          { name: 'Wild Honey',        emoji: '🍯', source: 'Expedition (deepwoods)' },
+  rare_spice:     { name: 'Rare Spice',        emoji: '✨',  source: 'Expedition (ruins)' },
+  crystal_shard:  { name: 'Crystal Shard',     emoji: '💎', source: 'Expedition (ruins, rare)' },
+  // Shop staples (bought as items, transferred to ingredients when used)
+  flour:  { name: 'Flour',  emoji: '🌾', source: 'Shop (15 PP)' },
+  sugar:  { name: 'Sugar',  emoji: '🍬', source: 'Shop (15 PP)' },
+  butter: { name: 'Butter', emoji: '🧈', source: 'Shop (20 PP)' },
+  salt:   { name: 'Salt',   emoji: '🧂', source: 'Shop (10 PP)' },
+  egg:    { name: 'Egg',    emoji: '🥚', source: 'Shop (20 PP)' }
+};
+
+// Recipe definitions — sorted list of ingredient IDs is the canonical key
+var COOKING_RECIPES = [
+  {
+    id: 'honey_cookies',
+    name: 'Honey Cookies',
+    emoji: '🍪',
+    ingredients: ['butter', 'flour', 'honey', 'sugar'],
+    effect: 'Hunger +35, Happiness +15',
+    hunger: 35, happiness: 15, hp: 0,
+    description: 'Sweet, chewy cookies drizzled in wild honey.'
+  },
+  {
+    id: 'berry_mash',
+    name: 'Berry Mash',
+    emoji: '🫐',
+    ingredients: ['forest_berry', 'sugar'],
+    effect: 'Hunger +15, Happiness +10',
+    hunger: 15, happiness: 10, hp: 0,
+    description: 'Mashed forest berries with a hint of sweetness.'
+  },
+  {
+    id: 'fish_fillet',
+    name: 'Fish Fillet',
+    emoji: '🍣',
+    ingredients: ['fresh_salmon', 'salt'],
+    effect: 'Hunger +25, HP +5',
+    hunger: 25, happiness: 0, hp: 5,
+    description: 'Lightly salted salmon fillet. Nutritious and fresh.'
+  },
+  {
+    id: 'mushroom_soup',
+    name: 'Mushroom Soup',
+    emoji: '🍲',
+    ingredients: ['mushroom', 'salt', 'wild_herb'],
+    effect: 'Hunger +30, HP +10',
+    hunger: 30, happiness: 0, hp: 10,
+    description: 'A warm forest soup with earthy mushrooms and fresh herbs.'
+  },
+  {
+    id: 'meat_pie',
+    name: 'Meat Pie',
+    emoji: '🥧',
+    ingredients: ['egg', 'flour', 'meat_chunk'],
+    effect: 'Hunger +40, HP +5',
+    hunger: 40, happiness: 0, hp: 5,
+    description: 'A hearty pie filled with savory meat.'
+  },
+  {
+    id: 'spiced_broth',
+    name: 'Spiced Broth',
+    emoji: '🫕',
+    ingredients: ['rare_spice', 'salt', 'tough_meat'],
+    effect: 'Hunger +35, HP +15',
+    hunger: 35, happiness: 0, hp: 15,
+    description: 'A rich, spicy broth brewed from tough cuts.'
+  },
+  {
+    id: 'sweet_bun',
+    name: 'Sweet Bun',
+    emoji: '🧁',
+    ingredients: ['butter', 'egg', 'flour', 'sugar'],
+    effect: 'Hunger +20, Happiness +20',
+    hunger: 20, happiness: 20, hp: 0,
+    description: 'A fluffy, buttery bun dusted with sugar.'
+  },
+  {
+    id: 'seaweed_wrap',
+    name: 'Seaweed Wrap',
+    emoji: '🌯',
+    ingredients: ['fresh_cod', 'salt', 'seaweed'],
+    effect: 'Hunger +28, Happiness +5',
+    hunger: 28, happiness: 5, hp: 0,
+    description: 'Cod and vegetables wrapped in dried seaweed.'
+  },
+  {
+    id: 'shellfish_stew',
+    name: 'Shellfish Stew',
+    emoji: '🍜',
+    ingredients: ['salt', 'shellfish', 'wild_herb'],
+    effect: 'Hunger +30, HP +8, Happiness +5',
+    hunger: 30, happiness: 5, hp: 8,
+    description: 'A savory stew of fresh shellfish and wild herbs.'
+  },
+  {
+    id: 'feather_fluff_cake',
+    name: 'Feather Fluff Cake',
+    emoji: '🎂',
+    ingredients: ['feather', 'flour', 'sugar'],
+    effect: 'Hunger +10, Happiness +30',
+    hunger: 10, happiness: 30, hp: 0,
+    description: 'Impossibly light cake. More fluff than substance, but surprisingly fun.'
+  },
+  {
+    id: 'golden_crown_roast',
+    name: 'Golden Crown Roast',
+    emoji: '👑',
+    ingredients: ['crystal_shard', 'honey', 'rare_spice', 'tough_meat'],
+    effect: 'Hunger +50, HP +25, Happiness +15',
+    hunger: 50, happiness: 15, hp: 25,
+    description: 'The finest dish the kitchen can produce. Fit for royalty.'
+  },
+  {
+    id: 'faerie_dust_delight',
+    name: 'Faerie Dust Delight',
+    emoji: '✨',
+    ingredients: ['forest_berry', 'glitch_residue', 'sugar'],
+    effect: 'Hunger +20, Happiness +25, HP +10',
+    hunger: 20, happiness: 25, hp: 10,
+    description: 'Something about this dish shimmers wrong. It tastes incredible though.'
+  },
+  {
+    id: 'pipers_broth',
+    name: "Piper's Broth",
+    emoji: '🎵',
+    ingredients: ['glitch_residue', 'mushroom', 'small_bone'],
+    effect: 'Hunger MAX, Happiness -10',
+    hunger: 999, happiness: -10, hp: 0,
+    description: 'A dark, bubbling broth. It smells like static and something older.',
+    isPiperRecipe: true
+  }
+];
+
+// Ingredient drop chances — used by battle/fishing/expedition hooks
+var COOKING_DROP_TABLES = {
+  battle: {
+    // species keyword -> { ingredient_id: chance (0-1) }
+    mammal: { meat_chunk: 0.20, small_bone: 0.15 },
+    bird:   { feather: 0.25, small_bone: 0.10 },
+    spider: { small_bone: 0.10 },
+    frog:   { small_bone: 0.10 },
+    bear:   { tough_meat: 0.18, small_bone: 0.12 },
+    wolf:   { meat_chunk: 0.22, tough_meat: 0.10, small_bone: 0.12 },
+    fox:    { meat_chunk: 0.18, small_bone: 0.12 },
+    boar:   { tough_meat: 0.20, meat_chunk: 0.15, small_bone: 0.10 },
+    deer:   { tough_meat: 0.15, meat_chunk: 0.15, small_bone: 0.12 },
+    bunny:  { meat_chunk: 0.18, small_bone: 0.15 },
+    rabbit: { meat_chunk: 0.18, small_bone: 0.15 },
+    rat:    { meat_chunk: 0.15, small_bone: 0.12 },
+    mouse:  { meat_chunk: 0.12, small_bone: 0.12 },
+    // Deepwoods/ruins-only
+    mushroom: { mushroom: 0.25 },
+    ghost:    { glitch_residue: 0.04 },
+    spirit:   { glitch_residue: 0.04 },
+    shadow:   { glitch_residue: 0.05 },
+    void:     { glitch_residue: 0.06 }
+  },
+  // Always checked on any battle (rare)
+  battleAny: { glitch_residue: 0.03 },
+  fishing: {
+    salmon: { fresh_salmon: 1.0 },
+    cod:    { fresh_cod: 1.0 },
+    any:    { shellfish: 0.10, seaweed: 0.15 }
+  },
+  expedition: {
+    outskirts: { wild_herb: 0.25 },
+    glade:     { wild_herb: 0.25, forest_berry: 0.20 },
+    deepwoods: { wild_herb: 0.15, forest_berry: 0.12, honey: 0.15 },
+    ruins:     { wild_herb: 0.10, rare_spice: 0.10, honey: 0.08, crystal_shard: 0.05 }
+  }
+};
+
+// State
+var _cookingIngredients = {}; // { ingredient_id: quantity }
+var _cookingDiscovered  = {}; // { recipe_id: true }
+var _cookingSlots       = [null, null, null, null]; // current slot contents
+var _cookingCurrentTab  = 'craft';
+var _cookingLoaded      = false;
+
+// ── Tab switching ───────────────────────────────────────────────────────────
+function cooking_switchTab(tab) {
+  _cookingCurrentTab = tab;
+  ['craft','recipes','ingredients'].forEach(function(t) {
+    var btn   = document.getElementById('cook-tab-' + t);
+    var panel = document.getElementById('cooking-panel-' + t);
+    if (btn)   btn.classList.toggle('active', t === tab);
+    if (panel) panel.style.display = t === tab ? '' : 'none';
+  });
+  if (tab === 'recipes')     cooking_renderRecipeBook();
+  if (tab === 'ingredients') cooking_renderAllIngredients();
+}
+
+// ── showTab hook ────────────────────────────────────────────────────────────
+var _origShowTabForCooking = null; // patched below after showTab exists
+
+// ── Load ingredients from Supabase ─────────────────────────────────────────
+async function cooking_load() {
+  if (!currentUser) return;
+  _cookingLoaded = false;
+  try {
+    var { data: rows } = await supabaseClient
+      .from('user_ingredients')
+      .select('ingredient_id, quantity')
+      .eq('user_id', currentUser.id);
+    _cookingIngredients = {};
+    (rows || []).forEach(function(r) { _cookingIngredients[r.ingredient_id] = r.quantity || 0; });
+
+    var { data: log } = await supabaseClient
+      .from('cooking_log')
+      .select('recipe_id')
+      .eq('user_id', currentUser.id);
+    _cookingDiscovered = {};
+    (log || []).forEach(function(r) { _cookingDiscovered[r.recipe_id] = true; });
+
+    _cookingLoaded = true;
+    cooking_renderIngredientGrid();
+  } catch(e) {
+    dbg('[Cooking] Load error:', e);
+  }
+}
+
+// ── Render ingredient grid (craft tab) ────────────────────────────────────
+function cooking_renderIngredientGrid() {
+  var grid = document.getElementById('cooking-ingredient-grid');
+  if (!grid) return;
+
+  var ids = Object.keys(COOKING_INGREDIENTS);
+  if (!ids.length) { grid.innerHTML = '<div style="color:var(--text-light);font-size:0.82rem;">No ingredients defined.</div>'; return; }
+
+  grid.innerHTML = ids.map(function(id) {
+    var def = COOKING_INGREDIENTS[id];
+    var qty = _cookingIngredients[id] || 0;
+    var outOfStock = qty === 0;
+    return '<div class="cooking-ingredient-card' + (outOfStock ? ' out-of-stock' : '') + '" ' +
+      'onclick="cooking_addToSlot(\'' + id + '\')" ' +
+      'title="' + escapeHtml(def.name) + ' (' + (outOfStock ? 'none' : qty) + ' owned)">' +
+      '<span class="ing-emoji">' + def.emoji + '</span>' +
+      '<span class="ing-name">' + escapeHtml(def.name) + '</span>' +
+      '<span class="ing-count">' + qty + '</span>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Add ingredient to next free slot ──────────────────────────────────────
+function cooking_addToSlot(ingredientId) {
+  var qty = _cookingIngredients[ingredientId] || 0;
+  // Count how many of this ingredient are already in slots
+  var inSlots = _cookingSlots.filter(function(s) { return s === ingredientId; }).length;
+  if (qty <= inSlots) { showToast('Not enough ' + (COOKING_INGREDIENTS[ingredientId] ? COOKING_INGREDIENTS[ingredientId].name : ingredientId) + '!', 2000); return; }
+  var freeIdx = _cookingSlots.indexOf(null);
+  if (freeIdx === -1) { showToast('All slots are full! Click a slot to remove an ingredient.', 2500); return; }
+  _cookingSlots[freeIdx] = ingredientId;
+  cooking_renderSlots();
+  cooking_checkRecipe();
+}
+
+// ── Remove ingredient from slot ────────────────────────────────────────────
+function cooking_removeSlot(idx) {
+  if (_cookingSlots[idx] === null) return;
+  _cookingSlots[idx] = null;
+  cooking_renderSlots();
+  cooking_checkRecipe();
+}
+
+// ── Render the 4 crafting slots ───────────────────────────────────────────
+function cooking_renderSlots() {
+  for (var i = 0; i < 4; i++) {
+    var slotEl = document.getElementById('cook-slot-' + i);
+    if (!slotEl) continue;
+    var ingId = _cookingSlots[i];
+    if (ingId) {
+      var def = COOKING_INGREDIENTS[ingId];
+      slotEl.classList.add('filled');
+      slotEl.innerHTML =
+        '<span style="font-size:1.5rem;">' + (def ? def.emoji : '?') + '</span>' +
+        '<span class="cook-slot-ing-name">' + escapeHtml(def ? def.name : ingId) + '</span>';
+    } else {
+      slotEl.classList.remove('filled');
+      slotEl.innerHTML = '<span class="cook-slot-label">+</span>';
+    }
+  }
+}
+
+// ── Check if current slots match a recipe ────────────────────────────────
+function cooking_checkRecipe() {
+  var filled = _cookingSlots.filter(function(s) { return s !== null; });
+  var hint   = document.getElementById('cooking-recipe-hint');
+  var cookBtn = document.getElementById('cooking-cook-btn');
+  if (!cookBtn) return;
+
+  if (filled.length === 0) {
+    if (hint) hint.textContent = '';
+    cookBtn.disabled = true;
+    cookBtn.classList.remove('recipe-ready');
+    cookBtn.textContent = 'Cook!';
+    return;
+  }
+
+  // Sort to make order-independent match
+  var sorted = filled.slice().sort();
+  var match = null;
+  for (var r = 0; r < COOKING_RECIPES.length; r++) {
+    var recipe = COOKING_RECIPES[r];
+    if (recipe.ingredients.length === sorted.length) {
+      var rSorted = recipe.ingredients.slice().sort();
+      if (rSorted.join(',') === sorted.join(',')) {
+        match = recipe;
+        break;
+      }
+    }
+  }
+
+  if (match) {
+    if (hint) {
+      if (_cookingDiscovered[match.id]) {
+        hint.textContent = match.emoji + ' ' + match.name;
+        hint.style.color = 'var(--purple)';
+      } else {
+        hint.textContent = '? Unknown recipe...';
+        hint.style.color = 'var(--text-light)';
+      }
+    }
+    cookBtn.disabled = false;
+    cookBtn.classList.add('recipe-ready');
+    cookBtn.textContent = 'Cook!';
+  } else if (filled.length > 0) {
+    if (hint) {
+      hint.textContent = filled.length >= 2 ? 'No recipe found with these ingredients.' : 'Add more ingredients...';
+      hint.style.color = 'var(--text-light)';
+    }
+    cookBtn.disabled = false; // allow attempt — will show toast on fail
+    cookBtn.classList.remove('recipe-ready');
+    cookBtn.textContent = 'Try Cooking';
+  }
+}
+
+// ── Cook! ─────────────────────────────────────────────────────────────────
+async function cooking_cook() {
+  if (!currentUser) { showToast('Log in to cook!', 2000); return; }
+  var filled = _cookingSlots.filter(function(s) { return s !== null; });
+  if (filled.length === 0) { showToast('Add some ingredients first!', 2000); return; }
+
+  var multiCount = parseInt((document.getElementById('cooking-multi-count') || {}).value || '1', 10);
+  if (isNaN(multiCount) || multiCount < 1) multiCount = 1;
+  if (multiCount > 20) multiCount = 20;
+
+  var sorted = filled.slice().sort();
+  var match = null;
+  for (var r = 0; r < COOKING_RECIPES.length; r++) {
+    var recipe = COOKING_RECIPES[r];
+    if (recipe.ingredients.length === sorted.length) {
+      var rSorted = recipe.ingredients.slice().sort();
+      if (rSorted.join(',') === sorted.join(',')) {
+        match = recipe;
+        break;
+      }
+    }
+  }
+
+  if (!match) {
+    showToast('Unknown recipe... these ingredients don\'t seem to go together.', 3000);
+    return;
+  }
+
+  // Check we have enough ingredients for multiCount batches
+  var needed = {};
+  filled.forEach(function(id) { needed[id] = (needed[id] || 0) + 1; });
+  for (var ingId in needed) {
+    var have = _cookingIngredients[ingId] || 0;
+    var need = needed[ingId] * multiCount;
+    if (have < need) {
+      var ingDef = COOKING_INGREDIENTS[ingId];
+      showToast('Not enough ' + (ingDef ? ingDef.name : ingId) + ' for ' + multiCount + 'x! (need ' + need + ', have ' + have + ')', 3000);
+      return;
+    }
+  }
+
+  var cookBtn = document.getElementById('cooking-cook-btn');
+  if (cookBtn) { cookBtn.disabled = true; cookBtn.textContent = 'Cooking...'; }
+
+  try {
+    // Deduct ingredients
+    for (var iId in needed) {
+      var deduct = needed[iId] * multiCount;
+      _cookingIngredients[iId] = (_cookingIngredients[iId] || 0) - deduct;
+      // Upsert to DB
+      await supabaseClient.from('user_ingredients').upsert({
+        user_id: currentUser.id,
+        ingredient_id: iId,
+        quantity: Math.max(0, _cookingIngredients[iId]),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,ingredient_id' });
+    }
+
+    // Grant output item(s) to inventory
+    // Output items use recipe id as item name — look up in items table
+    try {
+      var { data: itemRow } = await supabaseClient
+        .from('items')
+        .select('id, name')
+        .ilike('name', match.name)
+        .maybeSingle();
+      if (itemRow) {
+        // Check existing inventory
+        var { data: invRow } = await supabaseClient
+          .from('user_inventory')
+          .select('id, quantity')
+          .eq('user_id', currentUser.id)
+          .eq('item_id', itemRow.id)
+          .maybeSingle();
+        if (invRow) {
+          await supabaseClient.from('user_inventory').update({ quantity: invRow.quantity + multiCount }).eq('id', invRow.id);
+        } else {
+          await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: itemRow.id, quantity: multiCount });
+        }
+      }
+    } catch(itemErr) { dbg('[Cooking] Item grant error (non-fatal):', itemErr); }
+
+    // Log discovery and times_cooked
+    var isNewDiscovery = !_cookingDiscovered[match.id];
+    if (isNewDiscovery) {
+      _cookingDiscovered[match.id] = true;
+      await supabaseClient.from('cooking_log').upsert({
+        user_id: currentUser.id,
+        recipe_id: match.id,
+        times_cooked: multiCount,
+        first_cooked: new Date().toISOString()
+      }, { onConflict: 'user_id,recipe_id' });
+    } else {
+      // Increment times_cooked
+      await supabaseClient.from('cooking_log').update({
+        times_cooked: supabaseClient.rpc ? undefined : undefined // handled below
+      }).eq('user_id', currentUser.id).eq('recipe_id', match.id).then(null, function(){});
+      // Simple increment via raw upsert (times_cooked tracked loosely)
+      var { data: logRow } = await supabaseClient.from('cooking_log').select('times_cooked').eq('user_id', currentUser.id).eq('recipe_id', match.id).maybeSingle();
+      if (logRow) {
+        await supabaseClient.from('cooking_log').update({ times_cooked: (logRow.times_cooked || 1) + multiCount }).eq('user_id', currentUser.id).eq('recipe_id', match.id);
+      }
+    }
+
+    // Badges
+    var totalCooked = Object.keys(_cookingDiscovered).length;
+    if (totalCooked >= 1)  awardBadge('cook_first').then(null, function(){});
+    if (totalCooked >= 10) awardBadge('cook_10').then(null, function(){});
+    if (totalCooked >= 50) awardBadge('cook_50').then(null, function(){});
+    if (match.isPiperRecipe) awardBadge('cook_piper').then(null, function(){});
+
+    // Bingo / weekly challenges
+    updateBingoProgress('cook_meal', multiCount);
+    weeklyChallenge_increment('wk_meals_cooked', multiCount);
+
+    // Pass XP
+    addPassXP(Math.min(multiCount * 3, 30), 'cooking').then(null, function(){});
+
+    // Piper recipe: creepy toast
+    if (match.isPiperRecipe) {
+      setTimeout(function() {
+        showToast('Something is watching you eat.', 5000);
+      }, 1200);
+    }
+
+    // Discovery animation
+    if (isNewDiscovery) {
+      cooking_showDiscovery(match);
+    } else {
+      showToast(match.emoji + ' Cooked ' + (multiCount > 1 ? multiCount + 'x ' : '') + match.name + '! Added to inventory.', 3500);
+    }
+
+    // Clear slots
+    _cookingSlots = [null, null, null, null];
+    cooking_renderSlots();
+    cooking_renderIngredientGrid();
+    cooking_checkRecipe();
+
+    // Invalidate inventory cache
+    tabsLoaded['shop'] = false;
+
+  } catch(e) {
+    dbg('[Cooking] Cook error:', e);
+    showToast('Something went wrong while cooking. Try again!', 3000);
+  } finally {
+    if (cookBtn) { cookBtn.disabled = false; cookBtn.textContent = 'Cook!'; cookBtn.classList.remove('recipe-ready'); }
+  }
+}
+
+// ── Discovery flash animation ─────────────────────────────────────────────
+function cooking_showDiscovery(recipe) {
+  var overlay = document.createElement('div');
+  overlay.className = 'cooking-discovery-overlay';
+  overlay.innerHTML =
+    '<div class="cooking-discovery-box">' +
+      '<div style="font-size:3.5rem;margin-bottom:10px;">' + recipe.emoji + '</div>' +
+      '<div style="font-weight:800;font-size:1.3rem;color:#e8d5ff;margin-bottom:4px;">New Recipe Discovered!</div>' +
+      '<div style="font-weight:700;font-size:1rem;color:var(--purple-light);margin-bottom:8px;">' + escapeHtml(recipe.name) + '</div>' +
+      '<div style="font-size:0.82rem;color:rgba(255,255,255,0.65);">' + escapeHtml(recipe.effect) + '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function() {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    showToast(recipe.emoji + ' ' + recipe.name + ' discovered! Check your Recipe Book.', 4000);
+  }, 2300);
+}
+
+// ── Recipe book tab ──────────────────────────────────────────────────────
+function cooking_renderRecipeBook() {
+  var container = document.getElementById('cooking-recipe-book');
+  if (!container) return;
+
+  var discovered = COOKING_RECIPES.filter(function(r) { return _cookingDiscovered[r.id]; });
+  if (discovered.length === 0) {
+    container.innerHTML = '<div style="text-align:center;padding:40px 0;color:var(--text-light);font-style:italic;">No recipes discovered yet.<br>Experiment in the kitchen!</div>';
+    return;
+  }
+
+  container.innerHTML = discovered.map(function(r) {
+    var ingList = r.ingredients.map(function(id) {
+      var def = COOKING_INGREDIENTS[id];
+      return (def ? def.emoji + ' ' + def.name : id);
+    }).join(' + ');
+
+    // Check if player can craft this right now
+    var canCraft = r.ingredients.every(function(id) {
+      var inSlots = _cookingSlots.filter(function(s) { return s === id; }).length;
+      return (_cookingIngredients[id] || 0) > inSlots;
+    });
+
+    return '<div class="cooking-recipe-card">' +
+      '<div class="recipe-icon">' + r.emoji + '</div>' +
+      '<div class="recipe-info">' +
+        '<div class="recipe-name">' + escapeHtml(r.name) + '</div>' +
+        '<div class="recipe-ingredients">' + escapeHtml(ingList) + '</div>' +
+        '<div class="recipe-effect">' + escapeHtml(r.effect) + '</div>' +
+        (r.description ? '<div style="font-size:0.72rem;color:var(--text-light);margin-top:3px;font-style:italic;">' + escapeHtml(r.description) + '</div>' : '') +
+      '</div>' +
+      '<button class="btn btn-primary btn-sm" onclick="cooking_quickCraft(\'' + r.id + '\')" ' +
+        (canCraft ? '' : 'disabled title="Not enough ingredients"') +
+        ' style="flex-shrink:0;' + (!canCraft ? 'opacity:0.4;' : '') + '">Cook</button>' +
+    '</div>';
+  }).join('');
+}
+
+// ── Quick-craft from recipe book ─────────────────────────────────────────
+function cooking_quickCraft(recipeId) {
+  var recipe = COOKING_RECIPES.find(function(r) { return r.id === recipeId; });
+  if (!recipe) return;
+  // Fill slots with recipe ingredients
+  _cookingSlots = [null, null, null, null];
+  recipe.ingredients.slice(0, 4).forEach(function(id, i) {
+    _cookingSlots[i] = id;
+  });
+  cooking_switchTab('craft');
+  cooking_renderSlots();
+  cooking_checkRecipe();
+}
+
+// ── All ingredients info tab ─────────────────────────────────────────────
+function cooking_renderAllIngredients() {
+  var container = document.getElementById('cooking-all-ingredients-list');
+  if (!container) return;
+
+  var categories = [
+    { label: 'From Battles',      ids: ['meat_chunk','tough_meat','small_bone','feather','mushroom','glitch_residue'] },
+    { label: 'From Fishing',      ids: ['fresh_salmon','fresh_cod','shellfish','seaweed'] },
+    { label: 'From Expeditions',  ids: ['wild_herb','forest_berry','honey','rare_spice','crystal_shard'] },
+    { label: 'From Shop',         ids: ['flour','sugar','butter','salt','egg'] }
+  ];
+
+  container.innerHTML = categories.map(function(cat) {
+    return '<div style="margin-bottom:18px;">' +
+      '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:6px;">' + escapeHtml(cat.label) + '</div>' +
+      cat.ids.map(function(id) {
+        var def = COOKING_INGREDIENTS[id];
+        if (!def) return '';
+        var qty = _cookingIngredients[id] || 0;
+        return '<div class="cooking-all-ing-row">' +
+          '<span style="font-size:1.3rem;">' + def.emoji + '</span>' +
+          '<span style="flex:1;font-weight:600;color:var(--purple-dark);">' + escapeHtml(def.name) + '</span>' +
+          '<span style="font-size:0.75rem;color:var(--text-light);">' + escapeHtml(def.source) + '</span>' +
+          '<span style="font-weight:700;color:' + (qty > 0 ? 'var(--purple)' : 'var(--text-light)') + ';min-width:30px;text-align:right;">' + qty + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }).join('');
+}
+
+// ── Award an ingredient to the current user (called from drop hooks) ──────
+async function cooking_awardIngredient(ingredientId, quantity) {
+  if (!currentUser || !COOKING_INGREDIENTS[ingredientId]) return;
+  quantity = quantity || 1;
+  _cookingIngredients[ingredientId] = (_cookingIngredients[ingredientId] || 0) + quantity;
+  try {
+    var current = 0;
+    var { data: existing } = await supabaseClient
+      .from('user_ingredients')
+      .select('quantity')
+      .eq('user_id', currentUser.id)
+      .eq('ingredient_id', ingredientId)
+      .maybeSingle();
+    current = existing ? (existing.quantity || 0) : 0;
+    await supabaseClient.from('user_ingredients').upsert({
+      user_id: currentUser.id,
+      ingredient_id: ingredientId,
+      quantity: current + quantity,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id,ingredient_id' });
+  } catch(e) { dbg('[Cooking] Award ingredient error:', e); }
+}
+
+// ── Battle ingredient drop hook ───────────────────────────────────────────
+// Called from manualBattle_endBattle on victory
+async function cooking_rollBattleDrop(enemyStats) {
+  if (!currentUser) return;
+  var species = (enemyStats && enemyStats.species ? enemyStats.species.toLowerCase().split(' ')[0] : '');
+  var zone = enemyStats && enemyStats.forest_zone ? enemyStats.forest_zone : 'outskirts';
+  var drops = [];
+
+  // Species-specific drops
+  var speciesTable = COOKING_DROP_TABLES.battle[species] || null;
+  // Fallback: try mammal table for unrecognized mammals
+  if (!speciesTable) {
+    var MAMMAL_SPECIES = ['dog','cat','raccoon','pig','squirrel'];
+    if (MAMMAL_SPECIES.indexOf(species) !== -1) speciesTable = COOKING_DROP_TABLES.battle.mammal;
+  }
+  if (speciesTable) {
+    for (var ingId in speciesTable) {
+      if (Math.random() < speciesTable[ingId]) drops.push(ingId);
+    }
+  }
+
+  // Deepwoods/ruins: extra mushroom chance
+  if ((zone === 'deepwoods' || zone === 'ruins') && Math.random() < 0.10) {
+    drops.push('mushroom');
+  }
+
+  // Always: tiny glitch_residue chance
+  if (Math.random() < COOKING_DROP_TABLES.battleAny.glitch_residue) {
+    drops.push('glitch_residue');
+  }
+
+  // Deduplicate
+  var unique = drops.filter(function(d, i) { return drops.indexOf(d) === i; });
+  if (!unique.length) return;
+
+  // Award each
+  for (var di = 0; di < unique.length; di++) {
+    await cooking_awardIngredient(unique[di], 1);
+  }
+
+  // Toast
+  var names = unique.map(function(id) {
+    var def = COOKING_INGREDIENTS[id];
+    return def ? def.emoji + ' ' + def.name : id;
+  });
+  showToast('Ingredient drop: ' + names.join(', ') + '!', 3000);
+}
+
+// ── Fishing ingredient drop hook ──────────────────────────────────────────
+// Pass fish name (lowercase) to get salmon/cod ingredients; also rolls any-cast drops
+async function cooking_rollFishingDrop(fishName) {
+  if (!currentUser) return;
+  var drops = [];
+  var fname = (fishName || '').toLowerCase();
+
+  // Fish-specific ingredient
+  if (fname.indexOf('salmon') !== -1) drops.push('fresh_salmon');
+  else if (fname.indexOf('cod') !== -1) drops.push('fresh_cod');
+
+  // Any-cast drops (shellfish, seaweed)
+  for (var id in COOKING_DROP_TABLES.fishing.any) {
+    if (Math.random() < COOKING_DROP_TABLES.fishing.any[id]) drops.push(id);
+  }
+
+  var unique = drops.filter(function(d, i) { return drops.indexOf(d) === i; });
+  if (!unique.length) return;
+
+  for (var di = 0; di < unique.length; di++) {
+    await cooking_awardIngredient(unique[di], 1);
+  }
+
+  var names = unique.map(function(id) {
+    var def = COOKING_INGREDIENTS[id];
+    return def ? def.emoji + ' ' + def.name : id;
+  });
+  showToast('Ingredient found: ' + names.join(', ') + '!', 2500);
+}
+
+// ── Expedition ingredient drop hook ─────────────────────────────────────
+// Call with zone key after expedition claim
+async function cooking_rollExpeditionDrop(zone) {
+  if (!currentUser) return;
+  var table = COOKING_DROP_TABLES.expedition[zone] || COOKING_DROP_TABLES.expedition.outskirts;
+  var drops = [];
+
+  for (var ingId in table) {
+    if (Math.random() < table[ingId]) drops.push(ingId);
+  }
+
+  if (!drops.length) return;
+
+  for (var di = 0; di < drops.length; di++) {
+    await cooking_awardIngredient(drops[di], 1);
+  }
+
+  var names = drops.map(function(id) {
+    var def = COOKING_INGREDIENTS[id];
+    return def ? def.emoji + ' ' + def.name : id;
+  });
+  showToast('Expedition ingredient: ' + names.join(', ') + '!', 2500);
+}
+
+// ── Init (called from showTab) ────────────────────────────────────────────
+async function cooking_init() {
+  cooking_switchTab('craft');
+  await cooking_load();
+}
+

@@ -18499,3 +18499,189 @@ body.large-text .btn { font-size: 1.05rem !important; }
 body.large-text input, body.large-text select, body.large-text textarea {
   font-size: 18px !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   COOKING SYSTEM
+   ═══════════════════════════════════════════════════════════ */
+
+/* Sub-tab buttons */
+.cooking-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  border-radius: 0;
+  margin-bottom: -2px;
+}
+.cooking-tab-btn.active,
+.cooking-tab-btn:hover {
+  color: var(--purple);
+  border-bottom-color: var(--purple);
+}
+
+/* Ingredient card in grid */
+.cooking-ingredient-card {
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  user-select: none;
+  position: relative;
+}
+.cooking-ingredient-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--purple-light);
+  box-shadow: 0 4px 12px rgba(153,102,255,0.18);
+}
+.cooking-ingredient-card.out-of-stock {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+}
+.cooking-ingredient-card .ing-emoji {
+  font-size: 1.6rem;
+  display: block;
+  margin-bottom: 3px;
+}
+.cooking-ingredient-card .ing-name {
+  font-size: 0.62rem;
+  color: var(--text-light);
+  line-height: 1.2;
+  display: block;
+}
+.cooking-ingredient-card .ing-count {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--purple);
+}
+
+/* Crafting slots */
+.cooking-slot {
+  background: rgba(153,102,255,0.06);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-size: 1.4rem;
+  gap: 2px;
+  position: relative;
+}
+.cooking-slot:hover {
+  border-color: var(--purple-light);
+  background: rgba(153,102,255,0.1);
+}
+.cooking-slot.filled {
+  border-style: solid;
+  border-color: var(--purple-light);
+  background: rgba(153,102,255,0.1);
+}
+.cook-slot-label {
+  font-size: 1.5rem;
+  color: var(--text-light);
+  opacity: 0.4;
+}
+.cook-slot-ing-name {
+  font-size: 0.58rem;
+  color: var(--purple-dark);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 4px;
+}
+
+/* Cook button glow when recipe matched */
+#cooking-cook-btn.recipe-ready {
+  animation: cook-pulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 18px rgba(153,102,255,0.55);
+}
+@keyframes cook-pulse {
+  0%, 100% { box-shadow: 0 0 10px rgba(153,102,255,0.35); }
+  50%       { box-shadow: 0 0 24px rgba(153,102,255,0.75); }
+}
+
+/* Recipe book cards */
+.cooking-recipe-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cooking-recipe-card .recipe-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+.cooking-recipe-card .recipe-info {
+  flex: 1;
+  min-width: 0;
+}
+.cooking-recipe-card .recipe-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--purple-dark);
+}
+.cooking-recipe-card .recipe-ingredients {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+.cooking-recipe-card .recipe-effect {
+  font-size: 0.75rem;
+  color: #5dde7a;
+  margin-top: 3px;
+}
+
+/* Discovery flash overlay */
+@keyframes discovery-flash {
+  0%   { opacity: 0; transform: scale(0.6); }
+  30%  { opacity: 1; transform: scale(1.08); }
+  70%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.0); }
+}
+.cooking-discovery-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(153,102,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  pointer-events: none;
+  animation: discovery-flash 2.2s ease forwards;
+}
+.cooking-discovery-box {
+  background: linear-gradient(135deg, #1a1a2e, #2a1a4a);
+  border: 3px solid var(--purple);
+  border-radius: 20px;
+  padding: 28px 36px;
+  text-align: center;
+  box-shadow: 0 8px 40px rgba(153,102,255,0.5);
+}
+
+/* Ingredients info list */
+.cooking-all-ing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(153,102,255,0.08);
+  font-size: 0.82rem;
+}

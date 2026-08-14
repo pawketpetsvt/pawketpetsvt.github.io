@@ -1033,6 +1033,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
             <button class="sidebar-nav-btn child" id="sidebar-btn-minigames" onclick="showTab('minigames');navGroupClose('games')">🕹️ Minigames</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-fishing" onclick="showTab('fishing');navGroupClose('games')">🎣 Fishing</button>
             <button class="sidebar-nav-btn child" id="sidebar-btn-racing" onclick="showTab('racing');navGroupClose('games')">🏁 Racing</button>
+            <button class="sidebar-nav-btn child" id="sidebar-btn-cooking" onclick="showTab('cooking');navGroupClose('games')">🍳 Cooking</button>
           </div>
         </div>
 
@@ -3374,6 +3375,74 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
       <div id="myprofile-badges-grid" class="badges-grid">
         <div class="spinner"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═════════════════════════════════════════════════════════
+       COOKING PAGE
+       ═════════════════════════════════════════════════════════ -->
+  <div class="page-section" id="section-cooking">
+    <div class="page-wrap">
+      <div class="page-hero">
+        <div class="sparkle-row">🍳 ✦ 🍵</div>
+        <h1>Kitchen</h1>
+        <p class="hero-sub">Combine ingredients to discover recipes and cook meals for your pets.</p>
+      </div>
+
+      <!-- Sub-tabs -->
+      <div style="display:flex;gap:8px;margin-bottom:20px;border-bottom:2px solid var(--border);padding-bottom:0;">
+        <button class="cooking-tab-btn active" id="cook-tab-craft" onclick="cooking_switchTab('craft')">🍳 Cook</button>
+        <button class="cooking-tab-btn" id="cook-tab-recipes" onclick="cooking_switchTab('recipes')">📖 Recipe Book</button>
+        <button class="cooking-tab-btn" id="cook-tab-ingredients" onclick="cooking_switchTab('ingredients')">🧺 Ingredients</button>
+      </div>
+
+      <!-- CRAFT TAB -->
+      <div id="cooking-panel-craft">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;">
+
+          <!-- Left: Ingredient grid -->
+          <div style="flex:1;min-width:260px;">
+            <div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:10px;">Your Ingredients</div>
+            <div id="cooking-ingredient-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;">
+              <div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">Loading...</div>
+            </div>
+          </div>
+
+          <!-- Right: Crafting area -->
+          <div style="flex:0 0 220px;min-width:200px;">
+            <div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:10px;">Crafting Slots</div>
+            <div id="cooking-slots" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px;">
+              <div class="cooking-slot" id="cook-slot-0" onclick="cooking_removeSlot(0)"><span class="cook-slot-label">+</span></div>
+              <div class="cooking-slot" id="cook-slot-1" onclick="cooking_removeSlot(1)"><span class="cook-slot-label">+</span></div>
+              <div class="cooking-slot" id="cook-slot-2" onclick="cooking_removeSlot(2)"><span class="cook-slot-label">+</span></div>
+              <div class="cooking-slot" id="cook-slot-3" onclick="cooking_removeSlot(3)"><span class="cook-slot-label">+</span></div>
+            </div>
+            <div id="cooking-recipe-hint" style="font-size:0.75rem;color:var(--text-light);text-align:center;margin-bottom:10px;min-height:18px;"></div>
+            <button id="cooking-cook-btn" class="btn btn-primary" onclick="cooking_cook()" style="width:100%;font-size:1rem;" disabled>Cook!</button>
+            <div style="margin-top:10px;display:flex;align-items:center;gap:8px;">
+              <label style="font-size:0.78rem;color:var(--text-light);">x</label>
+              <input type="number" id="cooking-multi-count" value="1" min="1" max="20" style="width:54px;padding:4px 6px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;text-align:center;">
+              <span style="font-size:0.75rem;color:var(--text-light);">batches (multi-craft)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RECIPE BOOK TAB -->
+      <div id="cooking-panel-recipes" style="display:none;">
+        <div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:12px;">Discovered Recipes</div>
+        <div id="cooking-recipe-book">
+          <div style="color:var(--text-light);font-size:0.82rem;font-style:italic;">Loading...</div>
+        </div>
+      </div>
+
+      <!-- INGREDIENTS TAB -->
+      <div id="cooking-panel-ingredients" style="display:none;">
+        <div style="font-weight:700;font-size:0.88rem;color:var(--purple-dark);margin-bottom:6px;">All Ingredients</div>
+        <p style="font-size:0.8rem;color:var(--text-light);margin-bottom:14px;">Ingredients drop from battles, fishing, and expeditions. Staples can be bought from the Shop.</p>
+        <div id="cooking-all-ingredients-list"></div>
       </div>
 
     </div>
