@@ -734,6 +734,13 @@ function getEvolutionBonuses(stage) {
   }
   return { hp: 0, attack: 0, defense: 0, speed: 0 };
 }
+// Helper: get correct max HP accounting for evolution bonuses
+function getCorrectMaxHP(pet) {
+  var base = (pet && pet.base_hp) ? pet.base_hp : 30;
+  var evo  = getEvolutionBonuses(getEvolutionStage((pet && pet.level) ? pet.level : 1));
+  return base + evo.hp;
+}
+
 var selectedPet = null;
 var ownedPetIds = [];
 var totalOwnedCount = 0;
@@ -891,7 +898,7 @@ function makeEl(tag, attrs, text) {
 var GAME_CONSTANTS = {
   XP_PER_LEVEL:        120,   // XP needed per level (currentLevel * this)
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
-  BOSS_ENCOUNTER_RATE: 0.03,  // 3% chance (~1 in 33 battles)
+  BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
   HP_REGEN_PER_HOUR:   3,     // HP regenerated per hour out of battle
   PASS_XP_PER_FEED:    2,     // Pass XP awarded for feeding a pet
@@ -3135,7 +3142,7 @@ async function loadMyPets() {
   // HP regen has no cron job so we still calculate that client-side.
   res.data.forEach(function(pet) {
     var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 25);
-    var maxHP = pet.max_hp || pet.base_hp || 25;
+    var maxHP = getCorrectMaxHP(pet);
     var hpRegenRef = pet.last_played || pet.last_fed || null;
 
     // Only regen HP if > 0 (don't auto-revive fainted pets)
@@ -3457,7 +3464,7 @@ async function useItem(petId) {
     
     // FIX: Respect 0 HP! Don't use base_hp as fallback for 0
     var currentHP = (petRes.data.current_hp !== null && petRes.data.current_hp !== undefined) ? petRes.data.current_hp : (petRes.data.base_hp || 30);
-    var maxHP = petRes.data.max_hp || petRes.data.base_hp || 30;
+    var maxHP = getCorrectMaxHP(petRes.data);
     
     dbg('🩹 Healing - Current HP:', currentHP, 'Max HP:', maxHP, 'Heal amount:', healValue);
     
@@ -3766,7 +3773,7 @@ function makeMyPetCard(pet) {
     
     // HP with current/max display
     var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 30);
-    var maxHP = pet.max_hp || pet.base_hp || 30;
+    var maxHP = getCorrectMaxHP(pet);
     var hpPercent = Math.round((currentHP / maxHP) * 100);
     var hpColor = hpPercent > 50 ? '#5dde7a' : hpPercent > 25 ? '#ffaa00' : '#ff6b6b';
     
@@ -8833,10 +8840,10 @@ var FISH_SPOTS = {
 };
 
 var FISH_BAIT = {
-  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    description: 'Free! Catches common fish.' },
-  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.05, description: '+5% rare chance.' },
-  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.12, description: '+12% rare chance.' },
-  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.25, description: '+25% rare chance.' }
+  worm:   { name: '🪱 Worm',         cost: 0,  rarityBoost: 0,    minPP: 0,  description: 'Free! Catches common fish.' },
+  bread:  { name: '🍞 Bread Crumbs', cost: 5,  rarityBoost: 0.15, minPP: 6,  description: '+15% rare chance. Min 6 PP payout.' },
+  lure:   { name: '🪝 Fancy Lure',   cost: 15, rarityBoost: 0.30, minPP: 14, description: '+30% rare chance. Min 14 PP payout.' },
+  golden: { name: '✨ Golden Lure',  cost: 40, rarityBoost: 0.50, minPP: 35, description: '+50% rare chance. Min 35 PP payout.' }
 };
 
 // Fish pool — spot:rarity:weather-bonus
@@ -9067,7 +9074,11 @@ async function castLine(power) {
     
     var caught = fishingGetCatch(power);
     fishingCasts--;
-    fishingTotal += caught.pp;
+    // Apply bait minimum PP guarantee — paid bait should always return at least its cost
+    var _castPP = caught.pp;
+    var _baitMin = (FISH_BAIT[_fishingBait] || FISH_BAIT.worm).minPP || 0;
+    if (_baitMin > 0 && _castPP < _baitMin) { _castPP = _baitMin; caught = Object.assign({}, caught, {pp: _castPP}); }
+    fishingTotal += _castPP;
 
     // Generate catch weight
     var weightG = 0;
@@ -13666,6 +13677,8 @@ function manualBattle_setActionButtonsEnabled(enabled) {
 function manualBattle_playerAction(type, skillIdx) {
   var s = manualBattleState;
   if (!s || s.victory !== null) return;
+  if (s._processing) return; // prevent double-fire
+  s._processing = true;
   manualBattle_setActionButtonsEnabled(false);
   setTimeout(function() { _manualBattle_doTurn(type, skillIdx); }, 80);
 }
@@ -13776,6 +13789,7 @@ async function _manualBattle_doTurn(type, skillIdx) {
 
   manualBattle_render();
   manualBattle_setNarrative(lines.map(function(l) { return '<p style="margin:2px 0">'+l+'</p>'; }).join(''));
+  if (s) s._processing = false; // release lock
   manualBattle_setActionButtonsEnabled(true);
 }
 
@@ -14798,6 +14812,8 @@ async function manualBattle_endBattle(victory) {
   manualBattle_setNarrative(resultText);
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
   if (victory) {
+    if (window._victoryMusicPlaying) return; // prevent double-play from spam
+    window._victoryMusicPlaying = true;
     // Play victory fanfare, then resume theme
     BattleMusic.stop(false); // cut battle music immediately on win
     safeSetTimeout(function() {
@@ -14810,6 +14826,7 @@ async function manualBattle_endBattle(victory) {
       };
       vic.play().then(function() {
         vic.onended = function() {
+          window._victoryMusicPlaying = false;
           var bg = document.getElementById('bg-music');
           if (bg) { bg.play().then(null, function(){}); }
           BattleMusic._bgWasPlaying = false;
@@ -15962,9 +15979,10 @@ function closeBattleRewardsModal() {
   var modal = el('battle-rewards-modal');
   if (modal) modal.classList.remove('show');
   BattleMusic.stop(true); // fade out when leaving rewards screen
-  
-  // Always reload My Pets tab to show updated HP and stats
   tabsLoaded['mypets'] = false;
+  battleRewards = null;
+  closeBattle();
+}
 
 function battleGoAgain() {
   // Close rewards, immediately go again with same pet + zone — no scrolling needed
@@ -15980,11 +15998,6 @@ function battleGoAgain() {
   safeSetTimeout(function() {
     goExploring();
   }, 300);
-}
-  
-  // Reset battle state
-  battleRewards = null;
-  closeBattle();
 }
 
 function battleRewardDismiss() {
@@ -16545,7 +16558,16 @@ async function quickHeal() {
   var HEAL_COST = 250;
   if (currentPoints < HEAL_COST) { showToast('Not enough PP! Quick Heal costs ' + HEAL_COST + ' PP.', 'info'); return; }
   var pet = petState[selectedBattlePetId];
-  var maxHP = pet ? (pet.max_hp || pet.base_hp || 30) : 30;
+  // Recalculate maxHP from evolution (same as loadMyPets sync) to avoid stale DB value
+  var _evoStage = getEvolutionStage(pet ? (pet.level || 1) : 1);
+  var _evoBonuses = getEvolutionBonuses(_evoStage);
+  var _baseHP = (pet && pet.base_hp) ? pet.base_hp : 30;
+  var maxHP = _baseHP + _evoBonuses.hp;
+  // Patch stale DB max_hp
+  if (pet && (pet.max_hp || 0) < maxHP) {
+    supabaseClient.from('user_pets').update({ max_hp: maxHP }).eq('id', selectedBattlePetId).then(null,function(){});
+    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].max_hp = maxHP;
+  }
   var curHP = pet ? (pet.current_hp || 0) : 0;
   if (curHP >= maxHP) { showToast('Pet is already at full HP!', 'info'); return; }
   try {
@@ -16568,6 +16590,8 @@ async function quickHeal() {
 
 function selectBattlePet(petId, cardElement) {
   selectedBattlePetId = petId;
+  // Remember last used pet for auto-restore
+  try { localStorage.setItem('lastBattlePetId_' + (currentUser && currentUser.id), petId); } catch(e) {}
   
   // Update visual selection
   var cards = document.querySelectorAll('.battle-pet-card');
@@ -16587,9 +16611,36 @@ function selectBattlePet(petId, cardElement) {
 var pendingBattleEnemy = null;
 
 async function goExploring() {
+  // If no pet selected, try to restore last used or first available
   if (!selectedBattlePetId) {
-    showPixelToast('Select a pet first!', 'warning');
-    return;
+    var lastPet = localStorage.getItem('lastBattlePetId_' + (currentUser && currentUser.id));
+    if (lastPet && petState[lastPet]) {
+      // Auto-select the last used pet
+      selectedBattlePetId = lastPet;
+      dbg('[Battle] Auto-restored last pet:', lastPet);
+      // Highlight the card
+      var card = document.querySelector('[data-pet-id="' + lastPet + '"]');
+      if (card) { document.querySelectorAll('.battle-pet-card').forEach(function(c){c.classList.remove('selected');}); card.classList.add('selected'); }
+    } else {
+      // No pet — show clear error in the exploration area
+      var fe = document.getElementById('forest-exploration');
+      if (fe) {
+        fe.style.display = 'block';
+        var msg = fe.querySelector('#no-pet-msg');
+        if (!msg) {
+          msg = document.createElement('div');
+          msg.id = 'no-pet-msg';
+          msg.style.cssText = 'background:rgba(255,100,100,0.12);border:2px solid #ff6b6b;border-radius:12px;padding:16px 20px;margin:16px 0;text-align:center;color:#ff6b6b;font-weight:700;font-size:1rem;';
+          msg.textContent = '⚠️ Please select a pet above before going exploring!';
+          var expBtn = document.getElementById('go-exploring-btn');
+          if (expBtn && expBtn.parentNode) expBtn.parentNode.insertBefore(msg, expBtn);
+          else fe.prepend(msg);
+        }
+        setTimeout(function(){ if(msg && msg.parentNode) msg.parentNode.removeChild(msg); }, 4000);
+      }
+      showPixelToast('Select a pet first!', 'warning');
+      return;
+    }
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
   
@@ -16608,11 +16659,11 @@ async function goExploring() {
   // Roll for encounter type
   var roll = Math.random();
   
-  if (roll < 0.70) {
-    // 70% - Normal Battle
+  if (roll < 0.72) {
+    // 72% - Normal Battle
     await handleBattleEncounter();
   } else if (roll < 0.85) {
-    // 15% - Found Item
+    // 13% - Found Item
     await handleItemEncounter();
   } else if (roll < 0.95) {
     // 10% - Found Treasure
@@ -16800,12 +16851,22 @@ function showExplorationResult(title, message, reward, buttonText) {
   // Hide battle sprites and HP bars
   document.querySelector('.battle-container').style.display = 'none';
   
-  // Show battle log with result
+  // Show result in BOTH battle-log and narrative box (narrative is visible in manual battle mode)
   var battleLog = document.getElementById('battle-log');
-  battleLog.innerHTML = 
-    '<div class="battle-log-entry" style="font-size: 1.3rem; font-weight: bold; color: var(--purple); margin-bottom: 15px;">' + title + '</div>' +
-    '<div class="battle-log-entry" style="font-size: 1.1rem; line-height: 1.6; margin-bottom: 20px;">' + message + '</div>' +
-    '<div class="battle-log-entry" style="font-size: 1.2rem; font-weight: bold; color: var(--green); margin-top: 20px;">' + reward + '</div>';
+  var resultHTML =
+    '<div style="font-size:1.3rem;font-weight:bold;color:var(--purple);margin-bottom:12px;">' + escapeHtml(String(title)) + '</div>' +
+    '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + escapeHtml(String(message)) + '</div>' +
+    '<div style="font-size:1.15rem;font-weight:bold;color:var(--green);">' + escapeHtml(String(reward)) + '</div>';
+  if (battleLog) battleLog.innerHTML = resultHTML;
+  // Also show in the narrative box (always visible, not hidden by manual battle CSS)
+  var narr = document.getElementById('battle-narrative-box');
+  if (narr) {
+    narr.style.display = 'block';
+    narr.innerHTML = '<div style="padding:16px;text-align:center;">' + resultHTML + '</div>';
+  }
+  // Show battle-log-container too
+  var logCont = document.getElementById('battle-log-container');
+  if (logCont) logCont.style.display = 'block';
   
   // Set up controls — also show the parent wrapper (overrides the !important on the legacy div)
   document.getElementById('battle-skip-btn').style.display = 'none';
@@ -16921,7 +16982,8 @@ async function getRandomEnemy(zone, playerLevel) {
   // ZONE BOSS ROLL — 5% chance (~1/20 fights) to encounter a zone boss
   // Zone bosses are is_boss=true enemies (not Piper, handled separately above)
   // ═══════════════════════════════════════════════════════════════════════
-  if (Math.random() < 0.05) {
+  if (Math.random() < 0.12) {
+    // 12% chance of zone boss encounter (~1 in 8 battles)
     var bossRes = await supabaseClient
       .from('enemy_pets')
       .select('*')
@@ -17224,8 +17286,9 @@ async function getRandomEnemy(zone, playerLevel) {
 async function getBossEnemy(zone, playerLevel) {
   // Piper scales with zone difficulty — one canonical entry (ID 10) loaded
   // and multiplied based on where the fight is happening.
-  var ZONE_SCALE = { outskirts: 1.0, glade: 1.4, deepwoods: 1.9, ruins: 2.6 };
-  var scale = ZONE_SCALE[zone] || 1.0;
+  // Piper is a SERIOUS threat — scale is higher than zone bosses
+  var ZONE_SCALE = { outskirts: 1.8, glade: 2.4, deepwoods: 3.2, ruins: 4.2 };
+  var scale = ZONE_SCALE[zone] || 1.8;
 
   var res = await supabaseClient
     .from('enemy_pets')
@@ -17239,7 +17302,8 @@ async function getBossEnemy(zone, playerLevel) {
   }
 
   var boss = res.data;
-  var bossLevel = Math.max(1, playerLevel + 2);
+  // Piper always outlevels the player by a wide margin
+  var bossLevel = Math.max(5, playerLevel + 6);
   var levelBonus = bossLevel - 1;
 
   return {
@@ -17247,10 +17311,10 @@ async function getBossEnemy(zone, playerLevel) {
     species:      boss.species,
     name:         boss.name,
     level:        bossLevel,
-    base_hp:      Math.round((boss.base_hp      + (levelBonus * 15)) * scale),
-    base_attack:  Math.round((boss.base_attack  + levelBonus)         * scale),
-    base_defense: Math.round((boss.base_defense + Math.floor(levelBonus * 0.5)) * scale),
-    base_speed:   boss.base_speed + Math.floor(levelBonus * 0.5),
+    base_hp:      Math.round((boss.base_hp      + (levelBonus * 20)) * scale),
+    base_attack:  Math.round((boss.base_attack  + (levelBonus * 2))  * scale),
+    base_defense: Math.round((boss.base_defense + levelBonus)         * scale),
+    base_speed:   boss.base_speed + levelBonus,
     image_file:   boss.image_file || null,
     forest_zone:  zone,
     difficulty_tier: boss.difficulty_tier,
