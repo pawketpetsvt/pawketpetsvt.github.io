@@ -242,7 +242,8 @@ function playBattleSound(soundKey, volume, forceBoss) {
   
   // Clone audio node to allow overlapping sounds
   var sound = audio.cloneNode();
-  sound.volume = volume || 0.35;
+  var userSFX = (playerSettings && playerSettings.sfx_volume != null) ? (playerSettings.sfx_volume / 100) : 0.35;
+  sound.volume = volume != null ? Math.min(volume, userSFX) : userSFX * 0.6; // Battle SFX at 60% of SFX vol by default
   
   sound.play().catch(function(err) {
     // Silently fail if sound can't play
@@ -342,6 +343,47 @@ var currentPoints = 0;
 var tabsLoaded = {};
 
 // ── TUTORIAL & SETTINGS ──────────────────
+
+// ── GLOBAL BUFF SUMMARY ───────────────────────────────────────────────────
+function getGlobalBuffSummary() {
+  var buffs = [];
+  // Weather bonus
+  if (typeof weatherSystem !== 'undefined') {
+    var w = weatherSystem.currentWeather;
+    if (w && w.type && w.type !== 'clear' && w.type !== 'sunny') {
+      var bonus = weatherSystem.getWeatherBonus ? weatherSystem.getWeatherBonus('xpBonus') : 1;
+      if (bonus > 1) buffs.push({ icon: w.emoji || '🌤', label: w.type + ' weather', desc: '+' + Math.round((bonus-1)*100) + '% XP' });
+    }
+  }
+  // World event
+  if (typeof worldEvents !== 'undefined' && worldEvents.currentEvent) {
+    var ev = worldEvents.currentEvent;
+    if (ev && ev.name) buffs.push({ icon: ev.icon || '🎉', label: ev.name, desc: ev.bonus || '' });
+  }
+  // Guild perks
+  if (typeof _activeGuildPerks !== 'undefined') {
+    Object.keys(_activeGuildPerks).forEach(function(k) {
+      if (isGuildPerkActive(k)) {
+        buffs.push({ icon: '🏛️', label: 'Guild: ' + k.replace(/_/g,' '), desc: 'Active perk' });
+      }
+    });
+  }
+  return buffs;
+}
+
+function renderGlobalBuffPills(containerEl) {
+  if (!containerEl) return;
+  var buffs = getGlobalBuffSummary();
+  if (!buffs.length) return;
+  var html = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">';
+  buffs.forEach(function(b) {
+    html += '<span title="' + escapeHtml(b.desc) + '" style="display:inline-flex;align-items:center;gap:3px;background:rgba(153,102,255,0.12);border:1px solid rgba(153,102,255,0.25);border-radius:20px;padding:2px 8px;font-size:0.68rem;color:var(--purple-dark);">'
+      + b.icon + ' ' + escapeHtml(b.label)
+      + '</span>';
+  });
+  html += '</div>';
+  containerEl.innerHTML += html;
+}
 
 // ── ACCESSIBILITY ─────────────────────────────────────────────────────────
 var COLORBLIND_FILTERS = {
@@ -5036,6 +5078,7 @@ async function expedition_claim(expeditionId) {
   var perkMult   = getActivePerkMultiplier('reward_boost');
   var finalPP = Math.floor((row.reward_pp || 0) * streakMult * perkMult);
   await awardPP(finalPP, 'expedition_' + row.zone);
+  addPassXP(10, 'expedition').then(null, function(){}); // Pass XP for completing expedition
 
   // FIX: Grant item drops (were being silently skipped in this path)
   var rewardItems = row.reward_items || [];
@@ -6122,6 +6165,7 @@ async function feedFree(petId) {
   // Update local state
   petState[petId].hunger = feedResult.hunger;
   petState[petId].happiness = feedResult.happiness;
+  addPassXP(GAME_CONSTANTS.PASS_XP_PER_FEED || 2, 'feed').then(null, function(){}); // 2 pass XP per feed
   petState[petId].xp = feedResult.xp;
   
   updateBar(petId, 'hunger', feedResult.hunger, pet.max_hunger);
@@ -9242,6 +9286,7 @@ async function castLine(power) {
     
     if (fishingCasts <= 0) {
       awardPP(fishingTotal, 'fishing'); onMinigameComplete(fishingTotal);
+      addPassXP(Math.min(8, (fishingSessionCaught || 1) * 2), 'play').then(null, function(){}); // Pass XP for fishing (2 per fish, cap 8)
       setCD('fishing');
       // ARG: chance to drop a tester log when session ends
       argLogs_tryDrop('fishing').then(null, function(){});
@@ -12050,6 +12095,10 @@ async function showEquipmentModal(petId) {
   try {
     // Get pet's current equipment (filtered to this pet)
     var equipped = await loadPetEquipment(petId);
+
+    // Fetch pet level for tier requirement checks
+    var _petLevelRes = await supabaseClient.from('user_pets').select('level,nickname').eq('id', petId).maybeSingle();
+    var _petLevel = (_petLevelRes.data && _petLevelRes.data.level) ? _petLevelRes.data.level : 1;
     
     // Get all owned equipment rows (unequipped or equipped on any pet)
     var allEquipRes = await supabaseClient
@@ -12238,13 +12287,28 @@ async function showEquipmentModal(petId) {
         card.appendChild(bonusDiv);
       }
       
+      // Show tier + level requirement
+      var tierMinLevel = (GAME_CONSTANTS.EQUIP_TIER_MIN_LEVEL || {})[item.tier] || 1;
+      var tierDiv = makeEl('div');
+      tierDiv.style.cssText = 'font-size:0.72rem;margin:6px 0;color:var(--text-light);';
+      tierDiv.textContent = 'Tier ' + item.tier + (tierMinLevel > 1 ? ' · Requires Lv.' + tierMinLevel : ' · No requirement');
+      card.appendChild(tierDiv);
+
       var equipBtn = makeEl('button', { class: 'btn btn-sm btn-primary' });
-      equipBtn.textContent = 'Equip';
-      equipBtn.style.marginTop = '10px';
-      equipBtn.onclick = function() { 
-        equipItem(playerEquip.id, item.equipment_type, petId); // ← pass petId
-        document.body.removeChild(modal);
-      };
+      equipBtn.style.marginTop = '6px';
+      if (_petLevel < tierMinLevel) {
+        // Pet doesn't meet level requirement
+        equipBtn.textContent = '🔒 Lv.' + tierMinLevel + ' Required';
+        equipBtn.className = 'btn btn-sm btn-locked';
+        equipBtn.disabled = true;
+        equipBtn.title = 'This pet needs to reach level ' + tierMinLevel + ' to equip this item.';
+      } else {
+        equipBtn.textContent = 'Equip';
+        equipBtn.onclick = function() { 
+          equipItem(playerEquip.id, item.equipment_type, petId); // ← pass petId
+          document.body.removeChild(modal);
+        };
+      }
       card.appendChild(equipBtn);
       
       equipGrid.appendChild(card);
@@ -12269,7 +12333,20 @@ async function showEquipmentModal(petId) {
 
 async function equipItem(playerEquipmentId, equipmentType, petId) {
   if (!petId) { console.error('equipItem called without petId'); return; }
-  
+
+  // Enforce tier level requirement — double check even if UI was bypassed
+  try {
+    var _peRes = await supabaseClient.from('player_equipment').select('equipment(tier)').eq('id', playerEquipmentId).maybeSingle();
+    var _tier = _peRes.data && _peRes.data.equipment ? _peRes.data.equipment.tier : 1;
+    var _tierMin = (GAME_CONSTANTS.EQUIP_TIER_MIN_LEVEL || {})[_tier] || 1;
+    var _petRes = await supabaseClient.from('user_pets').select('level').eq('id', petId).maybeSingle();
+    var _petLv  = (_petRes.data && _petRes.data.level) ? _petRes.data.level : 1;
+    if (_petLv < _tierMin) {
+      showToast('⚠️ This pet needs to be level ' + _tierMin + ' to equip Tier ' + _tier + ' gear!', 'warning');
+      return;
+    }
+  } catch(e) { dbg('[equipItem] Level check error:', e); }
+
   // Unequip any existing item in that slot FOR THIS PET ONLY
   await supabaseClient
     .from('player_equipment')
@@ -13260,7 +13337,8 @@ function simulateBattle(playerStats, enemyStats) {
  * Calculate damage with variance
  */
 function calculateDamage(attack, defense, isBossAttack, luck) {
-  var baseDamage = attack - defense;
+  // Defense is 60% effective for enemy attacks (was 100%) so damage isn't purely ATK-DEF
+  var baseDamage = Math.max(1, attack - Math.floor(defense * 0.65));
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
 
   // LUCK: increases crit chance. Base 5%, +0.5% per Luck point, max 25%
@@ -13899,6 +13977,7 @@ async function _manualBattle_doTurn(type, skillIdx) {
   var s = manualBattleState;
   s.turn++;
   var lines = [];
+  try {
 
   // ── PLAYER SKIP (from status effect) ─────────────────────────────
   if (s.playerStatuses.stun || s.playerStatuses.fear) {
@@ -14001,8 +14080,13 @@ async function _manualBattle_doTurn(type, skillIdx) {
 
   manualBattle_render();
   manualBattle_setNarrative(lines.map(function(l) { return '<p style="margin:2px 0">'+l+'</p>'; }).join(''));
-  if (s) s._processing = false; // release lock
-  manualBattle_setActionButtonsEnabled(true);
+  } catch(err) {
+    dbg('[Battle] Turn error:', err);
+    manualBattle_setNarrative('<p style="color:#ff6b6b;">⚠️ Something went wrong — try again!</p>');
+  } finally {
+    if (s) s._processing = false; // ALWAYS release lock
+    manualBattle_setActionButtonsEnabled(true);
+  }
 }
 
 function manualBattle_resolvePlayerAction(type, skillIdx, s) {
@@ -15223,6 +15307,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
+    if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){}); // Pass XP for battle win
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -16756,7 +16841,7 @@ async function loadBattlePets() {
       healBtn.onclick = quickHeal;
       if (grid && grid.parentNode) grid.parentNode.insertBefore(healBtn, grid.nextSibling);
     }
-    healBtn.textContent = '💚 Quick Heal (250 PP)';
+    healBtn.textContent = '💚 Quick Heal (' + (GAME_CONSTANTS && GAME_CONSTANTS.QUICK_HEAL_COST || 100) + ' PP)';
 
   } catch(err) {
     dbg('loadBattlePets error:', err);
@@ -17458,8 +17543,10 @@ async function getRandomEnemy(zone, playerLevel) {
   // Scale stats based on level (base stats + scaling per level)
   var levelBonus = enemyLevel - 1;
   var baseHP  = Math.max(30, Math.floor((baseEnemy.base_hp   + (levelBonus * 12)) * statMultiplier));
-  var baseATK = Math.max(3,  Math.floor((baseEnemy.base_attack + levelBonus * 1.5) * statMultiplier));
-  var baseDEF = Math.max(1,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.7)) * statMultiplier));
+  // ATK uses lower multiplier than HP so enemies are HP-spongy but not one-shotters
+  var atkMult  = statMultiplier * 0.7;  // enemies hit for 70% of their stat-scaled attack
+  var baseATK = Math.max(2,  Math.floor((baseEnemy.base_attack + levelBonus) * atkMult));
+  var baseDEF = Math.max(1,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier));
   var baseSPD = Math.max(1,  Math.floor((baseEnemy.base_speed   + Math.floor(levelBonus * 0.5)) * statMultiplier));
   
   var scaledEnemy = {
@@ -24732,6 +24819,7 @@ async function racing_endRace() {
       await awardPP(beatAllBonus, 'beat_all_streamers').then(null, function(){});
       ppEarned += beatAllBonus;
     }
+    addPassXP(6, 'race').then(null, function(){}); // 6 pass XP per race
   } else {
     // Fallback: award PP client side if RPC not yet deployed
     if (ppEarned > 0) await awardPP(ppEarned, 'quick_race').then(null, function(){});
@@ -25867,6 +25955,7 @@ async function checkDailyLogin() {
     
     // Award PP via secure RPC (single source of truth)
     await awardPP(ppReward, 'daily_login_day_' + streak);
+    addPassXP(10, 'login').then(null, function(){}); // 10 pass XP for daily login
     
     // Milestone item rewards
     var streakBonusItem = null;
@@ -32313,13 +32402,13 @@ var passProgress = {
 };
 
 var dailyXPCaps = {
-  login:         { earned: 0, max: 10 },
-  feed:          { earned: 0, max: 20 },
-  play:          { earned: 0, max: 20 },
-  battle:        { earned: 0, max: 50 },
-  expedition:    { earned: 0, max: 30 },
-  race:          { earned: 0, max: 20 },
-  level_up:      { earned: 0, max: 30 },
+  login:         { earned: 0, max: 20  },  // once per day
+  feed:          { earned: 0, max: 30  },  // ~15 feeds to cap
+  play:          { earned: 0, max: 40  },  // fishing / minigames
+  battle:        { earned: 0, max: 120 },  // ~15 wins to cap (main activity)
+  expedition:    { earned: 0, max: 50  },  // ~5 expeditions
+  race:          { earned: 0, max: 36  },  // ~6 races
+  level_up:      { earned: 0, max: 50  },  // ~5 level-ups
   bingo_square:  { earned: 0, max: 135 },
   bingo_line:    { earned: 0, max: 400 },
   bingo_blackout:{ earned: 0, max: 200 }

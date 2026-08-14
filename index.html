@@ -2006,7 +2006,7 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               </div>
 
               <!-- Power bar (hidden until holding) -->
-              <div id="fishing-power-wrap" style="display:none;margin:6px 0 4px;">
+              <div id="fishing-power-wrap" style="margin:6px 0 4px;">
                 <div style="font-size:0.7rem;color:var(--text-light);text-align:center;margin-bottom:3px;">🎣 Release at the right moment!</div>
                 <div style="background:var(--border);border-radius:8px;height:18px;overflow:hidden;">
                   <div id="fishing-power-bar" style="height:100%;width:0%;background:#5dde7a;border-radius:8px;transition:background 0.1s;"></div>
@@ -2290,7 +2290,8 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
 
         <!-- Manual Action Panel -->
         <div id="manual-battle-actions" style="display:none;">
-          <div id="battle-turn-indicator" style="text-align:center;font-size:0.78rem;color:var(--text-light);margin-bottom:8px;font-weight:600;letter-spacing:1px;"></div>
+          <div id="battle-turn-indicator" style="text-align:center;font-size:0.78rem;color:var(--text-light);margin-bottom:4px;font-weight:600;letter-spacing:1px;"></div>
+          <div id="battle-buff-pills" style="text-align:center;min-height:4px;margin-bottom:6px;"></div>
           <div id="battle-action-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px;">
             <button id="battle-btn-attack" class="btn btn-primary" onclick="manualBattle_playerAction('attack')" style="padding:12px;font-size:0.9rem;">⚔️ Attack</button>
             <button id="battle-btn-item" class="btn btn-outline" onclick="manualBattle_showItemPicker()" style="padding:12px;font-size:0.9rem;">🎒 Item</button>
