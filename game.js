@@ -371,6 +371,15 @@ function _savePlayerSettingsLocal() {
   } catch(e) {}
 }
 
+// Highest level among all currently owned pets (used for equipment tier gating)
+function getPlayerMaxPetLevel() {
+  var maxLv = 1;
+  Object.values(petState || {}).forEach(function(p) {
+    if (p && p.level && p.level > maxLv) maxLv = p.level;
+  });
+  return maxLv;
+}
+
 // XP required to advance from `level` to `level+1`
 function xpForLevel(level) {
   var base = (typeof GAME_CONSTANTS !== 'undefined') ? GAME_CONSTANTS.XP_PER_LEVEL : 100;
@@ -938,7 +947,8 @@ function makeEl(tag, attrs, text) {
 // GAME CONSTANTS — named values instead of scattered magic numbers
 // ══════════════════════════════════════════════════════════════════════════
 var GAME_CONSTANTS = {
-  XP_PER_LEVEL:        100,   // XP needed per level (currentLevel * this, but early levels use lower thresholds)
+  XP_PER_LEVEL:        100,   // XP needed per level
+  EQUIP_TIER_MIN_LEVEL: { 1: 1, 2: 5, 3: 10, 4: 15 }, // Min pet level per equipment tier (currentLevel * this, but early levels use lower thresholds)
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
   BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
@@ -12363,12 +12373,15 @@ async function calculatePetStats(petId) {
       .eq('id', petId);
   }
   
+  // Per-level stat growth (on top of base stats and evolution bonuses)
+  // This means stats actually improve as you level, not just at evolution thresholds
+  var levelBonus = Math.max(0, (pet.level || 1) - 1); // 0 at L1, 1 at L2, etc.
   var stats = {
     hp: currentHP,  // Start battle with current HP, not full HP!
     maxHP: maxHP,
-    attack: (pet.base_attack || 5) + evolutionBonuses.attack,
-    defense: (pet.base_defense || 3) + evolutionBonuses.defense,
-    speed: (pet.base_speed || 4) + evolutionBonuses.speed
+    attack:  Math.round((pet.base_attack  || 5) + evolutionBonuses.attack  + levelBonus * 0.4),
+    defense: Math.round((pet.base_defense || 3) + evolutionBonuses.defense + levelBonus * 0.25),
+    speed:   Math.round((pet.base_speed   || 4) + evolutionBonuses.speed   + levelBonus * 0.2)
   };
   
   // Apply equipment bonuses
@@ -17261,17 +17274,17 @@ async function getRandomEnemy(zone, playerLevel) {
   if (zone === 'outskirts') {
     // City Outskirts: 100% Baby, no elementals
     variant = 'baby';
-    statMultiplier = 0.8;
+    statMultiplier = 1.1;   // was 0.8 — raised so outskirts enemies aren't trivially weak
     
   } else if (zone === 'glade') {
     // Forest Glade: 50% Baby, 50% Adult, 10% chance of elemental
     var roll = Math.random();
     if (roll < 0.50) {
       variant = 'baby';
-      statMultiplier = 0.8;
+      statMultiplier = 1.2;  // was 0.8
     } else {
       variant = 'adult';
-      statMultiplier = 1.5;
+      statMultiplier = 1.6;  // glade adult
     }
     
     // 10% chance for elemental variant
@@ -17286,10 +17299,10 @@ async function getRandomEnemy(zone, playerLevel) {
     var roll = Math.random();
     if (roll < 0.50) {
       variant = 'adult';
-      statMultiplier = 1.5;
+      statMultiplier = 1.9;  // deepwoods adult
     } else {
       variant = 'elder';
-      statMultiplier = 2.2;
+      statMultiplier = 2.3;  // deepwoods elder
     }
     
     // 25% chance for elemental variant
@@ -17304,10 +17317,10 @@ async function getRandomEnemy(zone, playerLevel) {
     var roll = Math.random();
     if (roll < 0.50) {
       variant = 'adult';
-      statMultiplier = 1.5;
+      statMultiplier = 2.0;  // ruins adult
     } else {
       variant = 'elder';
-      statMultiplier = 2.2;
+      statMultiplier = 2.6;  // ruins elder
     }
     
     // 35% chance for elemental variant (higher than Deep Woods)
@@ -17444,9 +17457,9 @@ async function getRandomEnemy(zone, playerLevel) {
   
   // Scale stats based on level (base stats + scaling per level)
   var levelBonus = enemyLevel - 1;
-  var baseHP  = Math.max(20, Math.floor((baseEnemy.base_hp   + (levelBonus * 8)) * statMultiplier));
-  var baseATK = Math.max(2,  Math.floor((baseEnemy.base_attack + levelBonus)      * statMultiplier));
-  var baseDEF = Math.max(0,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier));
+  var baseHP  = Math.max(30, Math.floor((baseEnemy.base_hp   + (levelBonus * 12)) * statMultiplier));
+  var baseATK = Math.max(3,  Math.floor((baseEnemy.base_attack + levelBonus * 1.5) * statMultiplier));
+  var baseDEF = Math.max(1,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.7)) * statMultiplier));
   var baseSPD = Math.max(1,  Math.floor((baseEnemy.base_speed   + Math.floor(levelBonus * 0.5)) * statMultiplier));
   
   var scaledEnemy = {
@@ -31976,8 +31989,14 @@ async function loadEquipmentShop() {
       if (!isBossDrop) {
         cardHtml += '<div class="equipment-price">🪙 ' + item.price.toLocaleString() + ' PP</div>';
         
+        var tierMinLevel = (GAME_CONSTANTS.EQUIP_TIER_MIN_LEVEL || {})[item.tier] || 1;
+        var playerMaxLevel = getPlayerMaxPetLevel();
+        var meetsLevelReq = playerMaxLevel >= tierMinLevel;
         if (isOwned) {
-          cardHtml += '<button class="btn btn-owned" disabled>Already Owned</button>';
+          cardHtml += '<button class="btn btn-owned" disabled>✓ Owned</button>';
+        } else if (!meetsLevelReq) {
+          cardHtml += '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:4px;">Requires a Level ' + tierMinLevel + '+ pet</div>';
+          cardHtml += '<button class="btn btn-locked" disabled>🔒 Level ' + tierMinLevel + ' Required</button>';
         } else {
           var canAfford = currentPoints >= item.price;
           if (canAfford) {
