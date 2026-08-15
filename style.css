@@ -9501,16 +9501,20 @@ body.night-mode .btn-outline:hover {
 .mobile-nav-menu {
   position: fixed;
   top: 0;
-  left: -280px;
-  width: 280px;
+  left: -320px;
+  width: 300px;
   height: 100vh;
-  background: #1a1a2e; /* Dark background */
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
-  z-index: 1000;
+  height: 100dvh; /* dynamic viewport height for mobile browsers */
+  background: #1a1a2e;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.7);
+  z-index: 10002; /* above all modals and overlays */
   overflow-y: auto;
-  transition: left 0.3s ease;
-  padding: 20px;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  transition: left 0.28s ease;
+  padding: 20px 16px;
   box-sizing: border-box;
+  display: block !important; /* never let parent rules hide this */
 }
 
 .mobile-nav-menu.open {
@@ -9544,9 +9548,9 @@ body.night-mode .btn-outline:hover {
   width: 100vw;
   height: 100vh;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 999;
+  z-index: 10001; /* just below the menu */
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.28s ease;
 }
 
 .mobile-nav-overlay.show {
@@ -9836,10 +9840,8 @@ body.night-mode .btn-outline:hover {
     display: none !important;
   }
   
-  /* Mobile menu hidden on desktop */
-  .mobile-nav-menu {
-    display: none !important;
-  }
+  /* Mobile menu: always block, position controls visibility */
+  /* (display:none removed - left:-320px hides it; .open moves it to left:0) */
   
   /* Desktop left sidebar - FULLY VISIBLE */
   .left-sidebar {
@@ -18491,6 +18493,19 @@ body.high-contrast button {
   border-width: 3px !important;
 }
 
+/* Mobile Nav Menu — strip sidebar-section card styling so buttons are visible on dark bg */
+.mobile-nav-menu .sidebar-section {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+.mobile-nav-menu .sidebar-section::before,
+.mobile-nav-menu .sidebar-section::after {
+  display: none !important;
+}
+
 /* Large Text — bumps base font up by ~25% */
 body.large-text {
   font-size: 18px !important;
@@ -18684,4 +18699,55 @@ body.large-text input, body.large-text select, body.large-text textarea {
   padding: 8px 0;
   border-bottom: 1px solid rgba(153,102,255,0.08);
   font-size: 0.82rem;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   GUILD HOUSING
+   ═══════════════════════════════════════════════════════════ */
+
+.guild-furniture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.guild-furniture-slot {
+  border-radius: 14px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 90px;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.guild-furniture-slot.filled {
+  background: linear-gradient(135deg, rgba(153,102,255,0.12), rgba(255,102,204,0.08));
+  border: 2px solid rgba(153,102,255,0.35);
+  cursor: default;
+}
+
+.guild-furniture-slot.filled:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(153,102,255,0.25);
+}
+
+.guild-furniture-slot.empty {
+  background: rgba(255,255,255,0.03);
+  border: 2px dashed rgba(153,102,255,0.2);
+}
+
+@media (max-width: 768px) {
+  .guild-furniture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+    gap: 8px;
+  }
+  .guild-furniture-slot {
+    min-height: 80px;
+    padding: 8px 4px;
+  }
 }

@@ -1083,95 +1083,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       </div>
     </div>
 
-    <!-- Mobile Navigation Menu (hidden on desktop, visible on mobile via hamburger) -->
-    <nav id="mobile-nav-menu" class="mobile-nav-menu">
-      <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close menu">✕ Close</button>
-      <div class="sidebar-section">
-        <div class="sidebar-nav-links">
-
-          <button class="sidebar-nav-btn standalone" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
-
-          <div class="nav-group" id="navgroup-pets-mobile">
-            <button class="nav-group-header" onclick="navGroupToggle('pets-mobile')">🐾 Pets <span class="nav-group-arrow">›</span></button>
-            <div class="nav-group-children">
-              <button class="sidebar-nav-btn child" onclick="showTab('adopt');navGroupClose('pets-mobile')">🐣 Adopt</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('mypets');navGroupClose('pets-mobile')">💖 My Pets</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('journal');navGroupClose('pets-mobile')">📓 Pet Journal</button>
-            </div>
-          </div>
-
-          <div class="nav-group" id="navgroup-games-mobile">
-            <button class="nav-group-header" onclick="navGroupToggle('games-mobile')">🎮 Games <span class="nav-group-arrow">›</span></button>
-            <div class="nav-group-children">
-              <button class="sidebar-nav-btn child" onclick="showTab('minigames');navGroupClose('games-mobile')">🕹️ Minigames</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('fishing');navGroupClose('games-mobile')">🎣 Fishing</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('racing');navGroupClose('games-mobile')">🏁 Racing</button>
-            </div>
-          </div>
-
-          <button class="sidebar-nav-btn standalone" onclick="showTab('battle')">⚔️ Battle Arena</button>
-          <button class="sidebar-nav-btn standalone" onclick="shopNav_toggleMobile()">
-        🛍️ Shop<span id="shop-nav-chevron-mobile" style="display:none;font-size:0.65rem;opacity:0.6;margin-left:4px;">▾</span>
-      </button>
-      <div id="shop-nav-children-mobile" style="display:none;padding-left:14px;margin-top:2px;">
-        <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop-mobile" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;font-size:0.82rem;">🎵 .....</button>
-      </div>
-
-          <div class="nav-group" id="navgroup-community-mobile">
-            <button class="nav-group-header" onclick="navGroupToggle('community-mobile')">🌐 Community <span class="nav-group-arrow">›</span></button>
-            <div class="nav-group-children">
-              <button class="sidebar-nav-btn child" onclick="showTab('guild');navGroupClose('community-mobile')">🏛️ Guild</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('friends');navGroupClose('community-mobile')">👥 Friends</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('leaderboard');navGroupClose('community-mobile')">🏆 Leaderboard</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('forum');navGroupClose('community-mobile')">💬 Forum</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('stats');navGroupClose('community-mobile')">📊 Statistics</button>
-            </div>
-          </div>
-
-          <div class="nav-group" id="navgroup-more-mobile">
-            <button class="nav-group-header" onclick="navGroupToggle('more-mobile')">✨ More <span class="nav-group-arrow">›</span></button>
-            <div class="nav-group-children">
-              <button class="sidebar-nav-btn child" onclick="showTab('twitch');navGroupClose('more-mobile')">🎬 Twitch</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('redeem');navGroupClose('more-mobile')">🎟️ Redeem</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
-              <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
-              <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
-              <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
-            <button class="sidebar-nav-btn child" onclick="window.open('https://tally.so/r/0Q0ADQ','_blank');navGroupClose('more-mobile')" style="color:#ff9f43;font-weight:700;">📝 Give Feedback</button>
-            </div>
-          </div>
-
-        </div>
-
-        <!-- Mobile-only: Profile + Logout (mirrors navbar-right) -->
-        <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:8px;flex-direction:column;">
-          <button class="sidebar-nav-btn standalone" onclick="showTab('myprofile');document.getElementById('mobile-nav-menu').classList.remove('open');" id="mobile-profile-btn" style="display:none;color:#e8d5ff;">👤 My Profile</button>
-          <button class="sidebar-nav-btn standalone" onclick="showTab('housing');document.getElementById('mobile-nav-menu').classList.remove('open');" style="color:#e8d5ff;">🏠 My Room</button>
-          <button class="sidebar-nav-btn standalone" onclick="handleLogout();" id="mobile-logout-btn" style="display:none;color:#ff9966;">🚪 Logout</button>
-        </div>
-      </div>
-
-      <!-- Mobile-only: Live Streamers quick view -->
-      <div class="sidebar-section mobile-streamers-section" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.1);padding-top:16px;">
-        <div class="sidebar-title" style="color:#ff9966;font-size:0.85rem;margin-bottom:10px;">📺 Our Streamers</div>
-        <div id="mobile-streamer-list" style="display:flex;flex-direction:column;gap:8px;">
-          <div class="mobile-streamer-row" data-streamer="embertail">
-            <img src="images/pets/ember.png" alt="Embertail" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-            <span style="color:#e8d5ff;font-size:0.85rem;">Embertail</span>
-            <span class="mobile-live-dot" id="mobile-ember-dot" style="display:none;">🔴</span>
-          </div>
-          <div class="mobile-streamer-row" data-streamer="pyxshuul">
-            <img src="images/pets/pyxie.png" alt="Pyxshuul" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-            <span style="color:#e8d5ff;font-size:0.85rem;">Pyxshuul</span>
-            <span class="mobile-live-dot" id="mobile-pyxs-dot" style="display:none;">🔴</span>
-          </div>
-          <div class="mobile-streamer-row">
-            <a href="showTab('twitch')" onclick="showTab('twitch');return false;" style="color:#9966ff;font-size:0.8rem;text-decoration:none;">View all streamers →</a>
-          </div>
-        </div>
-      </div>
-    </nav>
     
     <!-- DESKTOP STATS (visible on desktop) -->
     <div class="sidebar-section desktop-nav">
@@ -5145,6 +5056,98 @@ function ssLightboxClose() {
     <span style="color:rgba(255,160,80,0.7);">⚠️ Beta — data may reset before full launch</span>
   </div>
 </footer>
+
+
+<!-- Mobile Navigation Menu -->
+<nav id="mobile-nav-menu" class="mobile-nav-menu">
+      <button id="mobile-menu-close" class="mobile-menu-close" aria-label="Close menu">✕ Close</button>
+      <div class="sidebar-section">
+        <div class="sidebar-nav-links">
+
+          <button class="sidebar-nav-btn standalone" id="sidebar-btn-home" onclick="showTab('home')">🏠 Home</button>
+
+          <div class="nav-group" id="navgroup-pets-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('pets-mobile')">🐾 Pets <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('adopt');navGroupClose('pets-mobile')">🐣 Adopt</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('mypets');navGroupClose('pets-mobile')">💖 My Pets</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('journal');navGroupClose('pets-mobile')">📓 Pet Journal</button>
+            </div>
+          </div>
+
+          <div class="nav-group" id="navgroup-games-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('games-mobile')">🎮 Games <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('minigames');navGroupClose('games-mobile')">🕹️ Minigames</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('fishing');navGroupClose('games-mobile')">🎣 Fishing</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('racing');navGroupClose('games-mobile')">🏁 Racing</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('cooking');navGroupClose('games-mobile')">🍳 Cooking</button>
+            </div>
+          </div>
+
+          <button class="sidebar-nav-btn standalone" onclick="showTab('battle')">⚔️ Battle Arena</button>
+          <button class="sidebar-nav-btn standalone" onclick="shopNav_toggleMobile()">
+        🛍️ Shop<span id="shop-nav-chevron-mobile" style="display:none;font-size:0.65rem;opacity:0.6;margin-left:4px;">▾</span>
+      </button>
+      <div id="shop-nav-children-mobile" style="display:none;padding-left:14px;margin-top:2px;">
+        <button class="sidebar-nav-btn child" id="sidebar-btn-piper-shop-mobile" onclick="piperShop_open()" style="display:none;color:#cc44ff;font-style:italic;font-size:0.82rem;">🎵 .....</button>
+      </div>
+
+          <div class="nav-group" id="navgroup-community-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('community-mobile')">🌐 Community <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('guild');navGroupClose('community-mobile')">🏛️ Guild</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('friends');navGroupClose('community-mobile')">👥 Friends</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('leaderboard');navGroupClose('community-mobile')">🏆 Leaderboard</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('forum');navGroupClose('community-mobile')">💬 Forum</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('stats');navGroupClose('community-mobile')">📊 Statistics</button>
+            </div>
+          </div>
+
+          <div class="nav-group" id="navgroup-more-mobile">
+            <button class="nav-group-header" onclick="navGroupToggle('more-mobile')">✨ More <span class="nav-group-arrow">›</span></button>
+            <div class="nav-group-children">
+              <button class="sidebar-nav-btn child" onclick="showTab('twitch');navGroupClose('more-mobile')">🎬 Twitch</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('redeem');navGroupClose('more-mobile')">🎟️ Redeem</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('news');navGroupClose('more-mobile')">📰 News</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('team');navGroupClose('more-mobile')">👥 Team</button>
+              <button class="sidebar-nav-btn child" onclick="showTab('settings');navGroupClose('more-mobile')" id="sidebar-btn-settings-mobile">⚙️ Settings</button>
+              <button class="sidebar-nav-btn child" id="sidebar-btn-archive-mobile" onclick="argLogs_showArchive();navGroupClose('more-mobile')" style="display:none;color:#9966ff;font-style:italic;">📓 Archive</button>
+              <button class="sidebar-nav-btn child" onclick="weeklyChallenge_showModal();navGroupClose('more-mobile')">📋 Weekly Challenges</button>
+            <button class="sidebar-nav-btn child" onclick="window.open('https://tally.so/r/0Q0ADQ','_blank');navGroupClose('more-mobile')" style="color:#ff9f43;font-weight:700;">📝 Give Feedback</button>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Mobile-only: Profile + Logout (mirrors navbar-right) -->
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.1);display:flex;gap:8px;flex-direction:column;">
+          <button class="sidebar-nav-btn standalone" onclick="showTab('myprofile');document.getElementById('mobile-nav-menu').classList.remove('open');" id="mobile-profile-btn" style="display:none;color:#e8d5ff;">👤 My Profile</button>
+          <button class="sidebar-nav-btn standalone" onclick="showTab('housing');document.getElementById('mobile-nav-menu').classList.remove('open');" style="color:#e8d5ff;">🏠 My Room</button>
+          <button class="sidebar-nav-btn standalone" onclick="handleLogout();" id="mobile-logout-btn" style="display:none;color:#ff9966;">🚪 Logout</button>
+        </div>
+      </div>
+
+      <!-- Mobile-only: Live Streamers quick view -->
+      <div class="sidebar-section mobile-streamers-section" style="margin-top:16px;border-top:1px solid rgba(255,255,255,0.1);padding-top:16px;">
+        <div class="sidebar-title" style="color:#ff9966;font-size:0.85rem;margin-bottom:10px;">📺 Our Streamers</div>
+        <div id="mobile-streamer-list" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="mobile-streamer-row" data-streamer="embertail">
+            <img src="images/pets/ember.png" alt="Embertail" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+            <span style="color:#e8d5ff;font-size:0.85rem;">Embertail</span>
+            <span class="mobile-live-dot" id="mobile-ember-dot" style="display:none;">🔴</span>
+          </div>
+          <div class="mobile-streamer-row" data-streamer="pyxshuul">
+            <img src="images/pets/pyxie.png" alt="Pyxshuul" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
+            <span style="color:#e8d5ff;font-size:0.85rem;">Pyxshuul</span>
+            <span class="mobile-live-dot" id="mobile-pyxs-dot" style="display:none;">🔴</span>
+          </div>
+          <div class="mobile-streamer-row">
+            <a href="showTab('twitch')" onclick="showTab('twitch');return false;" style="color:#9966ff;font-size:0.8rem;text-decoration:none;">View all streamers →</a>
+          </div>
+        </div>
+      </div>
+    </nav>
 
 </body>
 </html>
