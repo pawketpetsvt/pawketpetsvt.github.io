@@ -12511,6 +12511,33 @@ async function calculatePetStats(petId) {
   stats.speed   += (pet.bonus_speed   || 0);
   maxHP         += (pet.bonus_hp      || 0) * 3; // each HP point = +3 max HP
 
+  // Apply guild furniture buffs (if user is in a guild)
+  try {
+    if (typeof guild_getFurnitureBuffs === 'function' && guildState && guildState.myGuild) {
+      var furnitureBuffs = await guild_getFurnitureBuffs();
+      if (furnitureBuffs.attack)  stats.attack  += furnitureBuffs.attack;
+      if (furnitureBuffs.defense) stats.defense += furnitureBuffs.defense;
+      if (furnitureBuffs.speed)   stats.speed   += furnitureBuffs.speed;
+      if (furnitureBuffs.luck)    stats.luck     = (stats.luck || 0) + furnitureBuffs.luck;
+      if (furnitureBuffs.spirit)  stats.spirit   = (stats.spirit || 0) + furnitureBuffs.spirit;
+    }
+  } catch(e) { dbg('[GuildFurnitureBuff] apply error:', e); }
+
+  // Apply any active combat buffs from secret cooking recipes
+  try {
+    var combatBuffRows = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('stat, amount')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    (combatBuffRows.data || []).forEach(function(b) {
+      if (b.stat && stats[b.stat] !== undefined) {
+        stats[b.stat] = (stats[b.stat] || 0) + (b.amount || 0);
+      }
+    });
+  } catch(e) { dbg('[CombatBuff] stat apply error:', e); }
+
   return {
     id: pet.id,
     name: pet.nickname || pet.pets.name || 'Your Pet',
@@ -13344,8 +13371,9 @@ function simulateBattle(playerStats, enemyStats) {
  * Calculate damage with variance
  */
 function calculateDamage(attack, defense, isBossAttack, luck) {
-  // Defense is 60% effective for enemy attacks (was 100%) so damage isn't purely ATK-DEF
-  var baseDamage = Math.max(1, attack - Math.floor(defense * 0.65));
+  // Defense is 50% effective — each DEF point blocks 0.5 damage.
+  // This keeps gear meaningful without walling all incoming damage.
+  var baseDamage = Math.max(1, attack - Math.floor(defense * 0.50));
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
 
   // LUCK: increases crit chance. Base 5%, +0.5% per Luck point, max 25%
@@ -13796,7 +13824,11 @@ function initManualBattle(playerStats, enemyStats, petId) {
 
   // Render active buff pills (weather, world events, guild perks) above action buttons
   var buffPillContainer = el('battle-buff-pills');
-  if (buffPillContainer) renderGlobalBuffPills(buffPillContainer);
+  if (buffPillContainer) {
+    renderGlobalBuffPills(buffPillContainer);
+    // Also append any active combat food buffs for this pet
+    combatBuff_renderPills(petId, buffPillContainer).then(null, function(){});
+  }
 
   var initNarr = manualBattleState._battleStartMsg
     ? '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>' + manualBattleState._battleStartMsg
@@ -15246,6 +15278,9 @@ async function manualBattle_endBattle(victory) {
 
   // Save results
   battleRewards = await saveBattleHistory(s.petId, s.enemyStats.id, battleResult, s.enemyStats);
+
+  // Decrement combat buff battle counts (runs regardless of win/loss)
+  combatBuff_tick(s.petId).then(null, function(){});
 
   // Immediately update petState so My Pets shows correct HP without waiting for full reload
   if (petState[s.petId]) {
@@ -17373,7 +17408,7 @@ async function getRandomEnemy(zone, playerLevel) {
   if (zone === 'outskirts') {
     // City Outskirts: 100% Baby, no elementals
     variant = 'baby';
-    statMultiplier = 1.1;   // was 0.8 — raised so outskirts enemies aren't trivially weak
+    statMultiplier = 1.25;   // raised from 1.1 — ungeared pets should feel pressure here
     
   } else if (zone === 'glade') {
     // Forest Glade: 50% Baby, 50% Adult, 10% chance of elemental
@@ -17557,8 +17592,8 @@ async function getRandomEnemy(zone, playerLevel) {
   // Scale stats based on level (base stats + scaling per level)
   var levelBonus = enemyLevel - 1;
   var baseHP  = Math.max(30, Math.floor((baseEnemy.base_hp   + (levelBonus * 12)) * statMultiplier));
-  // ATK uses lower multiplier than HP so enemies are HP-spongy but not one-shotters
-  var atkMult  = statMultiplier * 0.7;  // enemies hit for 70% of their stat-scaled attack
+  // ATK uses lower multiplier than HP so enemies hit but don't one-shot
+  var atkMult  = statMultiplier * 0.75;  // raised from 0.70 — gear should help, not trivialise
   var baseATK = Math.max(2,  Math.floor((baseEnemy.base_attack + levelBonus) * atkMult));
   var baseDEF = Math.max(1,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier));
   var baseSPD = Math.max(1,  Math.floor((baseEnemy.base_speed   + Math.floor(levelBonus * 0.5)) * statMultiplier));
@@ -22085,8 +22120,13 @@ async function guild_renderMemberView(mount) {
         '<span style="flex:1;font-weight:' + (isCurrentUser?'700':'400') + ';color:' + (isCurrentUser?'var(--purple)':'var(--purple-dark)') + ';">' +
           escapeHtml(m.players ? m.players.username : 'Unknown') + (isCurrentUser ? ' (You)' : '') + '</span>' +
         '<span style="color:var(--text-light);font-size:0.75rem;">Guild Pet: ' + escapeHtml(petName) + '</span>' +
-        (guildState.myRole==='leader' && !isCurrentUser
-          ? '<button class="btn btn-sm btn-outline" onclick="guild_kickMember(\'' + g.guild_id + '\',\'' + m.user_id + '\')" style="font-size:0.68rem;padding:2px 6px;color:#ff6b6b;border-color:#ff6b6b;">Kick</button>'
+        ((!isCurrentUser && (guildState.myRole==='leader' || guildState.myRole==='officer'))
+          ? ((guildState.myRole==='leader'
+              ? ('<button class="btn btn-sm btn-outline guild-role-btn" data-guild="' + escapeHtml(g.guild_id) + '" data-user="' + escapeHtml(m.user_id) + '" data-newrole="' + (m.role==='officer'?'member':'officer') + '" onclick="guild_setMemberRole(this.dataset.guild,this.dataset.user,this.dataset.newrole)" style="font-size:0.68rem;padding:2px 6px;">' + (m.role==='officer'?'⬇️ Demote':'⬆️ Promote') + '</button> ')
+              : '')
+            + ((guildState.myRole==='leader' || (guildState.myRole==='officer' && m.role==='member'))
+              ? ('<button class="btn btn-sm btn-outline guild-kick-btn" data-guild="' + escapeHtml(g.guild_id) + '" data-user="' + escapeHtml(m.user_id) + '" onclick="guild_kickMember(this.dataset.guild,this.dataset.user)" style="font-size:0.68rem;padding:2px 6px;color:#ff6b6b;border-color:#ff6b6b;">Kick</button>')
+              : ''))
           : '') +
       '</div>';
     }).join('');
@@ -22128,7 +22168,7 @@ async function guild_renderMemberView(mount) {
           '<div style="font-size:3rem;">' + (g.emblem_emoji||'🏛️') + '</div>' +
           '<div style="font-weight:800;font-size:1.3rem;color:var(--purple-dark);">' + escapeHtml(g.name) +
             ' <span style="font-size:0.85rem;color:var(--text-light);font-weight:400;">[' + escapeHtml(g.tag||'???') + ']</span></div>' +
-          '<div style="font-size:0.85rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + (members?members.length:0) + '/50 members · Treasury: 🪙' + treasury.toLocaleString() + ' PP</div>' +
+          '<div style="font-size:0.85rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + (members?members.length:0) + '/50 members · Treasury: 🪙' + treasury.toLocaleString() + ' PP · 🏅 ' + (g.guild_tokens || 0) + ' Tokens</div>' +
           (g.description ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;margin-top:6px;">"' + escapeHtml(g.description) + '"</div>' : '') +
         '</div>' +
 
@@ -22166,6 +22206,7 @@ async function guild_renderMemberView(mount) {
         '<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">' +
           '<button class="btn btn-outline" onclick="guildState.view=\'chat\';guild_renderChat();" style="flex:1;">💬 Chat</button>' +
           '<button class="btn btn-outline" onclick="guildState.view=\'dungeons\';guild_renderDungeons();" style="flex:1;">⚔️ Dungeons</button>' +
+          '<button class="btn btn-outline" onclick="guildState.view=\'housing\';guild_renderHousing();" style="flex:1;">🏠 Guild Hall</button>' +
           ((guildState.myRole==='leader'||guildState.myRole==='officer')
             ? '<button class="btn btn-outline" onclick="guild_renderTreasury()" style="flex:1;">🏦 Treasury</button>' +
               '<button class="btn btn-outline" onclick="guild_showInviteForm()" style="flex:1;">✉️ Invite</button>'
@@ -22236,6 +22277,26 @@ async function guild_kickMember(guildId, userId) {
     showToast('Member removed.', 2500);
     loadGuildPage();
   } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_setMemberRole(guildId, userId, newRole) {
+  // newRole must be 'officer' or 'member' — leaders cannot be changed via this function
+  if (!guildId || !userId || !newRole) return;
+  if (guildState.myRole !== 'leader') { showToast('Only the guild leader can promote or demote members.', 2500); return; }
+  var label = newRole === 'officer' ? 'Promote to Officer' : 'Demote to Member';
+  if (!confirm(label + '?')) return;
+  try {
+    var { error } = await supabaseClient
+      .from('guild_members')
+      .update({ role: newRole })
+      .eq('guild_id', guildId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    showToast(newRole === 'officer' ? '⭐ Member promoted to Officer!' : '👤 Officer demoted to Member.', 2500);
+    loadGuildPage();
+  } catch(e) {
+    showToast('Error updating role: ' + e.message, 3000);
+  }
 }
 
 // Recompute and persist the true member count using the get_guild_member_count RPC
@@ -23236,151 +23297,305 @@ async function guild_startDungeon() {
   }
 }
 
+// ── Guild Dungeon Manual Battle ──────────────────────────────────────────
+// Replaces auto-sim with a turn-based system the player controls.
+// Party members act when it's their turn; enemies auto-act.
+
+var _guildManualState = null; // live battle state
+
 function guild_runBattle(dungeon, party, waves, waveIndex, fullLog) {
-  var mount = document.getElementById('guild-content');
-  if (!mount) return;
+  var enemies = waves[waveIndex].map(function(e) { return Object.assign({}, e); });
+  _guildManualState = {
+    dungeon:    dungeon,
+    party:      party,
+    waves:      waves,
+    waveIndex:  waveIndex,
+    fullLog:    fullLog || [],
+    enemies:    enemies,
+    log:        [],
+    turn:       0,
+    actorQueue: [],  // sorted combatants for this round
+    roundDone:  true // trigger first round queue build
+  };
+  guild_manualRender();
+}
 
-  var enemies = waves[waveIndex].map(function(e) { return Object.assign({}, e); }); // fresh copy
-  var log = [];
+// Build actor queue for a new round
+function guild_buildActorQueue() {
+  var s = _guildManualState;
+  var alive = []
+    .concat(s.party.filter(function(p) { return p.currentHp > 0; }))
+    .concat(s.enemies.filter(function(e) { return e.currentHp > 0; }));
+  alive.sort(function(a, b) { return (b.speed || 4) - (a.speed || 4); });
+  s.actorQueue = alive;
+}
 
-  // ── Simulate this wave ──
-  var turn = 0;
-  var maxTurns = 60;
+// Returns current actor (head of queue), or null if round done
+function guild_currentActor() {
+  var s = _guildManualState;
+  while (s.actorQueue.length > 0) {
+    var actor = s.actorQueue[0];
+    // Skip dead actors
+    if ((actor.currentHp || 0) <= 0) { s.actorQueue.shift(); continue; }
+    return actor;
+  }
+  return null;
+}
 
-  while (
-    party.some(function(p) { return p.currentHp > 0; }) &&
-    enemies.some(function(e) { return e.currentHp > 0; }) &&
-    turn < maxTurns
-  ) {
-    turn++;
-    // Build turn order: all alive combatants sorted by speed
-    var order = []
-      .concat(party.filter(function(p) { return p.currentHp > 0; }))
-      .concat(enemies.filter(function(e) { return e.currentHp > 0; }));
-    order.sort(function(a, b) { return (b.speed||4) - (a.speed||4); });
+// Process one enemy action, then advance
+function guild_enemyAct(enemy) {
+  var s = _guildManualState;
+  var targets = s.party.filter(function(p) { return p.currentHp > 0; });
+  if (!targets.length) return;
+  var target = targets[Math.floor(Math.random() * targets.length)];
+  var base = Math.max(1, enemy.attack - Math.floor(target.defense * 0.5));
+  var variance = 0.8 + Math.random() * 0.6;
+  var isCrit = Math.random() < 0.08;
+  var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
+  target.currentHp = Math.max(0, target.currentHp - dmg);
+  var line = enemy.icon + ' ' + enemy.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : '');
+  if (target.currentHp <= 0) line += ' ' + target.name + ' was knocked out! 😵';
+  s.log.push({ type: 'enemy', text: line, waveIdx: s.waveIndex });
+  s.actorQueue.shift();
+}
 
-    order.forEach(function(actor) {
-      if (actor.currentHp <= 0) return;
-      var isParty = !!actor.isPlayer || actor.ownerName !== undefined;
+// Auto-process all queued enemy turns until a party member's turn or round ends
+function guild_advanceThroughEnemies() {
+  var s = _guildManualState;
+  var safety = 0;
+  while (safety++ < 30) {
+    var actor = guild_currentActor();
+    if (!actor) { s.roundDone = true; break; } // round over
+    var isParty = actor.isPlayer !== undefined || actor.ownerName !== undefined;
+    if (isParty) break; // player's turn — stop and wait for input
+    guild_enemyAct(actor);
+    // Check if party is wiped
+    if (!s.party.some(function(p) { return p.currentHp > 0; })) break;
+    // Check if all enemies dead
+    if (!s.enemies.some(function(e) { return e.currentHp > 0; })) break;
+  }
+}
 
-      if (isParty) {
-        // Attack random alive enemy
-        var targets = enemies.filter(function(e) { return e.currentHp > 0; });
-        if (!targets.length) return;
-        var target = targets[Math.floor(Math.random() * targets.length)];
-        var base = Math.max(1, actor.attack - target.defense);
-        var variance = 0.8 + Math.random() * 0.6;
-        var isCrit = Math.random() < 0.10;
-        var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
-        target.currentHp = Math.max(0, target.currentHp - dmg);
-        log.push({ type: isCrit ? 'crit' : 'atk', text: actor.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : ''), waveIdx: waveIndex });
-        if (target.currentHp <= 0) log.push({ type: 'death', text: target.name + ' was defeated! 💀', waveIdx: waveIndex });
-      } else {
-        // Enemy attacks random alive party member
-        var ptargets = party.filter(function(p) { return p.currentHp > 0; });
-        if (!ptargets.length) return;
-        var ptarget = ptargets[Math.floor(Math.random() * ptargets.length)];
-        var pbase = Math.max(1, actor.attack - ptarget.defense);
-        var pdmg = Math.floor(pbase * (0.8 + Math.random() * 0.6));
-        ptarget.currentHp = Math.max(0, ptarget.currentHp - pdmg);
-        log.push({ type: 'enemy', text: actor.name + ' attacks ' + ptarget.name + ' for ' + pdmg + ' damage!', waveIdx: waveIndex });
-        if (ptarget.currentHp <= 0) log.push({ type: 'death', text: ptarget.name + ' was knocked out! 😵', waveIdx: waveIndex });
-      }
+// Player presses Attack/Skill/Defend for current party member
+function guild_playerAction(type) {
+  var s = _guildManualState;
+  if (!s) return;
+
+  var actor = guild_currentActor();
+  if (!actor || (actor.isPlayer === undefined && actor.ownerName === undefined)) return; // not a party turn
+
+  var targets = s.enemies.filter(function(e) { return e.currentHp > 0; });
+  if (!targets.length) return;
+
+  var log = s.log;
+
+  if (type === 'attack') {
+    var target = targets[Math.floor(Math.random() * targets.length)];
+    var base = Math.max(1, actor.attack - Math.floor(target.defense * 0.5));
+    var variance = 0.8 + Math.random() * 0.6;
+    var isCrit = Math.random() < 0.10;
+    var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
+    target.currentHp = Math.max(0, target.currentHp - dmg);
+    var line = '🐾 ' + actor.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : '');
+    if (target.currentHp <= 0) line += ' ' + target.name + ' was defeated! 💀';
+    log.push({ type: 'atk', text: line, waveIdx: s.waveIndex });
+  } else if (type === 'power') {
+    // Power strike: 1.5x damage, hits all enemies
+    var totalDmg = 0;
+    targets.forEach(function(target) {
+      var base = Math.max(1, actor.attack - Math.floor(target.defense * 0.5));
+      var dmg = Math.floor(base * 1.5);
+      target.currentHp = Math.max(0, target.currentHp - dmg);
+      totalDmg += dmg;
+      if (target.currentHp <= 0) log.push({ type: 'crit', text: target.name + ' was defeated! 💀', waveIdx: s.waveIndex });
     });
+    log.push({ type: 'crit', text: '💥 ' + actor.name + ' uses Power Strike! Hits all enemies for ~' + Math.floor(totalDmg / targets.length) + ' damage each!', waveIdx: s.waveIndex });
+  } else if (type === 'guard') {
+    // Guard: reduce damage taken this round by giving actor a temp defense boost
+    actor._guarding = true;
+    log.push({ type: 'atk', text: '🛡️ ' + actor.name + ' guards! Defense doubled this round.', waveIdx: s.waveIndex });
   }
 
-  fullLog = fullLog.concat(log);
-  var waveVictory = enemies.every(function(e) { return e.currentHp <= 0; });
+  s.actorQueue.shift();
 
-  // ── Render battle result screen ──
-  var partyHtml = party.map(function(p) {
+  // Check win condition
+  if (!s.enemies.some(function(e) { return e.currentHp > 0; })) {
+    s.fullLog = s.fullLog.concat(s.log);
+    guild_manualRender();
+    return;
+  }
+
+  // Advance through any enemy turns
+  guild_advanceThroughEnemies();
+
+  // Check loss condition
+  if (!s.party.some(function(p) { return p.currentHp > 0; })) {
+    s.fullLog = s.fullLog.concat(s.log);
+    guild_manualRender();
+    return;
+  }
+
+  // If round done, rebuild queue
+  if (s.roundDone) {
+    s.roundDone = false;
+    s.turn++;
+    guild_buildActorQueue();
+    guild_advanceThroughEnemies();
+  }
+
+  guild_manualRender();
+}
+
+// Main render function for guild manual battle
+function guild_manualRender() {
+  var s = _guildManualState;
+  var mount = document.getElementById('guild-content');
+  if (!mount || !s) return;
+
+  // Build initial queue if needed
+  if (s.roundDone) {
+    s.roundDone = false;
+    s.turn++;
+    guild_buildActorQueue();
+    guild_advanceThroughEnemies();
+    if (!s.party.some(function(p){return p.currentHp>0;})) { /* fall through to render defeat */ }
+  }
+
+  var allEnemiesDead = !s.enemies.some(function(e) { return e.currentHp > 0; });
+  var allPartyDead   = !s.party.some(function(p)  { return p.currentHp > 0; });
+  var battleOver     = allEnemiesDead || allPartyDead;
+
+  // Party HTML
+  var partyHtml = s.party.map(function(p) {
     var pct = Math.max(0, Math.round((p.currentHp / p.maxHp) * 100));
-    var barColor = pct > 60 ? '#4ade80' : pct > 30 ? '#fbbf24' : '#ff6b6b';
-    var varIcon = p.variant ? (VARIANT_PARTICLES[p.variant] ? VARIANT_PARTICLES[p.variant][0] : '✨') : '🐾';
-    return '<div class="guild-party-member">' +
-      '<div style="font-size:1.1rem;">' + varIcon + '</div>' +
+    var barColor = pct > 50 ? '#4ade80' : pct > 20 ? '#fbbf24' : '#ff6b6b';
+    var isCurrentActor = !battleOver && s.actorQueue.length > 0 && s.actorQueue[0] === p;
+    var varIcon = (typeof VARIANT_PARTICLES !== 'undefined' && p.variant && VARIANT_PARTICLES[p.variant]) ? VARIANT_PARTICLES[p.variant][0] : '🐾';
+    return '<div class="guild-party-member" style="' + (isCurrentActor ? 'border:2px solid var(--purple);border-radius:10px;padding:4px;background:rgba(153,102,255,0.1);' : '') + '">' +
+      '<div style="font-size:1.1rem;">' + varIcon + (isCurrentActor ? ' <span style="font-size:0.7rem;color:var(--purple);font-weight:700;">YOUR TURN</span>' : '') + '</div>' +
       '<div style="flex:1;min-width:0;">' +
-        '<div style="font-size:0.78rem;font-weight:700;color:' + (p.isPlayer?'var(--purple)':'var(--purple-dark)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+        '<div style="font-size:0.78rem;font-weight:700;color:' + (p.isPlayer ? 'var(--purple)' : 'var(--purple-dark)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
           p.name + (p.isPlayer ? ' <span style="color:var(--purple);font-size:0.68rem;">(You)</span>' : ' <span style="color:var(--text-light);font-size:0.68rem;">(' + p.ownerName + ')</span>') +
         '</div>' +
         '<div class="guild-member-hp-bar"><div class="guild-member-hp-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
-        '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,p.currentHp) + '/' + p.maxHp + ' HP' + (p.currentHp<=0 ? ' 💀' : '') + '</div>' +
+        '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0, p.currentHp) + '/' + p.maxHp + ' HP' + (p.currentHp <= 0 ? ' 💀' : (p._guarding ? ' 🛡️' : '')) + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
 
-  var enemyHtml = enemies.map(function(e) {
+  // Enemy HTML
+  var enemyHtml = s.enemies.map(function(e) {
     var pct = Math.max(0, Math.round((e.currentHp / e.maxHp) * 100));
-    return '<div class="guild-enemy-card">' +
-      '<div style="font-size:1.6rem;">' + e.icon + '</div>' +
-      '<div style="font-size:0.72rem;font-weight:700;color:' + (e.currentHp<=0?'#888':'var(--purple-dark)') + ';">' + e.name + '</div>' +
-      '<div class="guild-enemy-hp-bar"><div class="guild-enemy-hp-fill" style="width:' + pct + '%;opacity:' + (e.currentHp<=0?'0.3':'1') + ';"></div></div>' +
-      '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,e.currentHp) + '/' + e.maxHp + (e.currentHp<=0?' ✅':'') + '</div>' +
+    var isCurrentActor = !battleOver && s.actorQueue.length > 0 && s.actorQueue[0] === e;
+    return '<div class="guild-enemy-card" style="' + (isCurrentActor ? 'border:2px solid #ff6b6b;border-radius:10px;' : '') + '">' +
+      '<div style="font-size:1.6rem;">' + e.icon + (isCurrentActor ? '<span style="font-size:0.6rem;color:#ff6b6b;display:block;"> ACTING</span>' : '') + '</div>' +
+      '<div style="font-size:0.72rem;font-weight:700;color:' + (e.currentHp <= 0 ? '#888' : 'var(--purple-dark)') + ';">' + e.name + '</div>' +
+      '<div class="guild-enemy-hp-bar"><div class="guild-enemy-hp-fill" style="width:' + pct + '%;opacity:' + (e.currentHp <= 0 ? '0.3' : '1') + ';"></div></div>' +
+      '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0, e.currentHp) + '/' + e.maxHp + (e.currentHp <= 0 ? ' ✅' : '') + '</div>' +
     '</div>';
   }).join('');
 
-  var logHtml = fullLog.slice(-20).map(function(entry) {
+  // Battle log HTML (last 12 entries)
+  var allLog = s.fullLog.concat(s.log);
+  var logHtml = allLog.slice(-12).map(function(entry) {
     var cls = entry.type === 'crit' ? 'critical' : entry.type === 'death' ? 'death' : entry.type === 'enemy' ? 'enemy-atk' : '';
     return '<div class="guild-battle-log-entry ' + cls + '">' + escapeHtml(entry.text) + '</div>';
   }).join('');
 
-  var hasMoreWaves = waveIndex < waves.length - 1;
-  var partyAlive = party.some(function(p) { return p.currentHp > 0; });
+  // Action buttons — only show when it's a party member's turn and battle isn't over
+  var currentActor = battleOver ? null : guild_currentActor();
+  var isPartyTurn = currentActor && (currentActor.isPlayer !== undefined || currentActor.ownerName !== undefined);
+
+  var actorName = currentActor ? currentActor.name : '';
+  var actionHtml = '';
+  if (!battleOver) {
+    if (isPartyTurn) {
+      actionHtml =
+        '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px;margin-bottom:10px;">' +
+          '<div style="font-size:0.75rem;font-weight:700;color:var(--purple);margin-bottom:8px;">🐾 ' + escapeHtml(actorName) + '\'s turn!</div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-primary" onclick="guild_playerAction(\'attack\')" style="flex:1;font-size:0.85rem;">⚔️ Attack</button>' +
+            '<button class="btn btn-outline" onclick="guild_playerAction(\'power\')" style="flex:1;font-size:0.85rem;">💥 Power</button>' +
+            '<button class="btn btn-outline" onclick="guild_playerAction(\'guard\')" style="flex:1;font-size:0.85rem;">🛡️ Guard</button>' +
+          '</div>' +
+          '<div style="font-size:0.68rem;color:var(--text-light);margin-top:6px;">Attack: normal hit · Power: 1.5x hits all · Guard: double DEF this round</div>' +
+        '</div>';
+    } else {
+      actionHtml = '<div style="font-size:0.8rem;color:var(--text-light);text-align:center;padding:10px;font-style:italic;">Enemies are acting...</div>';
+    }
+  }
+
+  // Wave result
+  var hasMoreWaves = s.waveIndex < s.waves.length - 1;
+  var resultHtml = '';
+  if (battleOver) {
+    if (allEnemiesDead) {
+      resultHtml =
+        '<div style="text-align:center;padding:8px 0;">' +
+          '<div style="font-weight:700;font-size:0.95rem;color:#4ade80;margin-bottom:10px;">✅ Wave ' + (s.waveIndex + 1) + '/' + s.waves.length + ' Cleared!</div>' +
+          (hasMoreWaves && !allPartyDead
+            ? '<button class="btn btn-primary" onclick="guild_manualNextWave()" style="width:100%;margin-bottom:6px;">Continue to Wave ' + (s.waveIndex + 2) + ' →</button>'
+            : '') +
+          '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(' + (!hasMoreWaves || allPartyDead ? 'true' : 'true') + ',' + (s.waveIndex + 1) + ',' + s.waves.length + ')" style="width:100%;">' +
+            (!hasMoreWaves ? '🏆 Claim Rewards' : (allPartyDead ? '💀 Party Defeated' : '🏆 Claim Rewards')) +
+          '</button>' +
+        '</div>';
+    } else {
+      resultHtml =
+        '<div style="text-align:center;padding:8px 0;">' +
+          '<div style="font-weight:700;font-size:0.95rem;color:#ff6b6b;margin-bottom:10px;">❌ Party Defeated on Wave ' + (s.waveIndex + 1) + '!</div>' +
+          '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(false,' + s.waveIndex + ',' + s.waves.length + ')" style="width:100%;">💔 End Run</button>' +
+        '</div>';
+    }
+  }
 
   mount.innerHTML =
-    '<div style="font-size:0.78rem;font-weight:700;color:var(--text-light);letter-spacing:1px;margin-bottom:10px;">⚔️ ' + escapeHtml(dungeon.name) + ' • Wave ' + (waveIndex+1) + '/' + waves.length + '</div>' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--text-light);letter-spacing:1px;margin-bottom:10px;">⚔️ ' + escapeHtml(s.dungeon.name) + ' • Wave ' + (s.waveIndex + 1) + '/' + s.waves.length + ' • Turn ' + s.turn + '</div>' +
 
     '<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">' +
-      // Party side
       '<div style="flex:1;">' +
         '<div style="font-size:0.72rem;font-weight:700;color:var(--purple);margin-bottom:6px;letter-spacing:1px;">YOUR PARTY</div>' +
         '<div class="guild-party-panel">' + partyHtml + '</div>' +
       '</div>' +
-
-      // VS divider
       '<div style="font-size:1.2rem;font-weight:800;color:var(--text-light);padding-top:30px;">⚡</div>' +
-
-      // Enemy side
       '<div style="flex:1;">' +
         '<div style="font-size:0.72rem;font-weight:700;color:#ff6b6b;margin-bottom:6px;letter-spacing:1px;">ENEMIES</div>' +
         '<div class="guild-enemies-grid">' + enemyHtml + '</div>' +
       '</div>' +
     '</div>' +
 
-    // Battle log
+    actionHtml +
+
     '<div style="font-size:0.72rem;font-weight:700;color:var(--text-light);margin-bottom:6px;letter-spacing:1px;">BATTLE LOG</div>' +
     '<div class="guild-battle-log">' + logHtml + '</div>' +
 
-    // Wave result + actions
-    '<div style="margin-top:12px;padding:10px 0;text-align:center;">' +
-      '<div style="font-weight:700;font-size:0.9rem;margin-bottom:8px;color:' + (waveVictory?'#4ade80':'#ff6b6b') + ';">' +
-        (waveVictory ? '✅ Wave ' + (waveIndex+1) + ' Cleared!' : '❌ Wave ' + (waveIndex+1) + ' Failed!') +
-      '</div>' +
-      (waveVictory && hasMoreWaves && partyAlive
-        ? '<button class="btn btn-primary" onclick="guild_nextWave()" style="width:100%;margin-bottom:6px;">Continue to Wave ' + (waveIndex+2) + ' →</button>'
-        : '') +
-      '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(' + JSON.stringify(waveVictory && !hasMoreWaves || (waveVictory && !partyAlive)) + ',' + (waveIndex+1) + ',' + waves.length + ')" style="width:100%;">' +
-        (waveVictory && !hasMoreWaves ? '🏆 Claim Rewards' : (waveVictory && hasMoreWaves && !partyAlive ? '💀 Party Defeated: End Run' : '🏃 Retreat')) +
-      '</button>' +
-    '</div>';
+    resultHtml;
 
-  // Scroll log to bottom
   var logEl = mount.querySelector('.guild-battle-log');
   if (logEl) logEl.scrollTop = logEl.scrollHeight;
+}
 
-  // Store state for next wave
-  window._guildBattleState = { dungeon: dungeon, party: party, waves: waves, waveIndex: waveIndex, fullLog: fullLog };
+function guild_manualNextWave() {
+  var s = _guildManualState;
+  if (!s) return;
+  // 10% heal between waves
+  s.party.forEach(function(p) {
+    if (p.currentHp > 0) p.currentHp = Math.min(p.maxHp, p.currentHp + Math.floor(p.maxHp * 0.10));
+    p._guarding = false;
+  });
+  s.fullLog = s.fullLog.concat(s.log);
+  s.log = [];
+  s.waveIndex++;
+  s.enemies = s.waves[s.waveIndex].map(function(e) { return Object.assign({}, e); });
+  s.actorQueue = [];
+  s.roundDone = true;
+  s.fullLog.push({ type: 'atk', text: '🌊 Wave ' + (s.waveIndex + 1) + ' begins! Party recovered 10% HP.', waveIdx: s.waveIndex });
+  guild_manualRender();
 }
 
 function guild_nextWave() {
-  var s = window._guildBattleState;
-  if (!s) return;
-  // Small heal between waves (10% of max HP)
-  s.party.forEach(function(p) {
-    if (p.currentHp > 0) p.currentHp = Math.min(p.maxHp, p.currentHp + Math.floor(p.maxHp * 0.10));
-  });
-  s.fullLog.push({ type: 'heal', text: 'Wave ' + (s.waveIndex+2) + ' begins! Party recovered 10% HP.', waveIdx: s.waveIndex+1 });
-  guild_runBattle(s.dungeon, s.party, s.waves, s.waveIndex + 1, s.fullLog);
+  // Superseded by guild_manualNextWave — kept as stub for any legacy HTML references
+  guild_manualNextWave();
 }
 
 async function guild_endDungeon(victory, wavesCleared, totalWaves) {
@@ -23404,6 +23619,12 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
     if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
     addPassXP(15, 'guild_dungeon').then(null, function(){});
     updateBingoProgress('guild_dungeon', 1);
+    // Award guild tokens on dungeon completion
+    var tokenReward = Math.floor(dungeon.base_pp_reward * clearRatio / 20); // ~5 tokens per dungeon
+    if (tokenReward > 0) {
+      supabaseClient.from('guilds').update({ guild_tokens: (guildState.myGuild.guild_tokens || 0) + tokenReward }).eq('id', guildState.myGuild.guild_id).then(null, function(){});
+      if (guildState.myGuild) guildState.myGuild.guild_tokens = (guildState.myGuild.guild_tokens || 0) + tokenReward;
+    }
     if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).then(null, function(){});
 
     // Log run
@@ -39942,6 +40163,74 @@ var COOKING_RECIPES = [
     hunger: 999, happiness: -10, hp: 0,
     description: 'A dark, bubbling broth. It smells like static and something older.',
     isPiperRecipe: true
+  },
+  // ── SECRET COMBAT BUFF FOODS — not sold in shop, discovered through cooking ──
+  {
+    id: 'warriors_feast',
+    name: "Warrior's Feast",
+    emoji: '🍗',
+    ingredients: ['tough_meat', 'rare_spice', 'honey'],
+    effect: '+3 ATK for next 5 battles',
+    hunger: 20, happiness: 5, hp: 0,
+    combatBuff: { stat: 'attack', amount: 3, battles: 5 },
+    description: 'A roasted haunch glazed with spiced honey. Your pet looks ready to fight.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'iron_shell_stew',
+    name: 'Iron Shell Stew',
+    emoji: '🫕',
+    ingredients: ['shellfish', 'mushroom', 'small_bone', 'salt'],
+    effect: '+4 DEF for next 5 battles',
+    hunger: 20, happiness: 0, hp: 0,
+    combatBuff: { stat: 'defense', amount: 4, battles: 5 },
+    description: 'A thick, mineral stew made from boiled shells and forest mushrooms. Fortifying.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'swiftfin_sashimi',
+    name: 'Swiftfin Sashimi',
+    emoji: '🍱',
+    ingredients: ['fresh_salmon', 'seaweed', 'rare_spice'],
+    effect: '+3 SPD for next 5 battles',
+    hunger: 15, happiness: 10, hp: 0,
+    combatBuff: { stat: 'speed', amount: 3, battles: 5 },
+    description: 'Razor-thin slices of salmon seasoned with rare spice. Light, fast, fierce.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'lucky_berry_jam',
+    name: 'Lucky Berry Jam',
+    emoji: '🍯',
+    ingredients: ['forest_berry', 'honey', 'sugar'],
+    effect: '+4 Luck for next 5 battles',
+    hunger: 10, happiness: 20, hp: 0,
+    combatBuff: { stat: 'luck', amount: 4, battles: 5 },
+    description: 'Thick jam bursting with tart berries. Each spoonful feels like a small miracle.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'crystalized_power_cake',
+    name: 'Crystalized Power Cake',
+    emoji: '💎',
+    ingredients: ['crystal_shard', 'butter', 'flour', 'egg'],
+    effect: '+5 ATK, +3 DEF for next 8 battles',
+    hunger: 30, happiness: 15, hp: 0,
+    combatBuff: { stat: 'multi', bonuses: [{ stat: 'attack', amount: 5 }, { stat: 'defense', amount: 3 }], battles: 8 },
+    description: 'A cake with a literal crystal baked into it. Somehow delicious. Definitely dangerous.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'glitch_cookie',
+    name: 'Glitch Cookie',
+    emoji: '🍪',
+    ingredients: ['glitch_residue', 'flour', 'butter', 'sugar'],
+    effect: '+6 Luck, +2 ATK for next 10 battles',
+    hunger: 15, happiness: 20, hp: 0,
+    combatBuff: { stat: 'multi', bonuses: [{ stat: 'luck', amount: 6 }, { stat: 'attack', amount: 2 }], battles: 10 },
+    description: "It phases slightly as you eat it. The crunch is on a frequency you shouldn't be able to hear.",
+    isSecretRecipe: true,
+    isPiperRecipe: false
   }
 ];
 
@@ -40528,3 +40817,428 @@ async function cooking_init() {
   await cooking_load();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMBAT BUFF SYSTEM (from secret cooking recipes)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Load combat buffs for a pet from DB
+// Stored in pet_combat_buffs table: { user_id, pet_id, recipe_id, stat, amount, battles_left }
+async function combatBuff_load(petId) {
+  if (!currentUser || !petId) return {};
+  try {
+    var { data: rows } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    var buffs = {};
+    (rows || []).forEach(function(r) {
+      buffs[r.recipe_id] = r;
+    });
+    return buffs;
+  } catch(e) {
+    dbg('[CombatBuff] load error:', e);
+    return {};
+  }
+}
+
+// Apply a combat buff food to a pet (called from inventory/feeding)
+async function combatBuff_apply(petId, recipeId) {
+  if (!currentUser || !petId || !recipeId) return;
+  var recipe = COOKING_RECIPES.find(function(r) { return r.id === recipeId; });
+  if (!recipe || !recipe.combatBuff) return;
+
+  var buff = recipe.combatBuff;
+  var battles = buff.battles || 5;
+  var rows = [];
+
+  if (buff.stat === 'multi') {
+    (buff.bonuses || []).forEach(function(b) {
+      rows.push({ user_id: currentUser.id, pet_id: petId, recipe_id: recipeId + '_' + b.stat, stat: b.stat, amount: b.amount, battles_left: battles });
+    });
+  } else {
+    rows.push({ user_id: currentUser.id, pet_id: petId, recipe_id: recipeId, stat: buff.stat, amount: buff.amount, battles_left: battles });
+  }
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    // Upsert: if buff already active, add battles_left
+    var { data: existing } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('id, battles_left')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .eq('recipe_id', row.recipe_id)
+      .maybeSingle();
+    if (existing) {
+      await supabaseClient.from('pet_combat_buffs').update({ battles_left: existing.battles_left + battles }).eq('id', existing.id);
+    } else {
+      await supabaseClient.from('pet_combat_buffs').insert(row);
+    }
+  }
+  showToast(recipe.emoji + ' ' + recipe.name + ' buff applied to your pet! (' + battles + ' battles)', 3500);
+}
+
+// Decrement buff battles_left after a battle ends (win or lose)
+async function combatBuff_tick(petId) {
+  if (!currentUser || !petId) return;
+  try {
+    var { data: rows } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('id, battles_left')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    for (var i = 0; i < (rows || []).length; i++) {
+      var r = rows[i];
+      var newLeft = r.battles_left - 1;
+      if (newLeft <= 0) {
+        await supabaseClient.from('pet_combat_buffs').delete().eq('id', r.id);
+      } else {
+        await supabaseClient.from('pet_combat_buffs').update({ battles_left: newLeft }).eq('id', r.id);
+      }
+    }
+  } catch(e) { dbg('[CombatBuff] tick error:', e); }
+}
+
+// Render combat buff pills in battle UI
+async function combatBuff_renderPills(petId, containerEl) {
+  if (!containerEl) return;
+  var buffs = await combatBuff_load(petId);
+  var keys = Object.keys(buffs);
+  if (!keys.length) { containerEl.innerHTML = ''; return; }
+
+  var STAT_LABELS = { attack: 'ATK', defense: 'DEF', speed: 'SPD', luck: 'Luck', spirit: 'Spirit' };
+  containerEl.innerHTML = keys.map(function(k) {
+    var b = buffs[k];
+    var label = STAT_LABELS[b.stat] || b.stat;
+    return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(93,222,122,0.15);border:1px solid rgba(93,222,122,0.4);border-radius:20px;padding:2px 8px;font-size:0.65rem;color:#5dde7a;font-weight:700;margin:2px;">+' +
+      b.amount + ' ' + label + ' <span style="opacity:0.7;">(' + b.battles_left + ' battles)</span></span>';
+  }).join('');
+}
+
+// Apply active buffs to playerStats before battle
+async function combatBuff_applyToStats(petId, stats) {
+  var buffs = await combatBuff_load(petId);
+  Object.keys(buffs).forEach(function(k) {
+    var b = buffs[k];
+    if (b.stat && b.amount && stats[b.stat] !== undefined) {
+      stats[b.stat] = (stats[b.stat] || 0) + b.amount;
+    }
+  });
+  return stats;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GUILD HOUSING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Furniture catalog — all furniture available to buy, keyed by furniture_key
+var GUILD_FURNITURE_CATALOG = [
+  // ── Tier 1: Cheap, basic buffs (10-30 tokens) ──
+  { key: 'banner',         name: 'Guild Banner',       emoji: '🚩', cost: 10, tier: 1,
+    buff: null, desc: 'A decorative banner. Shows guild pride!' },
+  { key: 'training_dummy', name: 'Training Dummy',     emoji: '🪆', cost: 20, tier: 1,
+    buff: { stat: 'attack', amount: 1 }, desc: 'All guild pets get +1 ATK permanently.' },
+  { key: 'healing_pond',   name: 'Healing Pond',       emoji: '💧', cost: 25, tier: 1,
+    buff: { stat: 'hp_regen', amount: 2 }, desc: 'HP regenerates 2 extra HP/hour for all guild members.' },
+  { key: 'bookshelf',      name: 'Ancient Bookshelf',  emoji: '📚', cost: 30, tier: 1,
+    buff: { stat: 'xp_bonus', amount: 5 }, desc: '+5% XP gain for all guild pets.' },
+
+  // ── Tier 2: Moderate, meaningful buffs (50-100 tokens) ──
+  { key: 'weapon_rack',    name: 'Weapon Rack',        emoji: '⚔️',  cost: 50, tier: 2,
+    buff: { stat: 'attack', amount: 2 }, desc: 'All guild pets get +2 ATK permanently.' },
+  { key: 'stone_wall',     name: 'Reinforced Wall',    emoji: '🧱', cost: 60, tier: 2,
+    buff: { stat: 'defense', amount: 2 }, desc: 'All guild pets get +2 DEF permanently.' },
+  { key: 'lucky_shrine',   name: 'Lucky Shrine',       emoji: '🍀', cost: 75, tier: 2,
+    buff: { stat: 'luck', amount: 3 }, desc: '+3 Luck for all guild pets in battle.' },
+  { key: 'feast_table',    name: 'Feast Table',        emoji: '🍽️', cost: 80, tier: 2,
+    buff: { stat: 'happiness_max', amount: 10 }, desc: '+10 max happiness for all guild pets.' },
+  { key: 'speed_track',    name: 'Speed Track',        emoji: '⚡', cost: 90, tier: 2,
+    buff: { stat: 'speed', amount: 2 }, desc: 'All guild pets get +2 SPD permanently.' },
+
+  // ── Tier 3: Expensive, powerful buffs (150-300 tokens) ──
+  { key: 'throne',         name: 'Guild Throne',       emoji: '👑', cost: 150, tier: 3,
+    buff: { stat: 'pp_bonus', amount: 10 }, desc: '+10% PP from all battles for guild members.' },
+  { key: 'arcane_forge',   name: 'Arcane Forge',       emoji: '🔮', cost: 200, tier: 3,
+    buff: { stat: 'attack', amount: 3, defense: 1 }, desc: '+3 ATK, +1 DEF for all guild pets.' },
+  { key: 'spirit_crystal', name: 'Spirit Crystal',     emoji: '💎', cost: 250, tier: 3,
+    buff: { stat: 'spirit', amount: 5 }, desc: '+5 Spirit for all guild pets. Piper is less likely to appear.' },
+  { key: 'corruption_ward',name: 'Corruption Ward',    emoji: '🌑', cost: 300, tier: 3,
+    buff: { stat: 'corruption_resist', amount: 15 }, desc: 'Reduces Corruption damage in battle by 15% for all guild members.' },
+
+  // ── Tier 4: Guild-level locked (500+ tokens) ──
+  { key: 'piper_painting', name: "Piper's Portrait",   emoji: '🎵', cost: 500, tier: 4,
+    buff: null, desc: "Something about this painting moves when you're not looking. No game effect. Piper is pleased.",
+    requiresLevel: 5 },
+  { key: 'champions_hall', name: "Champion's Hall",    emoji: '🏆', cost: 800, tier: 4,
+    buff: { stat: 'attack', amount: 5, defense: 3, speed: 2 }, desc: '+5 ATK, +3 DEF, +2 SPD for ALL guild pets.',
+    requiresLevel: 8 }
+];
+
+// Cached placed furniture for this guild
+var _guildFurnitureCache = null;
+
+// How many slots does a guild get at this level?
+function guild_furnitureSlots(guildLevel) {
+  return Math.min(10, guildLevel || 1);
+}
+
+// Load placed furniture from DB
+async function guild_loadFurniture() {
+  if (!guildState.myGuild) return [];
+  try {
+    var { data } = await supabaseClient
+      .from('guild_furniture')
+      .select('*')
+      .eq('guild_id', guildState.myGuild.guild_id)
+      .order('slot_index', { ascending: true });
+    _guildFurnitureCache = data || [];
+    return _guildFurnitureCache;
+  } catch(e) { dbg('[GuildHousing] load error:', e); return []; }
+}
+
+// Get active furniture buffs for a guild member (called on battle init & stat display)
+async function guild_getFurnitureBuffs() {
+  var buffs = { attack: 0, defense: 0, speed: 0, luck: 0, spirit: 0,
+                xp_bonus: 0, pp_bonus: 0, hp_regen: 0, happiness_max: 0,
+                corruption_resist: 0 };
+
+  if (!guildState.myGuild) return buffs;
+  var furniture = _guildFurnitureCache;
+  if (!furniture) furniture = await guild_loadFurniture();
+
+  furniture.forEach(function(placed) {
+    var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === placed.furniture_key; });
+    if (!def || !def.buff) return;
+    var b = def.buff;
+    if (b.stat && buffs[b.stat] !== undefined) buffs[b.stat] += b.amount || 0;
+    if (b.defense && buffs.defense !== undefined) buffs.defense += b.defense || 0; // multi-stat items
+  });
+  return buffs;
+}
+
+// Render the full guild housing page
+async function guild_renderHousing() {
+  var mount = document.getElementById('guild-content');
+  if (!mount || !guildState.myGuild) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var g = guildState.myGuild;
+    var guildLevel = g.guild_level || 1;
+    var tokens = g.guild_tokens || 0;
+    var totalSlots = guild_furnitureSlots(guildLevel);
+    var isOfficer = guildState.myRole === 'leader' || guildState.myRole === 'officer';
+
+    var placed = await guild_loadFurniture();
+    // Build slot map
+    var slotMap = {};
+    placed.forEach(function(p) { slotMap[p.slot_index] = p; });
+
+    // Active buffs summary
+    var buffs = await guild_getFurnitureBuffs();
+    var buffEntries = Object.keys(buffs).filter(function(k) { return buffs[k] > 0; });
+    var buffsHtml = buffEntries.length === 0
+      ? '<div style="font-size:0.78rem;color:var(--text-light);font-style:italic;">No furniture placed yet — no active buffs.</div>'
+      : buffEntries.map(function(k) {
+          var labels = { attack:'⚔️ ATK', defense:'🛡️ DEF', speed:'⚡ SPD', luck:'🍀 Luck',
+                         spirit:'✨ Spirit', xp_bonus:'📚 XP Bonus', pp_bonus:'💰 PP Bonus',
+                         hp_regen:'💧 HP Regen/hr', happiness_max:'😊 Max Happiness',
+                         corruption_resist:'🌑 Corruption Resist' };
+          var units = { xp_bonus:'%', pp_bonus:'%', corruption_resist:'%', hp_regen:'/hr' };
+          return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(153,102,255,0.12);border:1px solid rgba(153,102,255,0.25);border-radius:20px;padding:2px 8px;font-size:0.7rem;color:var(--purple-dark);margin:2px;">' +
+            (labels[k] || k) + ': +' + buffs[k] + (units[k] || '') + '</span>';
+        }).join('');
+
+    // Furniture slot grid
+    var slotsHtml = '';
+    for (var i = 0; i < totalSlots; i++) {
+      var p = slotMap[i];
+      if (p) {
+        var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === p.furniture_key; });
+        slotsHtml +=
+          '<div class="guild-furniture-slot filled" title="' + (def ? escapeHtml(def.desc) : '') + '">' +
+            '<span style="font-size:1.8rem;">' + (def ? def.emoji : '📦') + '</span>' +
+            '<span style="font-size:0.65rem;color:var(--purple-dark);font-weight:600;text-align:center;line-height:1.2;">' + escapeHtml(def ? def.name : p.furniture_key) + '</span>' +
+            (isOfficer ? '<button class="btn btn-sm" onclick="guild_removeFurniture(' + i + ')" style="margin-top:4px;font-size:0.6rem;padding:1px 6px;color:#ff6b6b;border-color:#ff6b6b;">Remove</button>' : '') +
+          '</div>';
+      } else {
+        slotsHtml +=
+          '<div class="guild-furniture-slot empty">' +
+            '<span style="font-size:1.5rem;opacity:0.3;">🪑</span>' +
+            '<span style="font-size:0.65rem;color:var(--text-light);">Empty</span>' +
+            (isOfficer ? '<button class="btn btn-primary btn-sm" onclick="guild_openFurnitureShop(' + i + ')" style="margin-top:4px;font-size:0.62rem;padding:2px 8px;">+ Place</button>' : '') +
+          '</div>';
+      }
+    }
+
+    // Next slot unlock
+    var nextUnlock = guildLevel < 10
+      ? '<div style="font-size:0.72rem;color:var(--text-light);text-align:center;margin-top:8px;">Reach Guild Level ' + (guildLevel + 1) + ' to unlock slot ' + (totalSlots + 1) + '/10</div>'
+      : '';
+
+    mount.innerHTML =
+      '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back to Guild</button>' +
+      '<h3 style="color:var(--purple);margin-bottom:4px;">🏠 Guild Hall</h3>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:16px;">Furniture buffs apply to ALL pets owned by guild members.</div>' +
+
+      // Token balance
+      '<div style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:0.9rem;color:#e6a800;">🏅 Guild Tokens</div>' +
+          '<div style="font-size:0.75rem;color:var(--text-light);">Earned from dungeons and PP donations</div>' +
+        '</div>' +
+        '<div style="font-size:1.5rem;font-weight:800;color:#e6a800;">' + tokens.toLocaleString() + '</div>' +
+      '</div>' +
+
+      // Active buffs
+      '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:12px 14px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">✨ Active Buffs (all guild members)</div>' +
+        '<div>' + buffsHtml + '</div>' +
+      '</div>' +
+
+      // Furniture grid
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🪑 Furniture Slots (' + placed.length + '/' + totalSlots + ')</div>' +
+      '<div class="guild-furniture-grid">' + slotsHtml + '</div>' +
+      nextUnlock +
+
+      // Donate PP for tokens section
+      '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">💸 Donate PP for Tokens</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;">Every 50 PP donated = 1 Guild Token. Tokens go to the guild, not your balance.</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<input type="number" id="guild-donate-pp-amount" value="50" min="50" step="50" max="10000" style="width:80px;padding:6px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;text-align:center;">' +
+          '<button class="btn btn-primary" onclick="guild_donateForTokens()">Donate PP</button>' +
+        '</div>' +
+      '</div>';
+
+  } catch(e) {
+    mount.innerHTML = '<div class="empty-state"><p>Error loading guild hall: ' + escapeHtml(e.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
+  }
+}
+
+// Open furniture shop modal for a specific slot
+function guild_openFurnitureShop(slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var tokens = g.guild_tokens || 0;
+  var guildLevel = g.guild_level || 1;
+
+  var available = GUILD_FURNITURE_CATALOG.filter(function(f) {
+    return (!f.requiresLevel || guildLevel >= f.requiresLevel);
+  });
+
+  var overlay = document.createElement('div');
+  overlay.id = 'guild-furniture-shop-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  var tierColors = { 1:'rgba(153,102,255,0.15)', 2:'rgba(93,222,122,0.12)', 3:'rgba(255,215,0,0.12)', 4:'rgba(255,102,0,0.15)' };
+
+  var itemsHtml = available.map(function(f) {
+    var canAfford = tokens >= f.cost;
+    var buffText = f.buff ? ('+' + (f.buff.amount || '') + ' ' + (f.buff.stat || '') + (f.buff.defense ? ', +' + f.buff.defense + ' DEF' : '')) : 'Cosmetic';
+    return '<div style="background:' + (tierColors[f.tier]||'rgba(153,102,255,0.1)') + ';border:1px solid rgba(153,102,255,0.2);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;opacity:' + (canAfford?'1':'0.5') + ';">' +
+      '<span style="font-size:2rem;">' + f.emoji + '</span>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(f.name) + ' <span style="font-size:0.65rem;color:var(--text-light);">T' + f.tier + '</span></div>' +
+        '<div style="font-size:0.72rem;color:var(--text-light);">' + escapeHtml(f.desc) + '</div>' +
+        '<div style="font-size:0.72rem;color:#5dde7a;margin-top:2px;">' + buffText + '</div>' +
+      '</div>' +
+      '<div style="text-align:center;flex-shrink:0;">' +
+        '<div style="font-size:0.78rem;font-weight:700;color:#e6a800;margin-bottom:4px;">🏅 ' + f.cost + '</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="guild_placeFurniture(\'' + f.key + '\',' + slotIndex + ')" ' +
+          (canAfford ? '' : 'disabled') + ' style="font-size:0.7rem;padding:3px 10px;">Buy & Place</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  overlay.innerHTML =
+    '<div style="background:var(--card-bg);border:2px solid var(--purple);border-radius:20px;padding:20px;max-width:420px;width:90vw;max-height:80vh;overflow-y:auto;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+        '<div style="font-weight:800;font-size:1.05rem;color:var(--purple-dark);">🏪 Furniture Shop</div>' +
+        '<div style="font-size:0.85rem;font-weight:700;color:#e6a800;">🏅 ' + tokens + ' tokens</div>' +
+      '</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:12px;">Slot ' + (slotIndex + 1) + ' · Only officers can purchase</div>' +
+      itemsHtml +
+      '<button class="btn btn-outline" onclick="document.getElementById(\'guild-furniture-shop-overlay\').remove()" style="width:100%;margin-top:10px;">Cancel</button>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+}
+
+// Place furniture into a slot
+async function guild_placeFurniture(furnitureKey, slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === furnitureKey; });
+  if (!def) return;
+
+  var tokens = g.guild_tokens || 0;
+  if (tokens < def.cost) { showToast('Not enough tokens!', 2000); return; }
+
+  // Remove any existing furniture in this slot
+  var existing = _guildFurnitureCache && _guildFurnitureCache.find(function(p) { return p.slot_index === slotIndex; });
+  if (existing) {
+    await supabaseClient.from('guild_furniture').delete().eq('guild_id', g.guild_id).eq('slot_index', slotIndex);
+  }
+
+  // Deduct tokens
+  var newTokens = tokens - def.cost;
+  await supabaseClient.from('guilds').update({ guild_tokens: newTokens }).eq('id', g.guild_id);
+  g.guild_tokens = newTokens;
+
+  // Insert furniture
+  var { error } = await supabaseClient.from('guild_furniture').upsert({
+    guild_id: g.guild_id, slot_index: slotIndex,
+    furniture_key: furnitureKey, placed_by: currentUser.id,
+    placed_at: new Date().toISOString()
+  }, { onConflict: 'guild_id,slot_index' });
+
+  if (error) { showToast('Error placing furniture: ' + error.message, 3000); return; }
+
+  _guildFurnitureCache = null; // invalidate cache
+  var shopOverlay = document.getElementById('guild-furniture-shop-overlay');
+  if (shopOverlay) shopOverlay.remove();
+  showToast(def.emoji + ' ' + def.name + ' placed! Buffs now apply to all guild members.', 3500);
+  guild_renderHousing();
+}
+
+// Remove furniture from a slot (officers only)
+async function guild_removeFurniture(slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  await supabaseClient.from('guild_furniture').delete().eq('guild_id', g.guild_id).eq('slot_index', slotIndex);
+  _guildFurnitureCache = null;
+  guild_renderHousing();
+}
+
+// Donate PP to earn guild tokens
+async function guild_donateForTokens() {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var amountEl = document.getElementById('guild-donate-pp-amount');
+  var amount = parseInt((amountEl && amountEl.value) || '50', 10);
+  if (isNaN(amount) || amount < 50) { showToast('Minimum donation is 50 PP.', 2000); return; }
+  amount = Math.floor(amount / 50) * 50; // round to nearest 50
+
+  if ((currentPoints || 0) < amount) { showToast('Not enough PP!', 2000); return; }
+
+  // Spend PP
+  var { data: newTotal, error: spendErr } = await supabaseClient.rpc('spend_pp_secure', {
+    p_amount: amount, p_reason: 'guild_token_donation'
+  });
+  if (spendErr) { showToast('Error spending PP: ' + spendErr.message, 3000); return; }
+  if (typeof newTotal === 'number') { currentPoints = newTotal; updateAllPoints(newTotal); }
+
+  // Award tokens
+  var tokenGain = Math.floor(amount / 50);
+  var newTokens = (g.guild_tokens || 0) + tokenGain;
+  await supabaseClient.from('guilds').update({ guild_tokens: newTokens }).eq('id', g.guild_id);
+  g.guild_tokens = newTokens;
+
+  showToast('Donated ' + amount + ' PP! Guild received 🏅 ' + tokenGain + ' tokens.', 3500);
+  guild_renderHousing();
+}
