@@ -425,9 +425,13 @@ function getPlayerMaxPetLevel() {
 // XP required to advance from `level` to `level+1`
 function xpForLevel(level) {
   var base = (typeof GAME_CONSTANTS !== 'undefined') ? GAME_CONSTANTS.XP_PER_LEVEL : 100;
-  if (level <= 2) return Math.round(level * 60);   // L1→2: 60, L2→3: 120
-  if (level <= 4) return Math.round(level * 75);   // L3→4: 225, L4→5: 300
-  return level * base;                              // L5+: level * 100
+  // Early levels: 4-6 battles per level (enemies give ~15-25 XP each)
+  if (level === 1) return 80;   // L1→2: ~4-5 battles
+  if (level === 2) return 140;  // L2→3: ~5-6 battles
+  if (level === 3) return 200;  // L3→4: ~6-8 battles
+  if (level === 4) return 275;  // L4→5: ~8-10 battles
+  if (level <= 9)  return level * base;       // L5-9: level * 100
+  return level * base * 1.2;                  // L10+: scaling gets steeper
 }
 
 var playerSettings = {
@@ -992,7 +996,7 @@ var GAME_CONSTANTS = {
   XP_PER_LEVEL:        100,   // XP needed per level
   EQUIP_TIER_MIN_LEVEL: { 1: 1, 2: 5, 3: 10, 4: 15 }, // Min pet level per equipment tier (currentLevel * this, but early levels use lower thresholds)
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
-  BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
+  BOSS_ENCOUNTER_RATE: 0.25, // TEMP 25% for mobile testing — reset to 0.008 after
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
   HP_REGEN_PER_HOUR:   5,     // HP regenerated per hour out of battle
   PASS_XP_PER_FEED:    2,     // Pass XP awarded for feeding a pet
@@ -3960,7 +3964,7 @@ function makeMyPetCard(pet) {
   xpRow.appendChild(makeEl('span', {class:'xp-label'}, 'XP'));
   var xpWrap = makeEl('div', {class:'xp-bar-wrap'});
   var xpFill = makeEl('div', {class:'xp-bar-fill', id:'xp-bar-'+pet.id});
-  xpFill.style.width = xpPct+'%';
+  xpFill.style.width = Math.min(100, xpPct)+'%';
   xpWrap.appendChild(xpFill);
   xpRow.appendChild(xpWrap);
   xpRow.appendChild(makeEl('span', {class:'xp-value', id:'xp-val-'+pet.id}, pet.xp+'/'+xpNext));
@@ -4566,7 +4570,7 @@ var PET_PERSONALITIES = {
     neglected: [
       "I have NEVER gotten a game over in my LIFE and this is what it feels like.",
       "The Furbies are handling this better than I am. That's humbling.",
-      "INSERT COIN. INSERT COIN. That's you. You're the coin. Please.",
+      "INSERT COIN. I'M HUNGRY!! Feed me and I'll let you play. 🕹️",
       "Neopets The Darkest Faerie taught me resilience. It didn't prepare me for THIS. 🎮",
     ],
     missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
@@ -15408,16 +15412,19 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       } else {
         updateAllPoints(fallbackNewTotal);
       }
+      // Award XP in fallback path (RPC didn't run, so we must do it client-side)
+      if (expGained > 0) {
+        await addPetXP(petId, expGained).then(null, function(){});
+      }
     }
   } else {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
     if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){});
-    // Award XP to the pet — the RPC saves the battle log but the client must update pet XP
-    if (expGained > 0 && battleResult.victory) {
-      await addPetXP(petId, expGained);
-    } // Pass XP for battle win
+    // NOTE: save_battle_result RPC awards XP and PP server-side.
+    // We do NOT call addPetXP here to avoid double-awarding.
+    // Instead, re-fetch the pet after battle to get the server-updated XP/level.
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -17177,26 +17184,27 @@ async function goExploring() {
   localStorage.setItem(energyKey, energyUsedToday + 5);
   
   // Roll for encounter type
-  // Probabilities: Battle 68%, Item 12%, Treasure 8%, Recipe Book 3%, Secret Dungeon 2%, Flavor 7%
+  // Probabilities: Battle 82%, Item 6%, Treasure 4%, Recipe Book 3%, Secret Dungeon 2%, Flavor 3%
+  // Battle is dominant — non-battle events are rare surprises, not the norm
   var roll = Math.random();
   
-  if (roll < 0.68) {
-    // 68% - Normal Battle
+  if (roll < 0.82) {
+    // 82% - Normal Battle (main gameplay loop)
     await handleBattleEncounter();
-  } else if (roll < 0.80) {
-    // 12% - Found Item
-    await handleItemEncounter();
   } else if (roll < 0.88) {
-    // 8% - Found Treasure
+    // 6% - Found Item
+    await handleItemEncounter();
+  } else if (roll < 0.92) {
+    // 4% - Found Treasure
     await handleTreasureEncounter();
-  } else if (roll < 0.91) {
-    // 3% - Recipe Book (unlocks a random undiscovered cooking recipe)
+  } else if (roll < 0.95) {
+    // 3% - Recipe Book (very rare)
     await handleRecipeBookEncounter();
-  } else if (roll < 0.93) {
-    // 2% - Secret Dungeon Discovery (very rare)
+  } else if (roll < 0.97) {
+    // 2% - Secret Dungeon Discovery (extremely rare)
     await handleSecretDungeonEncounter();
   } else {
-    // 7% - Flavor Event (explicit "just flavor, no unlock")
+    // 3% - Flavor Event (just a moment, clearly labeled)
     await handleFlavorEncounter();
   }
 }
@@ -17272,12 +17280,18 @@ async function handleItemEncounter() {
   // Award PP
   await awardPP(ppReward, 'item_found');
   
+  // Get pet name for display
+  var petName = '';
+  var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+  if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || '';
+
   // Show in battle screen
   showExplorationResult(
     '🎁 Item Found!',
-    'You found a <strong style="color: var(--purple);">' + randomItem.name + '</strong> while exploring!',
-    '+' + ppReward + ' PP',
-    'Continue'
+    '<strong>' + (petName || 'Your pet') + '</strong> found a <strong style="color:var(--purple);">' + randomItem.name + '</strong> while exploring!' +
+    '<br>It\'s been added to your inventory!',
+    '+' + ppReward + ' PP bonus',
+    'Nice!'
   );
 }
 
@@ -17331,41 +17345,91 @@ async function handleTreasureEncounter() {
   // Show in battle screen
   showExplorationResult(
     '💎 Treasure Discovered!',
-    'You discovered a hidden treasure chest!<br>Inside you found: <strong style="color: var(--purple);">' + randomItem.name + '</strong>!',
-    '+' + ppReward + ' PP (Rare item!)',
+    'You discovered a hidden treasure chest!' +
+    '<br>Inside: <strong style="color:var(--purple);">' + randomItem.name + '</strong> (added to inventory!)' +
+    '<br><span style="font-size:0.78rem;color:var(--text-light);">Plus a PP bonus for the lucky find!</span>',
+    '+' + ppReward + ' PP (rare find!)',
     'Amazing!'
   );
 }
 
 async function handleFlavorEncounter() {
-  var flavorEvents = [
-    { text: "Your pet chased a butterfly and got distracted!", pp: 5, emoji: "🦋" },
-    { text: "You found a cozy spot to rest. Your pet feels refreshed!", pp: 10, emoji: "🌸" },
-    { text: "A friendly traveler shared some snacks with you!", pp: 15, emoji: "🍞" },
-    { text: "You discovered some ancient markings on a tree... strange.", pp: 10, emoji: "🌳" },
-    { text: "A cool breeze blows through. Your pet seems energized!", pp: 8, emoji: "💨" },
-    { text: "You found some shiny pebbles along the path!", pp: 12, emoji: "✨" },
-    { text: "Your pet rolled in some flowers. They smell lovely now!", pp: 7, emoji: "🌺" },
-    { text: "You spotted a rainbow in the distance. How lucky!", pp: 15, emoji: "🌈" },
-    { text: "A small bird dropped a berry in front of you!", pp: 9, emoji: "🫐" },
-    { text: "You heard a mysterious melody in the wind...", pp: 11, emoji: "🎵" },
-    { text: "Your pet found a comfortable sunny spot and napped!", pp: 8, emoji: "☀️" },
-    { text: "You discovered a patch of four-leaf clovers!", pp: 13, emoji: "🍀" },
-    { text: "A firefly landed on your pet's nose. How magical!", pp: 10, emoji: "✨" },
-    { text: "You found an old coin half-buried in the dirt!", pp: 14, emoji: "🪙" }
+  // Zone-themed flavor events — different vibes per area
+  var zone = selectedBattleZone || 'outskirts';
+
+  var flavorByZone = {
+    outskirts: [
+      { text: "Your pet rifled through some trash and found a shiny coin.", pp: 12, emoji: "🗑️" },
+      { text: "A stray cat gave your pet a long, judgemental stare, then walked away.", pp: 8, emoji: "🐱" },
+      { text: "You found a crumpled receipt from a store that closed years ago.", pp: 10, emoji: "🧾" },
+      { text: "A pigeon dropped something on your pet. It was a coin. Somehow.", pp: 14, emoji: "🐦" },
+      { text: "Someone left half a sandwich on a bench. Your pet ate it before you could stop them.", pp: 9, emoji: "🥪" },
+      { text: "A street musician played a familiar melody. You couldn't place it.", pp: 11, emoji: "🎵" },
+      { text: "Your pet found a lost glove. Just the one. Where is the other one?", pp: 8, emoji: "🧤" },
+      { text: "You spotted a strange symbol spray-painted on a wall. It looked like it was watching you.", pp: 15, emoji: "🌀" },
+    ],
+    glade: [
+      { text: "Your pet chased a butterfly for ten minutes. The butterfly won.", pp: 7, emoji: "🦋" },
+      { text: "You found a four-leaf clover. Good omen, probably.", pp: 13, emoji: "🍀" },
+      { text: "A small bird dropped a berry directly into your pet's mouth. Convenient.", pp: 9, emoji: "🫐" },
+      { text: "Your pet rolled in some flowers. They smell absolutely divine now.", pp: 8, emoji: "🌺" },
+      { text: "A sunny patch of grass. Your pet napped for exactly three minutes.", pp: 10, emoji: "☀️" },
+      { text: "You heard a distant song carried on the wind. It felt oddly familiar.", pp: 12, emoji: "🎶" },
+      { text: "A firefly landed on your pet's nose and just... stayed there.", pp: 10, emoji: "✨" },
+      { text: "The pond reflected a sky that looked slightly different from the one above you.", pp: 14, emoji: "🌊" },
+    ],
+    deepwoods: [
+      { text: "Something watched you from between the trees. When you looked, nothing was there.", pp: 15, emoji: "🌲" },
+      { text: "Your pet sniffed a mushroom. The mushroom seemed offended.", pp: 10, emoji: "🍄" },
+      { text: "You found old footprints that didn't match any creature you recognize.", pp: 14, emoji: "🐾" },
+      { text: "The birds stopped singing all at once. Then started again a moment later.", pp: 12, emoji: "🦜" },
+      { text: "There was a circle of perfectly flat grass. Your pet refused to enter it.", pp: 16, emoji: "⭕" },
+      { text: "A tree had carvings in it. Most were initials. One was a date from 200 years ago.", pp: 13, emoji: "🌳" },
+      { text: "You found honey dripping from a hollow log. No bees in sight.", pp: 11, emoji: "🍯" },
+      { text: "Something rustled in the dark. Probably just the wind.", pp: 9, emoji: "💨" },
+    ],
+    ruins: [
+      { text: "A stone moved beneath your foot and revealed a hidden compartment. It was empty.", pp: 15, emoji: "🏛️" },
+      { text: "Strange symbols on the wall began to glow faintly, then stopped.", pp: 18, emoji: "✨" },
+      { text: "You found a door that shouldn't be here. It was locked. The lock looked new.", pp: 20, emoji: "🚪" },
+      { text: "The ruins whispered something. You didn't catch it. You don't think you want to.", pp: 16, emoji: "👂" },
+      { text: "A single coin, minted in a country that doesn't exist anymore.", pp: 17, emoji: "🪙" },
+      { text: "Your pet pressed their ear to the ground and growled softly.", pp: 13, emoji: "🔊" },
+      { text: "A perfectly preserved jar of something. You left it where you found it.", pp: 14, emoji: "🫙" },
+      { text: "The Archivist's filing system, scrawled on a wall. Your name is in it.", pp: 25, emoji: "📋" },
+    ],
+    hollow_warrens: [
+      { text: "Something small darted past in the dark. Too fast to see clearly.", pp: 12, emoji: "🐇" },
+      { text: "The tunnels echo strangely here. Your voice came back a second late.", pp: 14, emoji: "🌀" },
+      { text: "A warren dead-end. Scratch marks on the wall. Something was trying to get out.", pp: 16, emoji: "🪨" },
+      { text: "Old nesting material. Whatever lived here was large. Is large.", pp: 13, emoji: "🌿" },
+    ],
+    ashen_ruins: [
+      { text: "The fire here burns without fuel. It has burned for a very long time.", pp: 16, emoji: "🔥" },
+      { text: "Ash fell upward for a moment. Then the world remembered gravity.", pp: 18, emoji: "💨" },
+      { text: "Scorched carvings. Someone was counting something. The number is very large.", pp: 20, emoji: "🔢" },
+      { text: "The heat doesn't bother your pet. That should probably concern you.", pp: 15, emoji: "🌡️" },
+    ]
+  };
+
+  // Fall back to generic events if zone not found
+  var zoneEvents = flavorByZone[zone] || flavorByZone.outskirts;
+  // Mix in a few universal events too
+  var universal = [
+    { text: "You found a shiny pebble. It's not worth anything, but it's yours now.", pp: 8, emoji: "✨" },
+    { text: "Your pet stopped to stare at something you couldn't see. They looked satisfied.", pp: 10, emoji: "🐾" },
+    { text: "You heard a melody you didn't recognize. It stopped when you tried to hum it back.", pp: 11, emoji: "🎵" },
   ];
-  
-  var event = flavorEvents[Math.floor(Math.random() * flavorEvents.length)];
-  
-  // Award PP
+  var allEvents = zoneEvents.concat(universal);
+  var event = allEvents[Math.floor(Math.random() * allEvents.length)];
+
   await awardPP(event.pp, 'flavor_event');
-  
-  // Show in battle screen — explicitly tell player this is flavor only
+
   showExplorationResult(
-    event.emoji + ' Peaceful Moment',
-    event.text + '<br><span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">(Just a peaceful moment -- nothing was unlocked.)</span>',
+    event.emoji + ' Out in the ' + (zone === 'outskirts' ? 'Outskirts' : zone === 'glade' ? 'Glade' : zone === 'deepwoods' ? 'Deep Woods' : zone === 'ruins' ? 'Ruins' : 'Wild') + '...',
+    event.text + '<br><br><span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">(Just a moment — nothing was unlocked.)</span>',
     '+' + event.pp + ' PP',
-    'Nice!'
+    'Continue'
   );
 }
 
@@ -17569,11 +17633,10 @@ async function secretDungeon_loadFromDB() {
 }
 
 // Show exploration result in battle screen area
-function showExplorationResult(title, message, reward, buttonText) {
-  // Hide battle container FIRST (before showing screen) to prevent 1-frame flash of last battle
+function showExplorationResult(title, message, reward, buttonText, showExploreAgain) {
+  // Hide battle container FIRST to prevent 1-frame flash of last battle
   var bc = document.querySelector('.battle-container');
   if (bc) bc.style.display = 'none';
-  // Clear any lingering battle sprites so they don't flash
   var playerSprite = document.getElementById('player-battle-sprite');
   var enemySprite  = document.getElementById('enemy-battle-sprite');
   if (playerSprite) playerSprite.innerHTML = '';
@@ -17583,41 +17646,64 @@ function showExplorationResult(title, message, reward, buttonText) {
   document.getElementById('forest-exploration').style.display = 'none';
   document.getElementById('battle-screen').style.display = 'block';
 
-  // Build result HTML — message may contain safe HTML (e.g. <strong> tags for item names)
-  // title and reward are plain strings; only message uses markup
-  var battleLog = document.getElementById('battle-log');
+  // Build result HTML (message may contain trusted HTML like <strong> tags)
   var resultHTML =
     '<div style="font-size:1.3rem;font-weight:bold;color:var(--purple);margin-bottom:12px;">' + escapeHtml(String(title)) + '</div>' +
     '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + String(message) + '</div>' +
     '<div style="font-size:1.15rem;font-weight:bold;color:var(--green);">' + escapeHtml(String(reward)) + '</div>';
-  if (battleLog) battleLog.innerHTML = resultHTML;
-  // Also show in the narrative box (always visible, not hidden by manual battle CSS)
+
+  // Render ONLY in the narrative box — hide the battle-log-container to prevent duplication
+  var battleLog = document.getElementById('battle-log');
+  if (battleLog) battleLog.innerHTML = '';
+  var logCont = document.getElementById('battle-log-container');
+  if (logCont) logCont.style.display = 'none';
+
   var narr = document.getElementById('battle-narrative-box');
   if (narr) {
     narr.style.display = 'block';
     narr.innerHTML = '<div style="padding:16px;text-align:center;">' + resultHTML + '</div>';
   }
-  // Show battle-log-container too
-  var logCont = document.getElementById('battle-log-container');
-  if (logCont) logCont.style.display = 'block';
-  
-  // Set up controls — also show the parent wrapper (overrides the !important on the legacy div)
+
+  // Controls
   document.getElementById('battle-skip-btn').style.display = 'none';
   var legacyControls = document.getElementById('battle-controls-legacy');
-  if (legacyControls) legacyControls.style.cssText = 'display:flex!important;justify-content:center;margin-top:16px;';
+  if (legacyControls) legacyControls.style.cssText = 'display:flex!important;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;';
+
   var continueBtn = document.getElementById('battle-continue-btn');
   if (continueBtn) {
     continueBtn.style.display = 'inline-block';
     continueBtn.textContent = buttonText;
     continueBtn.onclick = function() {
-      // Hide legacy controls again
       if (legacyControls) legacyControls.style.cssText = 'display:none!important';
-      // Show battle container again
-      var bc = document.querySelector('.battle-container');
-      if (bc) bc.style.display = 'flex';
-      // Return to exploration
+      var bc2 = document.querySelector('.battle-container');
+      if (bc2) bc2.style.display = 'flex';
+      if (logCont) logCont.style.display = '';
       closeBattle();
     };
+  }
+
+  // Add/update "Explore Again" button
+  var existingAgainBtn = document.getElementById('explore-again-btn');
+  if (existingAgainBtn) existingAgainBtn.remove();
+  if (showExploreAgain !== false) {
+    var againBtn = document.createElement('button');
+    againBtn.id = 'explore-again-btn';
+    againBtn.className = 'btn btn-primary';
+    againBtn.textContent = '🌲 Explore Again';
+    againBtn.style.cssText = 'margin-left:8px;';
+    againBtn.onclick = function() {
+      if (legacyControls) legacyControls.style.cssText = 'display:none!important';
+      var bc3 = document.querySelector('.battle-container');
+      if (bc3) bc3.style.display = 'flex';
+      if (logCont) logCont.style.display = '';
+      if (narr) { narr.style.display = 'none'; narr.innerHTML = ''; }
+      // Hide battle screen, show exploration
+      document.getElementById('battle-screen').style.display = 'none';
+      document.getElementById('forest-exploration').style.display = 'block';
+      // Immediately go again
+      goExploring();
+    };
+    if (legacyControls) legacyControls.appendChild(againBtn);
   }
 }
 
@@ -20208,7 +20294,7 @@ var CompanionBuddy = {
       "Gnarly status: fully operational, maximum radical. 🎮",
       "Neopets The Darkest Faerie is a masterpiece and I will die on this hill.",
       "Even the Furbies can't keep up with me and they NEVER BLINK.",
-      "INSERT COIN. That's you. You're the coin. Thank you.",
+      "INSERT COIN. I HAVE SNACKS ON THE LINE HERE!! 🎮",
       "Sick moves incoming. I practiced. Well, 'practiced.' 🕹️",
       "The high score board has my name on it. All of them.",
       "Player two has entered the game. Let's make this radical."
