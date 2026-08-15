@@ -5968,9 +5968,10 @@ async function feed(petId) {
     return;
   }
 
-  // Show loading state on button immediately so user knows click registered
+  // Show loading state on button immediately so user knows tap registered
   var feedBtnEl = document.getElementById('feed-' + petId);
-  if (feedBtnEl) { feedBtnEl.textContent = '...'; feedBtnEl.disabled = true; }
+  if (feedBtnEl) { feedBtnEl.textContent = '🍽️'; feedBtnEl.disabled = true; }
+  showToast('Loading menu...', 500);
 
   try {
   // Get user's food inventory
@@ -6304,7 +6305,8 @@ async function play(petId) {
 
   // Show loading state on button immediately
   var playBtnEl = document.getElementById('play-' + petId);
-  if (playBtnEl) { playBtnEl.textContent = '...'; playBtnEl.disabled = true; }
+  if (playBtnEl) { playBtnEl.textContent = '🎮'; playBtnEl.disabled = true; }
+  showToast('Loading menu...', 500);
 
   try {
   // Get user's toy inventory
@@ -12549,7 +12551,9 @@ async function calculatePetStats(petId) {
     maxEnergy: pet.max_energy || 100,
     specialSkill: pet.pets.special_skill || null,
     passives: equippedPassives,
-    skills: getSkillsForPet(pet.pets.name || '', pet.level || 1)
+    skills: getSkillsForPet(pet.pets.name || '', pet.level || 1),
+    level: pet.level || 1,
+    petBaseName: pet.pets.name || ''
   };
 }
 
@@ -12774,6 +12778,18 @@ var PET_SKILLS = {
 };
 
 // Returns the skills available to a pet at its current level
+// Returns ALL skills for a pet regardless of level (for locked skills display)
+function getSkillsForPetAll(petName) {
+  var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
+  var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
+    gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
+    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve',
+    cypurr: 'cypurr', cypurractive: 'cypurr' };
+  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
+  if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
+  return PET_SKILLS[mappedKey]; // All skills, no level filter
+}
+
 function getSkillsForPet(petName, petLevel) {
   var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
   // Handle name variants: pyxshuul → pyxie name in DB
@@ -13954,26 +13970,50 @@ function manualBattle_renderSkillButtons() {
   var s = manualBattleState;
   var row = el('battle-skill-row');
   if (!row || !s) return;
-  var skills = (s.playerStats.skills || []);
-  if (!skills.length) { row.innerHTML = ''; return; }
-  row.innerHTML = skills.map(function(skill, idx) {
-    var cd = s.skillCooldowns[skill.id] || 0;
-    var cdText = cd > 0 ? (cd + ' turn' + (cd > 1 ? 's' : '') + ' left') : 'Ready';
-    // Tooltip shows only the mechanical description
-    var tipHtml = escapeHtml(skill.desc || '');
-    // Strip emojis from display name for cleaner button text
-    var cleanName = (skill.name || '').replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
-    var flavorText = skill.flavor ? escapeHtml(skill.flavor) : '';
 
-    return '<div class="battle-skill-wrap" style="position:relative;flex:1;min-width:120px;">' +
+  // Get unlocked skills (available now)
+  var unlockedSkills = (s.playerStats.skills || []);
+
+  // Also get ALL skills for this pet to show locked ones
+  var petLevel = s.playerStats.level || 1;
+  var allSkillsPetName = s.playerStats.petBaseName || s.playerStats.name || '';
+  var allSkills = getSkillsForPetAll(allSkillsPetName);  // ALL skills regardless of level
+
+  if (!allSkills.length && !unlockedSkills.length) { row.innerHTML = ''; return; }
+
+  // Use allSkills if available, else fall back to unlockedSkills
+  var displaySkills = allSkills.length ? allSkills : unlockedSkills;
+
+  row.innerHTML = displaySkills.map(function(skill) {
+    var isLocked = (petLevel < skill.unlockLevel);
+    var cd = !isLocked && s.skillCooldowns ? (s.skillCooldowns[skill.id] || 0) : 0;
+    var unlockedIdx = unlockedSkills.findIndex ? unlockedSkills.findIndex(function(u){return u.id===skill.id;})
+                    : unlockedSkills.map(function(u){return u.id;}).indexOf(skill.id);
+
+    var cleanName = escapeHtml(skill.name || '');
+    var flavorText = skill.flavor ? escapeHtml(skill.flavor) : '';
+    var tipHtml = escapeHtml(skill.desc || '');
+    var cdText = isLocked
+      ? ('🔒 Lv.' + skill.unlockLevel + ' required')
+      : (cd > 0 ? 'CD: ' + cd + ' turn' + (cd !== 1 ? 's' : '') : 'Ready');
+
+    var btnStyle = isLocked
+      ? 'width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);cursor:not-allowed;opacity:0.55;'
+      : (cd > 0 ? '' : '');
+
+    return '<div style="flex:1;min-width:120px;">' +
       '<button class="battle-skill-btn" ' +
-        (cd > 0 ? 'disabled ' : '') +
-        'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
+        (isLocked || cd > 0 ? 'disabled ' : '') +
+        (isLocked ? '' : 'onclick="manualBattle_playerAction(\'skill\',' + unlockedIdx + ')" ') +
         'onmouseenter="manualBattle_showSkillTip(this)" ' +
         'onmouseleave="manualBattle_hideSkillTip()" ' +
-        'data-tip="' + tipHtml + '">' +
-        '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' + cleanName + '</strong>' +
-        (flavorText ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
+        'data-tip="' + tipHtml + '" ' +
+        (btnStyle ? 'style="' + btnStyle + '"' : '') + '>' +
+        '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' +
+          (isLocked ? '🔒 ' : (skill.icon ? skill.icon + ' ' : '')) + cleanName +
+        '</strong>' +
+        (flavorText && !isLocked ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
+        (isLocked ? '<span style="display:block;font-size:0.68rem;color:#ff6b6b;margin-top:3px;">Level ' + skill.unlockLevel + ' required</span>' : '') +
         '<span class="skill-cooldown" style="margin-top:3px;">' + cdText + '</span>' +
       '</button>' +
     '</div>';
@@ -15356,7 +15396,11 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
-    if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){}); // Pass XP for battle win
+    if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){});
+    // Award XP to the pet — the RPC saves the battle log but the client must update pet XP
+    if (expGained > 0 && battleResult.victory) {
+      await addPetXP(petId, expGained);
+    } // Pass XP for battle win
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -16722,15 +16766,58 @@ async function battleExp_renderHistory() {
 async function addPetXP(petId, xpAmount) {
   if (!petId || !xpAmount) return;
   try {
-    var pet = petState[petId];
-    if (!pet) {
-      var { data } = await supabaseClient.from('user_pets').select('xp, level').eq('id', petId).single();
-      if (!data) return;
-      pet = data;
-    }
+    // Always fetch fresh from DB so we have accurate level and all stat fields
+    var { data: pet } = await supabaseClient
+      .from('user_pets')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, stat_points')
+      .eq('id', petId)
+      .single();
+    if (!pet) return;
+
     var newXP = (pet.xp || 0) + xpAmount;
-    await supabaseClient.from('user_pets').update({ xp: newXP }).eq('id', petId);
-    if (petState[petId]) petState[petId].xp = newXP;
+
+    // Check for level-up (may chain multiple levels on large XP awards)
+    var lu = calculateLevelUp(newXP, pet.level, pet.max_hunger, pet.max_energy, pet.max_happiness,
+                              pet.base_hp, pet.base_attack, pet.base_defense, pet.base_speed);
+
+    if (lu.leveled) {
+      // Write the full level-up state to DB
+      await supabaseClient.from('user_pets').update({
+        xp:             lu.xp,
+        level:          lu.level,
+        max_hunger:     lu.maxHunger,
+        max_energy:     lu.maxEnergy,
+        max_happiness:  lu.maxHappiness,
+        base_hp:        lu.base_hp,
+        base_attack:    lu.base_attack,
+        base_defense:   lu.base_defense,
+        base_speed:     lu.base_speed,
+        stat_points:    (pet.stat_points || 0) + 1
+      }).eq('id', petId);
+
+      // Sync petState cache
+      if (petState[petId]) {
+        petState[petId].xp          = lu.xp;
+        petState[petId].level       = lu.level;
+        petState[petId].max_hunger  = lu.maxHunger;
+        petState[petId].max_energy  = lu.maxEnergy;
+        petState[petId].max_happiness = lu.maxHappiness;
+        petState[petId].base_hp     = lu.base_hp;
+        petState[petId].base_attack = lu.base_attack;
+        petState[petId].base_defense = lu.base_defense;
+        petState[petId].base_speed  = lu.base_speed;
+        petState[petId].stat_points = (pet.stat_points || 0) + 1;
+      }
+
+      // Hooks and notifications
+      onPetLevelUp(petId);
+      showToast('⭐ Level Up! Your pet is now level ' + lu.level + '!', 4000);
+      dbg('[XP] Level up! Pet', petId, '→ level', lu.level, 'stat gains:', lu.statIncreases);
+    } else {
+      // No level-up, just save XP
+      await supabaseClient.from('user_pets').update({ xp: newXP }).eq('id', petId);
+      if (petState[petId]) petState[petId].xp = newXP;
+    }
   } catch(e) { dbg('addPetXP error:', e); }
 }
 
@@ -16842,8 +16929,13 @@ async function loadBattlePets() {
       card.appendChild(levelEl);
 
       var stats = makeEl('div', { class: 'battle-pet-card-stats' });
-      var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 60);
-      var maxHP = pet.max_hp || pet.base_hp || 60;
+      // Use petState for HP if available — it includes equipment hp_bonus from calculatePetStats.
+      // Raw DB pet.max_hp may lag until calculatePetStats runs; petState is always authoritative.
+      var _petCache = petState && petState[pet.id];
+      var currentHP = (_petCache && _petCache.current_hp !== undefined) ? _petCache.current_hp
+                    : (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp
+                    : (pet.base_hp || 60);
+      var maxHP = (_petCache && _petCache.max_hp) ? _petCache.max_hp : (pet.max_hp || pet.base_hp || 60);
 
       var hpStat = makeEl('div', { class: 'battle-pet-stat' });
       hpStat.setAttribute('data-tooltip', '❤️ HP. Carries over between battles. At 0 your pet faints.');
@@ -16867,12 +16959,23 @@ async function loadBattlePets() {
       stats.appendChild(spdStat);
       card.appendChild(stats);
 
-      if ((pet.energy || 0) < 5) {
-        var warn = makeEl('div');
-        warn.style.cssText = 'font-size:0.7rem;color:#ff6b6b;margin-top:4px;text-align:center;';
-        warn.textContent = '⚠️ Low energy';
-        card.appendChild(warn);
-      }
+      // Energy bar - always show so players know current/max energy
+      var energyRow = makeEl('div');
+      energyRow.style.cssText = 'margin-top:6px;';
+      var petEnergy = pet.energy || 0;
+      var petMaxEnergy = pet.max_energy || 100;
+      var energyPct = Math.round(Math.min(petEnergy / petMaxEnergy, 1) * 100);
+      var energyColor = energyPct > 50 ? '#66ff99' : energyPct > 20 ? '#fbbf24' : '#ff6b6b';
+      energyRow.innerHTML =
+        '<div style="display:flex;align-items:center;gap:5px;font-size:0.68rem;">' +
+          '<span style="color:var(--text-light);min-width:14px;">⚡</span>' +
+          '<div style="flex:1;background:rgba(255,255,255,0.1);border-radius:6px;height:6px;overflow:hidden;">' +
+            '<div style="width:' + energyPct + '%;height:100%;background:' + energyColor + ';border-radius:6px;transition:width 0.3s;"></div>' +
+          '</div>' +
+          '<span style="color:' + energyColor + ';font-weight:700;min-width:36px;text-align:right;">' + petEnergy + '/' + petMaxEnergy + '</span>' +
+        '</div>' +
+        (petEnergy < 5 ? '<div style="font-size:0.65rem;color:#ff6b6b;text-align:center;margin-top:2px;">⚠️ Too low to battle</div>' : '');
+      card.appendChild(energyRow);
 
       grid.appendChild(card);
     });
@@ -16892,6 +16995,19 @@ async function loadBattlePets() {
     }
     healBtn.textContent = '💚 Quick Heal (' + (GAME_CONSTANTS && GAME_CONSTANTS.QUICK_HEAL_COST || 100) + ' PP)';
 
+    // Energy top-up button
+    var energyBtn = document.getElementById('energy-topup-btn');
+    if (!energyBtn) {
+      energyBtn = makeEl('button');
+      energyBtn.id = 'energy-topup-btn';
+      energyBtn.className = 'btn btn-outline';
+      energyBtn.style.cssText = 'margin-top:6px;width:100%;color:#66ff99;border-color:#66ff99;font-size:0.85rem;';
+      energyBtn.title = 'Restores selected pet to full energy. Equivalent to 2 Energy Drinks. Must select a pet first.';
+      energyBtn.onclick = quickEnergyTopup;
+      if (healBtn.parentNode) healBtn.parentNode.insertBefore(energyBtn, healBtn.nextSibling);
+    }
+    energyBtn.textContent = '⚡ Energy Top-Up (220 PP)';
+
   } catch(err) {
     dbg('loadBattlePets error:', err);
     grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + escapeHtml(err.message) + '</p>' +
@@ -16901,27 +17017,30 @@ async function loadBattlePets() {
 
 async function quickHeal() {
   if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
-  var HEAL_COST = 100; // Reduced from 250 — battles should be profitable not punishing
+  var HEAL_COST = GAME_CONSTANTS.QUICK_HEAL_COST || 100;
   if (currentPoints < HEAL_COST) { showToast('Not enough PP! Quick Heal costs ' + HEAL_COST + ' PP.', 'info'); return; }
   var pet = petState[selectedBattlePetId];
-  // Recalculate maxHP from evolution (same as loadMyPets sync) to avoid stale DB value
-  var _evoStage = getEvolutionStage(pet ? (pet.level || 1) : 1);
-  var _evoBonuses = getEvolutionBonuses(_evoStage);
-  var _baseHP = (pet && pet.base_hp) ? pet.base_hp : 60;
-  var maxHP = _baseHP + _evoBonuses.hp;
-  // Patch stale DB max_hp
-  if (pet && (pet.max_hp || 0) < maxHP) {
-    supabaseClient.from('user_pets').update({ max_hp: maxHP }).eq('id', selectedBattlePetId).then(null,function(){});
-    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].max_hp = maxHP;
-  }
+
+  // Use the authoritative max_hp from petState (set by calculatePetStats, includes gear hp_bonus).
+  // Fall back to a local calculation only if petState is missing it.
+  var maxHP = (pet && pet.max_hp) ? pet.max_hp : (function() {
+    var _evo = getEvolutionBonuses(getEvolutionStage(pet ? (pet.level || 1) : 1));
+    return ((pet && pet.base_hp) || 60) + _evo.hp;
+  })();
+
   var curHP = pet ? (pet.current_hp || 0) : 0;
   if (curHP >= maxHP) { showToast('Pet is already at full HP!', 'info'); return; }
+
+  var btn = document.getElementById('quick-heal-btn');
   try {
-    var btn = document.getElementById('quick-heal-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Healing...'; }
     await supabaseClient.rpc('spend_pp_secure', { p_amount: HEAL_COST, p_reason: 'quick_heal' });
-    await supabaseClient.from('user_pets').update({ current_hp: maxHP }).eq('id', selectedBattlePetId);
-    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].current_hp = maxHP;
+    // Update both current_hp AND max_hp in DB so the raw row matches petState
+    await supabaseClient.from('user_pets').update({ current_hp: maxHP, max_hp: maxHP }).eq('id', selectedBattlePetId);
+    if (petState[selectedBattlePetId]) {
+      petState[selectedBattlePetId].current_hp = maxHP;
+      petState[selectedBattlePetId].max_hp = maxHP;
+    }
     updateAllPoints(currentPoints - HEAL_COST);
     showToast('💚 Pet fully healed! (' + maxHP + '/' + maxHP + ' HP)');
     window._battlePetsLoadedAt = 0; // force pet list refresh
@@ -16929,8 +17048,36 @@ async function quickHeal() {
   } catch(e) {
     showToast('Heal failed: ' + escapeHtml(e.message), 'error');
   } finally {
-    var btn2 = document.getElementById('quick-heal-btn');
-    if (btn2) { btn2.disabled = false; btn2.textContent = '💚 Quick Heal (250 PP)'; }
+    if (btn) { btn.disabled = false; btn.textContent = '💚 Quick Heal (' + HEAL_COST + ' PP)'; }
+  }
+}
+
+async function quickEnergyTopup() {
+  if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
+  var TOPUP_COST = 220; // 2x Energy Drink (110 PP each)
+  if (currentPoints < TOPUP_COST) {
+    showToast('Not enough PP! Energy Top-Up costs ' + TOPUP_COST + ' PP.', 'info');
+    return;
+  }
+  var pet = petState[selectedBattlePetId];
+  var maxEnergy = (pet && pet.max_energy) ? pet.max_energy : 100;
+  var curEnergy = (pet && pet.energy !== undefined) ? pet.energy : 0;
+  if (curEnergy >= maxEnergy) { showToast('Pet energy is already full!', 'info'); return; }
+
+  var btn = document.getElementById('energy-topup-btn');
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Topping up...'; }
+    await supabaseClient.rpc('spend_pp_secure', { p_amount: TOPUP_COST, p_reason: 'energy_topup' });
+    await supabaseClient.from('user_pets').update({ energy: maxEnergy }).eq('id', selectedBattlePetId);
+    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].energy = maxEnergy;
+    updateAllPoints(currentPoints - TOPUP_COST);
+    showToast('⚡ Energy fully restored! (' + maxEnergy + '/' + maxEnergy + ')');
+    window._battlePetsLoadedAt = 0;
+    await loadBattlePets();
+  } catch(e) {
+    showToast('Top-up failed: ' + escapeHtml(e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Energy Top-Up (220 PP)'; }
   }
 }
 
@@ -17190,18 +17337,25 @@ async function handleFlavorEncounter() {
 
 // Show exploration result in battle screen area
 function showExplorationResult(title, message, reward, buttonText) {
+  // Hide battle container FIRST (before showing screen) to prevent 1-frame flash of last battle
+  var bc = document.querySelector('.battle-container');
+  if (bc) bc.style.display = 'none';
+  // Clear any lingering battle sprites so they don't flash
+  var playerSprite = document.getElementById('player-battle-sprite');
+  var enemySprite  = document.getElementById('enemy-battle-sprite');
+  if (playerSprite) playerSprite.innerHTML = '';
+  if (enemySprite)  enemySprite.innerHTML  = '';
+
   // Hide exploration UI, show battle screen
   document.getElementById('forest-exploration').style.display = 'none';
   document.getElementById('battle-screen').style.display = 'block';
-  
-  // Hide battle sprites and HP bars
-  document.querySelector('.battle-container').style.display = 'none';
-  
-  // Show result in BOTH battle-log and narrative box (narrative is visible in manual battle mode)
+
+  // Build result HTML — message may contain safe HTML (e.g. <strong> tags for item names)
+  // title and reward are plain strings; only message uses markup
   var battleLog = document.getElementById('battle-log');
   var resultHTML =
     '<div style="font-size:1.3rem;font-weight:bold;color:var(--purple);margin-bottom:12px;">' + escapeHtml(String(title)) + '</div>' +
-    '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + escapeHtml(String(message)) + '</div>' +
+    '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + String(message) + '</div>' +
     '<div style="font-size:1.15rem;font-weight:bold;color:var(--green);">' + escapeHtml(String(reward)) + '</div>';
   if (battleLog) battleLog.innerHTML = resultHTML;
   // Also show in the narrative box (always visible, not hidden by manual battle CSS)
