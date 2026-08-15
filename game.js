@@ -2095,6 +2095,9 @@ async function showApp(user) {
     todayCard_init().catch(function(){}),         // integrity box + melon quests
   ]);
 
+  // Load secret dungeon unlocks from DB (ensures they show after device change)
+  secretDungeon_loadFromDB().then(null, function(){});
+
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
     // Don't show bonus-modal — checkDailyLogin's showDailyLoginReward already
@@ -12947,6 +12950,20 @@ var ZONE_CONFIG = {
     energyCost: 14,
     minLevel: 12, maxLevel: 28,
     battleMod: { type: 'corruption', damage: 2, label: '☠️ Corrupted Ground', desc: 'You take 2 corruption damage each turn' }
+  },
+  hollow_warrens: {
+    label: 'The Hollow Warrens',
+    energyCost: 9,
+    minLevel: 7, maxLevel: 18,
+    battleMod: { type: 'fog', evasion: 0.10, fogTurns: 1, label: '🐇 Tunnel Confusion', desc: 'Enemy has 10% evasion in the dark warrens' },
+    isSecret: true
+  },
+  ashen_ruins: {
+    label: 'The Ashen Ruins',
+    energyCost: 12,
+    minLevel: 11, maxLevel: 25,
+    battleMod: { type: 'burn_ground', damage: 1, label: '🔥 Ashen Ground', desc: 'The burning ground deals 1 damage per turn to both fighters' },
+    isSecret: true
   }
 };
 
@@ -17008,6 +17025,16 @@ async function loadBattlePets() {
     }
     energyBtn.textContent = '⚡ Energy Top-Up (220 PP)';
 
+    // Reveal any unlocked secret dungeon zones
+    if (typeof SECRET_DUNGEONS !== 'undefined') {
+      SECRET_DUNGEONS.forEach(function(sd) {
+        var zoneBtn = document.getElementById('zone-' + sd.zoneId);
+        if (zoneBtn && secretDungeon_isUnlocked(sd.key)) {
+          zoneBtn.style.display = '';
+        }
+      });
+    }
+
   } catch(err) {
     dbg('loadBattlePets error:', err);
     grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + escapeHtml(err.message) + '</p>' +
@@ -17150,19 +17177,26 @@ async function goExploring() {
   localStorage.setItem(energyKey, energyUsedToday + 5);
   
   // Roll for encounter type
+  // Probabilities: Battle 68%, Item 12%, Treasure 8%, Recipe Book 3%, Secret Dungeon 2%, Flavor 7%
   var roll = Math.random();
   
-  if (roll < 0.72) {
-    // 72% - Normal Battle
+  if (roll < 0.68) {
+    // 68% - Normal Battle
     await handleBattleEncounter();
-  } else if (roll < 0.85) {
-    // 13% - Found Item
+  } else if (roll < 0.80) {
+    // 12% - Found Item
     await handleItemEncounter();
-  } else if (roll < 0.95) {
-    // 10% - Found Treasure
+  } else if (roll < 0.88) {
+    // 8% - Found Treasure
     await handleTreasureEncounter();
+  } else if (roll < 0.91) {
+    // 3% - Recipe Book (unlocks a random undiscovered cooking recipe)
+    await handleRecipeBookEncounter();
+  } else if (roll < 0.93) {
+    // 2% - Secret Dungeon Discovery (very rare)
+    await handleSecretDungeonEncounter();
   } else {
-    // 5% - Flavor Event
+    // 7% - Flavor Event (explicit "just flavor, no unlock")
     await handleFlavorEncounter();
   }
 }
@@ -17326,13 +17360,212 @@ async function handleFlavorEncounter() {
   // Award PP
   await awardPP(event.pp, 'flavor_event');
   
-  // Show in battle screen
+  // Show in battle screen — explicitly tell player this is flavor only
   showExplorationResult(
     event.emoji + ' Peaceful Moment',
-    event.text,
+    event.text + '<br><span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">(Just a peaceful moment -- nothing was unlocked.)</span>',
     '+' + event.pp + ' PP',
     'Nice!'
   );
+}
+
+// ── Recipe Book encounter — unlocks one random undiscovered cooking recipe ──
+async function handleRecipeBookEncounter() {
+  if (!currentUser) { await handleFlavorEncounter(); return; }
+
+  try {
+    // Get all known recipe IDs for this user (from cooking_log)
+    var { data: knownLog } = await supabaseClient
+      .from('cooking_log')
+      .select('recipe_id')
+      .eq('user_id', currentUser.id);
+
+    var knownIds = (knownLog || []).map(function(r) { return r.recipe_id; });
+
+    // Also check in-memory discovered cache
+    if (typeof _cookingDiscovered !== 'undefined') {
+      Object.keys(_cookingDiscovered).forEach(function(k) {
+        if (knownIds.indexOf(k) === -1) knownIds.push(k);
+      });
+    }
+
+    // Find all COOKING_RECIPES not yet discovered (excluding secret recipes that 
+    // should stay secret — recipe books teach regular recipes only)
+    var discoverable = (typeof COOKING_RECIPES !== 'undefined' ? COOKING_RECIPES : [])
+      .filter(function(r) {
+        return !r.isPiperRecipe && knownIds.indexOf(r.id) === -1;
+      });
+
+    if (!discoverable.length) {
+      // Player knows all recipes! Flavor event instead + small PP bonus
+      var ppBonus = 25;
+      await awardPP(ppBonus, 'recipe_book_complete');
+      showExplorationResult(
+        '📖 Recipe Book Found!',
+        'You found an old recipe book, but... you already know everything in it. Still worth something!<br>' +
+        '<span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">Your Recipe Book is complete!</span>',
+        '+' + ppBonus + ' PP',
+        'Impressive!'
+      );
+      return;
+    }
+
+    // Pick a random undiscovered recipe to teach
+    var recipe = discoverable[Math.floor(Math.random() * discoverable.length)];
+
+    // Record in cooking_log (marks as discovered without cooking it)
+    await supabaseClient.from('cooking_log').upsert({
+      user_id: currentUser.id,
+      recipe_id: recipe.id,
+      times_cooked: 0,
+      first_cooked: new Date().toISOString()
+    }, { onConflict: 'user_id,recipe_id' });
+
+    // Sync local cache
+    if (typeof _cookingDiscovered !== 'undefined') {
+      _cookingDiscovered[recipe.id] = true;
+    }
+
+    // Award small PP and Pass XP
+    var ppReward = 15;
+    await awardPP(ppReward, 'recipe_book');
+    addPassXP(10, 'recipe_book').then(null, function(){});
+    awardBadge('recipe_book_found').then(null, function(){});
+    updateBingoProgress('find_recipe_book', 1);
+
+    // Get pet name for the popup
+    var petName = 'Your pet';
+    var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+    if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || petName;
+
+    showExplorationResult(
+      '📖 Recipe Book Found!',
+      '<strong>' + escapeHtml(petName) + '</strong> found a battered old cookbook while exploring!' +
+      '<br><br>' +
+      '<div style="background:rgba(153,102,255,0.12);border:1px solid rgba(153,102,255,0.3);border-radius:10px;padding:10px 12px;margin:4px 0;">' +
+        '<div style="font-size:1.4rem;margin-bottom:4px;">' + recipe.emoji + '</div>' +
+        '<div style="font-weight:700;color:var(--purple-dark);">' + escapeHtml(recipe.name) + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-top:2px;">' + escapeHtml(recipe.effect) + '</div>' +
+      '</div>' +
+      'Added to your <strong>Recipe Book</strong> in the Kitchen tab!',
+      '+' + ppReward + ' PP  |  New Recipe Unlocked!',
+      'Delightful!'
+    );
+
+  } catch(e) {
+    dbg('[RecipeBook] encounter error:', e);
+    await handleFlavorEncounter(); // fallback
+  }
+}
+
+// ── Secret Dungeon Discovery — unlocks a hidden dungeon zone ──────────────
+var SECRET_DUNGEONS = [
+  {
+    key:          'hollow_warrens',
+    name:         'The Hollow Warrens',
+    emoji:        '🐇',
+    description:  'A labyrinthine network of tunnels beneath the glade. Something has been living here for a very long time.',
+    zoneId:       'hollow_warrens',
+    requiredZones: ['outskirts', 'glade'],  // must explore these zones to find it
+    difficulty:   'Mid-tier (between Glade and Deepwoods)',
+    lsKey:        'unlocked_hollow_warrens',
+    flavorText:   "The entrance smells of earth and something older. Your pet's ears perk up."
+  },
+  {
+    key:          'ashen_ruins',
+    name:         'The Ashen Ruins',
+    emoji:        '🔥',
+    description:  'Scorched stone corridors deep within the ruins. The fire here never seems to go out.',
+    zoneId:       'ashen_ruins',
+    requiredZones: ['deepwoods', 'ruins'],
+    difficulty:   'Hard (between Deepwoods and Ruins bosses)',
+    lsKey:        'unlocked_ashen_ruins',
+    flavorText:   'The air shimmers with heat. Something has been burning here for centuries.'
+  }
+];
+
+async function handleSecretDungeonEncounter() {
+  if (!currentUser || !selectedBattleZone) { await handleFlavorEncounter(); return; }
+
+  // Find a secret dungeon the player can discover from their current zone
+  var eligible = SECRET_DUNGEONS.filter(function(sd) {
+    // Must explore a qualifying zone and not have found it yet
+    return sd.requiredZones.indexOf(selectedBattleZone) !== -1 &&
+           !localStorage.getItem(sd.lsKey + '_' + currentUser.id);
+  });
+
+  if (!eligible.length) {
+    // No eligible secret dungeon — fall back to flavor
+    await handleFlavorEncounter();
+    return;
+  }
+
+  // Pick one at random
+  var dungeon = eligible[Math.floor(Math.random() * eligible.length)];
+
+  // Mark as found
+  localStorage.setItem(dungeon.lsKey + '_' + currentUser.id, '1');
+
+  // Also persist to DB so it survives on new devices
+  try {
+    await supabaseClient.from('player_unlocks').upsert({
+      user_id: currentUser.id,
+      unlock_key: dungeon.key,
+      unlocked_at: new Date().toISOString()
+    }, { onConflict: 'user_id,unlock_key' });
+  } catch(e) { dbg('[SecretDungeon] DB persist error (non-fatal):', e); }
+
+  // Award PP and badges
+  var ppReward = 100;
+  await awardPP(ppReward, 'secret_dungeon_found');
+  addPassXP(25, 'secret_dungeon').then(null, function(){});
+  awardBadge('secret_dungeon_' + dungeon.key).then(null, function(){});
+  updateBingoProgress('find_secret_dungeon', 1);
+
+  // Get pet name
+  var petName = 'Your pet';
+  var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+  if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || petName;
+
+  // Refresh the battle zone list so the new dungeon appears
+  tabsLoaded['battle'] = false;
+
+  showExplorationResult(
+    dungeon.emoji + ' Secret Location Found!',
+    '<strong>' + escapeHtml(petName) + '</strong> discovered something while exploring...' +
+    '<br><br>' +
+    '<div style="background:linear-gradient(135deg,rgba(153,102,255,0.15),rgba(255,102,204,0.1));border:2px solid rgba(153,102,255,0.4);border-radius:12px;padding:14px;margin:4px 0;">' +
+      '<div style="font-size:2rem;margin-bottom:6px;">' + dungeon.emoji + '</div>' +
+      '<div style="font-weight:800;color:var(--purple-dark);font-size:1rem;margin-bottom:4px;">' + escapeHtml(dungeon.name) + '</div>' +
+      '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">' + escapeHtml(dungeon.description) + '</div>' +
+      '<div style="font-size:0.72rem;color:var(--purple);font-style:italic;">' + escapeHtml(dungeon.flavorText) + '</div>' +
+    '</div>' +
+    '<div style="font-size:0.78rem;color:#5dde7a;margin-top:8px;">This location now appears in the Battle Arena zone list!</div>',
+    '+' + ppReward + ' PP  |  New Zone Unlocked!',
+    'Incredible!'
+  );
+}
+
+// Check if player has unlocked a secret dungeon (called when rendering zone list)
+function secretDungeon_isUnlocked(dungeonKey) {
+  if (!currentUser) return false;
+  return !!localStorage.getItem('unlocked_' + dungeonKey + '_' + currentUser.id);
+}
+
+// Load secret dungeon unlocks from DB on login (ensures cross-device persistence)
+async function secretDungeon_loadFromDB() {
+  if (!currentUser) return;
+  try {
+    var { data } = await supabaseClient
+      .from('player_unlocks')
+      .select('unlock_key')
+      .eq('user_id', currentUser.id)
+      .in('unlock_key', SECRET_DUNGEONS.map(function(d){ return d.key; }));
+    (data || []).forEach(function(row) {
+      localStorage.setItem('unlocked_' + row.unlock_key + '_' + currentUser.id, '1');
+    });
+    dbg('[SecretDungeon] Loaded unlocks from DB:', (data||[]).map(function(r){return r.unlock_key;}));
+  } catch(e) { dbg('[SecretDungeon] DB load error:', e); }
 }
 
 // Show exploration result in battle screen area
@@ -17616,6 +17849,34 @@ async function getRandomEnemy(zone, playerLevel) {
       var elementals = ['shadow', 'flame', 'frost', 'storm', 'void'];
       elementalType = elementals[Math.floor(Math.random() * elementals.length)];
       statMultiplier *= 1.3; // Elementals are 30% stronger
+    }
+  } else if (zone === 'hollow_warrens') {
+    // Secret zone — between Glade adult and Deepwoods adult
+    var roll = Math.random();
+    if (roll < 0.60) {
+      variant = 'adult';
+      statMultiplier = 1.75;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.1;
+    }
+    if (Math.random() < 0.15) {
+      elementalType = ['shadow', 'frost'][Math.floor(Math.random() * 2)];
+      statMultiplier *= 1.3;
+    }
+  } else if (zone === 'ashen_ruins') {
+    // Secret zone — between Deepwoods and Ruins
+    var roll = Math.random();
+    if (roll < 0.50) {
+      variant = 'adult';
+      statMultiplier = 2.1;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.45;
+    }
+    if (Math.random() < 0.25) {
+      elementalType = ['flame', 'void', 'storm'][Math.floor(Math.random() * 3)];
+      statMultiplier *= 1.3;
     }
   }
   
