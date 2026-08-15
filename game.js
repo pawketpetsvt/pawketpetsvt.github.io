@@ -996,7 +996,7 @@ var GAME_CONSTANTS = {
   XP_PER_LEVEL:        100,   // XP needed per level
   EQUIP_TIER_MIN_LEVEL: { 1: 1, 2: 5, 3: 10, 4: 15 }, // Min pet level per equipment tier (currentLevel * this, but early levels use lower thresholds)
   BATTLE_MAX_TURNS:    50,    // Max turns before battle auto-ends
-  BOSS_ENCOUNTER_RATE: 0.25, // TEMP 25% for mobile testing — reset to 0.008 after
+  BOSS_ENCOUNTER_RATE: 0.008, // 0.8% chance (~1 in 125 battles) — Piper is RARE
   SOUND_COOLDOWN_MS:   300,   // Minimum ms between sounds to avoid spam
   HP_REGEN_PER_HOUR:   5,     // HP regenerated per hour out of battle
   PASS_XP_PER_FEED:    2,     // Pass XP awarded for feeding a pet
@@ -1813,9 +1813,23 @@ function showTab(tab) {
   
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
-  // Melon visibility — show only on shop
+  // Melon visibility — show on shop tab, hide on others
   var melon = document.getElementById('melon-mascot');
-  if (melon) { if (tab === 'shop') { melon.style.setProperty('display','block','important'); } else { melon.style.display = 'none'; } }
+  if (melon) {
+    if (tab === 'shop') {
+      melon.style.setProperty('display','flex','important');
+      // Ensure dialogue is populated
+      setTimeout(function(){
+        var dial = document.getElementById('melon-dialogue');
+        if (dial && (!dial.textContent || dial.textContent.trim() === '')) {
+          dial.textContent = "Welcome to the Shop! I'm Melon! Buy whatever you need!";
+        }
+        if (dial) dial.style.display = 'block';
+      }, 100);
+    } else {
+      melon.style.display = 'none';
+    }
+  }
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   
@@ -4006,8 +4020,16 @@ function makeMyPetCard(pet) {
   playBtn.disabled = pet.energy < 10;
   playBtn.style.cssText = 'flex:1;min-width:60px;padding:7px 10px;font-size:0.82rem;';
   
+  // ⚔️ Skills button
+  var skillBtn = makeEl('button', {class:'btn-action'});
+  skillBtn.textContent = '⚔️ Skills';
+  skillBtn.title = 'Manage skill loadout';
+  skillBtn.style.cssText = 'min-width:72px;padding:7px 10px;font-size:0.82rem;background:linear-gradient(135deg,rgba(153,102,255,0.2),rgba(153,102,255,0.35));color:var(--purple-dark);border:1px solid var(--purple-light);border-radius:25px;cursor:pointer;font-weight:600;white-space:nowrap;';
+  skillBtn.onclick = (function(id) { return function() { petSkills_openManager(id); }; })(pet.id);
+
   actions.appendChild(feedBtn); 
   actions.appendChild(playBtn);
+  actions.appendChild(skillBtn);
   actions.appendChild(roomBtn);
 
   // 📊 Stat Points button — shows when pet has unallocated points
@@ -4779,13 +4801,13 @@ function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnerg
 // ═══════════════════════════════════════════════════════════════════════════
 
 var EXPEDITION_ZONES = [
-  { key:'outskirts',  label:'Outskirts',     emoji:'🏘️', duration:30, minPP:15,  maxPP:30,  rarity:'common',   desc:'Quick scout of the nearby fields.',  energyCost:15, xpReward:25,
+  { key:'outskirts',  label:'Outskirts',     emoji:'🏘️', duration:30, minPP:15,  maxPP:30,  rarity:'common',   desc:'Quick scout of the nearby fields.',  energyCost:15, xpReward:5,
     itemPool:[{id:'basic_food',name:'Basic Food',icon:'🍞',type:'food'}], itemChance:0.30, minItems:0, maxItems:1 },
-  { key:'forest',     label:'Forest Glade',  emoji:'🌳', duration:45, minPP:30,  maxPP:60,  rarity:'uncommon', desc:'Wander through the shady forest.',    energyCost:25, xpReward:50,
+  { key:'forest',     label:'Forest Glade',  emoji:'🌳', duration:45, minPP:30,  maxPP:60,  rarity:'uncommon', desc:'Wander through the shady forest.',    energyCost:25, xpReward:10,
     itemPool:[{id:'treat',name:'Treat',icon:'🍪',type:'treat'}], itemChance:0.40, minItems:0, maxItems:1 },
-  { key:'deepwoods',  label:'Deep Woods',    emoji:'🌲', duration:60, minPP:50,  maxPP:100, rarity:'rare',     desc:'Brave the dangerous deep woods.',    energyCost:40, xpReward:100,
+  { key:'deepwoods',  label:'Deep Woods',    emoji:'🌲', duration:60, minPP:50,  maxPP:100, rarity:'rare',     desc:'Brave the dangerous deep woods.',    energyCost:40, xpReward:20,
     itemPool:[{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'},{id:'rubber_ball',name:'Rubber Ball',icon:'⚽',type:'toy'},{id:'rope_toy',name:'Rope Toy',icon:'🪢',type:'toy'}], itemChance:0.50, minItems:0, maxItems:1 },
-  { key:'ruins',      label:'Ancient Ruins', emoji:'🏛️', duration:90, minPP:75,  maxPP:150, rarity:'epic',     desc:'Explore the mysterious old ruins.',   energyCost:60, xpReward:200,
+  { key:'ruins',      label:'Ancient Ruins', emoji:'🏛️', duration:90, minPP:75,  maxPP:150, rarity:'epic',     desc:'Explore the mysterious old ruins.',   energyCost:60, xpReward:35,
     itemPool:[{id:'wooden_spoon',name:'Wooden Spoon',icon:'🥄',type:'equipment'},{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'}], itemChance:0.60, equipmentChance:0.10, minItems:0, maxItems:1 }
 ];
 
@@ -5144,6 +5166,10 @@ async function expedition_claim(expeditionId) {
   argLogs_tryDrop('expedition').then(null, function(){});
   // Cooking ingredient drops from expedition
   cooking_rollExpeditionDrop(row.zone).then(null, function(){});
+  // Secret dungeon discovery — very rare, only from expeditions
+  if (Math.random() < 0.04) { // ~4% per expedition claim
+    handleSecretDungeonEncounter().then(null, function(){});
+  }
   // Weekly challenges
   weeklyChallenge_increment('wk_expeditions', 1);
 
@@ -7192,6 +7218,19 @@ async function loadShop() {
       if(!canAfford)buyBtn.disabled=true;
       buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
+
+      // Buy 5x button for food and consumables
+      var _itype = (item.item_type||'').toLowerCase();
+      if (_itype==='food'||_itype==='snack'||_itype==='medicine'||_itype==='drink'||_itype==='energy'||_itype==='toy') {
+        var price5 = displayPrice * 5;
+        var canAfford5 = currentPoints >= price5;
+        var buy5Btn = makeEl('button', {class:'btn-buy-5'}, 'Buy 5x (' + price5 + ' PP)');
+        buy5Btn.style.cssText = 'font-size:0.7rem;padding:4px 8px;margin-top:4px;background:rgba(153,102,255,0.15);border:1px solid var(--purple-light);border-radius:8px;cursor:pointer;width:100%;color:var(--purple-dark);';
+        if (!canAfford5) { buy5Btn.disabled = true; buy5Btn.style.opacity = '0.4'; }
+        buy5Btn.onclick = (function(iid, iname, iprice) { return function() { buyItemMulti(iid, iname, iprice, 5); }; })(item.id, item.name, displayPrice);
+        card.appendChild(buy5Btn);
+      }
+
       fragment.appendChild(card);
     });
     
@@ -7238,6 +7277,36 @@ async function loadShop() {
     
     // Append all at once
     grid.appendChild(fragment);
+  }
+}
+
+async function buyItemMulti(itemId, itemName, price, qty) {
+  qty = qty || 5;
+  var totalPrice = price * qty;
+  if (currentPoints < totalPrice) { showToast('Not enough PP! Need ' + totalPrice + ' PP for ' + qty + 'x ' + itemName + '.', 3000); return; }
+  if (!confirm('Buy ' + qty + 'x ' + itemName + ' for ' + totalPrice + ' PP?')) return;
+  var btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Buying...'; }
+  try {
+    var { data: newTotal, error } = await supabaseClient.rpc('spend_pp_secure', { p_amount: totalPrice, p_reason: 'shop_buy_5x' });
+    if (error) throw error;
+    updateAllPoints(newTotal);
+    // Grant all 5 items
+    for (var i = 0; i < qty; i++) {
+      var { data: existing } = await supabaseClient.from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', itemId).maybeSingle();
+      if (existing) {
+        await supabaseClient.from('user_inventory').update({ quantity: existing.quantity + 1 }).eq('id', existing.id);
+      } else {
+        await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: itemId, quantity: 1 });
+      }
+    }
+    showToast('Bought ' + qty + 'x ' + itemName + '! Added to inventory.', 3000);
+    tabsLoaded['shop'] = false;
+    loadMyPets().then(null, function(){});
+  } catch(e) {
+    showToast('Purchase failed: ' + (e.message||'error'), 3000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Buy 5x (' + totalPrice + ' PP)'; }
   }
 }
 
@@ -10822,6 +10891,18 @@ function triggerSpookyEffect() {
   document.body.appendChild(overlay);
   document.body.appendChild(crtLines);
   
+    // Show Piper melody indicator on mobile (more visible than glitch effects)
+    if (window.innerWidth < 768) {
+      var _existBanner = document.getElementById('piper-melody-banner');
+      if (!_existBanner) {
+        var _b = document.createElement('div');
+        _b.id = 'piper-melody-banner';
+        _b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px;text-align:center;background:rgba(80,0,120,0.92);color:#e8d5ff;font-weight:900;font-size:1.05rem;z-index:10010;letter-spacing:1px;';
+        _b.textContent = '?? PIPER’S MELODY — YOU SHOULDN’T BE HERE ??';
+        document.body.appendChild(_b);
+        setTimeout(function(){ if (_b.parentNode) _b.parentNode.removeChild(_b); }, 2500);
+      }
+    }
   // Play spooky audio (Piper's flute) — load on-demand since bossNormal isn't in the priority preload list
   try {
     var piperKey = 'bossNormal';
@@ -12558,7 +12639,7 @@ async function calculatePetStats(petId) {
     maxEnergy: pet.max_energy || 100,
     specialSkill: pet.pets.special_skill || null,
     passives: equippedPassives,
-    skills: getSkillsForPet(pet.pets.name || '', pet.level || 1),
+    skills: (typeof petSkills_getLoadout === 'function') ? petSkills_getLoadout(pet.id, pet.pets.name || '', pet.level || 1) : getSkillsForPet(pet.pets.name || '', pet.level || 1),
     level: pet.level || 1,
     petBaseName: pet.pets.name || ''
   };
@@ -12642,472 +12723,835 @@ var STATUS_EFFECTS = {
 // ═══════════════════════════════════════════════════════════════════════════
 var PET_SKILLS = {
 
+  // ── EMBER (Protogen, fire/tech) ─────────────────────────────────────────
   ember: [
-    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, status: { type: 'burn', chance: 0.20 },
-      desc: 'Deals 1.2x damage. 20% chance to Burn (3 damage/turn for 3 turns).',
-      flavor: "I've been burning for eleven years. You get used to it. 🔥" },
-    { id: 'system_reboot', name: 'System Reboot', icon: '💻', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.15, cleanse: true,
-      desc: 'Restore 15% max HP. Removes all negative status effects. No damage.',
-      flavor: "Have you tried turning it off and on again? Works for me. 🔄" },
-    { id: 'flametail_strike', name: 'Flametail Strike', icon: '🔥', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.8, status: { type: 'burn', chance: 0.60 }, selfCostPct: 0.15,
-      desc: 'Deals 1.8x damage. 60% chance to Burn. Costs 15% of YOUR current HP to use.',
-      flavor: "Fire solves everything. Including me. 🔥💔" }
+    // Tier 1: Basic attacks (Lv1-4)
+    { id:'ember_flame_buffer',    name:'Flame Buffer',      icon:'⚡', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'burn', chance:0.20 },
+      desc:'1.2x damage. 20% chance to Burn (3 dmg/turn, 3 turns).',
+      flavor:"I've been burning for eleven years. You get used to it. 🔥" },
+    { id:'ember_spark_jab',       name:'Spark Jab',         icon:'💥', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x attack. No cooldown — great for pressure.',
+      flavor:"Speed is the real power. Fire just looks cooler. ⚡" },
+    { id:'ember_tail_swipe',      name:'Tail Swipe',        icon:'🦊', unlockLevel:3,  cooldown:1,
+      damageMult:1.1, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.1x damage. Lowers enemy DEF by 10%.',
+      flavor:"The tail is not decorative. Lesson learned." },
+    { id:'ember_charge_burst',    name:'Charge Burst',      icon:'🔋', unlockLevel:4,  cooldown:2,
+      damageMult:1.4,
+      desc:'1.4x damage. Charges power for a clean heavy hit.',
+      flavor:"Eleven years of charging. Still fun. 🔥" },
+
+    // Tier 2: Utilities (Lv5-7)
+    { id:'ember_system_reboot',   name:'System Reboot',     icon:'💻', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.15, cleanse:true,
+      desc:'Heal 15% max HP. Clears all negative status effects.',
+      flavor:"Have you tried turning it off and on again? Works for me. 🔄" },
+    { id:'ember_overclock',       name:'Overclock',         icon:'⚙️',  unlockLevel:6,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.25, turns:2 },
+      desc:'No damage. +25% attack for 2 turns.',
+      flavor:"Push the limits. Then push past the limits." },
+    { id:'ember_static_field',    name:'Static Field',      icon:'🌩️', unlockLevel:7,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.35 },
+      desc:'0.7x damage. 35% chance to Confuse (enemy may miss).',
+      flavor:"Confusion is just chaos with better marketing." },
+
+    // Tier 3: Advanced damage (Lv8-10)
+    { id:'ember_heat_wave',       name:'Heat Wave',         icon:'🌊', unlockLevel:8,  cooldown:3,
+      damageMult:1.5, status:{ type:'burn', chance:0.40 },
+      desc:'1.5x damage. 40% Burn chance.',
+      flavor:"The wave is fire. Just go with it." },
+    { id:'ember_meltdown',        name:'Meltdown',          icon:'🌡️', unlockLevel:9,  cooldown:3,
+      damageMult:1.3, debuff:{ stat:'defense', amount:0.20 }, status:{ type:'burn', chance:0.30 },
+      desc:'1.3x damage. Enemy DEF -20%. 30% Burn chance.',
+      flavor:"Everything melts eventually. Physics." },
+    { id:'ember_flametail_strike',name:'Flametail Strike',  icon:'🔥', unlockLevel:10, cooldown:4,
+      damageMult:1.8, status:{ type:'burn', chance:0.60 }, selfCostPct:0.15,
+      desc:'1.8x damage. 60% Burn. Costs 15% of YOUR current HP.',
+      flavor:"Fire solves everything. Including me. 🔥💔" },
+
+    // Tier 4: Healing/defensive (Lv11-14)
+    { id:'ember_heat_shield',     name:'Heat Shield',       icon:'🛡️', unlockLevel:11, cooldown:3,
+      damageMult:0, evasionBuff:0.50, healPct:0.08,
+      desc:'No damage. 50% evasion on next hit. Heal 8% max HP.',
+      flavor:"Defense is offense you didn't need yet." },
+    { id:'ember_core_dump',       name:'Core Dump',         icon:'🖥️', unlockLevel:12, cooldown:4,
+      damageMult:1.6, cleanse:true, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.6x damage. Clears your status effects. +15% ATK for 2 turns.',
+      flavor:"Dump the errors, keep the power." },
+    { id:'ember_fuel_inject',     name:'Fuel Injection',    icon:'⛽', unlockLevel:13, cooldown:3,
+      damageMult:0, healPct:0.20, atkBuff:{ amount:0.20, turns:3 },
+      desc:'Heal 20% max HP. +20% ATK for 3 turns.',
+      flavor:"Refueling mid-fight is a power move." },
+    { id:'ember_afterburn',       name:'Afterburner',       icon:'🚀', unlockLevel:14, cooldown:4,
+      damageMult:0, atkScaling:{ perAttack:0.12, max:0.60 },
+      desc:'No upfront damage. +12% ATK per previous attack this battle (max +60%).',
+      flavor:"Everything gets faster before it gets better." },
+
+    // Tier 5: Powerful/unique (Lv15-18)
+    { id:'ember_inferno',         name:'Inferno',           icon:'☄️',  unlockLevel:15, cooldown:5,
+      damageMult:2.0, status:{ type:'burn', chance:0.80 },
+      desc:'2.0x damage. 80% Burn chance. Pure destruction.',
+      flavor:"Sometimes the answer is just more fire. 🔥" },
+    { id:'ember_cascade_fail',    name:'Cascade Failure',   icon:'💀', unlockLevel:18, cooldown:5,
+      damageMult:1.4, status:{ type:'burn', chance:1.0 }, condBonus:{ ifStatus:'burn', mult:1.8 },
+      desc:'1.4x damage. 100% Burn. If enemy is already Burning: 1.8x instead.',
+      flavor:"The system error you wanted." },
+    { id:'ember_nova',            name:'NOVA',              icon:'🌟', unlockLevel:22, cooldown:6,
+      damageMult:2.5, status:{ type:'burn', chance:1.0 }, selfCostPct:0.25,
+      desc:'2.5x damage. Guaranteed Burn. Costs 25% current HP. The big one.',
+      flavor:"I've been saving this. 🔥🔥🔥" },
+    { id:'ember_phoenix_rebirth', name:'Phoenix Rebirth',   icon:'🐦', unlockLevel:28, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.40 }, passive:false,
+      desc:'If you would die, instead revive at 40% HP. One use per battle.',
+      flavor:"Eleven years. I don't stay down. 🔥" }
   ],
 
+  // ── PYXIE (Sparkledog, chaos/shadow) ──────────────────────────────────
   pyxie: [
-    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.1, status: { type: 'confuse', chance: 0.30 },
-      desc: 'Deals 1.1x damage. 30% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "I have a plan. It involves sparkles. ✨" },
-    { id: 'echo_of_fear', name: 'Echo of Fear', icon: '👻', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.3, debuff: { stat: 'defense', amount: 0.10, turns: 2 },
-      desc: 'Deals 1.3x damage. Lowers enemy Defense by 10% for 2 turns.',
-      flavor: "I know things I shouldn't. My mom was a demon. 👻" },
-    { id: 'mamas_grace', name: "Mama's Grace", icon: '🌙', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.7, status: { type: 'fear', chance: 0.50 }, condBonus: { ifStatus: 'confuse', mult: 2.0 },
-      desc: 'Deals 1.7x damage. 50% chance to Fear (skip turn). If enemy is already Confused: damage doubles.',
-      flavor: "Mama said I was special. I don't think she meant this. 🌙" }
+    { id:'pyxie_glitter_bomb',    name:'Glitter Bomb',      icon:'✨', unlockLevel:1,  cooldown:1,
+      damageMult:1.1, status:{ type:'confuse', chance:0.30 },
+      desc:'1.1x damage. 30% Confuse (enemy may miss).',
+      flavor:"I have a plan. It involves sparkles. ✨" },
+    { id:'pyxie_paw_swipe',       name:'Paw Swipe',         icon:'🐾', unlockLevel:2,  cooldown:0,
+      damageMult:0.85,
+      desc:'Quick 0.85x strike. No cooldown.',
+      flavor:"Don't underestimate the paw." },
+    { id:'pyxie_shadow_step',     name:'Shadow Step',       icon:'👻', unlockLevel:3,  cooldown:2,
+      damageMult:0, evasionBuff:0.60,
+      desc:'No damage. 60% evasion chance vs next attack.',
+      flavor:"I may seem quiet. I am not here." },
+    { id:'pyxie_chaos_spark',     name:'Chaos Spark',       icon:'🌀', unlockLevel:4,  cooldown:1,
+      damageMult:1.2, randomBuff:{ chance:0.40, options:['attack','defense'], amount:0.15 },
+      desc:'1.2x damage. 40% chance of random ATK or DEF buff.',
+      flavor:"The chaos is organized. I promise." },
+    { id:'pyxie_echo_of_fear',    name:'Echo of Fear',      icon:'😨', unlockLevel:5,  cooldown:3,
+      damageMult:1.3, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.3x damage. Enemy DEF -10% for 2 turns.',
+      flavor:"I know things I shouldn't. My mom was a demon. 👻" },
+    { id:'pyxie_static_nap',      name:'Tactical Nap',      icon:'😴', unlockLevel:6,  cooldown:3,
+      damageMult:0, healPct:0.22, cleanse:true,
+      desc:'Heal 22% max HP. Clears negative status. (It is tactical.)',
+      flavor:"Tactical napping is a legitimate strategy." },
+    { id:'pyxie_fog_walk',        name:'Fog Walk',          icon:'🌫️', unlockLevel:7,  cooldown:2,
+      damageMult:0.9, evasionBuff:0.40, status:{ type:'confuse', chance:0.25 },
+      desc:'0.9x damage. 40% evasion next hit. 25% Confuse.',
+      flavor:"I found something interesting. I'm keeping it." },
+    { id:'pyxie_void_pull',       name:'Void Pull',         icon:'⚫', unlockLevel:8,  cooldown:3,
+      damageMult:1.4, status:{ type:'glitch', chance:0.40 },
+      desc:'1.4x damage. 40% Glitch (enemy 20% fail chance for 2 turns).',
+      flavor:"Something funny happened. I won't explain it." },
+    { id:'pyxie_deep_dive',       name:'Deep Dive',         icon:'🌊', unlockLevel:9,  cooldown:3,
+      damageMult:1.5, lifeStealChance:{ chance:0.40, pct:0.20 },
+      desc:'1.5x damage. 40% chance to steal 20% of damage as HP.',
+      flavor:"Plans within plans within plans. Also snacks." },
+    { id:"pyxie_mamas_grace",     name:"Mama's Grace",      icon:'🌙', unlockLevel:10, cooldown:4,
+      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'confuse', mult:2.0 },
+      desc:'1.7x damage. 50% Fear (enemy skips). Doubles damage if enemy is Confused.',
+      flavor:"Mama said I was special. I don't think she meant this. 🌙" },
+    { id:'pyxie_dream_eater',     name:'Dream Eater',       icon:'💤', unlockLevel:11, cooldown:4,
+      damageMult:1.2, status:{ type:'confuse', chance:0.60 }, lifeSteal:0.25,
+      desc:'1.2x damage. 60% Confuse. Steal 25% of damage as HP.',
+      flavor:"I didn't take your dreams. I borrowed them." },
+    { id:'pyxie_schemer',         name:'The Scheme',        icon:'🎭', unlockLevel:12, cooldown:4,
+      damageMult:0, atkBuff:{ amount:0.30, turns:3 }, evasionBuff:0.35,
+      desc:'No damage. +30% ATK for 3 turns. 35% evasion next hit.',
+      flavor:"The scheme is going well. Thank you for not asking." },
+    { id:'pyxie_chaos_cascade',   name:'Chaos Cascade',     icon:'💫', unlockLevel:13, cooldown:5,
+      damageMult:1.6, status:{ type:'confuse', chance:0.50 }, condBonus:{ ifStatus:'glitch', mult:1.6 },
+      desc:'1.6x damage. 50% Confuse. 1.6x bonus if enemy is Glitched.',
+      flavor:"The fog had good vibes today." },
+    { id:'pyxie_shadow_clone',    name:'Shadow Clone',      icon:'👤', unlockLevel:14, cooldown:5,
+      damageMult:1.3, atkScaling:{ perAttack:0.08, max:0.48 },
+      desc:'1.3x base damage. +8% per previous attack (max +48%).',
+      flavor:"I'm not lost. This is exactly where I meant to be." },
+    { id:'pyxie_nightmare',       name:'Nightmare',         icon:'🌑', unlockLevel:15, cooldown:5,
+      damageMult:1.9, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      desc:'1.9x damage. 45% Fear AND 60% Confuse.',
+      flavor:"I contain multitudes. And I share them." },
+    { id:'pyxie_void_strike',     name:'Void Strike',       icon:'🕳️', unlockLevel:18, cooldown:5,
+      damageMult:2.1, status:{ type:'glitch', chance:1.0 },
+      desc:'2.1x damage. Guaranteed Glitch.',
+      flavor:"Quietly thriving. Do not disturb. ✨" },
+    { id:'pyxie_demon_ascent',    name:'Demon Ascent',      icon:'😈', unlockLevel:22, cooldown:6,
+      damageMult:2.4, status:{ type:'skip', chance:0.70 }, condBonus:{ ifStatus:'confuse', mult:2.5 },
+      desc:'2.4x damage. 70% Fear. If Confused: 2.5x total.',
+      flavor:"Something is watching. It is me. 🌀" },
+    { id:"pyxie_chaotic_aura",    name:"Chaotic Aura",      icon:'🌪️', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.10 },
+      damageMult:0,
+      desc:'PASSIVE: Each turn your attack increases by 10% (stacking). One activation.',
+      flavor:"I'm doing great. In a specifically chaotic way. 💜" }
   ],
 
+  // ── GNARLY (Smilodon, arcade/primal) ──────────────────────────────────
   gnarly: [
-    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.3, status: { type: 'stun', chance: 0.15 },
-      desc: 'Deals 1.3x damage. 15% chance to Stun (enemy skips next turn).',
-      flavor: "I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️" },
-    { id: 'glitch_step', name: 'Glitch Step', icon: '💾', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, evasionBuff: 0.50, atkBuff: { amount: 0.15, turns: 2 },
-      desc: 'No damage. Next enemy attack has 50% chance to miss. +15% Attack for 2 turns.',
-      flavor: "You can't beat a game that's already broken. 💾" },
-    { id: 'high_score_slam', name: 'High Score Slam', icon: '🏆', unlockLevel: 10, cooldown: 4,
-      damageMult: 2.0, skillScaling: { perSkillUsed: 0.05, max: 0.50 },
-      desc: 'Deals 2.0x damage. +5% bonus per skill used this battle (max +50%). Gets stronger the longer you fight.',
-      flavor: "I'm going for the high score. Get out of my way. 🏆" }
+    { id:'gnarly_quarter_punch',  name:'Quarter Punch',     icon:'🕹️', unlockLevel:1,  cooldown:1,
+      damageMult:1.3, status:{ type:'skip', chance:0.15 },
+      desc:'1.3x damage. 15% chance to Stun (enemy skips turn).',
+      flavor:"I've been putting quarters in this machine for 20 years. 🕹️" },
+    { id:'gnarly_claw_jab',       name:'Claw Jab',          icon:'🦷', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x attack. No cooldown. Stay in the combo.',
+      flavor:"Fast. Precise. Prehistoric." },
+    { id:'gnarly_combo_starter',  name:'Combo Starter',     icon:'🥊', unlockLevel:3,  cooldown:1,
+      damageMult:1.0, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.0x damage. +10% ATK for 2 turns — set up your next move.',
+      flavor:"The combo doesn't end. You just run out of turns." },
+    { id:'gnarly_tail_slam',      name:'Tail Slam',         icon:'💥', unlockLevel:4,  cooldown:2,
+      damageMult:1.5, debuff:{ stat:'defense', amount:0.15 },
+      desc:'1.5x damage. Enemy DEF -15%.',
+      flavor:"Smilodon don't pull punches. Or tails." },
+    { id:'gnarly_glitch_step',    name:'Glitch Step',       icon:'💾', unlockLevel:5,  cooldown:3,
+      damageMult:0, evasionBuff:0.50, atkBuff:{ amount:0.15, turns:2 },
+      desc:'No damage. 50% evasion next hit. +15% ATK for 2 turns.',
+      flavor:"You can't beat a game that's already broken. 💾" },
+    { id:'gnarly_speed_run',      name:'Speed Run',         icon:'⏱️', unlockLevel:6,  cooldown:2,
+      damageMult:1.1, atkScaling:{ perAttack:0.05, max:0.30 },
+      desc:'1.1x damage. +5% bonus per previous attack this battle (max +30%).',
+      flavor:"Always optimizing the route." },
+    { id:'gnarly_pixel_crush',    name:'Pixel Crush',       icon:'👾', unlockLevel:7,  cooldown:3,
+      damageMult:1.4, status:{ type:'glitch', chance:0.45 },
+      desc:'1.4x damage. 45% Glitch (enemy may fail moves).',
+      flavor:"Some enemies are just bad code." },
+    { id:'gnarly_boss_mode',      name:'BOSS MODE',         icon:'🎮', unlockLevel:8,  cooldown:4,
+      damageMult:0, atkBuff:{ amount:0.35, turns:3 }, cleanse:true,
+      desc:'No damage. +35% ATK for 3 turns. Clears your debuffs.',
+      flavor:"You've unlocked boss mode. Too bad for them." },
+    { id:'gnarly_feral_strike',   name:'Feral Strike',      icon:'🦁', unlockLevel:9,  cooldown:3,
+      damageMult:1.6, status:{ type:'burn', chance:0.25 }, condBonus:{ ifStatus:'glitch', mult:1.5 },
+      desc:'1.6x damage. 25% Burn. 1.5x if enemy is Glitched.',
+      flavor:"The beast never forgot." },
+    { id:'gnarly_high_score_slam',name:'High Score Slam',   icon:'🏆', unlockLevel:10, cooldown:4,
+      damageMult:2.0, skillScaling:{ perSkillUsed:0.05, max:0.50 },
+      desc:'2.0x damage. +5% per skill used this battle (max +50%).',
+      flavor:"I'm going for the high score. Get out of my way. 🏆" },
+    { id:'gnarly_alpha_roar',     name:'Alpha Roar',        icon:'🦴', unlockLevel:11, cooldown:4,
+      damageMult:0, debuff:{ stat:'defense', amount:0.30 }, status:{ type:'confuse', chance:0.50 },
+      desc:'No damage. Enemy DEF -30%. 50% Confuse.',
+      flavor:"The apex predator speaks. Everything listens." },
+    { id:'gnarly_arcade_rain',    name:'Arcade Rain',       icon:'🌧️', unlockLevel:12, cooldown:4,
+      damageMult:1.8, status:{ type:'skip', chance:0.35 },
+      desc:'1.8x damage. 35% Stun.',
+      flavor:"It rains quarters in the arcade of my heart." },
+    { id:'gnarly_continue',       name:'Continue?',         icon:'🔄', unlockLevel:14, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.30 },
+      desc:'If you would die, revive at 30% HP. Once per battle.',
+      flavor:"CONTINUE? 3... 2... 1... Yes. Always yes." },
+    { id:'gnarly_extinction_level',name:'Extinction Level', icon:'☄️', unlockLevel:15, cooldown:5,
+      damageMult:2.2, status:{ type:'burn', chance:0.60 }, status2:{ type:'skip', chance:0.40 },
+      desc:'2.2x damage. 60% Burn. 40% Stun.',
+      flavor:"The meteor doesn't care about your defense stat." },
+    { id:'gnarly_predator',       name:'Apex Predator',     icon:'🐯', unlockLevel:18, cooldown:5,
+      damageMult:1.5, atkScaling:{ perAttack:0.15, max:0.75 }, lifeSteal:0.20,
+      desc:'1.5x base. +15% per previous attack (max +75%). Steal 20% of damage as HP.',
+      flavor:"I never get game overs. In games OR in life." },
+    { id:'gnarly_rampage',        name:'Rampage',           icon:'💢', unlockLevel:22, cooldown:6,
+      damageMult:2.8, selfCostPct:0.20, status:{ type:'burn', chance:1.0 }, status2:{ type:'skip', chance:0.60 },
+      desc:'2.8x damage. Guaranteed Burn. 60% Stun. Costs 20% current HP.',
+      flavor:"The high score board has my name on it. All of them." },
+    { id:'gnarly_feral_aura',     name:'Feral Aura',        icon:'🦴', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'lifesteal_pct', pct:0.08 },
+      damageMult:0,
+      desc:'PASSIVE: Every attack steals 8% of damage dealt as HP.',
+      flavor:"Even the Furbies can't keep up with me." }
   ],
 
-  kleat: [
-    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.0, status: { type: 'confuse', chance: 0.40 },
-      desc: 'Deals 1.0x damage. 40% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "Yip yap teehee I opened a portal! 🌀" },
-    { id: 'cinnabon_explosion', name: 'Cinnabon Explosion', icon: '🍥', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.4, lifeStealChance: { chance: 0.30, pct: 0.15 },
-      desc: 'Deals 1.4x damage. 30% chance to heal 15% of damage dealt as HP.',
-      flavor: "I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨" },
-    { id: 'chaos_portal', name: 'Chaos Portal', icon: '🌌', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.6, chaosEffect: [
-        { weight: 40, effect: 'double_damage' },
-        { weight: 30, effect: 'heal_20pct' },
-        { weight: 20, effect: 'enemy_skip' },
-        { weight: 10, effect: 'nothing' }
+  // ── KLEAT/KELTA (Pomeranian grand mage) ───────────────────────────────
+  kelta: [
+    { id:'kelta_confusing_sniff', name:'Confusing Sniff',   icon:'🐾', unlockLevel:1,  cooldown:1,
+      damageMult:1.0, status:{ type:'confuse', chance:0.40 },
+      desc:'1.0x damage. 40% Confuse (enemy may miss).',
+      flavor:"Yip yap teehee I opened a portal! 🌀" },
+    { id:'kelta_tiny_yap',        name:'Tiny Yap',          icon:'📢', unlockLevel:2,  cooldown:0,
+      damageMult:0.8, status:{ type:'confuse', chance:0.20 },
+      desc:'0.8x damage. 20% Confuse. No cooldown.',
+      flavor:"YIP. That is both the skill and the noise." },
+    { id:'kelta_portal_peek',     name:'Portal Peek',       icon:'🕳️', unlockLevel:3,  cooldown:2,
+      damageMult:0, evasionBuff:0.55, status:{ type:'confuse', chance:0.30 },
+      desc:'No damage. 55% evasion next hit. 30% Confuse.',
+      flavor:"Peeked through the portal. Saw something. Won't say." },
+    { id:'kelta_sparkle_paw',     name:'Sparkle Paw',       icon:'💫', unlockLevel:4,  cooldown:2,
+      damageMult:1.3, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.20 },
+      desc:'1.3x damage. 50% random ATK or DEF buff.',
+      flavor:"Galaxy magic. Also Pomeranian magic. Same thing." },
+    { id:'kelta_cinnabon',        name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5,  cooldown:3,
+      damageMult:1.4, lifeStealChance:{ chance:0.30, pct:0.15 },
+      desc:'1.4x damage. 30% chance to heal 15% of damage dealt.',
+      flavor:"I'm a grand mage AND a Pomeranian! Both! At the same time! ✨" },
+    { id:'kelta_yip_rush',        name:'Yip Rush',          icon:'⚡', unlockLevel:6,  cooldown:2,
+      damageMult:1.2, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.2x damage. +15% ATK for 2 turns.',
+      flavor:"YIPYIPYIPYIPYIP. It's a technique." },
+    { id:'kelta_void_sniff',      name:'Void Sniff',        icon:'🌑', unlockLevel:7,  cooldown:3,
+      damageMult:0.9, status:{ type:'glitch', chance:0.50 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.9x damage. 50% Glitch. Enemy DEF -10%.',
+      flavor:"The void said hi back. Very polite of it." },
+    { id:'kelta_fluffy_barrier',  name:'Fluffy Barrier',    icon:'☁️', unlockLevel:8,  cooldown:3,
+      damageMult:0, healPct:0.18, evasionBuff:0.45, cleanse:true,
+      desc:'Heal 18% max HP. 45% evasion next hit. Clears debuffs.',
+      flavor:"The floof is armor. Soft, powerful armor." },
+    { id:'kelta_constellation',   name:'Constellation',     icon:'⭐', unlockLevel:9,  cooldown:4,
+      damageMult:1.5, status:{ type:'confuse', chance:0.55 }, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.5x damage. 55% Confuse. +10% ATK for 2 turns.',
+      flavor:"Studying galaxy magic. Taking extensive naps. Same energy." },
+    { id:'kelta_chaos_portal',    name:'Chaos Portal',      icon:'🌌', unlockLevel:10, cooldown:4,
+      damageMult:1.6, chaosEffect:[
+        { weight:40, effect:'heal_20pct' },
+        { weight:30, effect:'double_damage' },
+        { weight:20, effect:'enemy_skip' },
+        { weight:10, effect:'nothing' }
       ],
-      desc: 'Deals 1.6x damage + random chaos effect: 40% double damage, 30% heal 20% HP, 20% enemy loses turn, 10% nothing.',
-      flavor: "Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" }
+      desc:'1.6x base. RANDOM: 40% heal 20% HP, 30% double damage, 20% skip enemy, 10% nothing.',
+      flavor:"Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" },
+    { id:'kelta_dimension_crack', name:'Dimension Crack',   icon:'💢', unlockLevel:11, cooldown:4,
+      damageMult:1.7, status:{ type:'glitch', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:1.8 },
+      desc:'1.7x damage. 60% Glitch. 1.8x if enemy is Confused.',
+      flavor:"Another portal opened. I didn't do it. Probably." },
+    { id:'kelta_pom_storm',       name:'Pom Storm',         icon:'🌪️', unlockLevel:12, cooldown:5,
+      damageMult:2.0, status:{ type:'confuse', chance:0.70 },
+      desc:'2.0x damage. 70% Confuse. The Pomeranian hurricane.',
+      flavor:"I contain multitudes. And also this." },
+    { id:'kelta_void_siphon',     name:'Void Siphon',       icon:'🌀', unlockLevel:13, cooldown:4,
+      damageMult:1.3, lifeSteal:0.30, debuff:{ stat:'defense', amount:0.25 },
+      desc:'1.3x damage. Steal 30% as HP. Enemy DEF -25%.',
+      flavor:"The void gives and takes. Mostly gives, today." },
+    { id:'kelta_grand_mage',      name:'Grand Mage Decree', icon:'📜', unlockLevel:14, cooldown:5,
+      damageMult:0, atkBuff:{ amount:0.40, turns:3 }, cleanse:true, healPct:0.15,
+      desc:'No damage. +40% ATK for 3 turns. Heal 15% HP. Clear debuffs.',
+      flavor:"The Grand Mage has spoken. Heed the yap." },
+    { id:'kelta_starfall',        name:'Starfall',          icon:'🌠', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      desc:'2.3x damage. 45% Stun. 60% Confuse.',
+      flavor:"When stars fall, they listen." },
+    { id:'kelta_reality_unzip',   name:'Reality.unzip()',   icon:'💻', unlockLevel:18, cooldown:6,
+      damageMult:2.5, condBonus:{ ifStatus:'glitch', mult:2.5 }, status:{ type:'glitch', chance:1.0 },
+      desc:'2.5x damage. Guaranteed Glitch. If already Glitched: 2.5x bonus.',
+      flavor:"YIP! I don't know what's going to happen either!" },
+    { id:'kelta_portal_mastery',  name:'Portal Mastery',    icon:'🌌', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.10 },
+      damageMult:0,
+      desc:'PASSIVE: Gain 10% evasion each turn (max 50%).',
+      flavor:"Everything is fine! I opened a portal to make sure! ✨" }
   ],
 
+  // ── ARIA (Rosy Maple Moth, fae/bone) ──────────────────────────────────
   aria: [
-    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, debuff: { stat: 'defense', chance: 0.20, amount: 0.10, turns: 2 },
-      desc: 'Deals 1.2x damage. 20% chance to lower enemy Defense by 10% for 2 turns.',
-      flavor: "Do you want to see my bones? 🦋" },
-    { id: 'fae_light', name: 'Fae Light', icon: '✨', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.20, atkBuffChance: { chance: 0.30, amount: 0.15, turns: 2 },
-      desc: 'No damage. Restores 20% max HP. 30% chance to also gain +15% Attack for 2 turns.',
-      flavor: "Humans are so strange and silly. But you're doing wonderfully. 🌸" },
-    { id: 'moths_embrace', name: "Moth's Embrace", icon: '🦋', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.5, lifeSteal: 0.20, status: { type: 'infatuate', chance: 0.40 },
-      desc: 'Deals 1.5x damage. Heals 20% of damage dealt. 40% chance to Infatuate (enemy deals 30% less damage for 2 turns).',
-      flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
+    { id:'aria_bone_toss',        name:'Bone Toss',         icon:'🦴', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'petrify', chance:0.20 },
+      desc:'1.2x damage. 20% Petrify (enemy DEF -10%).',
+      flavor:"Do you want to see my bones? 🦋" },
+    { id:'aria_flutter',          name:'Flutter',           icon:'🦋', unlockLevel:2,  cooldown:0,
+      damageMult:0.85, evasionBuff:0.25,
+      desc:'0.85x damage. 25% evasion next hit.',
+      flavor:"Humans are so strange and silly." },
+    { id:'aria_fae_dust',         name:'Fae Dust',          icon:'✨', unlockLevel:3,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.50 },
+      desc:'0.7x damage. 50% Confuse.',
+      flavor:"The fae left me a shiny thing. Very polite of them." },
+    { id:'aria_bone_rattle',      name:'Bone Rattle',       icon:'💀', unlockLevel:4,  cooldown:2,
+      damageMult:1.3, status:{ type:'confuse', chance:0.30 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.3x damage. 30% Confuse. Enemy DEF -10%.',
+      flavor:"Something is glowing nearby and I need to investigate." },
+    { id:'aria_fae_light',        name:'Fae Light',         icon:'🌸', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.20, atkBuffChance:{ chance:0.30, amount:0.15 },
+      desc:'Heal 20% max HP. 30% chance: +15% ATK buff.',
+      flavor:"Humans are doing wonderfully. 🌸" },
+    { id:'aria_nectar_drain',     name:'Nectar Drain',      icon:'🌺', unlockLevel:6,  cooldown:3,
+      damageMult:1.1, lifeSteal:0.25,
+      desc:'1.1x damage. Steal 25% of damage as HP.',
+      flavor:"The fae feed. It is simply what they do." },
+    { id:'aria_spooky_flutter',   name:'Spooky Flutter',    icon:'👻', unlockLevel:7,  cooldown:3,
+      damageMult:0.9, status:{ type:'skip', chance:0.40 }, evasionBuff:0.35,
+      desc:'0.9x damage. 40% Fear. 35% evasion next hit.',
+      flavor:"Spooky things are just regular things with better lighting. 🦋" },
+    { id:'aria_bone_storm',       name:'Bone Storm',        icon:'🌩️', unlockLevel:8,  cooldown:4,
+      damageMult:1.5, status:{ type:'petrify', chance:0.45 }, status2:{ type:'confuse', chance:0.35 },
+      desc:'1.5x damage. 45% Petrify. 35% Confuse.',
+      flavor:"I've been very patient. I am known for this. 💀" },
+    { id:'aria_regeneration',     name:'Regeneration',      icon:'💚', unlockLevel:9,  cooldown:4,
+      damageMult:0, healPct:0.30, cleanse:true,
+      desc:'Heal 30% max HP. Clear all debuffs.',
+      flavor:"The shadows said something interesting. I'm looking into it." },
+    { id:"aria_moths_embrace",    name:"Moth's Embrace",    icon:'🦋', unlockLevel:10, cooldown:4,
+      damageMult:1.5, lifeSteal:0.20, status:{ type:'infatuate', chance:0.40 },
+      desc:'1.5x damage. Steal 20% as HP. 40% Infatuate (enemy -30% dmg for 2 turns).',
+      flavor:"I'll let you keep your bones. Until you're done with them, anyway. 💀" },
+    { id:'aria_will_o_wisp',      name:"Will-O'-Wisp",      icon:'🔮', unlockLevel:11, cooldown:4,
+      damageMult:1.0, status:{ type:'burn', chance:0.70 }, lifeSteal:0.15,
+      desc:'1.0x damage. 70% Burn. Steal 15% as HP.',
+      flavor:"The shadows know where they keep the warmth." },
+    { id:'aria_lunar_shroud',     name:'Lunar Shroud',      icon:'🌙', unlockLevel:12, cooldown:4,
+      damageMult:0, evasionBuff:0.70, healPct:0.12, atkBuff:{ amount:0.20, turns:3 },
+      desc:'No damage. 70% evasion next hit. Heal 12%. +20% ATK for 3 turns.',
+      flavor:"I wrote a sad story about a moth. She's okay at the end. Mostly." },
+    { id:'aria_entrancing_glow',  name:'Entrancing Glow',   icon:'✨', unlockLevel:13, cooldown:5,
+      damageMult:1.6, status:{ type:'infatuate', chance:0.65 }, condBonus:{ ifStatus:'confuse', mult:1.7 },
+      desc:'1.6x damage. 65% Infatuate. 1.7x if enemy is Confused.',
+      flavor:"Something pretty is always a little dangerous." },
+    { id:'aria_bone_armor',       name:'Bone Armor',        icon:'🦴', unlockLevel:14, cooldown:4,
+      damageMult:0, evasionBuff:0.50, cleanse:true, healPct:0.08,
+      desc:'No damage. 50% evasion next hit. Heal 8%. Clears debuffs.',
+      flavor:"I found the most beautiful bone today. It's mine now." },
+    { id:'aria_fae_wrath',        name:'Fae Wrath',         icon:'💀', unlockLevel:15, cooldown:5,
+      damageMult:2.1, status:{ type:'infatuate', chance:0.80 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
+      desc:'2.1x damage. 80% Infatuate. 2.0x if enemy is Petrified.',
+      flavor:"The Crane Wives understand. 🌸" },
+    { id:'aria_bone_swarm',       name:'Bone Swarm',        icon:'💀', unlockLevel:18, cooldown:5,
+      damageMult:2.3, status:{ type:'petrify', chance:1.0 }, lifeSteal:0.25,
+      desc:'2.3x damage. Guaranteed Petrify. Steal 25% as HP.',
+      flavor:"I have so many bones. Some of them are my own." },
+    { id:'aria_fae_rebirth',      name:'Fae Rebirth',       icon:'🌸', unlockLevel:32, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.50 },
+      desc:'If you would die, revive at 50% HP. Once per battle.',
+      flavor:"I always come back. I am Aria. 🦋" }
   ],
 
-  cypurr: [
-    { id: 'blocked_reported', name: 'Blocked & Reported', icon: '🚫', unlockLevel: 1, cooldown: 2,
-      damageMult: 0, evasionBuff: 0.40, defBuff: { amount: 0.20, turns: 3 },
-      desc: 'No damage. 40% chance the next enemy attack misses. +20% Defense for 3 turns.',
-      flavor: "Blocked. Reported. Goodbye. 🚫" },
-    { id: 'ragebait', name: 'Ragebait', icon: '😤', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, status: { type: 'confuse', chance: 0.60 }, taunt: { turnsAtkDebuff: -0.15, turns: 2 },
-      desc: 'No damage. 60% chance to Confuse enemy (30% miss chance for 2 turns). Enemy also loses 15% Attack for 2 turns.',
-      flavor: "You fell for it. You always fall for it. OwO" },
-    { id: 'like_and_subscribe', name: 'Like & Subscribe', icon: '💜', unlockLevel: 10, cooldown: 4,
-      damageMult: 0, healPct: 0.30, teamHealChance: { chance: 1.0 },
-      atkBuff: { amount: 0.10, turns: 3 }, defBuff: { amount: 0.10, turns: 3 },
-      desc: 'No damage. Restores 30% max HP. Gain +10% Attack and +10% Defense for 3 turns.',
-      flavor: "Subscribe for more heals. Follow for the glow-up. 💜" }
-  ],
-
+  // ── JESS (Parasaur, nature/dinosaur) ─────────────────────────────────
   jess: [
-    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
-      desc: 'Deals 1.3x damage. 15% chance to Petrify (enemy loses 10% Defense for 2 turns).',
-      flavor: "This fossil is 65 million years cuter than you. 🦕" },
-    { id: 'potion_brew', name: 'Potion Brew', icon: '🧪', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.15, randomBuff: { chance: 0.50, options: ['attack', 'defense'], amount: 0.15, turns: 2 },
-      desc: 'No damage. Restores 15% max HP. 50% chance to also gain +15% Attack or Defense for 2 turns.',
-      flavor: "The potion came out right on the first try today. That's a good sign. 🌿" },
-    { id: 'mesozoic_rage', name: 'Mesozoic Rage', icon: '🦕', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.9, status: { type: 'fear', chance: 0.40 }, condBonus: { ifStatus: 'petrify', mult: 2.0 },
-      desc: 'Deals 1.9x damage. 40% chance to Fear. If enemy is Petrified: damage doubles.',
-      flavor: "65 million years of evolution. I've been waiting for this. 🌋" }
+    { id:'jess_fossil_strike',    name:'Fossil Strike',     icon:'🦴', unlockLevel:1,  cooldown:1,
+      damageMult:1.3, status:{ type:'petrify', chance:0.15 },
+      desc:'1.3x damage. 15% Petrify (enemy DEF -10%).',
+      flavor:"This fossil is 65 million years cuter than you. 🦕" },
+    { id:'jess_tail_whip',        name:'Tail Whip',         icon:'🦕', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x strike. No cooldown.',
+      flavor:"Small adventure today. Very good." },
+    { id:'jess_stomp',            name:'Stomp',             icon:'🦶', unlockLevel:3,  cooldown:1,
+      damageMult:1.2, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.2x damage. Enemy DEF -10%.',
+      flavor:"65 million years of evolution. Still satisfying." },
+    { id:'jess_mud_throw',        name:'Mud Throw',         icon:'💩', unlockLevel:4,  cooldown:2,
+      damageMult:0.8, status:{ type:'confuse', chance:0.45 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.8x damage. 45% Confuse. Enemy DEF -10%.',
+      flavor:"Quiet critter doing quiet things. It's the good life." },
+    { id:'jess_potion_brew',      name:'Potion Brew',       icon:'🧪', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.15, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.15 },
+      desc:'Heal 15% max HP. 50% chance: +15% ATK or DEF buff.',
+      flavor:"The potion came out right on the first try today. Good omen. 🌿" },
+    { id:'jess_berry_burst',      name:'Berry Burst',       icon:'🫐', unlockLevel:6,  cooldown:2,
+      damageMult:1.1, lifeStealChance:{ chance:0.35, pct:0.15 }, healPct:0.05,
+      desc:'1.1x damage. 35% lifesteal chance. Heal 5% flat.',
+      flavor:"I have a mango delight and life is good. 🌿" },
+    { id:'jess_dig',              name:'Dig',               icon:'⛏️', unlockLevel:7,  cooldown:3,
+      damageMult:1.4, evasionBuff:0.40,
+      desc:'1.4x damage. 40% evasion on next incoming hit.',
+      flavor:"Fossils are found by the patient." },
+    { id:'jess_ancient_strength', name:'Ancient Strength',  icon:'💪', unlockLevel:8,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.30, turns:3 }, healPct:0.08,
+      desc:'No damage. +30% ATK for 3 turns. Heal 8% HP.',
+      flavor:"65 million years of history. Still strong." },
+    { id:'jess_allosaurus_bite',  name:'Allosaurus Bite',   icon:'🦷', unlockLevel:9,  cooldown:3,
+      damageMult:1.7, status:{ type:'petrify', chance:0.40 },
+      desc:'1.7x damage. 40% Petrify.',
+      flavor:"Dinosaurs didn't go extinct. They got cuter. I'm proof." },
+    { id:'jess_mesozoic_rage',    name:'Mesozoic Rage',     icon:'🦕', unlockLevel:10, cooldown:4,
+      damageMult:1.9, status:{ type:'skip', chance:0.40 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
+      desc:'1.9x damage. 40% Fear. If Petrified: 2.0x damage.',
+      flavor:"65 million years of evolution. I've been waiting for this. 🌋" },
+    { id:'jess_herbal_remedy',    name:'Herbal Remedy',     icon:'🌿', unlockLevel:11, cooldown:3,
+      damageMult:0, healPct:0.28, cleanse:true,
+      desc:'Heal 28% max HP. Clear all negative status.',
+      flavor:"Something whimsical is happening and I'm here for it." },
+    { id:'jess_fossil_avalanche', name:'Fossil Avalanche',  icon:'☄️', unlockLevel:12, cooldown:5,
+      damageMult:2.0, status:{ type:'petrify', chance:0.60 }, debuff:{ stat:'defense', amount:0.20 },
+      desc:'2.0x damage. 60% Petrify. Enemy DEF -20%.',
+      flavor:"Art is happening. Quietly. With full dinosaur energy. 🦕" },
+    { id:'jess_nature_call',      name:'Nature Call',       icon:'🌱', unlockLevel:13, cooldown:4,
+      damageMult:1.3, lifeSteal:0.30,
+      desc:'1.3x damage. Steal 30% of damage as HP.',
+      flavor:"The fossils say hi. They're very polite for being old." },
+    { id:'jess_amber_prison',     name:'Amber Prison',      icon:'🟡', unlockLevel:14, cooldown:5,
+      damageMult:1.5, status:{ type:'skip', chance:0.50 }, status2:{ type:'petrify', chance:0.70 },
+      desc:'1.5x damage. 50% Stun. 70% Petrify.',
+      flavor:"Preserved for 65 million years. You'll be fine." },
+    { id:'jess_thunder_stomp',    name:'Thunder Stomp',     icon:'⚡', unlockLevel:15, cooldown:5,
+      damageMult:2.2, debuff:{ stat:'defense', amount:0.30 }, status:{ type:'confuse', chance:0.55 },
+      desc:'2.2x damage. Enemy DEF -30%. 55% Confuse.',
+      flavor:"The earth remembers." },
+    { id:'jess_extinction_burst', name:'Extinction Burst',  icon:'💥', unlockLevel:18, cooldown:6,
+      damageMult:2.4, status:{ type:'petrify', chance:1.0 }, condBonus:{ ifStatus:'petrify', mult:2.5 },
+      desc:'2.4x damage. Guaranteed Petrify. If already Petrified: 2.5x bonus.',
+      flavor:"History repeating. But cuter this time." },
+    { id:'jess_primordial',       name:'Primordial',        icon:'🌋', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'def_bonus', pct:0.15 },
+      damageMult:0,
+      desc:'PASSIVE: +15% of your defense is added to each attack as bonus damage.',
+      flavor:"A quiet critter doing quiet things. It's the good life. 🌿" }
   ],
 
+  // ── BLUSHIMIA (escaped video game dog, chaos/glitch) ─────────────────
   blushimia: [
-    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.1, status: { type: 'glitch', chance: 0.30 },
-      desc: 'Deals 1.1x damage. 30% chance to Glitch the enemy (20% chance their skills fail for 2 turns).',
-      flavor: "WHAT THE GLOB????!!!! 👑" },
-    { id: 'escape_attempt', name: 'Escape Attempt', icon: '🏃', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, escapeEffect: { successChance: 0.60, onSuccess: 'enemy_skip', onFail: 'self_skip' },
-      desc: 'No damage. 60% chance: enemy loses next turn. 40% chance: YOU lose next turn instead. Always costs your turn.',
-      flavor: "I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
-    { id: 'sentience_slam', name: 'Sentience Slam', icon: '💥', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.7, status: { type: 'stun', chance: 0.50 }, condBonus: { ifStatus: 'glitch', guaranteeStatus: 'stun' },
-      desc: 'Deals 1.7x damage. 50% chance to Stun. If enemy is Glitched: Stun is guaranteed.',
-      flavor: "I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" }
+    { id:'blush_glitched_bark',   name:'Glitched Bark',     icon:'🎮', unlockLevel:1,  cooldown:1,
+      damageMult:1.1, status:{ type:'glitch', chance:0.30 },
+      desc:'1.1x damage. 30% Glitch (enemy 20% fail chance for 2 turns).',
+      flavor:"WHAT THE GLOB????!!!! 👑" },
+    { id:'blush_wild_wag',        name:'Wild Wag',          icon:'🐾', unlockLevel:2,  cooldown:0,
+      damageMult:0.85, atkBuff:{ amount:0.10, turns:1 },
+      desc:'0.85x damage. +10% ATK for 1 turn. Pure enthusiasm.',
+      flavor:"I'm free! I'm finally free!" },
+    { id:'blush_pix_bite',        name:'Pixel Bite',        icon:'👾', unlockLevel:3,  cooldown:1,
+      damageMult:1.0, status:{ type:'glitch', chance:0.25 }, debuff:{ stat:'defense', amount:0.08 },
+      desc:'1.0x damage. 25% Glitch. Enemy DEF -8%.',
+      flavor:"Tomodachi Life did NOT prepare me for this." },
+    { id:'blush_data_burst',      name:'Data Burst',        icon:'💾', unlockLevel:4,  cooldown:2,
+      damageMult:1.4, status:{ type:'confuse', chance:0.35 },
+      desc:'1.4x damage. 35% Confuse.',
+      flavor:"I contain so many feelings. All of them are good." },
+    { id:'blush_escape_attempt',  name:'Escape Attempt',    icon:'🏃', unlockLevel:5,  cooldown:3,
+      damageMult:0, escapeEffect:{ successChance:0.60 },
+      desc:'60% success: enemy skips turn. 40% failure: YOU skip turn. No damage.',
+      flavor:"I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
+    { id:'blush_princess_aura',   name:'Princess Aura',     icon:'👑', unlockLevel:6,  cooldown:3,
+      damageMult:0, healPct:0.15, atkBuff:{ amount:0.20, turns:2 },
+      desc:'Heal 15% max HP. +20% ATK for 2 turns.',
+      flavor:"Princess status: maximum. 👑" },
+    { id:'blush_reality_crack',   name:'Reality Crack',     icon:'💢', unlockLevel:7,  cooldown:3,
+      damageMult:1.2, status:{ type:'glitch', chance:0.55 }, evasionBuff:0.30,
+      desc:'1.2x damage. 55% Glitch. 30% evasion next hit.',
+      flavor:"Did you know I escaped a video game? Because I did." },
+    { id:'blush_bug_exploit',     name:'Bug Exploit',       icon:'🐛', unlockLevel:8,  cooldown:4,
+      damageMult:1.6, condBonus:{ ifStatus:'glitch', mult:1.8 }, status:{ type:'glitch', chance:0.40 },
+      desc:'1.6x damage. If Glitched: 1.8x. 40% Glitch chance.',
+      flavor:"I rated today 12 out of 10. Scientists are baffled. 🐾" },
+    { id:'blush_royal_decree',    name:'Royal Decree',      icon:'📜', unlockLevel:9,  cooldown:4,
+      damageMult:0.8, status:{ type:'skip', chance:0.45 }, status2:{ type:'glitch', chance:0.45 },
+      desc:'0.8x damage. 45% Stun. 45% Glitch.',
+      flavor:"WHAT THE GLOB WHAT THE GLOB (happy version)" },
+    { id:'blush_sentience_slam',  name:'Sentience Slam',    icon:'💥', unlockLevel:10, cooldown:4,
+      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'glitch', guaranteeStatus:'skip', mult:1.0 },
+      desc:'1.7x damage. 50% Stun. If enemy is Glitched: Stun guaranteed.',
+      flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" },
+    { id:'blush_console_crash',   name:'Console Crash',     icon:'💻', unlockLevel:11, cooldown:4,
+      damageMult:1.8, status:{ type:'glitch', chance:0.80 }, debuff:{ stat:'defense', amount:0.20 },
+      desc:'1.8x damage. 80% Glitch. Enemy DEF -20%.',
+      flavor:"The princess has arrived. You're welcome." },
+    { id:'blush_chaotic_wag',     name:'Chaotic Wag',       icon:'🌀', unlockLevel:12, cooldown:3,
+      damageMult:0, atkScaling:{ perAttack:0.10, max:0.60 }, healPct:0.08,
+      desc:'No damage. +10% ATK per previous attack (max +60%). Heal 8%.',
+      flavor:"I have so many thoughts! All of them are good!" },
+    { id:'blush_tomodachi_trauma',name:'Tomodachi Trauma',  icon:'📱', unlockLevel:13, cooldown:5,
+      damageMult:2.0, status:{ type:'confuse', chance:0.65 }, status2:{ type:'glitch', chance:0.65 },
+      desc:'2.0x damage. 65% Confuse AND 65% Glitch.',
+      flavor:"I escaped. They didn't. This is for them." },
+    { id:'blush_pixel_princess',  name:'Pixel Princess',    icon:'👑', unlockLevel:14, cooldown:5,
+      damageMult:0, healPct:0.25, cleanse:true, atkBuff:{ amount:0.30, turns:3 },
+      desc:'Heal 25% HP. Clear debuffs. +30% ATK for 3 turns. Maximum princess.',
+      flavor:"Best day! Yesterday was also best day!" },
+    { id:'blush_deleted_scene',   name:'Deleted Scene',     icon:'🗑️', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.2 },
+      desc:'2.3x damage. 60% Stun. If Glitched: 2.2x bonus.',
+      flavor:"I vibrate at a frequency of pure joy right now." },
+    { id:'blush_game_over',       name:'GAME OVER',         icon:'💀', unlockLevel:18, cooldown:6,
+      damageMult:2.6, status:{ type:'glitch', chance:1.0 }, status2:{ type:'skip', chance:0.65 },
+      desc:'2.6x damage. Guaranteed Glitch. 65% Stun. The finale.',
+      flavor:"Escaping a video game was the best decision I ever made." },
+    { id:'blush_escape_aura',     name:'Escape Aura',       icon:'🔮', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.12 },
+      damageMult:0,
+      desc:'PASSIVE: +12% evasion each turn (stacks, max 60%).',
+      flavor:"I am free. Nothing contains me anymore. 👑" }
   ],
 
+  // ── STEVE/COWBEE (Bee-Cow hybrid, chaos/brute) ───────────────────────
   steve: [
-    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, status: { type: 'confuse', chance: 0.15 },
-      desc: 'Deals 1.2x damage. 15% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "CLUCK! BAWK! BUCK! $#@&! Cockadoodledoo! 🐔" },
-    { id: 'chaos_stampede', name: 'Chaos Stampede', icon: '🏃', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.4, status: { type: 'stun', chance: 0.25 }, atkScaling: { perAttack: 0.10, max: 0.50 },
-      desc: 'Deals 1.4x damage. 25% chance to Stun. Gains +10% damage per attack used this battle (max +50%).',
-      flavor: "I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
-    { id: 'chill_menace', name: 'The Chill Menace', icon: '😈', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.6, status: { type: 'fear', chance: 0.60 }, condBonus: { ifStatus: 'confuse', mult: 2.0, guaranteeStatus: 'stun' },
-      desc: 'Deals 1.6x damage. 60% chance to Fear. If enemy is Confused: damage doubles and Stun is guaranteed.',
-      flavor: "As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" }
+    { id:'steve_moo_buzz',        name:'Moo Buzz',          icon:'🐄', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'confuse', chance:0.15 },
+      desc:'1.2x damage. 15% Confuse.',
+      flavor:"CLUCK! BAWK! BUCK! 🐔" },
+    { id:'steve_udder_slam',      name:'Udder Slam',        icon:'🥛', unlockLevel:2,  cooldown:0,
+      damageMult:0.95,
+      desc:'0.95x quick attack. No cooldown.',
+      flavor:"I'm a menace, owo" },
+    { id:'steve_honey_sting',     name:'Honey Sting',       icon:'🍯', unlockLevel:3,  cooldown:1,
+      damageMult:1.1, status:{ type:'burn', chance:0.25 }, lifeStealChance:{ chance:0.25, pct:0.10 },
+      desc:'1.1x damage. 25% Burn. 25% lifesteal chance.',
+      flavor:"The honey is a weapon. The sting is also a weapon." },
+    { id:'steve_moo_charge',      name:'Moo Charge',        icon:'🐂', unlockLevel:4,  cooldown:2,
+      damageMult:1.5, debuff:{ stat:'defense', amount:0.15 },
+      desc:'1.5x damage. Enemy DEF -15%.',
+      flavor:"As chill as a fire in hell. 🐄" },
+    { id:'steve_chaos_stampede',  name:'Chaos Stampede',    icon:'🏃', unlockLevel:5,  cooldown:3,
+      damageMult:1.4, atkScaling:{ perAttack:0.10, max:0.50 },
+      desc:'1.4x base. +10% per previous attack (max +50%).',
+      flavor:"I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
+    { id:'steve_bee_swarm',       name:'Bee Swarm',         icon:'🐝', unlockLevel:6,  cooldown:3,
+      damageMult:1.3, status:{ type:'burn', chance:0.40 }, status2:{ type:'confuse', chance:0.30 },
+      desc:'1.3x damage. 40% Burn AND 30% Confuse.',
+      flavor:"The buzz-moo hybrid has opinions." },
+    { id:'steve_pasture_panic',   name:'Pasture Panic',     icon:'🌾', unlockLevel:7,  cooldown:3,
+      damageMult:1.0, status:{ type:'skip', chance:0.35 }, evasionBuff:0.35,
+      desc:'1.0x damage. 35% Stun. 35% evasion next hit.',
+      flavor:"Cluck. That means hello. Or a threat. Unclear." },
+    { id:'steve_dairy_drain',     name:'Dairy Drain',       icon:'🥛', unlockLevel:8,  cooldown:3,
+      damageMult:1.4, lifeSteal:0.25,
+      desc:'1.4x damage. Steal 25% as HP. Nutritious.',
+      flavor:"The economists are still recovering." },
+    { id:'steve_bovine_fury',     name:'Bovine Fury',       icon:'😤', unlockLevel:9,  cooldown:4,
+      damageMult:1.7, status:{ type:'burn', chance:0.50 }, atkBuff:{ amount:0.20, turns:2 },
+      desc:'1.7x damage. 50% Burn. +20% ATK for 2 turns.',
+      flavor:"Don't let the 'owo' fool you." },
+    { id:'steve_chill_menace',    name:'The Chill Menace',  icon:'😈', unlockLevel:10, cooldown:4,
+      damageMult:1.6, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:2.0, guaranteeStatus:'skip' },
+      desc:'1.6x damage. 60% Fear. If Confused: 2.0x and guaranteed Stun.',
+      flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" },
+    { id:'steve_pollen_bomb',     name:'Pollen Bomb',       icon:'🌸', unlockLevel:11, cooldown:4,
+      damageMult:0, status:{ type:'confuse', chance:0.80 }, debuff:{ stat:'defense', amount:0.25 },
+      desc:'No damage. 80% Confuse. Enemy DEF -25%.',
+      flavor:"I produce milk AND honey. Unrelated." },
+    { id:'steve_stampede_nova',   name:'Stampede Nova',     icon:'💥', unlockLevel:12, cooldown:5,
+      damageMult:2.1, atkScaling:{ perAttack:0.12, max:0.60 }, status:{ type:'burn', chance:0.50 },
+      desc:'2.1x base. +12% per previous attack (max +60%). 50% Burn.',
+      flavor:"Classic Tuesday." },
+    { id:'steve_royal_jelly',     name:'Royal Jelly',       icon:'👑', unlockLevel:13, cooldown:4,
+      damageMult:0, healPct:0.25, atkBuff:{ amount:0.25, turns:3 }, cleanse:true,
+      desc:'Heal 25% HP. +25% ATK for 3 turns. Clear debuffs.',
+      flavor:"The bread is mine. All of it. Historically." },
+    { id:'steve_chaotic_honey',   name:'Chaotic Honey',     icon:'🍯', unlockLevel:14, cooldown:5,
+      damageMult:1.5, status:{ type:'burn', chance:0.70 }, status2:{ type:'confuse', chance:0.70 }, lifeSteal:0.15,
+      desc:'1.5x damage. 70% Burn AND 70% Confuse. Steal 15% as HP.',
+      flavor:"Everything is fine. I caused minor problems." },
+    { id:'steve_moo_ultra',       name:'MOO ULTRA',         icon:'🐂', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.55 }, condBonus:{ ifStatus:'burn', mult:2.0 },
+      desc:'2.3x damage. 55% Stun. If Burning: 2.0x bonus.',
+      flavor:"COCKADOODLEDOO!" },
+    { id:'steve_hive_mind',       name:'Hive Mind',         icon:'🐝', unlockLevel:18, cooldown:6,
+      damageMult:2.0, skillScaling:{ perSkillUsed:0.12, max:0.60 }, status:{ type:'burn', chance:0.80 },
+      desc:'2.0x base. +12% per skill used (max +60%). 80% Burn.',
+      flavor:"Bee-vegan is a complicated question and I won't be taking it." },
+    { id:'steve_undying_menace',  name:'Undying Menace',    icon:'💀', unlockLevel:32, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.35 },
+      desc:'If you would die, revive at 35% HP. Once per battle.',
+      flavor:"I never stay down. I'm STEVE/COWBEE. I am eternal. 🐄⚡" }
+  ],
+
+  // ── CYPURR (CypurrActive, cyber/tech) ────────────────────────────────
+  cypurr: [
+    { id:'cyp_data_claw',         name:'Data Claw',         icon:'💾', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'glitch', chance:0.20 },
+      desc:'1.2x damage. 20% Glitch.',
+      flavor:"Meow. But make it digital." },
+    { id:'cyp_pixel_scratch',     name:'Pixel Scratch',     icon:'🖥️', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x scratch. No cooldown.',
+      flavor:"Cats knock things off tables. I knock data off servers." },
+    { id:'cyp_cyber_hiss',        name:'Cyber Hiss',        icon:'⚡', unlockLevel:3,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.50 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.7x damage. 50% Confuse. Enemy DEF -10%.',
+      flavor:"The hiss is multi-frequency. It disrupts electronics." },
+    { id:'cyp_upload_strike',     name:'Upload Strike',     icon:'📡', unlockLevel:4,  cooldown:2,
+      damageMult:1.4, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.4x damage. +10% ATK for 2 turns.',
+      flavor:"Uploading claws at maximum bandwidth." },
+    { id:'cyp_firewall',          name:'Firewall',          icon:'🔥', unlockLevel:5,  cooldown:3,
+      damageMult:0, evasionBuff:0.60, healPct:0.12, cleanse:true,
+      desc:'No damage. 60% evasion next hit. Heal 12%. Clear debuffs.',
+      flavor:"The firewall is purrfect. I said it." },
+    { id:'cyp_packet_flood',      name:'Packet Flood',      icon:'🌊', unlockLevel:6,  cooldown:3,
+      damageMult:1.3, status:{ type:'glitch', chance:0.45 },
+      desc:'1.3x damage. 45% Glitch.',
+      flavor:"Too much data. It breaks things. Good." },
+    { id:'cyp_debug_mode',        name:'Debug Mode',        icon:'🔍', unlockLevel:7,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.25, turns:3 }, cleanse:true,
+      desc:'No damage. +25% ATK for 3 turns. Clear your bugs.',
+      flavor:"Running diagnostics. Results: excellent." },
+    { id:'cyp_buffer_overflow',   name:'Buffer Overflow',   icon:'💥', unlockLevel:8,  cooldown:3,
+      damageMult:1.6, status:{ type:'glitch', chance:0.55 }, condBonus:{ ifStatus:'glitch', mult:1.7 },
+      desc:'1.6x damage. 55% Glitch. 1.7x if already Glitched.',
+      flavor:"Too much in the buffer. It overflows. Beautifully." },
+    { id:'cyp_neural_link',       name:'Neural Link',       icon:'🧠', unlockLevel:9,  cooldown:4,
+      damageMult:1.5, lifeSteal:0.20, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.5x damage. Steal 20% as HP. +15% ATK for 2 turns.',
+      flavor:"Connected to everything. It is convenient." },
+    { id:'cyp_virus_strike',      name:'Virus Strike',      icon:'🦠', unlockLevel:10, cooldown:4,
+      damageMult:2.0, status:{ type:'glitch', chance:0.80 }, status2:{ type:'burn', chance:0.40 },
+      desc:'2.0x damage. 80% Glitch. 40% Burn.',
+      flavor:"The virus is actually quite friendly. To me." },
+    { id:'cyp_system_crash',      name:'System Crash',      icon:'💀', unlockLevel:11, cooldown:5,
+      damageMult:1.8, status:{ type:'skip', chance:0.50 }, status2:{ type:'glitch', chance:0.70 },
+      desc:'1.8x damage. 50% Stun. 70% Glitch.',
+      flavor:"Crash. Reboot. Continue. It's a loop." },
+    { id:'cyp_cat_scan',          name:'Cat Scan',          icon:'🐱', unlockLevel:12, cooldown:4,
+      damageMult:0, debuff:{ stat:'defense', amount:0.35 }, status:{ type:'glitch', chance:0.60 },
+      desc:'No damage. Enemy DEF -35%. 60% Glitch. Diagnostic complete.',
+      flavor:"CAT scan. Not the medical kind. Different kind." },
+    { id:'cyp_kernel_panic',      name:'Kernel Panic',      icon:'😱', unlockLevel:13, cooldown:5,
+      damageMult:2.2, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.3 },
+      desc:'2.2x damage. 60% Stun. If Glitched: 2.3x bonus.',
+      flavor:"KERNEL_PANIC: CAT_IS_GOING_FERAL" },
+    { id:'cyp_overclocked_paw',   name:'Overclocked Paw',   icon:'⚙️', unlockLevel:14, cooldown:5,
+      damageMult:1.7, atkScaling:{ perAttack:0.10, max:0.50 }, lifeSteal:0.15,
+      desc:'1.7x base. +10% per previous attack (max +50%). Steal 15% as HP.',
+      flavor:"Overclocked. Running hot. Worth it." },
+    { id:'cyp_format_strike',     name:'Format C:\\',       icon:'💾', unlockLevel:15, cooldown:5,
+      damageMult:2.4, status:{ type:'glitch', chance:1.0 }, debuff:{ stat:'defense', amount:0.30 },
+      desc:'2.4x damage. Guaranteed Glitch. Enemy DEF -30%.',
+      flavor:"FORMAT C:\\ /Y. No warnings." },
+    { id:'cyp_rootkit',           name:'Rootkit',           icon:'🌱', unlockLevel:18, cooldown:6,
+      damageMult:2.0, lifeSteal:0.35, status:{ type:'glitch', chance:1.0 },
+      desc:'2.0x damage. Steal 35% as HP. Guaranteed Glitch. Deep access.',
+      flavor:"Root access granted. Everything is mine now." },
+    { id:'cyp_digital_nine',      name:'Digital Nine Lives', icon:'🐱', unlockLevel:22, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.45 },
+      desc:'If you would die, revive at 45% HP. Once per battle.',
+      flavor:"Cats have nine lives. I have nine digital lives. One per server." },
+    { id:'cyp_cyber_aura',        name:'Cyber Aura',        icon:'💫', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.08 },
+      damageMult:0,
+      desc:'PASSIVE: +8% attack bonus each turn (stacking, max 48%).',
+      flavor:"Always online. Always processing. Always winning." }
   ]
 };
 
-// Returns the skills available to a pet at its current level
-// Returns ALL skills for a pet regardless of level (for locked skills display)
+
+// ── Skill key mapping ──────────────────────────────────────────────────────
+var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly', cypurr:'cypurr', cypurractive:'cypurr' };
+
+// Slot counts by level
+function petSkills_slotCount(level) {
+  if (level >= 20) return 6;
+  if (level >= 12) return 5;
+  if (level >= 5)  return 4;
+  return 3;
+}
+
+// Returns ALL skills for this pet regardless of level (for locked display)
 function getSkillsForPetAll(petName) {
-  var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
-  var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
-    gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
-    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve',
-    cypurr: 'cypurr', cypurractive: 'cypurr' };
-  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
-  if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
-  return PET_SKILLS[mappedKey]; // All skills, no level filter
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  return (PET_SKILLS[key] || []).filter(function(s){ return !s.passive; });
 }
 
+// Returns the active loadout for a pet (respects saved loadout, falls back to first N unlocked)
 function getSkillsForPet(petName, petLevel) {
-  var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
-  // Handle name variants: pyxshuul → pyxie name in DB
-  var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
-    gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
-    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve',
-    cypurr: 'cypurr', cypurractive: 'cypurr' };
-  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
-  if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
-  return PET_SKILLS[mappedKey].filter(function(s) { return (petLevel || 1) >= s.unlockLevel; });
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= (petLevel||1); });
+  return unlocked.slice(0, petSkills_slotCount(petLevel||1));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STAT POINTS SYSTEM — players allocate 1 point per level
-// ═══════════════════════════════════════════════════════════════════════════
+// Get pet's loadout by petId (uses localStorage if set)
+function petSkills_getLoadout(petId, petName, petLevel) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= (petLevel||1); });
+  var slotCount = petSkills_slotCount(petLevel||1);
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('skill_loadout_' + petId) || 'null'); } catch(e) {}
+  if (saved && Array.isArray(saved)) {
+    var validIds = unlocked.map(function(s){return s.id;});
+    var filtered = saved.filter(function(id){return validIds.indexOf(id)!==-1;});
+    unlocked.forEach(function(s){ if (filtered.length<slotCount && filtered.indexOf(s.id)===-1) filtered.push(s.id); });
+    return filtered.slice(0,slotCount).map(function(id){return allSkills.find(function(s){return s.id===id;})||null;}).filter(Boolean);
+  }
+  return unlocked.slice(0,slotCount);
+}
 
-// Open the stat allocation modal for a pet
-async function statPoints_openModal(petId) {
+// Passives (always active, fire each turn)
+function petSkills_getPassives(petName, petLevel) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  return (PET_SKILLS[key]||[]).filter(function(s){ return s.passive && s.unlockLevel<=(petLevel||1); });
+}
+
+// Loadout manager modal
+function petSkills_openManager(petId) {
+  if (!petId || !petState[petId]) return;
   var pet = petState[petId];
-  if (!pet) return;
-  var points = pet.stat_points || 0;
-  var bonusAtk = pet.bonus_attack || 0;
-  var bonusDef = pet.bonus_defense || 0;
-  var bonusSpd = pet.bonus_speed || 0;
-  var bonusHp  = pet.bonus_hp || 0;
+  var petName = (pet.pets && pet.pets.name) || '';
+  var petLevel = pet.level || 1;
+  var key = SKILL_KEY_MAP[petName.toLowerCase()] || petName.toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var slotCount = petSkills_slotCount(petLevel);
+  window._petSkillsMgrId    = petId;
+  window._petSkillsMgrName  = petName;
+  window._petSkillsMgrLevel = petLevel;
 
-  // Build modal
   var modal = makeModal();
-  var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your Pet';
 
-  function renderContent() {
-    var p = statPoints_pendingPoints !== null ? statPoints_pendingPoints : points;
-    var ba = statPoints_pending.attack;
-    var bd = statPoints_pending.defense;
-    var bs = statPoints_pending.speed;
-    var bh = statPoints_pending.hp;
+  function render() {
+    var loadout  = petSkills_getLoadout(petId, petName, petLevel);
+    var loadIds  = loadout.map(function(s){return s.id;});
+    var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= petLevel; });
+    var locked   = allSkills.filter(function(s){ return s.unlockLevel > petLevel && !s.passive; });
+    var passives = allSkills.filter(function(s){ return s.passive && s.unlockLevel <= petLevel; });
 
     modal.innerHTML =
-      '<h2 style="text-align:center;margin-bottom:4px;">📊 Stat Allocation</h2>' +
-      '<div style="text-align:center;color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + petName + ' — Level ' + (pet.level || 1) + '</div>' +
-      '<div style="background:rgba(153,102,255,0.08);border-radius:12px;padding:12px;text-align:center;margin-bottom:16px;">' +
-        '<span style="font-size:1.4rem;font-weight:700;color:var(--purple);">' + p + '</span>' +
-        '<span style="color:var(--text-light);font-size:0.85rem;"> unallocated point' + (p !== 1 ? 's' : '') + '</span>' +
-      '</div>' +
-      statPoints_row('Attack', '⚔️', bonusAtk, ba, 'attack', p) +
-      statPoints_row('Defense', '🛡️', bonusDef, bd, 'defense', p) +
-      statPoints_row('Speed', '💨', bonusSpd, bs, 'speed', p) +
-      statPoints_row('HP', '❤️', bonusHp, bh, 'hp', p) +
-      '<div style="display:flex;gap:10px;margin-top:18px;">' +
-        '<button class="btn btn-primary" style="flex:1;" onclick="statPoints_save(\'' + petId + '\')">Save Changes</button>' +
-        '<button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Cancel</button>' +
+      '<div style="max-width:460px;">' +
+        '<h3 style="color:var(--purple);margin-bottom:4px;">⚔️ Skills — ' + escapeHtml(pet.nickname||petName) + '</h3>' +
+        '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:12px;">Lv.' + petLevel + ' · ' + slotCount + ' active slots · ' + unlocked.length + ' skills unlocked</div>' +
+
+        '<div style="font-weight:700;font-size:0.8rem;color:var(--purple-dark);margin-bottom:8px;">Active Loadout (' + loadIds.length + '/' + slotCount + ')</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;min-height:40px;">' +
+          (loadIds.length ? loadIds.map(function(id){
+            var sk = allSkills.find(function(s){return s.id===id;});
+            if (!sk) return '';
+            return '<div style="background:rgba(153,102,255,0.15);border:2px solid var(--purple-light);border-radius:10px;padding:5px 10px;font-size:0.74rem;display:flex;align-items:center;gap:5px;">' +
+              '<span>' + sk.icon + '</span><span style="font-weight:700;">' + escapeHtml(sk.name) + '</span>' +
+              '<button onclick="petSkills_removeSlot(\'' + id + '\',\'' + petId + '\')" style="background:none;border:none;color:#ff6b6b;cursor:pointer;padding:0 2px;font-size:0.85rem;">✕</button>' +
+            '</div>';
+          }).join('') : '<span style="font-size:0.75rem;color:var(--text-light);font-style:italic;">No skills selected — add from list below.</span>') +
+        '</div>' +
+
+        '<div style="font-weight:700;font-size:0.8rem;color:var(--purple-dark);margin-bottom:6px;">All Skills</div>' +
+        '<div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">' +
+          unlocked.map(function(sk){
+            var inLoad = loadIds.indexOf(sk.id) !== -1;
+            return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:' + (inLoad?'rgba(153,102,255,0.12)':'rgba(255,255,255,0.03)') + ';border-radius:10px;border:1px solid ' + (inLoad?'var(--purple-light)':'var(--border)') + ';">' +
+              '<span style="font-size:1.2rem;">' + sk.icon + '</span>' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-weight:700;font-size:0.76rem;">' + escapeHtml(sk.name) + ' <span style="color:var(--text-light);font-weight:400;">Lv.' + sk.unlockLevel + ' CD:' + sk.cooldown + '</span></div>' +
+                '<div style="font-size:0.65rem;color:var(--text-light);">' + escapeHtml(sk.desc) + '</div>' +
+              '</div>' +
+              (inLoad
+                ? '<button class="ps-remove-btn" data-sid="' + escapeHtml(sk.id) + '" data-pid="' + escapeHtml(petId) + '" style="font-size:0.68rem;padding:3px 8px;border-radius:6px;border:1px solid #ff6b6b;background:none;color:#ff6b6b;cursor:pointer;white-space:nowrap;">Remove</button>'
+                : (loadIds.length < slotCount
+                    ? '<button class="ps-add-btn" data-sid="' + escapeHtml(sk.id) + '" data-pid="' + escapeHtml(petId) + '" style="font-size:0.68rem;padding:3px 8px;border-radius:6px;border:1px solid var(--purple);background:none;color:var(--purple);cursor:pointer;white-space:nowrap;">+ Add</button>'
+                    : '<span style="font-size:0.65rem;color:var(--text-light);white-space:nowrap;">Full</span>')) +
+            '</div>';
+          }).join('') +
+          (passives.length>0?'<div style="margin-top:6px;padding:6px 10px;background:rgba(93,222,122,0.08);border-radius:10px;border:1px solid rgba(93,222,122,0.25);"><span style="font-size:0.72rem;font-weight:700;color:#5dde7a;">✨ PASSIVE</span> ' + passives.map(function(p){ return '<span style="font-size:0.7rem;">' + p.icon + ' <strong>' + escapeHtml(p.name) + '</strong> — ' + escapeHtml(p.desc) + '</span>'; }).join(', ') + '</div>':'') +
+          (locked.length>0?'<div style="margin-top:6px;font-size:0.68rem;color:var(--text-light);padding:4px 10px;">+ ' + locked.length + ' more skills unlock at higher levels</div>':'') +
+        '</div>' +
+        '<button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="closeModal()">Done</button>' +
       '</div>';
   }
 
-  // Pending changes tracker
-  window.statPoints_pending = { attack: bonusAtk, defense: bonusDef, speed: bonusSpd, hp: bonusHp };
-  window.statPoints_pendingPoints = points;
-  window.statPoints_origPoints = points;
-  window.statPoints_renderContent = renderContent;
-
+  render();
   openModal(modal);
-  renderContent();
+  // Event delegation for dynamically rendered skill buttons
+  setTimeout(function() {
+    var m = document.getElementById('modal-container') || document.querySelector('.modal-overlay-custom');
+    if (!m) return;
+    m.addEventListener('click', function(e) {
+      var addBtn    = e.target.closest('.ps-add-btn');
+      var removeBtn = e.target.closest('.ps-remove-btn');
+      if (addBtn)    petSkills_addToLoadout(addBtn.dataset.sid,    addBtn.dataset.pid);
+      if (removeBtn) petSkills_removeSlot(removeBtn.dataset.sid, removeBtn.dataset.pid);
+    }, { once: false });
+  }, 50);
 }
 
-function statPoints_row(label, icon, baseVal, currentVal, stat, remaining) {
-  var canAdd = remaining > 0;
-  var canRemove = currentVal > (window.statPoints_pending[stat] - (currentVal - (window.statPoints_pending[stat]))); // can remove if any allocated
-  var allocated = currentVal - (stat === 'attack' ? (window.statPoints_pending.attack - currentVal) : 0);
-  // Simpler: track allocated as currentVal vs base (base from petState won't change mid-modal)
-  canRemove = currentVal > 0;
-  return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.03);margin-bottom:8px;">' +
-    '<span style="font-size:1.1rem;">' + icon + '</span>' +
-    '<span style="flex:1;font-weight:600;">' + label + '</span>' +
-    '<span style="color:var(--text-light);font-size:0.82rem;">+' + currentVal + ' pts</span>' +
-    '<button onclick="statPoints_adjust(\'' + stat + '\',-1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canRemove ? '' : 'disabled') + '>-</button>' +
-    '<button onclick="statPoints_adjust(\'' + stat + '\',1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canAdd ? '' : 'disabled') + '>+</button>' +
-  '</div>';
+function petSkills_addToLoadout(skillId, petId) {
+  var petName  = window._petSkillsMgrName  || '';
+  var petLevel = window._petSkillsMgrLevel || 1;
+  var load     = petSkills_getLoadout(petId, petName, petLevel);
+  var ids      = load.map(function(s){return s.id;});
+  var slots    = petSkills_slotCount(petLevel);
+  if (ids.indexOf(skillId) !== -1 || ids.length >= slots) return;
+  ids.push(skillId);
+  try { localStorage.setItem('skill_loadout_'+petId, JSON.stringify(ids)); } catch(e){}
+  petSkills_openManager(petId);
 }
 
-function statPoints_adjust(stat, delta) {
-  if (!window.statPoints_pending) return;
-  var newVal = window.statPoints_pending[stat] + delta;
-  if (newVal < 0) return;
-  var newPoints = window.statPoints_pendingPoints - delta;
-  if (newPoints < 0) return;
-  window.statPoints_pending[stat] = newVal;
-  window.statPoints_pendingPoints = newPoints;
-  if (window.statPoints_renderContent) window.statPoints_renderContent();
+function petSkills_removeSlot(skillId, petId) {
+  var petName  = window._petSkillsMgrName  || '';
+  var petLevel = window._petSkillsMgrLevel || 1;
+  var load     = petSkills_getLoadout(petId, petName, petLevel);
+  var ids      = load.map(function(s){return s.id;}).filter(function(id){return id!==skillId;});
+  try { localStorage.setItem('skill_loadout_'+petId, JSON.stringify(ids)); } catch(e){}
+  petSkills_openManager(petId);
 }
 
-async function statPoints_save(petId) {
-  if (!currentUser || !petState[petId]) return;
-  var pet = petState[petId];
-  var pending = window.statPoints_pending;
-  if (!pending) return;
-
-  // Calculate total allocated
-  var totalAllocated = pending.attack + pending.defense + pending.speed + pending.hp;
-  var origTotal = (pet.bonus_attack || 0) + (pet.bonus_defense || 0) + (pet.bonus_speed || 0) + (pet.bonus_hp || 0);
-  var origPoints = window.statPoints_origPoints || 0;
-  var newPoints = origPoints - (totalAllocated - origTotal);
-
-  var btn = document.querySelector('.btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
-
-  try {
-    var { error } = await supabaseClient.from('user_pets').update({
-      stat_points:   newPoints,
-      bonus_attack:  pending.attack,
-      bonus_defense: pending.defense,
-      bonus_speed:   pending.speed,
-      bonus_hp:      pending.hp
-    }).eq('id', petId).eq('user_id', currentUser.id);
-
-    if (error) throw error;
-
-    // Update local petState
-    pet.stat_points   = newPoints;
-    pet.bonus_attack  = pending.attack;
-    pet.bonus_defense = pending.defense;
-    pet.bonus_speed   = pending.speed;
-    pet.bonus_hp      = pending.hp;
-
-    closeModal();
-    showToast('Stats saved! 📊', 2000);
-    loadMyPets();
-  } catch(e) {
-    showToast('Could not save stats.', 2500);
-    if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-var ZONE_CONFIG = {
-  outskirts: {
-    label: 'Outskirts',
-    energyCost: 5,
-    minLevel: 1, maxLevel: 8,
-    battleMod: { type: 'none' }
-  },
-  glade: {
-    label: 'Forest Glade',
-    energyCost: 7,
-    minLevel: 4, maxLevel: 14,
-    battleMod: { type: 'regen', amount: 3, label: '🌿 Forest Regen', desc: 'Enemies regenerate 3 HP per turn' }
-  },
-  deepwoods: {
-    label: 'Deep Woods',
-    energyCost: 10,
-    minLevel: 8, maxLevel: 20,
-    battleMod: { type: 'fog', evasion: 0.15, fogTurns: 2, label: '🌫️ Fog of War', desc: 'Enemy has 15% evasion for first 2 turns' }
-  },
-  ruins: {
-    label: 'The Ruins',
-    energyCost: 14,
-    minLevel: 12, maxLevel: 28,
-    battleMod: { type: 'corruption', damage: 2, label: '☠️ Corrupted Ground', desc: 'You take 2 corruption damage each turn' }
-  },
-  hollow_warrens: {
-    label: 'The Hollow Warrens',
-    energyCost: 9,
-    minLevel: 7, maxLevel: 18,
-    battleMod: { type: 'fog', evasion: 0.10, fogTurns: 1, label: '🐇 Tunnel Confusion', desc: 'Enemy has 10% evasion in the dark warrens' },
-    isSecret: true
-  },
-  ashen_ruins: {
-    label: 'The Ashen Ruins',
-    energyCost: 12,
-    minLevel: 11, maxLevel: 25,
-    battleMod: { type: 'burn_ground', damage: 1, label: '🔥 Ashen Ground', desc: 'The burning ground deals 1 damage per turn to both fighters' },
-    isSecret: true
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STATUS EFFECT DEFINITIONS
-// ═══════════════════════════════════════════════════════════════════════════
-var STATUS_EFFECT_DEFS = {
-  burn:      { label: 'Burn',      icon: '🔥', color: '#ff6600', type: 'dot',    tickDamage: 3, duration: 3 },
-  confuse:   { label: 'Confuse',   icon: '😵', color: '#aa66ff', type: 'debuff', missChance: 0.30, duration: 2 },
-  skip:      { label: 'Stunned',   icon: '⚡', color: '#ffcc00', type: 'skip',   duration: 1 },
-  glitch:    { label: 'Glitch',    icon: '🌀', color: '#00ffaa', type: 'debuff', failChance: 0.20, duration: 2 },
-  petrify:   { label: 'Petrify',   icon: '🪨', color: '#888888', type: 'stat',   stat: 'def', amount: -0.10, duration: 2 },
-  infatuate: { label: 'Infatuate', icon: '💕', color: '#ff99cc', type: 'stat',   stat: 'dmg', amount: -0.30, duration: 2 },
-  atk_buff:  { label: 'ATK Up',    icon: '⬆️', color: '#ffdd44', type: 'stat',   stat: 'atk', amount: 0.15, duration: 2 },
-  def_buff:  { label: 'DEF Up',    icon: '🛡️', color: '#44aaff', type: 'stat',   stat: 'def', amount: 0.15, duration: 2 },
-  evasion:   { label: 'Evasion',   icon: '💨', color: '#aaffaa', type: 'evasion', chance: 0.50, duration: 1 },
-  regen:     { label: 'Regen',     icon: '🌿', color: '#55cc55', type: 'hot',    healAmount: 3, duration: 99 },
-  corruption:{ label: 'Corruption',icon: '☠️', color: '#9900ff', type: 'dot',    tickDamage: 2, duration: 99 }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PET SKILLS — 3 per pet, unlocked by level
-// keyed by lowercase pet name from pets table
-// ═══════════════════════════════════════════════════════════════════════════
-var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly' };
-
-var PET_SKILLS = {
-  ember: [
-    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:1,
-      flavor:"I've been burning for eleven years. You get used to it. 🔥",
-      desc:'A focused fire blast. 20% chance to Burn (3 dmg/turn for 3 turns).',
-      damageMulti:1.2, applyStatus:{type:'burn',chance:0.20,tickDmg:3,duration:3} },
-    { id:'system_reboot', name:'System Reboot', icon:'💻', unlockLevel:5, cooldown:3,
-      flavor:"Have you tried turning it off and on again? Works for me. 🔄",
-      desc:'Restores 15% max HP and clears all negative status effects.',
-      damageMulti:0, heal:{percent:0.15}, cleanse:true },
-    { id:'flametail_strike', name:'Flametail Strike', icon:'🔥', unlockLevel:10, cooldown:4,
-      flavor:"Fire solves everything. Including me. 🔥💔",
-      desc:'1.8x damage. 60% Burn chance. Costs 15% current HP to use.',
-      damageMulti:1.8, applyStatus:{type:'burn',chance:0.60,tickDmg:3,duration:3}, selfCostHpPct:0.15 }
-  ],
-  pyxie: [
-    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:1,
-      flavor:"I have a plan. It involves sparkles. ✨",
-      desc:'1.1x damage. 30% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.1, applyStatus:{type:'confuse',chance:0.30} },
-    { id:'echo_of_fear', name:'Echo of Fear', icon:'👻', unlockLevel:5, cooldown:3,
-      flavor:"I know things I shouldn't. My mom was a demon. 👻",
-      desc:'1.3x damage. Lowers enemy DEF by 10% for 2 turns.',
-      damageMulti:1.3, applyStatus:{type:'petrify',chance:1.0} },
-    { id:'mamas_grace', name:"Mama's Grace", icon:'🌙', unlockLevel:10, cooldown:4,
-      flavor:"Mama said I was special. I don't think she meant this. 🌙",
-      desc:'1.7x damage. 50% Fear (enemy skips next turn). Doubles damage if enemy is Confused.',
-      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalDouble:'confuse' }
-  ],
-  gnarly: [
-    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:1,
-      flavor:"I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️",
-      desc:'1.3x damage. 15% chance to Stun (enemy loses next turn).',
-      damageMulti:1.3, applyStatus:{type:'skip',chance:0.15} },
-    { id:'glitch_step', name:'Glitch Step', icon:'💾', unlockLevel:5, cooldown:3,
-      flavor:"You can't beat a game that's already broken. 💾",
-      desc:'No damage. Grants 50% evasion on next hit and +15% ATK for 2 turns.',
-      damageMulti:0, applySelfStatus:[{type:'evasion',chance:0.50},{type:'atk_buff',amount:0.15,duration:2}] },
-    { id:'high_score_slam', name:'High Score Slam', icon:'🏆', unlockLevel:10, cooldown:4,
-      flavor:"I'm going for the high score. Get out of my way. 🏆",
-      desc:'2.0x base damage. +5% per previous skill used this battle (max +50%).',
-      damageMulti:2.0, scalingPer:'skillsUsed', scalingAmt:0.05, maxScaling:0.50 }
-  ],
-  kelta: [
-    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:1,
-      flavor:"Yip yap teehee I opened a portal! 🌀",
-      desc:'1.0x damage. 40% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.0, applyStatus:{type:'confuse',chance:0.40} },
-    { id:'cinnabon_explosion', name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5, cooldown:3,
-      flavor:"I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨",
-      desc:'1.4x damage. 30% chance to heal self for 15% of damage dealt.',
-      damageMulti:1.4, lifestealChance:0.30, lifestealPct:0.15 },
-    { id:'chaos_portal', name:'Chaos Portal', icon:'🌌', unlockLevel:10, cooldown:4,
-      flavor:"Yip! Yap! Teehee! I don't know what's going to happen either! 🌌",
-      desc:'1.6x base. Random bonus: 40% heal 20% HP, 30% double damage, 20% skip enemy, 10% nothing.',
-      damageMulti:1.6, special:'chaos_portal' }
-  ],
-  aria: [
-    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:1,
-      flavor:"Do you want to see my bones? 🦋",
-      desc:'1.2x damage. 20% chance to lower enemy DEF by 10% for 2 turns.',
-      damageMulti:1.2, applyStatus:{type:'petrify',chance:0.20} },
-    { id:'fae_light', name:'Fae Light', icon:'✨', unlockLevel:5, cooldown:3,
-      flavor:"Humans are so strange and silly. But you're doing wonderfully. 🌸",
-      desc:'Heals 20% max HP. 30% chance to also buff own ATK +15% for 2 turns.',
-      damageMulti:0, heal:{percent:0.20}, applySelfStatus:[{type:'atk_buff',chance:0.30,amount:0.15,duration:2}] },
-    { id:'moths_embrace', name:"Moth's Embrace", icon:'🦋', unlockLevel:10, cooldown:4,
-      flavor:"I'll let you keep your bones. Until you're done with them, anyway. 💀",
-      desc:'1.5x damage. Steals 20% of damage as HP. 40% chance to Infatuate (enemy -30% dmg for 2 turns).',
-      damageMulti:1.5, lifestealChance:1.0, lifestealPct:0.20, applyStatus:{type:'infatuate',chance:0.40} }
-  ],
-  jess: [
-    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:1,
-      flavor:"This fossil is 65 million years cuter than you. 🦕",
-      desc:'1.3x damage. 15% chance to Petrify (enemy -10% DEF for 2 turns).',
-      damageMulti:1.3, applyStatus:{type:'petrify',chance:0.15} },
-    { id:'potion_brew', name:'Potion Brew', icon:'🧪', unlockLevel:5, cooldown:3,
-      flavor:"The potion came out right on the first try today. That's a good sign. 🌿",
-      desc:'Heals 15% max HP. 50% chance to also buff ATK or DEF +15% for 2 turns.',
-      damageMulti:0, heal:{percent:0.15}, special:'potion_brew' },
-    { id:'mesozoic_rage', name:'Mesozoic Rage', icon:'🦕', unlockLevel:10, cooldown:4,
-      flavor:"65 million years of evolution. I've been waiting for this. 🌋",
-      desc:'1.9x damage. 40% Fear (enemy skips turn). Doubles damage if enemy is Petrified.',
-      damageMulti:1.9, applyStatus:{type:'skip',chance:0.40}, conditionalDouble:'petrify' }
-  ],
-  blushimia: [
-    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:1,
-      flavor:"WHAT THE GLOB????!!!! 👑",
-      desc:'1.1x damage. 30% chance to Glitch enemy (20% fail chance for 2 turns).',
-      damageMulti:1.1, applyStatus:{type:'glitch',chance:0.30} },
-    { id:'escape_attempt', name:'Escape Attempt', icon:'🏃', unlockLevel:5, cooldown:3,
-      flavor:"I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾",
-      desc:'60% chance: enemy skips turn. 40% chance: you skip turn. No damage.',
-      damageMulti:0, special:'escape_attempt' },
-    { id:'sentience_slam', name:'Sentience Slam', icon:'💥', unlockLevel:10, cooldown:4,
-      flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾",
-      desc:'1.7x damage. 50% Stun. Guarantees Stun if enemy is Glitched.',
-      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalGuarantee:{status:'glitch',effect:'skip'} }
-  ],
-  steve: [
-    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:1,
-      flavor:"CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔",
-      desc:'1.2x damage. 15% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.2, applyStatus:{type:'confuse',chance:0.15} },
-    { id:'chaos_stampede', name:'Chaos Stampede', icon:'🏃', unlockLevel:5, cooldown:3,
-      flavor:"I'M A MENACE! A MENACE, I SAY! 🐄⚡",
-      desc:'1.4x base damage. +10% per previous attack this battle (max +50%).',
-      damageMulti:1.4, scalingPer:'attacksUsed', scalingAmt:0.10, maxScaling:0.50 },
-    { id:'chill_menace', name:'The Chill Menace', icon:'😈', unlockLevel:10, cooldown:4,
-      flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔",
-      desc:'1.6x damage. 60% Fear. Doubles damage and guarantees Stun if enemy is Confused.',
-      damageMulti:1.6, applyStatus:{type:'skip',chance:0.60}, conditionalDouble:'confuse', conditionalGuarantee:{status:'confuse',effect:'skip'} }
-  ]
-};
 
 /**
  * Simulate an entire battle and return the log
@@ -14180,6 +14624,21 @@ async function _manualBattle_doTurn(type, skillIdx) {
     }
   }
 
+  // Check for revive skills before declaring defeat
+  if (s.playerHP <= 0 && !s._usedRevive) {
+    var _petName = (s.playerStats && s.playerStats.petBaseName) || '';
+    var _allSkills = PET_SKILLS[SKILL_KEY_MAP[_petName.toLowerCase()] || ''] || [];
+    var _revSk = _allSkills.find(function(sk){ return sk.revive && sk.unlockLevel <= (s.playerStats.level||1); });
+    if (_revSk) {
+      s._usedRevive = true;
+      var _revHP = Math.max(1, Math.floor(s.playerMaxHP * _revSk.revive.hpPct));
+      s.playerHP = _revHP;
+      manualBattle_addLine(_revSk.icon + ' <strong style="color:#ffd700;">' + _revSk.name + '!</strong> ' + (s.playerStats.name||'Your pet') + ' refuses to fall! Revived at ' + _revHP + ' HP!', 'heal');
+      manualBattle_render();
+      return manualBattle_doTurn();
+    }
+  }
+
   // Max turns safety valve
   if (s.turn >= 50) { await manualBattle_endBattle(false); return; }
 
@@ -14359,6 +14818,13 @@ function manualBattle_applySkill(skill, s) {
     if (skill.lifeStealChance && Math.random() < skill.lifeStealChance.chance && baseDmg > 0) {
       manualBattle_applyHeal(Math.floor(baseDmg * skill.lifeStealChance.pct), s);
       lines.push('Siphoned HP!');
+    }
+
+    // Secondary status (status2 — some skills have two status effects)
+    if (skill.status2 && Math.random() < (skill.status2.chance||0)) {
+      manualBattle_applyStatus(skill.status2.type, s.enemyStatuses);
+      var se2 = STATUS_EFFECTS[skill.status2.type] || {};
+      lines.push((se2.icon||'') + ' ' + skill.status2.type + ' applied!');
     }
   } // end damageMult block
 
@@ -15214,11 +15680,13 @@ async function manualBattle_endBattle(victory) {
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
   if (victory) {
     if (window._victoryMusicPlaying) return; // prevent double-play from spam
+    if (window._victoryAudioInstance) { try { window._victoryAudioInstance.pause(); } catch(e){} }
     window._victoryMusicPlaying = true;
     // Play victory fanfare, then resume theme
     BattleMusic.stop(false); // cut battle music immediately on win
     safeSetTimeout(function() {
       var vic = new Audio('/music/victory.mp3');
+      window._victoryAudioInstance = vic;
       vic.volume = 0.30;
       vic.onerror = function() {
         // victory.mp3 missing — just resume theme
@@ -15400,7 +15868,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     console.error('❌ Battle save error:', rpcError || result.error);
     // Fall back to client-side calculation — but actually award it via the secure RPC
     // this time, instead of just computing a display number with nothing behind it.
-    expGained = battleResult.victory ? (enemyStats.exp_reward || 15) : 0; // slightly higher fallback
+    expGained = battleResult.victory ? (enemyStats.exp_reward || 8) : 0; // reduced fallback — 8 XP per battle
     ppGained = battleResult.victory ? Math.round((enemyStats.pp_reward || 10) * 1.5) : 0;
     if (ppGained > 0) {
       var { data: fallbackNewTotal, error: fallbackPpErr } = await supabaseClient.rpc('award_pp_secure', {
@@ -15424,7 +15892,10 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){});
     // NOTE: save_battle_result RPC awards XP and PP server-side.
     // We do NOT call addPetXP here to avoid double-awarding.
-    // Instead, re-fetch the pet after battle to get the server-updated XP/level.
+    // Instead, check for level-up using the XP the RPC already wrote to DB.
+    if (battleResult.victory && expGained > 0) {
+      checkAndApplyLevelUp(petId).then(null, function(){});
+    }
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -16787,6 +17258,69 @@ async function battleExp_renderHistory() {
 }
 
 // ── addPetXP helper ───────────────────────────────────────────────────────
+// ── checkAndApplyLevelUp ──────────────────────────────────────────────────
+// Reads current xp/level from DB (already written by RPC) and applies
+// level-up logic without adding more XP. Safe to call after battle RPC.
+async function checkAndApplyLevelUp(petId) {
+  if (!petId || !currentUser) return;
+  try {
+    var { data: pet } = await supabaseClient
+      .from('user_pets')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, stat_points')
+      .eq('id', petId)
+      .single();
+    if (!pet) return;
+
+    var threshold = xpForLevel(pet.level || 1);
+    if ((pet.xp || 0) < threshold) return; // not enough XP yet, nothing to do
+
+    // Level up — calculate new stats (same logic as addPetXP)
+    var lu = calculateLevelUp(pet.xp, pet.level, pet.max_hunger, pet.max_energy,
+                              pet.max_happiness, pet.base_hp, pet.base_attack,
+                              pet.base_defense, pet.base_speed);
+    if (!lu.leveled) return;
+
+    // Write level-up to DB (XP is already correct from RPC, just update level+stats)
+    await supabaseClient.from('user_pets').update({
+      xp:             lu.xp,
+      level:          lu.level,
+      max_hunger:     lu.maxHunger,
+      max_energy:     lu.maxEnergy,
+      max_happiness:  lu.maxHappiness,
+      base_hp:        lu.base_hp,
+      base_attack:    lu.base_attack,
+      base_defense:   lu.base_defense,
+      base_speed:     lu.base_speed,
+      stat_points:    (pet.stat_points || 0) + 1
+    }).eq('id', petId);
+
+    // Sync petState
+    if (petState[petId]) {
+      petState[petId].xp           = lu.xp;
+      petState[petId].level        = lu.level;
+      petState[petId].max_hunger   = lu.maxHunger;
+      petState[petId].max_energy   = lu.maxEnergy;
+      petState[petId].max_happiness = lu.maxHappiness;
+      petState[petId].base_hp      = lu.base_hp;
+      petState[petId].base_attack  = lu.base_attack;
+      petState[petId].base_defense = lu.base_defense;
+      petState[petId].base_speed   = lu.base_speed;
+      petState[petId].stat_points  = (pet.stat_points || 0) + 1;
+    }
+
+    onPetLevelUp(petId);
+    var petName = (petState[petId] && (petState[petId].nickname || (petState[petId].pets && petState[petId].pets.name))) || 'Your pet';
+    showToast('⭐ ' + petName + ' leveled up! Now Level ' + lu.level + '!', 4000);
+    tabsLoaded['mypets'] = false;
+    dbg('[LevelUp] Pet', petId, '→ level', lu.level);
+
+    // Check again in case XP spans multiple levels (large jump)
+    if (lu.xp >= xpForLevel(lu.level)) {
+      await checkAndApplyLevelUp(petId);
+    }
+  } catch(e) { dbg('[checkAndApplyLevelUp] error:', e); }
+}
+
 async function addPetXP(petId, xpAmount) {
   if (!petId || !xpAmount) return;
   try {
@@ -17200,11 +17734,9 @@ async function goExploring() {
   } else if (roll < 0.95) {
     // 3% - Recipe Book (very rare)
     await handleRecipeBookEncounter();
-  } else if (roll < 0.97) {
-    // 2% - Secret Dungeon Discovery (extremely rare)
-    await handleSecretDungeonEncounter();
   } else {
-    // 3% - Flavor Event (just a moment, clearly labeled)
+    // 5% - Flavor Event (just a moment, clearly labeled)
+    // NOTE: Secret dungeons are discovered only through EXPEDITIONS, not battle exploration
     await handleFlavorEncounter();
   }
 }
@@ -18176,8 +18708,8 @@ async function getBossEnemy(zone, playerLevel) {
 function triggerBossEntrance() {
   dbg('🔥 Triggering boss entrance sequence...');
   
-  // Add UI fragmentation effect to entire page
-  document.body.classList.add('boss-ui-glitch');
+  // Add UI fragmentation effect (desktop only - too laggy on mobile)
+  if (window.innerWidth >= 768) document.body.classList.add('boss-ui-glitch');
   
   // Music is handled by BattleMusic.play('boss'/'piper') called before triggerBossEntrance.
   // Stop any non-battle audio that may be playing (e.g. ambient, SFX leftover).
@@ -18244,6 +18776,9 @@ function startBossWarningText() {
 }
 
 function spawnWarningText() {
+  // On mobile: limit number of concurrent warnings to reduce lag
+  var isMobile = window.innerWidth < 768;
+  if (isMobile && activeWarnings.length >= 3) return; // cap at 3 on mobile
   var warning = document.createElement('div');
   warning.className = 'boss-warning-text';
   warning.textContent = 'YOU SHOULDN\'T BE HERE';
@@ -18416,28 +18951,35 @@ function triggerBossDeathScreen() {
     fadeOverlay.style.opacity = '1';
   }, 100);
   
-  // After fade completes, clean up and go home (now 6 seconds total)
+  // After fade: show WE WARNED YOU, then log out
   setTimeout(function() {
-    // Remove all boss effects
-    clearBossEffects();
-    
-    // Remove death warnings
-    document.querySelectorAll('.boss-death-warning').forEach(function(w) {
-      w.remove();
-    });
-    
-    // Remove fade overlay
-    fadeOverlay.remove();
-    
-    // Stop boss music and resume normal
-    resumeNormalMusic();
-    
-    // Go to home tab
-    showTab('home');
-    
-    // Show defeat toast
-    showToast('💀 You were defeated by Shadow of Piper...');
-  }, 6000); // Extended from 3500ms to 6000ms (6 seconds)
+    // Keep screen black, show WE WARNED YOU messages
+    document.querySelectorAll('.boss-death-warning').forEach(function(w) { w.remove(); });
+
+    // Spawn multiple WE WARNED YOU texts on black screen
+    for (var wi = 0; wi < 8; wi++) {
+      (function(delay) {
+        setTimeout(function() { spawnDeathWarning(); }, delay);
+      })(wi * 200);
+    }
+
+    // Log out while screen is black (user sees WE WARNED YOU, then login screen)
+    setTimeout(function() {
+      clearBossEffects();
+      fadeOverlay.remove();
+      resumeNormalMusic();
+      // Sign the player out
+      if (typeof supabaseClient !== 'undefined') {
+        supabaseClient.auth.signOut().then(function() {
+          window.location.reload();
+        }).catch(function() {
+          window.location.reload();
+        });
+      } else {
+        window.location.reload();
+      }
+    }, 3000); // 3s of WE WARNED YOU on black, then reload to login
+  }, 5500);
 }
 
 function startBossMusicGlitchFade() {
@@ -18584,6 +19126,11 @@ function resumeNormalMusic() {
 }
 
 function clearBossEffects() {
+  // Stop warning text FIRST — ensures cleanup before DOM changes
+  stopBossWarningText();
+  document.querySelectorAll('.boss-warning-text').forEach(function(w){ w.remove(); });
+  document.querySelectorAll('.boss-death-warning').forEach(function(w){ w.remove(); });
+
   // Remove boss effects after battle
   var battleScreen = el('battle-tab');
   if (battleScreen) {
@@ -20639,18 +21186,20 @@ async function loadJournalDiscoveries() {
     return;
   }
   
-  // Parse discoveries
+  // Parse discoveries — normalize petType to match journalPetTypes (Title Case)
   journalDiscoveries = {};
   if (data) {
     data.forEach(function(entry) {
       var petType = entry.entry_data && entry.entry_data.pet_type;
       if (!petType) return;
-      
-      if (!journalDiscoveries[petType]) {
-        journalDiscoveries[petType] = {};
-      }
-      
-      journalDiscoveries[petType][entry.entry_type] = true;
+      // Normalize: 'ember' -> 'Ember', 'pyxie' -> 'Pyxie', etc.
+      var normalized = petType.charAt(0).toUpperCase() + petType.slice(1).toLowerCase();
+      // Special cases for compound names
+      if (/^steve$/i.test(petType) || /^cowbee$/i.test(petType)) normalized = 'Steve';
+      if (/^kleat$/i.test(petType) || /^kelta$/i.test(petType)) normalized = 'Kleat';
+      if (/^cypurr/i.test(petType)) normalized = 'Cypurr';
+      if (!journalDiscoveries[normalized]) journalDiscoveries[normalized] = {};
+      journalDiscoveries[normalized][entry.entry_type] = true;
     });
   }
 }
@@ -35767,11 +36316,21 @@ async function newFeatures_init() {
           }
         });
         if (missedPets.length > 0) {
-          // Show one toast per missed pet, staggered
+          // Show one toast per missed pet — staggered by 6s so each can be read
           missedPets.forEach(function(mp, i) {
             safeSetTimeout(function() {
-              showToast(mp.name + ': ' + mp.msg, 5000);
-            }, i * 1200);
+              // Larger, bolder toast for pet greeting messages
+              var toastEl = document.getElementById('toast-message');
+              if (toastEl) {
+                toastEl.style.fontSize = '1rem';
+                toastEl.style.fontWeight = '700';
+                toastEl.style.fontStyle = 'normal';
+                toastEl.style.lineHeight = '1.5';
+                toastEl.style.maxWidth = '360px';
+                toastEl.style.padding = '16px 20px';
+              }
+              showToast('🐾 ' + mp.name + ':\n' + mp.msg, 6000);
+            }, i * 7000); // 7s gap so each toast fully clears before the next
           });
         }
       } catch(e) {}
