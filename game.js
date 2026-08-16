@@ -2103,7 +2103,7 @@ async function showApp(user) {
   await Promise.all([
     loadActivePlayerTitle().catch(function(){}),
     (typeof checkPlayerTitleUnlocks === 'function' ? checkPlayerTitleUnlocks() : Promise.resolve()).catch(function(){}), // Guard against scope issues
-    awardBadge('welcome').catch(function(){}),
+    awardBadge('first_pet').catch(function(){}),
     initReferralSystem(user.id).catch(function(){}),
     checkTutorialStatus().catch(function(){}),
     checkSidebarStreamStatus().catch(function(){}),
@@ -2560,6 +2560,12 @@ async function awardStreakReward(streak) {
     await awardPP(reward.pp, 'streak_bonus');
     showPixelToast(reward.message, 'success');
   }
+
+  // Streak milestone badges and titles
+  if (streak >= 3)   awardBadge('early_bird').then(null, function(){});
+  if (streak >= 7)   { awardBadge('on_fire').then(null, function(){}); awardPlayerTitle('daily_player').catch(function(){}); }
+  if (streak >= 30)  { awardBadge('badge_30_days').then(null, function(){}); awardBadge('dedicated').then(null, function(){}); awardPlayerTitle('dedicated').catch(function(){}); }
+  if (streak >= 100) { awardBadge('badge_100_days').then(null, function(){}); awardBadge('living_legend').then(null, function(){}); awardPlayerTitle('loyal').catch(function(){}); }
 }
 
 async function handleLogout() {
@@ -3137,6 +3143,8 @@ async function confirmAdopt() {
   
   // ACTIVITY FEED: Log adoption so friend feeds + OBS live alerts pick it up
   logActivity('pet_adopted', { pet_name: nickname || selectedPet.name, species: selectedPet.name, nickname: nickname || null });
+  // Title: 'newcomer' for adopting first pet ever
+  awardPlayerTitle('newcomer').catch(function(){});
   
   // Store for social sharing
   lastAdoptedPet = {
@@ -5207,6 +5215,21 @@ async function expedition_claim(expeditionId) {
   community_increment('expeditions', 1);
   trackDailyStat('expeditions_completed').then(null, function(){});
   checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).then(null, function(){});
+
+  // Award explorer badges + adventurer title based on total expedition count
+  (async function() {
+    try {
+      var { count: expTotal } = await supabaseClient
+        .from('expedition_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', currentUser.id)
+        .eq('completed', true);
+      expTotal = expTotal || 1;
+      if (expTotal >= 10)  awardBadge('explorer_novice').then(null, function(){});
+      if (expTotal >= 50)  { awardBadge('explorer_expert').then(null, function(){}); awardPlayerTitle('adventurer').catch(function(){}); }
+      if (expTotal >= 100) awardBadge('explorer_master').then(null, function(){});
+    } catch(e) { dbg('[expedition] badge check error:', e); }
+  })();
 
   var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
   showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
@@ -8219,7 +8242,7 @@ async function checkTop10Badge() {
   if (rankRes.data) {
     var top10Ids = rankRes.data.map(function(p) { return p.id; });
     if (top10Ids.includes(currentUser.id)) {
-      await awardBadge('top_10');
+      await awardBadge('grinder');
     }
   }
 }
@@ -15946,6 +15969,7 @@ async function manualBattle_endBattle(victory) {
       if (!localStorage.getItem('ach_piper_slayer')) {
         localStorage.setItem('ach_piper_slayer', '1');
         awardBadge('battle_piper_slayer').then(null, function(){});
+    awardPlayerTitle('piper_hunter').catch(function(){});
         showToast('🎵 First Piper Defeat! Achievement unlocked.', 5000);
       } else {
         awardBadge('battle_piper_veteran').then(null, function(){});
@@ -16077,7 +16101,17 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
-    if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){});
+    if (battleResult.victory) {
+      addPassXP(8, 'battle').then(null, function(){});
+      // Battle win badges
+      awardBadge('battle_first_win').then(null, function(){});
+      // Zone-specific badges based on current zone
+      var _zone = selectedBattleZone || '';
+      if (_zone === 'outskirts') awardBadge('battle_outskirts_10').then(null, function(){});
+      if (_zone === 'glade')     awardBadge('battle_glade_10').then(null, function(){});
+      if (_zone === 'deepwoods') awardBadge('battle_deepwoods_10').then(null, function(){});
+      if (_zone === 'ruins')     awardBadge('battle_ruins_10').then(null, function(){});
+    }
     // NOTE: save_battle_result RPC awards XP and PP server-side.
     // We do NOT call addPetXP here to avoid double-awarding.
     // Instead, check for level-up using the XP the RPC already wrote to DB.
@@ -17507,6 +17541,12 @@ async function checkAndApplyLevelUp(petId) {
     onPetLevelUp(petId);
     var petName = (petState[petId] && (petState[petId].nickname || (petState[petId].pets && petState[petId].pets.name))) || 'Your pet';
     showToast('⭐ ' + petName + ' leveled up! Now Level ' + lu.level + '!', 4000);
+    // Level milestone badges
+    if (lu.level >= 5)  awardBadge('level_5').then(null, function(){});
+    if (lu.level >= 10) { awardBadge('level_10').then(null, function(){}); awardBadge('baby_steps').then(null, function(){}); }
+    if (lu.level >= 20) { awardBadge('level_20').then(null, function(){}); awardBadge('teen_spirit').then(null, function(){}); }
+    if (lu.level >= 40) awardBadge('adult_swim').then(null, function(){});
+    if (lu.level >= 60) awardBadge('elder_wisdom').then(null, function(){});
     // JOURNAL: catchphrase unlocks on first level up; secret_talent at level 10+
     var _luPetType = (petState[petId] && petState[petId].pets && petState[petId].pets.name) || null;
     if (_luPetType && typeof logJournalDiscovery === 'function') {
@@ -20009,6 +20049,8 @@ async function acceptFriendRequest(friendshipId) {
     if (error) throw error;
     
     showToast('Friend request accepted! 🎉');
+    awardBadge('first_friend').then(null, function(){});
+    awardPlayerTitle('friendly').catch(function(){});
     await updateFriendRequestBadge();
     loadFriendRequests();
     
@@ -23958,7 +24000,7 @@ async function guild_donate() {
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
 
-    awardBadge('treasury_donor').then(null, function(){});
+    awardBadge('generous_soul').then(null, function(){});
     updateBingoProgress('donate_guild', 1);
     showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
     loadGuildPage();
@@ -26330,7 +26372,7 @@ async function racing_endRace() {
     beatAllBonus = 150;
     // beatAllBonus is added server-side via the secure RPC result already
     // Just show it in the modal — don't double-award
-    awardBadge('racing_beat_all').then(null, function(){});
+    awardBadge('racing_champion').then(null, function(){});
   }
 
   // Secure RPC — server calculates actual PP from its own rewards table, records result
@@ -26368,8 +26410,9 @@ async function racing_endRace() {
   community_increment('races_completed', 1);
 
   // Racing badges
-  if (playerRank === 1) awardBadge('racing_first_win').then(null, function(){});
-  if (_racingState.league && _racingState.league.weekly_races >= 10) awardBadge('racing_veteran').then(null, function(){});
+  if (playerRank === 1) awardBadge('rookie_racer').then(null, function(){});
+    awardPlayerTitle('speed_king').catch(function(){});  // or speed_queen — generic
+  if (_racingState.league && _racingState.league.weekly_races >= 10) awardBadge('racing_champion').then(null, function(){});
 
   // Check pet wishes
   if (_racingState.selectedPetId) {
@@ -30786,7 +30829,7 @@ async function checkVariantUnlock(petId, level) {
     dbg('✨ Variant unlocked:', variantToUnlock, 'for pet', petId);
     
     // Award variant badge
-    await awardBadge('variant_unlock');
+    await dbg('[badge] variant_unlock has no DB entry');//;
     
     // Reload pet display
     tabsLoaded['mypets'] = false;
@@ -30852,7 +30895,7 @@ async function unlockTwitchVariant(petId, variantKey, rewardInfo) {
     showVariantUnlockNotification(pet.nickname, variantData);
     
     // Award badge for first Twitch variant unlock
-    await awardBadge('twitch_variant_unlock');
+    await dbg('[badge] twitch_variant_unlock has no DB entry');//;
     
     // Log to activity feed
     if (typeof logActivity === 'function') {
@@ -31279,46 +31322,76 @@ var titleTracking = {
 
 async function checkPlayerTitleUnlocks() {
   if (!currentUser) return;
-  
-  // Helper: check if player already has a title
-  function _hasTitle(titleKey) {
-    return allPlayerTitles.some(function(t) {
-      return t.title_key === titleKey || (t.display_name && t.display_name.toLowerCase().replace(/\s+/g,'_') === titleKey);
-    });
-  }
 
   try {
-    // Use counters from players table — avoid expensive battle_history join
+    // Load player stats — use counters, never join battle_history (too slow)
     var { data: p } = await supabaseClient
       .from('players')
-      .select('battles_won, total_battles, total_pp_earned')
+      .select('battles_won, total_battles, total_pp_earned, login_streak, referral_count')
       .eq('id', currentUser.id)
       .single();
     if (!p) return;
 
-    var totalWins = p.battles_won || 0;
+    var wins     = p.battles_won || 0;
+    var battles  = p.total_battles || 0;
+    var ppEarned = p.total_pp_earned || 0;
+    var streak   = p.login_streak || 0;
+    var refs     = p.referral_count || 0;
 
-    // Battle count titles
-    if (totalWins >= 100) await awardPlayerTitle('spoon_warlord').catch(function(){});
-    if (totalWins >= 50)  await awardPlayerTitle('local_menace').catch(function(){});
-    if (totalWins >= 10)  await awardPlayerTitle('first_blood').catch(function(){});
+    // Own pet count
+    var { count: ownedPets } = await supabaseClient
+      .from('user_pets').select('id', { count: 'exact', head: true })
+      .eq('user_id', currentUser.id);
+    ownedPets = ownedPets || 0;
 
-    // PP titles
-    if ((p.total_pp_earned || 0) >= 5000) await awardPlayerTitle('pp_addict').catch(function(){});
-    if ((p.total_pp_earned || 0) >= 1000) await awardPlayerTitle('pp_hoarder').catch(function(){});
+    // Total level across all pets
+    var { data: petsData } = await supabaseClient
+      .from('user_pets').select('level').eq('user_id', currentUser.id);
+    var totalLevel = (petsData || []).reduce(function(s, x){ return s + (x.level||1); }, 0);
 
-    // Creature Collector — own all pets
-    var { count: totalPetTypes } = await supabaseClient.from('pets').select('id', { count: 'exact', head: true });
-    var { count: ownedCount } = await supabaseClient.from('user_pets').select('pet_id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-    if (totalPetTypes && ownedCount >= totalPetTypes) {
-      await awardPlayerTitle('creature_collector').catch(function(){});
-    }
+    // Friend count
+    var { count: friendCount } = await supabaseClient
+      .from('friendships').select('id', { count: 'exact', head: true })
+      .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id)
+      .eq('status', 'accepted');
+    friendCount = friendCount || 0;
 
-    // Total level milestone
-    var { data: allPetsData } = await supabaseClient.from('user_pets').select('level').eq('user_id', currentUser.id);
-    var totalLevel = (allPetsData || []).reduce(function(sum, pet) { return sum + (pet.level || 1); }, 0);
-    if (totalLevel >= 100) await awardPlayerTitle('mythical_being').catch(function(){});
-    if (totalLevel >= 50)  await awardPlayerTitle('veteran_trainer').catch(function(){});
+    // ── COMMON ──
+    // newcomer: awarded on registration (first pet adoption)
+    if (wins >= 50)   await awardPlayerTitle('fighter').catch(function(){});
+    if (ownedPets >= 3) await awardPlayerTitle('pet_lover').catch(function(){});
+    if (friendCount >= 5) await awardPlayerTitle('friendly').catch(function(){});
+    if (streak >= 7)  await awardPlayerTitle('daily_player').catch(function(){});
+
+    // ── UNCOMMON ──
+    if (streak >= 30)  await awardPlayerTitle('dedicated').catch(function(){});
+    if (totalLevel >= 100) await awardPlayerTitle('trainer').catch(function(){});
+    if (wins >= 200)   await awardPlayerTitle('warrior').catch(function(){});
+    if (ownedPets >= 10) await awardPlayerTitle('collector').catch(function(){});
+    if (friendCount >= 20) await awardPlayerTitle('popular').catch(function(){});
+    if (refs >= 5)     await awardPlayerTitle('recruiter').catch(function(){});
+    // night_owl: handled by checkMidnightLogin()
+
+    // ── RARE ──
+    if (ownedPets >= 25) await awardPlayerTitle('hoarder').catch(function(){});
+    if (streak >= 100)  await awardPlayerTitle('loyal').catch(function(){});
+    if (wins >= 500)    await awardPlayerTitle('champion').catch(function(){});
+    if (friendCount >= 20) await awardPlayerTitle('socialite').catch(function(){});
+    if (totalLevel >= 500) await awardPlayerTitle('master_trainer').catch(function(){});
+    if (ppEarned >= 10000) await awardPlayerTitle('point_hoarder').catch(function(){});
+    if (refs >= 20)   await awardPlayerTitle('ambassador').catch(function(){});
+
+    // ── EPIC ──
+    if (wins >= 50)   await awardPlayerTitle('fighter').catch(function(){});  // already above
+    if (battles >= 500) await awardPlayerTitle('the_reaper').catch(function(){});
+    if (ppEarned >= 50000) await awardPlayerTitle('whale').catch(function(){});
+    if (totalLevel >= 200) await awardPlayerTitle('the_veteran').catch(function(){});
+    if (refs >= 10)   await awardPlayerTitle('the_recruiter').catch(function(){});
+
+    // ── LEGENDARY ──
+    if (battles >= 1000) await awardPlayerTitle('the_hardcore').catch(function(){});
+    if (ppEarned >= 1000000) await awardPlayerTitle('millionaire').catch(function(){});
+    if (refs >= 25)  await awardPlayerTitle('the_legendary').catch(function(){});
 
   } catch (err) {
     console.error('[Titles] Error checking player unlocks:', err);
@@ -31505,7 +31578,7 @@ async function checkConsecutiveLosses(petId, allBattles) {
 function checkMidnightLogin() {
   var hour = new Date().getHours();
   if (hour === 3) {
-    awardPlayerTitle('sleep_deprived').catch(function(){});
+    awardPlayerTitle('night_owl').catch(function(){});  // 'The Night Owl' uncommon title
   }
 }
 
@@ -35791,7 +35864,7 @@ function weeklyChallenge_checkCompletions(stat, newValue, weekKey) {
       if (Object.keys(claimed).length >= 5) {
         setTimeout(function() {
           awardPP(250, 'weekly_all_complete').then(null, function(){});
-          awardBadge('weekly_champion').then(null, function(){});
+          awardBadge('battle_100_wins').then(null, function(){});
           showToast('🏆 All weekly challenges complete! +250 bonus PP!', 7000);
         }, 2000);
       }
@@ -38807,8 +38880,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').then(null, function(){});
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').then(null, function(){});
+  if (shareCount === 1)  awardBadge('snapshot_moment').then(null, function(){});
+  if (shareCount === 5)  awardBadge('social_butterfly').then(null, function(){});
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -39585,9 +39658,9 @@ async function gift_sendGift(toUserId, toUsername) {
     // Check first-gift badge
     var { count: totalSent } = await supabaseClient
       .from('gifts').select('id', { count: 'exact', head: true }).eq('from_user_id', currentUser.id);
-    if (totalSent === 1)  await awardBadge('gift_giver');
-    if (totalSent >= 10)  await awardBadge('badge_generous');
-    if (totalSent >= 50)  await awardBadge('badge_philanthropist');
+    if (totalSent === 1)  await awardBadge('secret_santa');
+    if (totalSent >= 10)  await awardBadge('generous_soul');
+    if (totalSent >= 50)  await awardBadge('philanthropist');
 
     closeModal();
     showToast('🎁 Gift sent to ' + toUsername + '!', 3000);
@@ -39854,9 +39927,9 @@ var pollSystem = {
       // Badge milestones
       var { count: totalVotes } = await supabaseClient
         .from('poll_votes').select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-      if (totalVotes === 5)  await awardBadge('active_citizen');
-      if (totalVotes === 3)  await awardBadge('badge_voter');
-      if (totalVotes === 15) await awardBadge('badge_poll_champ');
+      if (totalVotes === 5)  await awardBadge('badge_team_player');
+      if (totalVotes === 3)  await awardBadge('poll_champion');
+      if (totalVotes === 15) await awardBadge('poll_champion');
       if (totalVotes === 25) await awardBadge('community_leader');
 
       showToast('✅ Vote counted! +25 PP', 3000);
