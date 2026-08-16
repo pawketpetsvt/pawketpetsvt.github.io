@@ -710,7 +710,8 @@ function cosmetics_renderPanel(containerId, tab) {
     if (typeKey === 'backgrounds') {
       preview = '<div class="cosmetic-preview" style="background:' + item.gradient + ';border-radius:4px 4px 0 0;"></div>';
     } else if (typeKey === 'frames') {
-      preview = '<div class="cosmetic-preview"><div style="width:44px;height:44px;border-radius:50%;border:4px solid ' + item.previewColor + ';box-shadow:0 0 10px ' + item.previewColor + ';display:flex;align-items:center;justify-content:center;font-size:1.4rem;">' + item.emoji + '</div></div>';
+      // Apply the actual CSS class so animated frames (fire, rainbow, glitch, etc) show in preview
+      preview = '<div class="cosmetic-preview"><div class="' + item.cssClass + '" style="width:44px;height:44px;border-radius:50%;border-width:4px;border-style:solid;display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 0 8px ' + item.previewColor + ';">' + item.emoji + '</div></div>';
     } else {
       preview = '<div class="cosmetic-preview" style="font-size:2rem;">' + item.emoji + '</div>';
     }
@@ -3606,8 +3607,18 @@ async function useItem(petId) {
   if (item.hap > 0) updates.happiness = Math.min(pet.happiness + item.hap, pet.max_happiness);
   if (item.xp > 0) updates.xp = pet.xp + item.xp;
   
+  // Check if this is a combat buff recipe (Warrior's Feast, Iron Shell Stew, etc.)
+  // These are matched by name in COOKING_RECIPES and apply a per-battle buff to the pet
+  var _combatBuffRecipe = null;
+  if (typeof COOKING_RECIPES !== 'undefined') {
+    _combatBuffRecipe = COOKING_RECIPES.find(function(r) {
+      return r.combatBuff && r.name && item.name &&
+             r.name.toLowerCase() === item.name.toLowerCase();
+    });
+  }
+
   // Make sure we have some effect to apply
-  if (!Object.keys(updates).length) { 
+  if (!Object.keys(updates).length && !_combatBuffRecipe) { 
     showToast('No effects configured.'); 
     btn.disabled = false; 
     btn.textContent = 'Use'; 
@@ -3635,10 +3646,19 @@ async function useItem(petId) {
     inventoryItems[idx].qty = item.qty - 1; 
   }
 
+  // Apply combat buff if this is a secret recipe food
+  if (_combatBuffRecipe && _combatBuffRecipe.id) {
+    combatBuff_apply(petId, _combatBuffRecipe.id).then(function() {
+      showToast(_combatBuffRecipe.emoji + ' Combat buff active! ' + _combatBuffRecipe.effect, 4000);
+    }).catch(function(e) {
+      dbg('[combatBuff] apply error:', e);
+    });
+  }
+
   // FIX: track bingo + passXP (was missing from this path)
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
-    melonRequests_checkProgress('feed_pet', itemId);
+    melonRequests_checkProgress('feed_pet', item.name);
     addPassXP(2, 'feed').then(null, function(){});
     community_increment('feed_pets', 1);
   }
@@ -5166,6 +5186,12 @@ async function expedition_claim(expeditionId) {
   argLogs_tryDrop('expedition').then(null, function(){});
   // Cooking ingredient drops from expedition
   cooking_rollExpeditionDrop(row.zone).then(null, function(){});
+  // JOURNAL: sleep_habit unlocks from sending pet on expeditions
+  var expPetState = petState[row.pet_id] || {};
+  var expPetType = (expPetState.pets && expPetState.pets.name) || expPetState.pet_type || null;
+  if (expPetType && typeof logJournalDiscovery === 'function') {
+    logJournalDiscovery(expPetType, 'sleep_habit', '').then(null, function(){});
+  }
   // Secret dungeon discovery — very rare, only from expeditions
   if (Math.random() < 0.04) { // ~4% per expedition claim
     handleSecretDungeonEncounter().then(null, function(){});
@@ -6044,10 +6070,12 @@ async function feed(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Check if already used today)
+  // FREE DAILY OPTION (Check if already used today — server-side via last_fed)
   var today = new Date().toISOString().split('T')[0];
   var freeFeedKey = 'free_feed_' + petId + '_' + today;
-  var freeUsed = localStorage.getItem(freeFeedKey) === 'done';
+  // Server-side check: pet.last_fed is updated by the feed RPC
+  var lastFedDate = (pet.last_fed || '').split('T')[0];
+  var freeUsed = lastFedDate === today || localStorage.getItem(freeFeedKey) === 'done';
   
   var freeBtn = document.createElement('button');
   freeBtn.style.cssText = freeUsed ?
@@ -6373,10 +6401,11 @@ async function play(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Check if already used today AND has energy)
+  // FREE DAILY OPTION (Check if already used today — server-side via last_played)
   var today = new Date().toISOString().split('T')[0];
   var freePlayKey = 'free_play_' + petId + '_' + today;
-  var freeUsed = localStorage.getItem(freePlayKey) === 'done';
+  var lastPlayedDate = (pet.last_played || '').split('T')[0];
+  var freeUsed = lastPlayedDate === today || localStorage.getItem(freePlayKey) === 'done';
   var hasEnergy = pet.energy >= 10;
   
   var freeBtn = document.createElement('button');
@@ -6508,6 +6537,13 @@ async function playFree(petId) {
 
     // MARK FREE OPTION AS USED FOR TODAY (after successful play)
     localStorage.setItem(freePlayKey, 'done');
+
+    // JOURNAL: unlock hobby from playing
+    var playPet = petState[petId] || {};
+    var playPetType = (playPet.pets && playPet.pets.name) || playPet.pet_type || null;
+    if (playPetType && typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(playPetType, 'hobby', '').then(null, function(){});
+    }
 
     // PAWKETPASS: Update bingo and Pass XP
     updateBingoProgress('play_pet', 1);
@@ -8947,7 +8983,32 @@ async function deductPP(amount) {
 }
 
 // ── TYPING CHALLENGE ──────────────────────────────
-var typingWords = ['Ember', 'Pyxie', 'Embertail', 'Pyxshuul', 'Firefox', 'Sparkle', 'Panda', 'Koala', 'Dragon', 'Phoenix', 'Tiger', 'Leopard', 'Cheetah', 'Panther', 'Wolf', 'Bear', 'Raccoon', 'Otter', 'Seal'];
+var typingWords = [
+  // VTuber team
+  'Ember','Pyxie','Embertail','Pyxshuul','Gnarly','Blushimia','Kelta','Aria','Jess','Steve','Cowbee','Cypurr',
+  // Game world
+  'Piper','Pawket','PawketPets','Melon','Warrens','Archivist','Outskirts','Deepwoods','Ruins','Glade',
+  // Animals / pets
+  'Panda','Koala','Dragon','Phoenix','Tiger','Leopard','Cheetah','Panther','Wolf','Bear','Raccoon','Otter',
+  'Seal','Fox','Bunny','Rabbit','Squirrel','Bird','Spider','Boar','Deer','Moth','Smilodon','Parasaur',
+  'Protogen','Sparkledog','Pomeranian',
+  // Food and items
+  'Biscuit','Cookie','Sashimi','Smoothie','Burrito','Steak','Bread','Honey','Mango','Anchovy','Cinnabon',
+  'Potion','Remedy','Nectar','Berries','Mushroom','Elixir',
+  // Battle / adventure
+  'Battle','Sprint','Jostle','Block','Conserve','Stamina','League','Trophy','Champion','Phantom',
+  'Expedition','Exploration','Adventure','Discovery','Treasure','Recipe','Cooking','Fishing','Racing',
+  // Flavor / lore
+  'Corruption','Archive','Hollow','Ashen','Warren','Shadow','Glitch','Portal','Cascade','Inferno',
+  'Phoenix','Cosmos','Nebula','Starfall','Nightmare','Cascade','Vortex','Catalyst',
+  // General words (mix of difficulties)
+  'Brave','Swift','Clever','Fierce','Loyal','Bright','Cozy','Spooky','Fluffy','Ancient',
+  'Crystal','Thunder','Ember','Frost','Storm','Flame','Void','Chaos','Spirit','Nature',
+  'Crimson','Violet','Silver','Golden','Scarlet','Cobalt',
+  // Longer challenge words
+  'Constellation','Catastrophe','Spectacular','Extraordinary','Championship','Celebration',
+  'Magnificent','Phenomenal','Adventurous','Mysterious','Adventurer','Triumphant'
+];
 var typingScore = 0;
 var typingTimer = null;
 var currentWord = '';
@@ -8955,7 +9016,8 @@ var currentWord = '';
 function startTyping() {
   if (isCD('typing')) return;
   typingScore = 0;
-  var timeLeft = 60;
+  var timeLeft = 90; // 90-second sessions
+  var ppCapReached = false;
   
   el('typing-score').textContent = '0';
   el('typing-earned').textContent = '0';
@@ -8971,6 +9033,13 @@ function startTyping() {
   typingTimer = setInterval(function() {
     timeLeft--;
     el('typing-time').textContent = timeLeft;
+    // Show PP cap notice when reached
+    var earned = typingScore * 3;
+    if (earned >= 90 && !ppCapReached) {
+      ppCapReached = true;
+      var r = el('typing-result');
+      if (r) { r.textContent = '🎯 PP cap reached! Keep going for your high score!'; r.style.color = '#ffd700'; }
+    }
     if (timeLeft <= 0) {
       endTyping();
     }
@@ -8982,24 +9051,37 @@ function nextWord() {
   el('typing-target').textContent = currentWord;
 }
 
-el('typing-input').addEventListener('input', function() {
-  if (el('typing-input').value === currentWord) {
+// Typing game input handler — uses event delegation on document to avoid
+// null-reference crash on mobile when the tab hasn't rendered yet
+document.addEventListener('input', function(e) {
+  if (!e.target || e.target.id !== 'typing-input') return;
+  if (!currentWord || !typingTimer) return; // game not active
+  if (e.target.value === currentWord) {
     typingScore++;
-    var earned = typingScore * 3;
-    el('typing-score').textContent = typingScore;
-    el('typing-earned').textContent = earned;
-    el('typing-input').value = '';
+    var earned = Math.min(typingScore * 3, 90);
+    var sc = el('typing-score');
+    var ea = el('typing-earned');
+    if (sc) sc.textContent = typingScore;
+    if (ea) ea.textContent = earned; // shows capped PP
+    e.target.value = '';
     nextWord();
   }
 });
 
+var typingHighScore = 0;
+
 function endTyping() {
   clearInterval(typingTimer);
-  var earned = Math.min(typingScore * 3, 60);
+  typingTimer = null;
+  var earned = Math.min(typingScore * 3, 90);
   awardPP(earned, 'typing_challenge'); onMinigameComplete(earned, 'typing');
   setCD('typing');
   var r = el('typing-result');
-  r.textContent = 'Time\'s up! +' + earned + ' PP!';
+  var newHigh = typingScore > typingHighScore;
+  if (newHigh) typingHighScore = typingScore;
+  r.innerHTML = 'Time\'s up! <strong>' + typingScore + ' words</strong> | +' + earned + ' PP' +
+    (newHigh ? ' <span style="color:#ffd700;">⭐ New Best!</span>' : '') +
+    '<br><span style="font-size:0.78rem;color:var(--text-light);">Session best: ' + typingHighScore + ' words</span>';
   r.style.color = '#5dde7a';
   el('typing-cooldown').style.display = 'block';
   el('typing-input').disabled = true;
@@ -9692,6 +9774,8 @@ function fishingTimingClick() {
   castLineRelease({ type: 'click' });
 }
 
+var _fishingTensionState = null; // null | { timer, biteTimer, power, spiking, spikeCaught }
+
 async function castLineRelease(e) {
   if (!_castPressing) return;
   _castPressing = false;
@@ -9701,13 +9785,117 @@ async function castLineRelease(e) {
   if (bar) bar.style.width = '0%';
   var wrap2 = document.getElementById('fishing-power-wrap');
   if (wrap2) wrap2.style.display = 'none';
+
+  // Start tension mechanic
+  await fishing_waitForBite(power);
+}
+
+async function fishing_waitForBite(castPower) {
   var pond = document.getElementById('fishing-pond-text');
-  if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
-  var btn = document.getElementById('fishing-btn');
-  if (btn) { btn.textContent = '⏳ Waiting...'; btn.disabled = true; }
-  // Run the catch
-  await castLine(power);
-  if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+  var btn  = document.getElementById('fishing-btn');
+  var tensionBar = document.getElementById('fishing-tension-bar');
+  var tensionWrap = document.getElementById('fishing-tension-wrap');
+
+  if (btn) { btn.textContent = '🎣 Reel In!'; btn.disabled = false; }
+
+  // Show tension bar wrapper if it exists
+  if (tensionWrap) tensionWrap.style.display = 'block';
+
+  // Wait time: 2-6 seconds before fish bites
+  var waitMs = 2000 + Math.random() * 4000;
+  var biteWindow = 1200; // player has 1.2 seconds to reel in on a bite
+  var spiking = false;
+  var resolved = false;
+  var bonusMultiplier = 1.0;
+
+  _fishingTensionState = { spiking: false, spikeCaught: false, power: castPower };
+
+  // Animate the tension indicator oscillating
+  var tensionLevel = 0;
+  var tensionDir = 1;
+  var tensionInterval = setInterval(function() {
+    if (resolved) { clearInterval(tensionInterval); return; }
+    tensionLevel += tensionDir * (4 + Math.random() * 6);
+    if (tensionLevel > 100) { tensionLevel = 100; tensionDir = -1; }
+    if (tensionLevel < 0)   { tensionLevel = 0;   tensionDir =  1; }
+    if (tensionBar) tensionBar.style.width = tensionLevel + '%';
+    // Color: green normally, yellow when rising, red when spiking
+    if (spiking) {
+      if (tensionBar) tensionBar.style.background = '#ff4444';
+      if (pond) { pond.textContent = '🐟 FISH ON! REEL IN NOW!'; pond.style.color = '#ff4444'; }
+    } else {
+      if (tensionBar) tensionBar.style.background = tensionLevel > 70 ? '#ffd700' : '#5dde7a';
+      var msgs = ['🌊 Waiting for a bite...', '〰️ Something is down there...', '🌊 Patience...', '〰️ The line is still...'];
+      if (pond && !spiking) pond.textContent = msgs[Math.floor(Date.now()/1500) % msgs.length];
+    }
+  }, 80);
+
+  // Schedule the bite
+  await new Promise(function(resolve) {
+    var biteTimeout = setTimeout(function() {
+      if (resolved) return;
+      spiking = true;
+      _fishingTensionState.spiking = true;
+      if (tensionBar) { tensionBar.style.width = '100%'; tensionBar.style.background = '#ff4444'; }
+      if (pond) { pond.textContent = '🐟 FISH ON! REEL IN NOW!'; pond.style.color = '#ff4444'; }
+      // If player doesn't reel in within biteWindow, fish escapes
+      var escapeTimeout = setTimeout(function() {
+        if (!_fishingTensionState.spikeCaught) {
+          resolved = true;
+          clearInterval(tensionInterval);
+          if (tensionWrap) tensionWrap.style.display = 'none';
+          if (pond) { pond.textContent = '💨 The fish got away!'; pond.style.color = '#ff6b6b'; }
+          if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+          _fishingTensionState = null;
+          // Reset after a moment
+          setTimeout(function() {
+            if (pond) { pond.textContent = '🌊 Cast your line...'; pond.style.color = ''; }
+          }, 1500);
+          resolve('escaped');
+        }
+      }, biteWindow);
+      _fishingTensionState._escapeTimeout = escapeTimeout;
+    }, waitMs);
+    _fishingTensionState._biteTimeout = biteTimeout;
+    _fishingTensionState._resolve = resolve;
+  }).then(async function(result) {
+    resolved = true;
+    clearInterval(tensionInterval);
+    if (tensionWrap) tensionWrap.style.display = 'none';
+    if (result === 'escaped') return;
+    // Player reeled in during the bite — check timing bonus
+    bonusMultiplier = _fishingTensionState.spikeCaught ? 1.3 : 1.0;
+    if (pond) { pond.textContent = '🎣 Reeling in...'; pond.style.color = ''; }
+    if (btn) { btn.textContent = '⏳ Reeling...'; btn.disabled = true; }
+    await castLine(castPower * bonusMultiplier);
+    if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+    _fishingTensionState = null;
+  });
+}
+
+function fishing_reelIn() {
+  // Called by the Reel In button during tension phase
+  if (!_fishingTensionState) return false;
+  if (_fishingTensionState.spiking) {
+    // Perfect timing — caught it during the bite!
+    _fishingTensionState.spikeCaught = true;
+    if (_fishingTensionState._escapeTimeout) clearTimeout(_fishingTensionState._escapeTimeout);
+    if (_fishingTensionState._resolve) _fishingTensionState._resolve('caught');
+    return true;
+  } else {
+    // Too early — scared the fish
+    if (_fishingTensionState._biteTimeout) clearTimeout(_fishingTensionState._biteTimeout);
+    if (_fishingTensionState._escapeTimeout) clearTimeout(_fishingTensionState._escapeTimeout);
+    if (_fishingTensionState._resolve) _fishingTensionState._resolve('early');
+    _fishingTensionState = null;
+    var pond = document.getElementById('fishing-pond-text');
+    if (pond) { pond.textContent = '😬 Too early! You spooked the fish.'; pond.style.color = '#ffd700'; }
+    var btn = document.getElementById('fishing-btn');
+    if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+    var tw = document.getElementById('fishing-tension-wrap');
+    if (tw) tw.style.display = 'none';
+    return false;
+  }
 }
 
 // ── FISH JOURNAL ──────────────────────────────────────────────────────────────
@@ -15896,6 +16084,14 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     if (battleResult.victory && expGained > 0) {
       checkAndApplyLevelUp(petId).then(null, function(){});
     }
+    // JOURNAL: fun_fact unlocks from winning battles
+    if (battleResult.victory) {
+      var bpet = petState[petId] || {};
+      var bpetType = (bpet.pets && bpet.pets.name) || bpet.pet_type || null;
+      if (bpetType && typeof logJournalDiscovery === 'function') {
+        logJournalDiscovery(bpetType, 'fun_fact', '').then(null, function(){});
+      }
+    }
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -17311,6 +17507,14 @@ async function checkAndApplyLevelUp(petId) {
     onPetLevelUp(petId);
     var petName = (petState[petId] && (petState[petId].nickname || (petState[petId].pets && petState[petId].pets.name))) || 'Your pet';
     showToast('⭐ ' + petName + ' leveled up! Now Level ' + lu.level + '!', 4000);
+    // JOURNAL: catchphrase unlocks on first level up; secret_talent at level 10+
+    var _luPetType = (petState[petId] && petState[petId].pets && petState[petId].pets.name) || null;
+    if (_luPetType && typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(_luPetType, 'catchphrase', '').then(null, function(){});
+      if (lu.level >= 10) {
+        logJournalDiscovery(_luPetType, 'secret_talent', '').then(null, function(){});
+      }
+    }
     tabsLoaded['mypets'] = false;
     dbg('[LevelUp] Pet', petId, '→ level', lu.level);
 
@@ -17716,6 +17920,14 @@ async function goExploring() {
   
   // Track energy used
   localStorage.setItem(energyKey, energyUsedToday + 5);
+  // JOURNAL: weather_preference from exploring (especially in weather events)
+  if (selectedBattlePetId && typeof logJournalDiscovery === 'function') {
+    var _wpPet = petState[selectedBattlePetId] || {};
+    var _wpType = (_wpPet.pets && _wpPet.pets.name) || _wpPet.pet_type || null;
+    if (_wpType && Math.random() < 0.25) { // 25% chance per exploration to unlock this
+      logJournalDiscovery(_wpType, 'weather_preference', '').then(null, function(){});
+    }
+  }
   
   // Roll for encounter type
   // Probabilities: Battle 82%, Item 6%, Treasure 4%, Recipe Book 3%, Secret Dungeon 2%, Flavor 3%
@@ -21273,55 +21485,52 @@ function renderJournalPage() {
   if (!prefs) {
     html += '<div style="text-align:center;padding:40px;color:var(--text-light);">No data available for this pet.</div>';
   } else {
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">💖 LOVED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.loved ? prefs.loved_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😊 LIKED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.liked ? prefs.liked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😐 DISLIKED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.disliked ? prefs.disliked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😠 HATED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.hated ? prefs.hated_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🎨 Hobby:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.hobby ? prefs.hobby : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">✨ Fun Fact:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.fun_fact ? prefs.fun_fact : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    // Helper: render a journal entry with discovery hint on ???
+    function jEntry(icon, label, key, value) {
+      var discovered = !!discoveries[key];
+      var hints = {
+        loved:              'Feed this pet various foods to discover what they love!',
+        liked:              'Keep feeding different foods to find what they like.',
+        disliked:           'Some foods get a bad reaction -- that unlocks this.',
+        hated:              'A very bad reaction to food unlocks this entry.',
+        hobby:              'Play with this pet to learn their hobby.',
+        fun_fact:           'Win battles with this pet to unlock a fun fact.',
+        sleep_habit:        'Send this pet on an expedition to discover their sleep habits.',
+        weather_preference: 'Battle in different weather conditions to learn their preferences.',
+        catchphrase:        'Level this pet up to hear their catchphrase.',
+        secret_talent:      'Reach Level 10 with this pet to unlock their secret talent.'
+      };
+      html += '<div class="journal-entry">';
+      html += '  <div class="journal-entry-label">' + icon + ' ' + label + ':</div>';
+      if (discovered) {
+        html += '  <div class="journal-entry-value">' + escapeHtml(String(value)) + '</div>';
+      } else {
+        html += '  <div class="journal-entry-value">' +
+          '<span class="journal-entry-unknown" title="' + (hints[key]||'Keep playing to discover this!') + '">???</span>' +
+          '<span style="font-size:0.68rem;color:var(--text-light);display:block;margin-top:2px;font-style:italic;">' +
+            '💡 ' + (hints[key]||'Keep playing to discover this!') +
+          '</span>' +
+        '</div>';
+      }
+      html += '</div>';
+    }
 
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😴 Sleep Habit:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.sleep_habit ? prefs.sleep_habit : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    jEntry('💖', 'LOVED Food',          'loved',              prefs.loved_item);
+    jEntry('😊', 'LIKED Food',           'liked',              prefs.liked_item);
+    jEntry('😐', 'DISLIKED Food',        'disliked',           prefs.disliked_item);
+    jEntry('😠', 'HATED Food',           'hated',              prefs.hated_item);
+    jEntry('🎨', 'Hobby',                'hobby',              prefs.hobby);
+    jEntry('✨', 'Fun Fact',             'fun_fact',           prefs.fun_fact);
 
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🌤️ Weather Preference:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.weather_preference ? prefs.weather_preference : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">💬 Catchphrase:</div>';
-    html += '  <div class="journal-entry-value journal-catchphrase">' + (discoveries.catchphrase ? '"' + prefs.catchphrase + '"' : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🎭 Secret Talent:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.secret_talent ? prefs.secret_talent : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    jEntry('😴', 'Sleep Habit',         'sleep_habit',        prefs.sleep_habit);
+    jEntry('🌤️', 'Weather Preference',  'weather_preference', prefs.weather_preference);
+    if (discoveries.catchphrase) {
+      html += '<div class="journal-entry"><div class="journal-entry-label">💬 Catchphrase:</div>';
+      html += '<div class="journal-entry-value journal-catchphrase">"' + escapeHtml(prefs.catchphrase) + '"</div></div>';
+    } else {
+      jEntry('💬', 'Catchphrase', 'catchphrase', '');
+    }
+    jEntry('🎭', 'Secret Talent',       'secret_talent',      prefs.secret_talent);
     
     var total = 10; // 4 food + hobby + fun_fact + sleep_habit + weather_preference + catchphrase + secret_talent
     var discovered = Object.keys(discoveries).length;
@@ -21680,7 +21889,18 @@ async function logActivity(activityType, activityData) {
   // currentUser is the raw Supabase Auth object and has no username field
   // of its own — the real in-game username lives in the players table and
   // is cached in currentUsername right after login (see showApp()).
-  var username = currentUsername || 'Someone';
+  // currentUsername is set async in showApp — if not ready, fetch it now
+  var username = currentUsername;
+  if (!username && currentUser) {
+    try {
+      var _uRes = await supabaseClient.from('players').select('username').eq('id', currentUser.id).single();
+      if (_uRes.data && _uRes.data.username) {
+        currentUsername = _uRes.data.username;
+        username = currentUsername;
+      }
+    } catch(e) {}
+  }
+  username = username || 'Someone';
   var enrichedData = Object.assign({ username: username }, activityData || {});
   
   try {
@@ -25507,7 +25727,9 @@ async function racing_selectPet(petId) {
       }
     }
     // Reset sessions_today if it's a new day
-    if (stats.last_trained_at !== new Date().toISOString().slice(0,10)) {
+    // last_trained_at may be stored as date "YYYY-MM-DD" or timestamptz - compare date portion only
+    var _ltDate = stats.last_trained_at ? stats.last_trained_at.slice(0,10) : null;
+    if (_ltDate !== new Date().toISOString().slice(0,10)) {
       stats.sessions_today = 0;
     }
     _racingState.racingStats = stats;
@@ -25679,8 +25901,13 @@ async function racing_doTrain(type) {
     var isNotFound = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('does not exist') ||
                      (trainRes.error && (trainRes.error.code === 'PGRST202' || String(trainRes.error.code) === '404'));
     if (!isNotFound) {
-      showToast('Training failed: ' + errMsg, 3000);
-      return;
+      // Check if it's the date/text type mismatch — if so, use client fallback too
+      var isDateError = errMsg.includes('date') || errMsg.includes('type') || errMsg.includes('text') || errMsg.includes('400');
+      if (!isDateError) {
+        showToast('Training failed: ' + errMsg, 3000);
+        return;
+      }
+      dbg('[Train] RPC date type error — using client fallback:', errMsg);
     }
     // Client-side fallback: apply stat gain directly
     var today = new Date().toISOString().slice(0, 10);
@@ -25695,7 +25922,7 @@ async function racing_doTrain(type) {
     await supabaseClient.from('pet_racing_stats').update({
       [t.stat]: newStats[t.stat] !== undefined ? newStats[t.stat] : newStats.fitness,
       sessions_today: newStats.sessions_today,
-      last_trained_at: today
+      last_trained_at: today + 'T00:00:00.000Z'  // send as timestamptz so Postgres casts correctly
     }).eq('id', newStats.id).then(null, function(){});
     Object.assign(_racingState.racingStats, newStats);
     _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - newStats.sessions_today);
@@ -25868,19 +26095,41 @@ function racing_renderRaceInProgress() {
   html += '<span style="font-weight:700;">Position: <span style="color:' + (playerRank === 1?'#e6a800':'var(--text)') + '">' + ['1st','2nd','3rd','4th','5th','6th'][playerRank-1] + '</span></span>';
   html += '</div>';
 
-  // Track visualization
-  html += '<div style="margin-bottom:14px;">';
-  ranked.forEach(function(racer, idx) {
-    var pct = Math.min(100, (racer.position / RACING_FINISH_LINE) * 100);
-    var color = racer.isPlayer ? 'var(--purple)' : '#888';
-    html += '<div style="margin-bottom:6px;">';
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">';
-    html += '<span style="font-size:0.85rem;">' + racer.emoji + '</span>';
-    html += '<span style="font-size:0.78rem;color:' + (racer.isPlayer?'var(--purple)':'var(--text-light)') + ';font-weight:' + (racer.isPlayer?'700':'400') + ';">' + racer.name + '</span>';
-    html += '<span style="margin-left:auto;font-size:0.72rem;color:var(--text-light);">💪 ' + racer.stamina + '/' + racer.maxStamina + '</span>';
+  // Emoji race track visualization
+  var TRACK_CELLS = 16; // cells to show on the visual track
+  var FINISH = RACING_FINISH_LINE || 100;
+  html += '<div style="margin-bottom:14px;background:rgba(0,0,0,0.15);border-radius:12px;padding:10px 8px;font-family:monospace;">';
+  html += '<div style="font-size:0.65rem;color:var(--text-light);margin-bottom:6px;display:flex;justify-content:space-between;"><span>🏁 Start</span><span>Finish 🏁</span></div>';
+  ranked.forEach(function(racer) {
+    var pct = Math.min(1.0, racer.position / FINISH);
+    var cell = Math.round(pct * (TRACK_CELLS - 1));
+    var track = '';
+    for (var i = 0; i < TRACK_CELLS; i++) {
+      if (i === cell) {
+        track += racer.emoji;
+      } else if (i === TRACK_CELLS - 1) {
+        track += '🏁';
+      } else {
+        track += (i % 3 === 0 ? '·' : '·');
+      }
+    }
+    var rankNum = ranked.findIndex(function(x){return x===racer;})+1;
+    var rankEmoji = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣'][rankNum-1] || rankNum + '.';
+    html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;' + (racer.isPlayer?'background:rgba(153,102,255,0.12);border-radius:6px;padding:2px 4px;':'') + '">';
+    html += '<span style="font-size:0.75rem;min-width:22px;">' + rankEmoji + '</span>';
+    html += '<span style="font-size:1.1rem;letter-spacing:1px;flex:1;">' + track + '</span>';
+    html += '<span style="font-size:0.65rem;color:var(--text-light);min-width:40px;text-align:right;">💪' + racer.stamina + '</span>';
     html += '</div>';
-    html += '<div style="background:var(--bg);border-radius:6px;height:10px;overflow:hidden;">';
-    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.3s;"></div></div>';
+  });
+  html += '</div>';
+  // Progress bars (compact, below the track)
+  html += '<div style="margin-bottom:10px;">';
+  ranked.forEach(function(racer) {
+    var pct = Math.min(100, (racer.position / FINISH) * 100);
+    html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:0.72rem;">';
+    html += '<span style="min-width:70px;color:' + (racer.isPlayer?'var(--purple)':'var(--text-light)') + ';font-weight:' + (racer.isPlayer?'700':'400') + ';overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + racer.name + '</span>';
+    html += '<div style="flex:1;background:var(--bg);border-radius:4px;height:7px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:' + (racer.isPlayer?'var(--purple)':'#666') + ';border-radius:4px;transition:width 0.3s;"></div></div>';
+    html += '<span style="min-width:28px;text-align:right;color:var(--text-light);">' + Math.round(pct) + '%</span>';
     html += '</div>';
   });
   html += '</div>';
@@ -31023,130 +31272,59 @@ var titleTracking = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYER TITLE UNLOCKS - NOT YET IMPLEMENTED
-// Uncomment when player title system (loadTitles, hasTitle, awardTitle) is added
+// PLAYER TITLE UNLOCKS — auto-award titles based on gameplay milestones
+// Called from showApp after player data is loaded
 // ═══════════════════════════════════════════════════════════════════════
 
-// Stub keeps showApp call alive until full implementation is uncommented
 
-
-/*
 async function checkPlayerTitleUnlocks() {
   if (!currentUser) return;
   
+  // Helper: check if player already has a title
+  function _hasTitle(titleKey) {
+    return allPlayerTitles.some(function(t) {
+      return t.title_key === titleKey || (t.display_name && t.display_name.toLowerCase().replace(/\s+/g,'_') === titleKey);
+    });
+  }
+
   try {
-    var stats = await supabaseClient
+    // Use counters from players table — avoid expensive battle_history join
+    var { data: p } = await supabaseClient
       .from('players')
-      .select('*, battle_history(*)')
+      .select('battles_won, total_battles, total_pp_earned')
       .eq('id', currentUser.id)
       .single();
-    
-    if (!stats.data) return;
-    var p = stats.data;
-    
-    // Spoon Warlord - Win 100 battles
-    var totalWins = p.battle_history?.filter(b => b.victory).length || 0;
-    if (totalWins >= 100 && !hasTitle('spoon_warlord')) {
-      await awardTitle('spoon_warlord');
+    if (!p) return;
+
+    var totalWins = p.battles_won || 0;
+
+    // Battle count titles
+    if (totalWins >= 100) await awardPlayerTitle('spoon_warlord').catch(function(){});
+    if (totalWins >= 50)  await awardPlayerTitle('local_menace').catch(function(){});
+    if (totalWins >= 10)  await awardPlayerTitle('first_blood').catch(function(){});
+
+    // PP titles
+    if ((p.total_pp_earned || 0) >= 5000) await awardPlayerTitle('pp_addict').catch(function(){});
+    if ((p.total_pp_earned || 0) >= 1000) await awardPlayerTitle('pp_hoarder').catch(function(){});
+
+    // Creature Collector — own all pets
+    var { count: totalPetTypes } = await supabaseClient.from('pets').select('id', { count: 'exact', head: true });
+    var { count: ownedCount } = await supabaseClient.from('user_pets').select('pet_id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
+    if (totalPetTypes && ownedCount >= totalPetTypes) {
+      await awardPlayerTitle('creature_collector').catch(function(){});
     }
-    
-    // Local Menace - Win 50 battles
-    if (totalWins >= 50 && !hasTitle('local_menace')) {
-      await awardTitle('local_menace');
-    }
-    
-    // Golden Legend - Defeat 5 Golden enemies
-    var goldenKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'golden'
-    ).length || 0;
-    if (goldenKills >= 5 && !hasTitle('golden_legend')) {
-      await awardTitle('golden_legend');
-    }
-    
-    // Shiny Hunter - Defeat 10 Shiny enemies
-    var shinyKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'shiny'
-    ).length || 0;
-    if (shinyKills >= 10 && !hasTitle('shiny_hunter')) {
-      await awardTitle('shiny_hunter');
-    }
-    
-    // Corrupted Soul - Defeat 20 Corrupted enemies
-    var corruptedKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'corrupted'
-    ).length || 0;
-    if (corruptedKills >= 20 && !hasTitle('corrupted_soul')) {
-      await awardTitle('corrupted_soul');
-    }
-    
-    // Bug Catcher - Defeat 15 Glitched enemies
-    var glitchedKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'glitched'
-    ).length || 0;
-    if (glitchedKills >= 15 && !hasTitle('bug_catcher')) {
-      await awardTitle('bug_catcher');
-    }
-    
-    // Elemental Master - Defeat all 5 elemental types
-    var elementalTypes = new Set();
-    p.battle_history?.forEach(b => {
-      if (b.victory && b.enemy_elemental_type) {
-        elementalTypes.add(b.enemy_elemental_type);
-      }
-    });
-    if (elementalTypes.size >= 5 && !hasTitle('elemental_master')) {
-      await awardTitle('elemental_master');
-    }
-    
-    // PP Addict - Earn 5,000 PP total
-    if ((p.total_pp_earned || 0) >= 5000 && !hasTitle('pp_addict')) {
-      await awardTitle('pp_addict');
-    }
-    
-    // Creature Collector - Own all available pets
-    var totalPets = await supabaseClient
-      .from('pets')
-      .select('id', { count: 'exact' });
-    
-    var ownedPets = await supabaseClient
-      .from('user_pets')
-      .select('pet_id', { count: 'exact' })
-      .eq('user_id', currentUser.id);
-    
-    if (ownedPets.count >= totalPets.count && !hasTitle('creature_collector')) {
-      await awardTitle('creature_collector');
-    }
-    
-    // Forest Cryptid - Defeat 30 Deep Woods enemies
-    var deepWoodsKills = p.battle_history?.filter(b => 
-      b.victory && b.zone === 'deepwoods'
-    ).length || 0;
-    if (deepWoodsKills >= 30 && !hasTitle('forest_cryptid')) {
-      await awardTitle('forest_cryptid');
-    }
-    
-    // Dungeon Janitor - Defeat 100 total enemies
-    var totalKills = p.battle_history?.filter(b => b.victory).length || 0;
-    if (totalKills >= 100 && !hasTitle('dungeon_janitor')) {
-      await awardTitle('dungeon_janitor');
-    }
-    
-    // Mythical Being - Reach total level 100 across all pets
-    var allPets = await supabaseClient
-      .from('user_pets')
-      .select('level')
-      .eq('user_id', currentUser.id);
-    
-    var totalLevel = allPets.data?.reduce((sum, p) => sum + p.level, 0) || 0;
-    if (totalLevel >= 100 && !hasTitle('mythical_being')) {
-      await awardTitle('mythical_being');
-    }
-    
+
+    // Total level milestone
+    var { data: allPetsData } = await supabaseClient.from('user_pets').select('level').eq('user_id', currentUser.id);
+    var totalLevel = (allPetsData || []).reduce(function(sum, pet) { return sum + (pet.level || 1); }, 0);
+    if (totalLevel >= 100) await awardPlayerTitle('mythical_being').catch(function(){});
+    if (totalLevel >= 50)  await awardPlayerTitle('veteran_trainer').catch(function(){});
+
   } catch (err) {
     console.error('[Titles] Error checking player unlocks:', err);
   }
 }
-*/
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE UNLOCKS - With Unique Conditions
@@ -31323,15 +31501,13 @@ async function checkConsecutiveLosses(petId, allBattles) {
   }
 }
 
-// Special: 3am login check (NOT YET IMPLEMENTED - needs player title system)
-/*
+// Special: // 3am login check — awards Night Owl title if player logs in at 3am
 function checkMidnightLogin() {
   var hour = new Date().getHours();
-  if (hour === 3 && !hasTitle('sleep_deprived')) {
-    awardTitle('sleep_deprived');
+  if (hour === 3) {
+    awardPlayerTitle('sleep_deprived').catch(function(){});
   }
 }
-*/
 
 // Special: 3am battle check (call after battle victories)
 async function checkMidnightBattle(petId, won) {
@@ -33471,22 +33647,31 @@ async function checkTutorialStatus() {
     if (res.data) {
       playerSettings.tutorial_completed = res.data.tutorial_completed || false;
       playerSettings.spooky_enabled = res.data.spooky_enabled || false;
-      
       dbg('Tutorial status:', playerSettings.tutorial_completed);
       dbg('Spooky enabled:', playerSettings.spooky_enabled);
-      
-      // Start tutorial if not completed
-      if (!playerSettings.tutorial_completed) {
-        dbg('Starting tutorial for new player...');
-        setTimeout(function() {
-          if (typeof Tutorial !== 'undefined') {
-            Tutorial.start();
-          }
-        }, 1500);
-      }
+    } else {
+      // No players row yet (brand new signup) — treat as tutorial not completed
+      playerSettings.tutorial_completed = false;
+      dbg('No players row found — treating as new user, starting tutorial');
+    }
+
+    // Start tutorial if not completed (runs whether res.data existed or not)
+    if (!playerSettings.tutorial_completed) {
+      dbg('Starting tutorial for new player...');
+      setTimeout(function() {
+        if (typeof Tutorial !== 'undefined') {
+          Tutorial.start();
+        }
+      }, 1500);
     }
   } catch (err) {
     console.error('Error checking tutorial status:', err);
+    // On error, default to starting tutorial (safe fallback for new users)
+    setTimeout(function() {
+      if (typeof Tutorial !== 'undefined' && !playerSettings.tutorial_completed) {
+        Tutorial.start();
+      }
+    }, 1500);
   }
 }
 
@@ -34051,12 +34236,16 @@ async function claimSeasonPassReward(seasonKey, level) {
       await awardPlayerTitle(reward.reward_value, 'Season Pass reward');
       showToast('🏆 Title unlocked!', 'success', true);
     } else if (reward.reward_type === 'frame') {
-      // NOTE: profile frame ownership doesn't have a confirmed table/RPC
-      // wired up on the client yet (there's a phase1_frames table but no
-      // client-side granting code found for it) — this shows the reward
-      // but doesn't yet persist frame ownership. Flag for follow-up.
-      dbg('[SeasonPass] Frame reward claimed but not yet wired to a frame-ownership table:', reward.reward_value);
-      showToast('🖼️ Frame reward claimed! (frame system integration pending)', 'success');
+      // Grant the frame via the cosmetics system (phase1_unlockCosmetic writes to unlocked_cosmetics)
+      var frameId = reward.reward_value;
+      if (frameId && typeof phase1_unlockCosmetic === 'function') {
+        await phase1_unlockCosmetic('frame', frameId);
+        // phase1_unlockCosmetic already shows the unlock celebration — no extra toast needed
+        dbg('[SeasonPass] Frame unlocked via cosmetics system:', frameId);
+      } else {
+        showToast('🖼️ Frame unlocked! Check your profile to equip it.', 'success');
+        dbg('[SeasonPass] Frame reward (phase1_unlockCosmetic not available):', frameId);
+      }
     }
     return true;
   } catch (e) {
@@ -34759,6 +34948,101 @@ function onPetLevelUp(petId) {
     .then(function(res) {
       if (!res.error && petState[petId]) petState[petId].stat_points = (petState[petId].stat_points || 0) + 1;
     }).then(null, function(){});
+}
+
+// ── Stat Point Allocation Modal ───────────────────────────────────────────
+function statPoints_openModal(petId) {
+  if (!petId || !petState[petId]) return;
+  var pet = petState[petId];
+  var available = pet.stat_points || 0;
+  if (available <= 0) { showToast('No stat points to spend! Level up to earn more.', 2500); return; }
+
+  var modal = makeModal();
+
+  var STAT_DEFS = [
+    { key:'bonus_hp',      label:'❤️ Health',   desc:'+3 max HP per point',  icon:'❤️',  gain:3 },
+    { key:'bonus_attack',  label:'⚔️ Attack',   desc:'+2 attack per point',  icon:'⚔️',  gain:2 },
+    { key:'bonus_defense', label:'🛡️ Defense',  desc:'+2 defense per point', icon:'🛡️',  gain:2 },
+    { key:'bonus_speed',   label:'💨 Speed',    desc:'+1 speed per point',   icon:'💨',  gain:1 },
+  ];
+
+  function render() {
+    var pts = (petState[petId] && petState[petId].stat_points) || 0;
+    modal.innerHTML =
+      '<div style="max-width:380px;">' +
+        '<h3 style="color:var(--purple);margin-bottom:4px;">✨ Allocate Stat Points</h3>' +
+        '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:16px;">' +
+          '<strong style="color:var(--purple-dark);">' + pts + ' point' + (pts!==1?'s':'') + '</strong> available to spend' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;">' +
+          STAT_DEFS.map(function(s) {
+            var current = (petState[petId] && petState[petId][s.key]) || 0;
+            return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(153,102,255,0.06);border:1px solid var(--border);border-radius:12px;">' +
+              '<div style="font-size:1.4rem;">' + s.icon + '</div>' +
+              '<div style="flex:1;">' +
+                '<div style="font-weight:700;font-size:0.88rem;">' + s.label + '</div>' +
+                '<div style="font-size:0.72rem;color:var(--text-light);">' + s.desc + ' • Current: ' + current + '</div>' +
+              '</div>' +
+              '<button class="stp-btn" data-pid="' + escapeHtml(petId) + '" data-key="' + escapeHtml(s.key) + '" ' +
+                (pts <= 0 ? 'disabled ' : '') +
+                'style="padding:7px 16px;border-radius:10px;border:2px solid var(--purple);background:' + (pts>0?'var(--purple)':'var(--border)') + ';color:white;font-weight:700;font-size:0.82rem;cursor:' + (pts>0?'pointer':'not-allowed') + ';white-space:nowrap;">+1</button>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<button class="btn btn-outline" style="width:100%;margin-top:16px;" class="stp-done">Done</button>' +
+      '</div>';
+  }
+
+  render();
+  openModal(modal);
+  window._statPointsModalPetId = petId;
+}
+
+// Event delegation for stat point buttons (avoids quote-escaping in HTML strings)
+document.addEventListener('click', function(e) {
+  var spendBtn = e.target.closest('.stp-btn');
+  if (spendBtn && spendBtn.dataset.pid && spendBtn.dataset.key) {
+    statPoints_spend(spendBtn.dataset.pid, spendBtn.dataset.key);
+    return;
+  }
+  var doneBtn = e.target.closest('.stp-done');
+  if (doneBtn) {
+    closeModal();
+    tabsLoaded['mypets'] = false;
+    loadMyPets();
+  }
+});
+
+async function statPoints_spend(petId, statKey) {
+  if (!petId || !petState[petId]) return;
+  var pts = (petState[petId] && petState[petId].stat_points) || 0;
+  if (pts <= 0) return;
+
+  var BONUS_MAP = { bonus_hp:3, bonus_attack:2, bonus_defense:2, bonus_speed:1 };
+  var gain = BONUS_MAP[statKey] || 1;
+  var currentBonus = (petState[petId][statKey] || 0) + gain;
+  var newPoints = pts - 1;
+
+  try {
+    var update = { stat_points: newPoints };
+    update[statKey] = currentBonus;
+    var { error } = await supabaseClient.from('user_pets').update(update).eq('id', petId);
+    if (error) throw error;
+
+    // Update petState cache
+    petState[petId].stat_points = newPoints;
+    petState[petId][statKey] = currentBonus;
+
+    showToast('+' + gain + ' ' + statKey.replace('bonus_','').toUpperCase() + ' allocated!', 2000);
+
+    // Re-render: close current and reopen so the UI reflects the spend
+    if (window._statPointsModalPetId === petId) {
+      closeModal();
+      setTimeout(function() { statPoints_openModal(petId); }, 50);
+    }
+  } catch(e) {
+    showToast('Failed to spend stat point: ' + escapeHtml(e.message), 3000);
+  }
 }
 
 // Hook for adoption - call this when adopting a pet
@@ -41058,15 +41342,6 @@ var PET_SKILLS = {
 };
 
 // Returns the skills available to a pet at its current level
-
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STAT POINTS SYSTEM — players allocate 1 point per level
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Open the stat allocation modal for a pet
-
-
 
 
 

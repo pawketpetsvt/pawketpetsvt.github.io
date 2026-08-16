@@ -1918,18 +1918,27 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
               </div>
 
               <!-- Power bar (hidden until holding) -->
-              <div id="fishing-power-wrap" style="margin:6px 0 4px;">
+              <div id="fishing-power-wrap" style="margin:6px 0 4px;display:none;">
                 <div style="font-size:0.7rem;color:var(--text-light);text-align:center;margin-bottom:3px;">🎣 Release at the right moment!</div>
                 <div style="background:var(--border);border-radius:8px;height:18px;overflow:hidden;">
                   <div id="fishing-power-bar" style="height:100%;width:0%;background:#5dde7a;border-radius:8px;transition:background 0.1s;"></div>
                 </div>
                 <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-light);margin-top:2px;"><span>Weak</span><span>Good</span><span>Perfect</span></div>
               </div>
+              <!-- Tension bar (hidden until line is in water) -->
+              <div id="fishing-tension-wrap" style="margin:6px 0 4px;display:none;">
+                <div style="font-size:0.72rem;color:var(--text-light);text-align:center;margin-bottom:3px;">🐟 Watch for a bite — reel in when the bar goes red!</div>
+                <div style="background:var(--border);border-radius:8px;height:18px;overflow:hidden;position:relative;">
+                  <div id="fishing-tension-bar" style="height:100%;width:20%;background:#5dde7a;border-radius:8px;transition:width 0.08s,background 0.1s;"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--text-light);margin-top:2px;"><span>Calm</span><span style="color:#ffd700;">Biting!</span><span style="color:#ff4444;">REEL NOW</span></div>
+              </div>
               <button class="btn btn-primary" id="fishing-btn"
                 onmousedown="castLineStart(event)" ontouchstart="castLineStart(event)"
-                onmouseup="castLineRelease()" ontouchend="castLineRelease()"
-                onmouseleave="if(_castPressing)castLineRelease()"
-                style="width:100%;margin-top:4px;padding:12px;font-size:1rem;user-select:none;">
+                onmouseup="if(_castPressing)castLineRelease(event)" ontouchend="if(_castPressing)castLineRelease(event)"
+                onmouseleave="if(_castPressing)castLineRelease(event)"
+                onclick="if(!_castPressing && _fishingTensionState)fishing_reelIn()"
+                style="width:100%;margin-top:4px;padding:12px;font-size:1rem;user-select:none;touch-action:manipulation;">
                 🎣 Hold to Cast!
               </button>
             </div>
