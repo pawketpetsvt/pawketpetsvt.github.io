@@ -425,9 +425,13 @@ function getPlayerMaxPetLevel() {
 // XP required to advance from `level` to `level+1`
 function xpForLevel(level) {
   var base = (typeof GAME_CONSTANTS !== 'undefined') ? GAME_CONSTANTS.XP_PER_LEVEL : 100;
-  if (level <= 2) return Math.round(level * 60);   // L1→2: 60, L2→3: 120
-  if (level <= 4) return Math.round(level * 75);   // L3→4: 225, L4→5: 300
-  return level * base;                              // L5+: level * 100
+  // Early levels: 4-6 battles per level (enemies give ~15-25 XP each)
+  if (level === 1) return 80;   // L1→2: ~4-5 battles
+  if (level === 2) return 140;  // L2→3: ~5-6 battles
+  if (level === 3) return 200;  // L3→4: ~6-8 battles
+  if (level === 4) return 275;  // L4→5: ~8-10 battles
+  if (level <= 9)  return level * base;       // L5-9: level * 100
+  return level * base * 1.2;                  // L10+: scaling gets steeper
 }
 
 var playerSettings = {
@@ -706,7 +710,8 @@ function cosmetics_renderPanel(containerId, tab) {
     if (typeKey === 'backgrounds') {
       preview = '<div class="cosmetic-preview" style="background:' + item.gradient + ';border-radius:4px 4px 0 0;"></div>';
     } else if (typeKey === 'frames') {
-      preview = '<div class="cosmetic-preview"><div style="width:44px;height:44px;border-radius:50%;border:4px solid ' + item.previewColor + ';box-shadow:0 0 10px ' + item.previewColor + ';display:flex;align-items:center;justify-content:center;font-size:1.4rem;">' + item.emoji + '</div></div>';
+      // Apply the actual CSS class so animated frames (fire, rainbow, glitch, etc) show in preview
+      preview = '<div class="cosmetic-preview"><div class="' + item.cssClass + '" style="width:44px;height:44px;border-radius:50%;border-width:4px;border-style:solid;display:flex;align-items:center;justify-content:center;font-size:1.4rem;box-shadow:0 0 8px ' + item.previewColor + ';">' + item.emoji + '</div></div>';
     } else {
       preview = '<div class="cosmetic-preview" style="font-size:2rem;">' + item.emoji + '</div>';
     }
@@ -1000,6 +1005,49 @@ var GAME_CONSTANTS = {
   TUTORIAL_PP_REWARD:  100,   // PP awarded for completing tutorial
   TUTORIAL_SKIP_PP:    50,    // PP awarded for skipping tutorial
 };
+
+// ── Zone Configuration ────────────────────────────────────────────────────────
+var ZONE_CONFIG = {
+  outskirts: {
+    label: 'City Outskirts',
+    energyCost: 5,
+    minLevel: 1, maxLevel: 8,
+    battleMod: { type: 'none' }
+  },
+  glade: {
+    label: 'Forest Glade',
+    energyCost: 7,
+    minLevel: 4, maxLevel: 14,
+    battleMod: { type: 'regen', amount: 3, label: '🌿 Forest Regen', desc: 'Enemies regenerate 3 HP per turn' }
+  },
+  deepwoods: {
+    label: 'Deep Woods',
+    energyCost: 10,
+    minLevel: 8, maxLevel: 20,
+    battleMod: { type: 'fog', evasion: 0.15, fogTurns: 2, label: '🌫️ Fog of War', desc: 'Enemy has 15% evasion for first 2 turns' }
+  },
+  ruins: {
+    label: 'Outside The Ruins',
+    energyCost: 14,
+    minLevel: 12, maxLevel: 28,
+    battleMod: { type: 'corruption', damage: 2, label: '☠️ Corrupted Ground', desc: 'You take 2 corruption damage each turn' }
+  },
+  hollow_warrens: {
+    label: 'The Hollow Warrens',
+    energyCost: 9,
+    minLevel: 7, maxLevel: 18,
+    battleMod: { type: 'fog', evasion: 0.10, fogTurns: 1, label: '🐇 Tunnel Confusion', desc: 'Enemy has 10% evasion in the dark warrens' },
+    isSecret: true
+  },
+  ashen_ruins: {
+    label: 'The Ashen Ruins',
+    energyCost: 12,
+    minLevel: 11, maxLevel: 25,
+    battleMod: { type: 'burn_ground', damage: 1, label: '🔥 Ashen Ground', desc: 'The burning ground deals 1 damage per turn to both fighters' },
+    isSecret: true
+  }
+};
+
 // ═══════════════════════════════════════════════════════════════════════════
 // EVENT / WEATHER STATUS NAVBAR WIDGET
 // Shows active event (priority) or current weather in the navbar center.
@@ -1809,9 +1857,23 @@ function showTab(tab) {
   
   document.querySelectorAll('#app-content .page-section').forEach(function(s){ s.classList.remove('active'); });
   var sec = el('section-' + tab); if (sec) sec.classList.add('active');
-  // Melon visibility — show only on shop
+  // Melon visibility — show on shop tab, hide on others
   var melon = document.getElementById('melon-mascot');
-  if (melon) { if (tab === 'shop') { melon.style.setProperty('display','block','important'); } else { melon.style.display = 'none'; } }
+  if (melon) {
+    if (tab === 'shop') {
+      melon.style.setProperty('display','flex','important');
+      // Ensure dialogue is populated
+      setTimeout(function(){
+        var dial = document.getElementById('melon-dialogue');
+        if (dial && (!dial.textContent || dial.textContent.trim() === '')) {
+          dial.textContent = "Welcome to the Shop! I'm Melon! Buy whatever you need!";
+        }
+        if (dial) dial.style.display = 'block';
+      }, 100);
+    } else {
+      melon.style.display = 'none';
+    }
+  }
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.remove('active'); });
   var btn = el('tab-btn-' + tab); if (btn) btn.classList.add('active');
   
@@ -2084,7 +2146,7 @@ async function showApp(user) {
   await Promise.all([
     loadActivePlayerTitle().catch(function(){}),
     (typeof checkPlayerTitleUnlocks === 'function' ? checkPlayerTitleUnlocks() : Promise.resolve()).catch(function(){}), // Guard against scope issues
-    awardBadge('welcome').catch(function(){}),
+    awardBadge('first_pet').catch(function(){}),
     initReferralSystem(user.id).catch(function(){}),
     checkTutorialStatus().catch(function(){}),
     checkSidebarStreamStatus().catch(function(){}),
@@ -2094,6 +2156,9 @@ async function showApp(user) {
     weeklyChallenge_init(),
     todayCard_init().catch(function(){}),         // integrity box + melon quests
   ]);
+
+  // Load secret dungeon unlocks from DB (ensures they show after device change)
+  secretDungeon_loadFromDB().then(null, function(){});
 
   var bonus = await checkDailyBonus(user.id);
   if (bonus.awarded) {
@@ -2538,6 +2603,12 @@ async function awardStreakReward(streak) {
     await awardPP(reward.pp, 'streak_bonus');
     showPixelToast(reward.message, 'success');
   }
+
+  // Streak milestone badges and titles
+  if (streak >= 3)   awardBadge('early_bird').then(null, function(){});
+  if (streak >= 7)   { awardBadge('on_fire').then(null, function(){}); awardPlayerTitle('daily_player').catch(function(){}); }
+  if (streak >= 30)  { awardBadge('badge_30_days').then(null, function(){}); awardBadge('dedicated').then(null, function(){}); awardPlayerTitle('dedicated').catch(function(){}); }
+  if (streak >= 100) { awardBadge('badge_100_days').then(null, function(){}); awardBadge('living_legend').then(null, function(){}); awardPlayerTitle('loyal').catch(function(){}); }
 }
 
 async function handleLogout() {
@@ -3115,6 +3186,8 @@ async function confirmAdopt() {
   
   // ACTIVITY FEED: Log adoption so friend feeds + OBS live alerts pick it up
   logActivity('pet_adopted', { pet_name: nickname || selectedPet.name, species: selectedPet.name, nickname: nickname || null });
+  // Title: 'newcomer' for adopting first pet ever
+  awardPlayerTitle('newcomer').catch(function(){});
   
   // Store for social sharing
   lastAdoptedPet = {
@@ -3585,8 +3658,18 @@ async function useItem(petId) {
   if (item.hap > 0) updates.happiness = Math.min(pet.happiness + item.hap, pet.max_happiness);
   if (item.xp > 0) updates.xp = pet.xp + item.xp;
   
+  // Check if this is a combat buff recipe (Warrior's Feast, Iron Shell Stew, etc.)
+  // These are matched by name in COOKING_RECIPES and apply a per-battle buff to the pet
+  var _combatBuffRecipe = null;
+  if (typeof COOKING_RECIPES !== 'undefined') {
+    _combatBuffRecipe = COOKING_RECIPES.find(function(r) {
+      return r.combatBuff && r.name && item.name &&
+             r.name.toLowerCase() === item.name.toLowerCase();
+    });
+  }
+
   // Make sure we have some effect to apply
-  if (!Object.keys(updates).length) { 
+  if (!Object.keys(updates).length && !_combatBuffRecipe) { 
     showToast('No effects configured.'); 
     btn.disabled = false; 
     btn.textContent = 'Use'; 
@@ -3614,10 +3697,19 @@ async function useItem(petId) {
     inventoryItems[idx].qty = item.qty - 1; 
   }
 
+  // Apply combat buff if this is a secret recipe food
+  if (_combatBuffRecipe && _combatBuffRecipe.id) {
+    combatBuff_apply(petId, _combatBuffRecipe.id).then(function() {
+      showToast(_combatBuffRecipe.emoji + ' Combat buff active! ' + _combatBuffRecipe.effect, 4000);
+    }).catch(function(e) {
+      dbg('[combatBuff] apply error:', e);
+    });
+  }
+
   // FIX: track bingo + passXP (was missing from this path)
   if (item.h > 0) {
     updateBingoProgress('feed_pet', 1);
-    melonRequests_checkProgress('feed_pet', itemId);
+    melonRequests_checkProgress('feed_pet', item.name);
     addPassXP(2, 'feed').then(null, function(){});
     community_increment('feed_pets', 1);
   }
@@ -3957,7 +4049,7 @@ function makeMyPetCard(pet) {
   xpRow.appendChild(makeEl('span', {class:'xp-label'}, 'XP'));
   var xpWrap = makeEl('div', {class:'xp-bar-wrap'});
   var xpFill = makeEl('div', {class:'xp-bar-fill', id:'xp-bar-'+pet.id});
-  xpFill.style.width = xpPct+'%';
+  xpFill.style.width = Math.min(100, xpPct)+'%';
   xpWrap.appendChild(xpFill);
   xpRow.appendChild(xpWrap);
   xpRow.appendChild(makeEl('span', {class:'xp-value', id:'xp-val-'+pet.id}, pet.xp+'/'+xpNext));
@@ -3999,8 +4091,16 @@ function makeMyPetCard(pet) {
   playBtn.disabled = pet.energy < 10;
   playBtn.style.cssText = 'flex:1;min-width:60px;padding:7px 10px;font-size:0.82rem;';
   
+  // ⚔️ Skills button
+  var skillBtn = makeEl('button', {class:'btn-action'});
+  skillBtn.textContent = '⚔️ Skills';
+  skillBtn.title = 'Manage skill loadout';
+  skillBtn.style.cssText = 'min-width:72px;padding:7px 10px;font-size:0.82rem;background:linear-gradient(135deg,rgba(153,102,255,0.2),rgba(153,102,255,0.35));color:var(--purple-dark);border:1px solid var(--purple-light);border-radius:25px;cursor:pointer;font-weight:600;white-space:nowrap;';
+  skillBtn.onclick = (function(id) { return function() { petSkills_openManager(id); }; })(pet.id);
+
   actions.appendChild(feedBtn); 
   actions.appendChild(playBtn);
+  actions.appendChild(skillBtn);
   actions.appendChild(roomBtn);
 
   // 📊 Stat Points button — shows when pet has unallocated points
@@ -4563,7 +4663,7 @@ var PET_PERSONALITIES = {
     neglected: [
       "I have NEVER gotten a game over in my LIFE and this is what it feels like.",
       "The Furbies are handling this better than I am. That's humbling.",
-      "INSERT COIN. INSERT COIN. That's you. You're the coin. Please.",
+      "INSERT COIN. I'M HUNGRY!! Feed me and I'll let you play. 🕹️",
       "Neopets The Darkest Faerie taught me resilience. It didn't prepare me for THIS. 🎮",
     ],
     missed_you: "Gnarly spins around from the arcade cabinet. 'PLAYER TWO HAS ENTERED THE GAME.' Let's go. 🕹️",
@@ -4772,13 +4872,13 @@ function calculateLevelUp(newXp, currentLevel, currentMaxHunger, currentMaxEnerg
 // ═══════════════════════════════════════════════════════════════════════════
 
 var EXPEDITION_ZONES = [
-  { key:'outskirts',  label:'Outskirts',     emoji:'🏘️', duration:30, minPP:15,  maxPP:30,  rarity:'common',   desc:'Quick scout of the nearby fields.',  energyCost:15, xpReward:25,
+  { key:'outskirts',  label:'Outskirts',     emoji:'🏘️', duration:30, minPP:15,  maxPP:30,  rarity:'common',   desc:'Quick scout of the nearby fields.',  energyCost:15, xpReward:5,
     itemPool:[{id:'basic_food',name:'Basic Food',icon:'🍞',type:'food'}], itemChance:0.30, minItems:0, maxItems:1 },
-  { key:'forest',     label:'Forest Glade',  emoji:'🌳', duration:45, minPP:30,  maxPP:60,  rarity:'uncommon', desc:'Wander through the shady forest.',    energyCost:25, xpReward:50,
+  { key:'forest',     label:'Forest Glade',  emoji:'🌳', duration:45, minPP:30,  maxPP:60,  rarity:'uncommon', desc:'Wander through the shady forest.',    energyCost:25, xpReward:10,
     itemPool:[{id:'treat',name:'Treat',icon:'🍪',type:'treat'}], itemChance:0.40, minItems:0, maxItems:1 },
-  { key:'deepwoods',  label:'Deep Woods',    emoji:'🌲', duration:60, minPP:50,  maxPP:100, rarity:'rare',     desc:'Brave the dangerous deep woods.',    energyCost:40, xpReward:100,
+  { key:'deepwoods',  label:'Deep Woods',    emoji:'🌲', duration:60, minPP:50,  maxPP:100, rarity:'rare',     desc:'Brave the dangerous deep woods.',    energyCost:40, xpReward:20,
     itemPool:[{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'},{id:'rubber_ball',name:'Rubber Ball',icon:'⚽',type:'toy'},{id:'rope_toy',name:'Rope Toy',icon:'🪢',type:'toy'}], itemChance:0.50, minItems:0, maxItems:1 },
-  { key:'ruins',      label:'Ancient Ruins', emoji:'🏛️', duration:90, minPP:75,  maxPP:150, rarity:'epic',     desc:'Explore the mysterious old ruins.',   energyCost:60, xpReward:200,
+  { key:'ruins',      label:'Ancient Ruins', emoji:'🏛️', duration:90, minPP:75,  maxPP:150, rarity:'epic',     desc:'Explore the mysterious old ruins.',   energyCost:60, xpReward:35,
     itemPool:[{id:'wooden_spoon',name:'Wooden Spoon',icon:'🥄',type:'equipment'},{id:'squeaky_toy',name:'Squeaky Toy',icon:'🧸',type:'toy'}], itemChance:0.60, equipmentChance:0.10, minItems:0, maxItems:1 }
 ];
 
@@ -5127,8 +5227,21 @@ async function expedition_claim(expeditionId) {
     }
   }
 
-  // Check for secrets
-  checkSecretDiscovery(row.pet_id, row.zone, streak).then(null, function(){});
+  // Only ONE special popup allowed per expedition claim to avoid popup spam
+  // Dungeon discovery takes priority; secrets are shown as toasts only
+  var _claimSpecialShown = false;
+
+  // Secret dungeon discovery — rare, only from expeditions (2% chance)
+  // Check first so it gets priority over other popups
+  if (Math.random() < 0.02) {
+    _claimSpecialShown = true;
+    handleSecretDungeonEncounter().then(null, function(){});
+  }
+
+  // Check for exploration secrets — shown as toast only (not full modal) to avoid stacking
+  if (!_claimSpecialShown) {
+    checkSecretDiscovery(row.pet_id, row.zone, streak).then(null, function(){});
+  }
 
   // SCRAPBOOK: Expedition complete
   scrapbook_addMemory(row.pet_id, 'expedition_complete', { zone: (EXPEDITION_ZONES_MAP[row.zone] && EXPEDITION_ZONES_MAP[row.zone].label) || row.zone }).then(null, function(){});
@@ -5137,6 +5250,12 @@ async function expedition_claim(expeditionId) {
   argLogs_tryDrop('expedition').then(null, function(){});
   // Cooking ingredient drops from expedition
   cooking_rollExpeditionDrop(row.zone).then(null, function(){});
+  // JOURNAL: sleep_habit unlocks from sending pet on expeditions
+  var expPetState = petState[row.pet_id] || {};
+  var expPetType = (expPetState.pets && expPetState.pets.name) || expPetState.pet_type || null;
+  if (expPetType && typeof logJournalDiscovery === 'function') {
+    logJournalDiscovery(expPetType, 'sleep_habit', '').then(null, function(){});
+  }
   // Weekly challenges
   weeklyChallenge_increment('wk_expeditions', 1);
 
@@ -5148,6 +5267,21 @@ async function expedition_claim(expeditionId) {
   community_increment('expeditions', 1);
   trackDailyStat('expeditions_completed').then(null, function(){});
   checkAchievementTierProgress('expeditions_completed', row.pet_id, streak).then(null, function(){});
+
+  // Award explorer badges + adventurer title based on total expedition count
+  (async function() {
+    try {
+      var { count: expTotal } = await supabaseClient
+        .from('expedition_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', currentUser.id)
+        .eq('completed', true);
+      expTotal = expTotal || 1;
+      if (expTotal >= 10)  awardBadge('explorer_novice').then(null, function(){});
+      if (expTotal >= 50)  { awardBadge('explorer_expert').then(null, function(){}); awardPlayerTitle('adventurer').catch(function(){}); }
+      if (expTotal >= 100) awardBadge('explorer_master').then(null, function(){});
+    } catch(e) { dbg('[expedition] badge check error:', e); }
+  })();
 
   var itemMsg = itemNames.length > 0 ? ' + ' + itemNames.join(', ') : '';
   showToast('🏴‍☠️ Claimed ' + finalPP + ' PP' + itemMsg + ' from your expedition!', 4000);
@@ -5968,9 +6102,10 @@ async function feed(petId) {
     return;
   }
 
-  // Show loading state on button immediately so user knows click registered
+  // Show loading state on button immediately so user knows tap registered
   var feedBtnEl = document.getElementById('feed-' + petId);
-  if (feedBtnEl) { feedBtnEl.textContent = '...'; feedBtnEl.disabled = true; }
+  if (feedBtnEl) { feedBtnEl.textContent = '🍽️'; feedBtnEl.disabled = true; }
+  showToast('Loading menu...', 500);
 
   try {
   // Get user's food inventory
@@ -6010,10 +6145,12 @@ async function feed(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Check if already used today)
+  // FREE DAILY OPTION (Check if already used today — server-side via last_fed)
   var today = new Date().toISOString().split('T')[0];
   var freeFeedKey = 'free_feed_' + petId + '_' + today;
-  var freeUsed = localStorage.getItem(freeFeedKey) === 'done';
+  // Server-side check: pet.last_fed is updated by the feed RPC
+  var lastFedDate = (pet.last_fed || '').split('T')[0];
+  var freeUsed = lastFedDate === today || localStorage.getItem(freeFeedKey) === 'done';
   
   var freeBtn = document.createElement('button');
   freeBtn.style.cssText = freeUsed ?
@@ -6304,7 +6441,8 @@ async function play(petId) {
 
   // Show loading state on button immediately
   var playBtnEl = document.getElementById('play-' + petId);
-  if (playBtnEl) { playBtnEl.textContent = '...'; playBtnEl.disabled = true; }
+  if (playBtnEl) { playBtnEl.textContent = '🎮'; playBtnEl.disabled = true; }
+  showToast('Loading menu...', 500);
 
   try {
   // Get user's toy inventory
@@ -6338,10 +6476,11 @@ async function play(petId) {
   var grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px;max-height:400px;overflow-y:auto;';
   
-  // FREE DAILY OPTION (Check if already used today AND has energy)
+  // FREE DAILY OPTION (Check if already used today — server-side via last_played)
   var today = new Date().toISOString().split('T')[0];
   var freePlayKey = 'free_play_' + petId + '_' + today;
-  var freeUsed = localStorage.getItem(freePlayKey) === 'done';
+  var lastPlayedDate = (pet.last_played || '').split('T')[0];
+  var freeUsed = lastPlayedDate === today || localStorage.getItem(freePlayKey) === 'done';
   var hasEnergy = pet.energy >= 10;
   
   var freeBtn = document.createElement('button');
@@ -6473,6 +6612,13 @@ async function playFree(petId) {
 
     // MARK FREE OPTION AS USED FOR TODAY (after successful play)
     localStorage.setItem(freePlayKey, 'done');
+
+    // JOURNAL: unlock hobby from playing
+    var playPet = petState[petId] || {};
+    var playPetType = (playPet.pets && playPet.pets.name) || playPet.pet_type || null;
+    if (playPetType && typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(playPetType, 'hobby', '').then(null, function(){});
+    }
 
     // PAWKETPASS: Update bingo and Pass XP
     updateBingoProgress('play_pet', 1);
@@ -7183,6 +7329,19 @@ async function loadShop() {
       if(!canAfford)buyBtn.disabled=true;
       buyBtn.onclick=function(){buyItem(item.id,item.name,displayPrice);};
       card.appendChild(buyBtn);
+
+      // Buy 5x button for food and consumables
+      var _itype = (item.item_type||'').toLowerCase();
+      if (_itype==='food'||_itype==='snack'||_itype==='medicine'||_itype==='drink'||_itype==='energy'||_itype==='toy') {
+        var price5 = displayPrice * 5;
+        var canAfford5 = currentPoints >= price5;
+        var buy5Btn = makeEl('button', {class:'btn-buy-5'}, 'Buy 5x (' + price5 + ' PP)');
+        buy5Btn.style.cssText = 'font-size:0.7rem;padding:4px 8px;margin-top:4px;background:rgba(153,102,255,0.15);border:1px solid var(--purple-light);border-radius:8px;cursor:pointer;width:100%;color:var(--purple-dark);';
+        if (!canAfford5) { buy5Btn.disabled = true; buy5Btn.style.opacity = '0.4'; }
+        buy5Btn.onclick = (function(iid, iname, iprice) { return function() { buyItemMulti(iid, iname, iprice, 5); }; })(item.id, item.name, displayPrice);
+        card.appendChild(buy5Btn);
+      }
+
       fragment.appendChild(card);
     });
     
@@ -7229,6 +7388,36 @@ async function loadShop() {
     
     // Append all at once
     grid.appendChild(fragment);
+  }
+}
+
+async function buyItemMulti(itemId, itemName, price, qty) {
+  qty = qty || 5;
+  var totalPrice = price * qty;
+  if (currentPoints < totalPrice) { showToast('Not enough PP! Need ' + totalPrice + ' PP for ' + qty + 'x ' + itemName + '.', 3000); return; }
+  if (!confirm('Buy ' + qty + 'x ' + itemName + ' for ' + totalPrice + ' PP?')) return;
+  var btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = 'Buying...'; }
+  try {
+    var { data: newTotal, error } = await supabaseClient.rpc('spend_pp_secure', { p_amount: totalPrice, p_reason: 'shop_buy_5x' });
+    if (error) throw error;
+    updateAllPoints(newTotal);
+    // Grant all 5 items
+    for (var i = 0; i < qty; i++) {
+      var { data: existing } = await supabaseClient.from('user_inventory').select('id, quantity').eq('user_id', currentUser.id).eq('item_id', itemId).maybeSingle();
+      if (existing) {
+        await supabaseClient.from('user_inventory').update({ quantity: existing.quantity + 1 }).eq('id', existing.id);
+      } else {
+        await supabaseClient.from('user_inventory').insert({ user_id: currentUser.id, item_id: itemId, quantity: 1 });
+      }
+    }
+    showToast('Bought ' + qty + 'x ' + itemName + '! Added to inventory.', 3000);
+    tabsLoaded['shop'] = false;
+    loadMyPets().then(null, function(){});
+  } catch(e) {
+    showToast('Purchase failed: ' + (e.message||'error'), 3000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Buy 5x (' + totalPrice + ' PP)'; }
   }
 }
 
@@ -8105,7 +8294,7 @@ async function checkTop10Badge() {
   if (rankRes.data) {
     var top10Ids = rankRes.data.map(function(p) { return p.id; });
     if (top10Ids.includes(currentUser.id)) {
-      await awardBadge('top_10');
+      await awardBadge('grinder');
     }
   }
 }
@@ -8869,7 +9058,32 @@ async function deductPP(amount) {
 }
 
 // ── TYPING CHALLENGE ──────────────────────────────
-var typingWords = ['Ember', 'Pyxie', 'Embertail', 'Pyxshuul', 'Firefox', 'Sparkle', 'Panda', 'Koala', 'Dragon', 'Phoenix', 'Tiger', 'Leopard', 'Cheetah', 'Panther', 'Wolf', 'Bear', 'Raccoon', 'Otter', 'Seal'];
+var typingWords = [
+  // VTuber team
+  'Ember','Pyxie','Embertail','Pyxshuul','Gnarly','Blushimia','Kelta','Aria','Jess','Steve','Cowbee','Cypurr',
+  // Game world
+  'Piper','Pawket','PawketPets','Melon','Warrens','Archivist','Outskirts','Deepwoods','Ruins','Glade',
+  // Animals / pets
+  'Panda','Koala','Dragon','Phoenix','Tiger','Leopard','Cheetah','Panther','Wolf','Bear','Raccoon','Otter',
+  'Seal','Fox','Bunny','Rabbit','Squirrel','Bird','Spider','Boar','Deer','Moth','Smilodon','Parasaur',
+  'Protogen','Sparkledog','Pomeranian',
+  // Food and items
+  'Biscuit','Cookie','Sashimi','Smoothie','Burrito','Steak','Bread','Honey','Mango','Anchovy','Cinnabon',
+  'Potion','Remedy','Nectar','Berries','Mushroom','Elixir',
+  // Battle / adventure
+  'Battle','Sprint','Jostle','Block','Conserve','Stamina','League','Trophy','Champion','Phantom',
+  'Expedition','Exploration','Adventure','Discovery','Treasure','Recipe','Cooking','Fishing','Racing',
+  // Flavor / lore
+  'Corruption','Archive','Hollow','Ashen','Warren','Shadow','Glitch','Portal','Cascade','Inferno',
+  'Phoenix','Cosmos','Nebula','Starfall','Nightmare','Cascade','Vortex','Catalyst',
+  // General words (mix of difficulties)
+  'Brave','Swift','Clever','Fierce','Loyal','Bright','Cozy','Spooky','Fluffy','Ancient',
+  'Crystal','Thunder','Ember','Frost','Storm','Flame','Void','Chaos','Spirit','Nature',
+  'Crimson','Violet','Silver','Golden','Scarlet','Cobalt',
+  // Longer challenge words
+  'Constellation','Catastrophe','Spectacular','Extraordinary','Championship','Celebration',
+  'Magnificent','Phenomenal','Adventurous','Mysterious','Adventurer','Triumphant'
+];
 var typingScore = 0;
 var typingTimer = null;
 var currentWord = '';
@@ -8877,7 +9091,8 @@ var currentWord = '';
 function startTyping() {
   if (isCD('typing')) return;
   typingScore = 0;
-  var timeLeft = 60;
+  var timeLeft = 90; // 90-second sessions
+  var ppCapReached = false;
   
   el('typing-score').textContent = '0';
   el('typing-earned').textContent = '0';
@@ -8893,6 +9108,13 @@ function startTyping() {
   typingTimer = setInterval(function() {
     timeLeft--;
     el('typing-time').textContent = timeLeft;
+    // Show PP cap notice when reached
+    var earned = typingScore * 3;
+    if (earned >= 90 && !ppCapReached) {
+      ppCapReached = true;
+      var r = el('typing-result');
+      if (r) { r.textContent = '🎯 PP cap reached! Keep going for your high score!'; r.style.color = '#ffd700'; }
+    }
     if (timeLeft <= 0) {
       endTyping();
     }
@@ -8904,24 +9126,37 @@ function nextWord() {
   el('typing-target').textContent = currentWord;
 }
 
-el('typing-input').addEventListener('input', function() {
-  if (el('typing-input').value === currentWord) {
+// Typing game input handler — uses event delegation on document to avoid
+// null-reference crash on mobile when the tab hasn't rendered yet
+document.addEventListener('input', function(e) {
+  if (!e.target || e.target.id !== 'typing-input') return;
+  if (!currentWord || !typingTimer) return; // game not active
+  if (e.target.value === currentWord) {
     typingScore++;
-    var earned = typingScore * 3;
-    el('typing-score').textContent = typingScore;
-    el('typing-earned').textContent = earned;
-    el('typing-input').value = '';
+    var earned = Math.min(typingScore * 3, 90);
+    var sc = el('typing-score');
+    var ea = el('typing-earned');
+    if (sc) sc.textContent = typingScore;
+    if (ea) ea.textContent = earned; // shows capped PP
+    e.target.value = '';
     nextWord();
   }
 });
 
+var typingHighScore = 0;
+
 function endTyping() {
   clearInterval(typingTimer);
-  var earned = Math.min(typingScore * 3, 60);
+  typingTimer = null;
+  var earned = Math.min(typingScore * 3, 90);
   awardPP(earned, 'typing_challenge'); onMinigameComplete(earned, 'typing');
   setCD('typing');
   var r = el('typing-result');
-  r.textContent = 'Time\'s up! +' + earned + ' PP!';
+  var newHigh = typingScore > typingHighScore;
+  if (newHigh) typingHighScore = typingScore;
+  r.innerHTML = 'Time\'s up! <strong>' + typingScore + ' words</strong> | +' + earned + ' PP' +
+    (newHigh ? ' <span style="color:#ffd700;">⭐ New Best!</span>' : '') +
+    '<br><span style="font-size:0.78rem;color:var(--text-light);">Session best: ' + typingHighScore + ' words</span>';
   r.style.color = '#5dde7a';
   el('typing-cooldown').style.display = 'block';
   el('typing-input').disabled = true;
@@ -9614,8 +9849,12 @@ function fishingTimingClick() {
   castLineRelease({ type: 'click' });
 }
 
+var _fishingTensionState = null; // null | { timer, biteTimer, power, spiking, spikeCaught }
+
 async function castLineRelease(e) {
   if (!_castPressing) return;
+  // If we're already in a tension/bite phase, don't re-trigger cast logic
+  if (_fishingTensionState) return;
   _castPressing = false;
   if (_castTimer) { clearInterval(_castTimer); _castTimer = null; }
   var power = Math.min(1.0, (Date.now() - _castStartTime) / 2000);
@@ -9623,13 +9862,116 @@ async function castLineRelease(e) {
   if (bar) bar.style.width = '0%';
   var wrap2 = document.getElementById('fishing-power-wrap');
   if (wrap2) wrap2.style.display = 'none';
+
+  // Start tension mechanic
+  await fishing_waitForBite(power);
+}
+
+async function fishing_waitForBite(castPower) {
   var pond = document.getElementById('fishing-pond-text');
-  if (pond) { pond.textContent = '🌊 Waiting for a bite...'; pond.style.color = ''; }
-  var btn = document.getElementById('fishing-btn');
-  if (btn) { btn.textContent = '⏳ Waiting...'; btn.disabled = true; }
-  // Run the catch
-  await castLine(power);
-  if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+  var btn  = document.getElementById('fishing-btn');
+  var tensionBar = document.getElementById('fishing-tension-bar');
+  var tensionWrap = document.getElementById('fishing-tension-wrap');
+
+  if (btn) { btn.textContent = '🎣 Reel In!'; btn.disabled = false; }
+
+  // Show tension bar wrapper if it exists
+  if (tensionWrap) tensionWrap.style.display = 'block';
+
+  // Wait time: 2-6 seconds before fish bites
+  var waitMs = 2000 + Math.random() * 4000;
+  var biteWindow = 1200; // player has 1.2 seconds to reel in on a bite
+  var spiking = false;
+  var resolved = false;
+  var bonusMultiplier = 1.0;
+
+  _fishingTensionState = { spiking: false, spikeCaught: false, power: castPower };
+
+  // Animate the tension indicator oscillating
+  var tensionLevel = 0;
+  var tensionDir = 1;
+  var tensionInterval = setInterval(function() {
+    if (resolved || !_fishingTensionState) { clearInterval(tensionInterval); return; }
+    tensionLevel += tensionDir * (4 + Math.random() * 6);
+    if (tensionLevel > 100) { tensionLevel = 100; tensionDir = -1; }
+    if (tensionLevel < 0)   { tensionLevel = 0;   tensionDir =  1; }
+    if (tensionBar) tensionBar.style.width = tensionLevel + '%';
+    // Color: green normally, yellow when rising, red when spiking
+    if (spiking) {
+      if (tensionBar) tensionBar.style.background = '#ff4444';
+      if (pond) { pond.textContent = '🐟 FISH ON! REEL IN NOW!'; pond.style.color = '#ff4444'; }
+    } else {
+      if (tensionBar) tensionBar.style.background = tensionLevel > 70 ? '#ffd700' : '#5dde7a';
+      if (pond && !spiking) pond.textContent = '🌊 Waiting for a bite...';
+    }
+  }, 80);
+
+  // Schedule the bite
+  await new Promise(function(resolve) {
+    var biteTimeout = setTimeout(function() {
+      if (resolved) return;
+      spiking = true;
+      _fishingTensionState.spiking = true;
+      if (tensionBar) { tensionBar.style.width = '100%'; tensionBar.style.background = '#ff4444'; }
+      if (pond) { pond.textContent = '🐟 FISH ON! REEL IN NOW!'; pond.style.color = '#ff4444'; }
+      // If player doesn't reel in within biteWindow, fish escapes
+      var escapeTimeout = setTimeout(function() {
+        if (!_fishingTensionState || !_fishingTensionState.spikeCaught) {
+          resolved = true;
+          clearInterval(tensionInterval);
+          if (tensionWrap) tensionWrap.style.display = 'none';
+          if (pond) { pond.textContent = '💨 The fish got away!'; pond.style.color = '#ff6b6b'; }
+          if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+          _fishingTensionState = null;
+          // Reset after a moment
+          setTimeout(function() {
+            if (pond) { pond.textContent = '🌊 Cast your line...'; pond.style.color = ''; }
+          }, 1500);
+          resolve('escaped');
+        }
+      }, biteWindow);
+      _fishingTensionState._escapeTimeout = escapeTimeout;
+    }, waitMs);
+    _fishingTensionState._biteTimeout = biteTimeout;
+    _fishingTensionState._resolve = resolve;
+  }).then(async function(result) {
+    resolved = true;
+    clearInterval(tensionInterval);
+    if (tensionWrap) tensionWrap.style.display = 'none';
+    if (result === 'escaped') return;
+    // Player reeled in during the bite — check timing bonus
+    bonusMultiplier = _fishingTensionState.spikeCaught ? 1.3 : 1.0;
+    if (pond) { pond.textContent = '🎣 Reeling in...'; pond.style.color = ''; }
+    if (btn) { btn.textContent = '⏳ Reeling...'; btn.disabled = true; }
+    await castLine(castPower * bonusMultiplier);
+    if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+    _fishingTensionState = null;
+  });
+}
+
+function fishing_reelIn() {
+  // Called by the Reel In button during tension phase
+  if (!_fishingTensionState) return false;
+  if (_fishingTensionState.spiking) {
+    // Perfect timing — caught it during the bite!
+    _fishingTensionState.spikeCaught = true;
+    if (_fishingTensionState._escapeTimeout) clearTimeout(_fishingTensionState._escapeTimeout);
+    if (_fishingTensionState._resolve) _fishingTensionState._resolve('caught');
+    return true;
+  } else {
+    // Too early — scared the fish
+    if (_fishingTensionState._biteTimeout) clearTimeout(_fishingTensionState._biteTimeout);
+    if (_fishingTensionState._escapeTimeout) clearTimeout(_fishingTensionState._escapeTimeout);
+    if (_fishingTensionState._resolve) _fishingTensionState._resolve('early');
+    _fishingTensionState = null;
+    var pond = document.getElementById('fishing-pond-text');
+    if (pond) { pond.textContent = '😬 Too early! You spooked the fish.'; pond.style.color = '#ffd700'; }
+    var btn = document.getElementById('fishing-btn');
+    if (btn) { btn.textContent = '🎣 Hold to Cast!'; btn.disabled = false; }
+    var tw = document.getElementById('fishing-tension-wrap');
+    if (tw) tw.style.display = 'none';
+    return false;
+  }
 }
 
 // ── FISH JOURNAL ──────────────────────────────────────────────────────────────
@@ -10813,6 +11155,18 @@ function triggerSpookyEffect() {
   document.body.appendChild(overlay);
   document.body.appendChild(crtLines);
   
+    // Show Piper melody indicator on mobile (more visible than glitch effects)
+    if (window.innerWidth < 768) {
+      var _existBanner = document.getElementById('piper-melody-banner');
+      if (!_existBanner) {
+        var _b = document.createElement('div');
+        _b.id = 'piper-melody-banner';
+        _b.style.cssText = 'position:fixed;top:0;left:0;right:0;padding:10px;text-align:center;background:rgba(80,0,120,0.92);color:#e8d5ff;font-weight:900;font-size:1.05rem;z-index:10010;letter-spacing:1px;';
+        _b.textContent = '?? PIPER’S MELODY — YOU SHOULDN’T BE HERE ??';
+        document.body.appendChild(_b);
+        setTimeout(function(){ if (_b.parentNode) _b.parentNode.removeChild(_b); }, 2500);
+      }
+    }
   // Play spooky audio (Piper's flute) — load on-demand since bossNormal isn't in the priority preload list
   try {
     var piperKey = 'bossNormal';
@@ -12511,6 +12865,33 @@ async function calculatePetStats(petId) {
   stats.speed   += (pet.bonus_speed   || 0);
   maxHP         += (pet.bonus_hp      || 0) * 3; // each HP point = +3 max HP
 
+  // Apply guild furniture buffs (if user is in a guild)
+  try {
+    if (typeof guild_getFurnitureBuffs === 'function' && guildState && guildState.myGuild) {
+      var furnitureBuffs = await guild_getFurnitureBuffs();
+      if (furnitureBuffs.attack)  stats.attack  += furnitureBuffs.attack;
+      if (furnitureBuffs.defense) stats.defense += furnitureBuffs.defense;
+      if (furnitureBuffs.speed)   stats.speed   += furnitureBuffs.speed;
+      if (furnitureBuffs.luck)    stats.luck     = (stats.luck || 0) + furnitureBuffs.luck;
+      if (furnitureBuffs.spirit)  stats.spirit   = (stats.spirit || 0) + furnitureBuffs.spirit;
+    }
+  } catch(e) { dbg('[GuildFurnitureBuff] apply error:', e); }
+
+  // Apply any active combat buffs from secret cooking recipes
+  try {
+    var combatBuffRows = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('stat, amount')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    (combatBuffRows.data || []).forEach(function(b) {
+      if (b.stat && stats[b.stat] !== undefined) {
+        stats[b.stat] = (stats[b.stat] || 0) + (b.amount || 0);
+      }
+    });
+  } catch(e) { dbg('[CombatBuff] stat apply error:', e); }
+
   return {
     id: pet.id,
     name: pet.nickname || pet.pets.name || 'Your Pet',
@@ -12522,7 +12903,9 @@ async function calculatePetStats(petId) {
     maxEnergy: pet.max_energy || 100,
     specialSkill: pet.pets.special_skill || null,
     passives: equippedPassives,
-    skills: getSkillsForPet(pet.pets.name || '', pet.level || 1)
+    skills: (typeof petSkills_getLoadout === 'function') ? petSkills_getLoadout(pet.id, pet.pets.name || '', pet.level || 1) : getSkillsForPet(pet.pets.name || '', pet.level || 1),
+    level: pet.level || 1,
+    petBaseName: pet.pets.name || ''
   };
 }
 
@@ -12604,446 +12987,835 @@ var STATUS_EFFECTS = {
 // ═══════════════════════════════════════════════════════════════════════════
 var PET_SKILLS = {
 
+  // ── EMBER (Protogen, fire/tech) ─────────────────────────────────────────
   ember: [
-    { id: 'flame_buffer', name: 'Flame Buffer', icon: '⚡', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, status: { type: 'burn', chance: 0.20 },
-      desc: 'Deals 1.2x damage. 20% chance to Burn (3 damage/turn for 3 turns).',
-      flavor: "I've been burning for eleven years. You get used to it. 🔥" },
-    { id: 'system_reboot', name: 'System Reboot', icon: '💻', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.15, cleanse: true,
-      desc: 'Restore 15% max HP. Removes all negative status effects. No damage.',
-      flavor: "Have you tried turning it off and on again? Works for me. 🔄" },
-    { id: 'flametail_strike', name: 'Flametail Strike', icon: '🔥', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.8, status: { type: 'burn', chance: 0.60 }, selfCostPct: 0.15,
-      desc: 'Deals 1.8x damage. 60% chance to Burn. Costs 15% of YOUR current HP to use.',
-      flavor: "Fire solves everything. Including me. 🔥💔" }
+    // Tier 1: Basic attacks (Lv1-4)
+    { id:'ember_flame_buffer',    name:'Flame Buffer',      icon:'⚡', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'burn', chance:0.20 },
+      desc:'1.2x damage. 20% chance to Burn (3 dmg/turn, 3 turns).',
+      flavor:"I've been burning for eleven years. You get used to it. 🔥" },
+    { id:'ember_spark_jab',       name:'Spark Jab',         icon:'💥', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x attack. No cooldown — great for pressure.',
+      flavor:"Speed is the real power. Fire just looks cooler. ⚡" },
+    { id:'ember_tail_swipe',      name:'Tail Swipe',        icon:'🦊', unlockLevel:3,  cooldown:1,
+      damageMult:1.1, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.1x damage. Lowers enemy DEF by 10%.',
+      flavor:"The tail is not decorative. Lesson learned." },
+    { id:'ember_charge_burst',    name:'Charge Burst',      icon:'🔋', unlockLevel:4,  cooldown:2,
+      damageMult:1.4,
+      desc:'1.4x damage. Charges power for a clean heavy hit.',
+      flavor:"Eleven years of charging. Still fun. 🔥" },
+
+    // Tier 2: Utilities (Lv5-7)
+    { id:'ember_system_reboot',   name:'System Reboot',     icon:'💻', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.15, cleanse:true,
+      desc:'Heal 15% max HP. Clears all negative status effects.',
+      flavor:"Have you tried turning it off and on again? Works for me. 🔄" },
+    { id:'ember_overclock',       name:'Overclock',         icon:'⚙️',  unlockLevel:6,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.25, turns:2 },
+      desc:'No damage. +25% attack for 2 turns.',
+      flavor:"Push the limits. Then push past the limits." },
+    { id:'ember_static_field',    name:'Static Field',      icon:'🌩️', unlockLevel:7,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.35 },
+      desc:'0.7x damage. 35% chance to Confuse (enemy may miss).',
+      flavor:"Confusion is just chaos with better marketing." },
+
+    // Tier 3: Advanced damage (Lv8-10)
+    { id:'ember_heat_wave',       name:'Heat Wave',         icon:'🌊', unlockLevel:8,  cooldown:3,
+      damageMult:1.5, status:{ type:'burn', chance:0.40 },
+      desc:'1.5x damage. 40% Burn chance.',
+      flavor:"The wave is fire. Just go with it." },
+    { id:'ember_meltdown',        name:'Meltdown',          icon:'🌡️', unlockLevel:9,  cooldown:3,
+      damageMult:1.3, debuff:{ stat:'defense', amount:0.20 }, status:{ type:'burn', chance:0.30 },
+      desc:'1.3x damage. Enemy DEF -20%. 30% Burn chance.',
+      flavor:"Everything melts eventually. Physics." },
+    { id:'ember_flametail_strike',name:'Flametail Strike',  icon:'🔥', unlockLevel:10, cooldown:4,
+      damageMult:1.8, status:{ type:'burn', chance:0.60 }, selfCostPct:0.15,
+      desc:'1.8x damage. 60% Burn. Costs 15% of YOUR current HP.',
+      flavor:"Fire solves everything. Including me. 🔥💔" },
+
+    // Tier 4: Healing/defensive (Lv11-14)
+    { id:'ember_heat_shield',     name:'Heat Shield',       icon:'🛡️', unlockLevel:11, cooldown:3,
+      damageMult:0, evasionBuff:0.50, healPct:0.08,
+      desc:'No damage. 50% evasion on next hit. Heal 8% max HP.',
+      flavor:"Defense is offense you didn't need yet." },
+    { id:'ember_core_dump',       name:'Core Dump',         icon:'🖥️', unlockLevel:12, cooldown:4,
+      damageMult:1.6, cleanse:true, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.6x damage. Clears your status effects. +15% ATK for 2 turns.',
+      flavor:"Dump the errors, keep the power." },
+    { id:'ember_fuel_inject',     name:'Fuel Injection',    icon:'⛽', unlockLevel:13, cooldown:3,
+      damageMult:0, healPct:0.20, atkBuff:{ amount:0.20, turns:3 },
+      desc:'Heal 20% max HP. +20% ATK for 3 turns.',
+      flavor:"Refueling mid-fight is a power move." },
+    { id:'ember_afterburn',       name:'Afterburner',       icon:'🚀', unlockLevel:14, cooldown:4,
+      damageMult:0, atkScaling:{ perAttack:0.12, max:0.60 },
+      desc:'No upfront damage. +12% ATK per previous attack this battle (max +60%).',
+      flavor:"Everything gets faster before it gets better." },
+
+    // Tier 5: Powerful/unique (Lv15-18)
+    { id:'ember_inferno',         name:'Inferno',           icon:'☄️',  unlockLevel:15, cooldown:5,
+      damageMult:2.0, status:{ type:'burn', chance:0.80 },
+      desc:'2.0x damage. 80% Burn chance. Pure destruction.',
+      flavor:"Sometimes the answer is just more fire. 🔥" },
+    { id:'ember_cascade_fail',    name:'Cascade Failure',   icon:'💀', unlockLevel:18, cooldown:5,
+      damageMult:1.4, status:{ type:'burn', chance:1.0 }, condBonus:{ ifStatus:'burn', mult:1.8 },
+      desc:'1.4x damage. 100% Burn. If enemy is already Burning: 1.8x instead.',
+      flavor:"The system error you wanted." },
+    { id:'ember_nova',            name:'NOVA',              icon:'🌟', unlockLevel:22, cooldown:6,
+      damageMult:2.5, status:{ type:'burn', chance:1.0 }, selfCostPct:0.25,
+      desc:'2.5x damage. Guaranteed Burn. Costs 25% current HP. The big one.',
+      flavor:"I've been saving this. 🔥🔥🔥" },
+    { id:'ember_phoenix_rebirth', name:'Phoenix Rebirth',   icon:'🐦', unlockLevel:28, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.40 }, passive:false,
+      desc:'If you would die, instead revive at 40% HP. One use per battle.',
+      flavor:"Eleven years. I don't stay down. 🔥" }
   ],
 
+  // ── PYXIE (Sparkledog, chaos/shadow) ──────────────────────────────────
   pyxie: [
-    { id: 'glitter_bomb', name: 'Glitter Bomb', icon: '✨', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.1, status: { type: 'confuse', chance: 0.30 },
-      desc: 'Deals 1.1x damage. 30% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "I have a plan. It involves sparkles. ✨" },
-    { id: 'echo_of_fear', name: 'Echo of Fear', icon: '👻', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.3, debuff: { stat: 'defense', amount: 0.10, turns: 2 },
-      desc: 'Deals 1.3x damage. Lowers enemy Defense by 10% for 2 turns.',
-      flavor: "I know things I shouldn't. My mom was a demon. 👻" },
-    { id: 'mamas_grace', name: "Mama's Grace", icon: '🌙', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.7, status: { type: 'fear', chance: 0.50 }, condBonus: { ifStatus: 'confuse', mult: 2.0 },
-      desc: 'Deals 1.7x damage. 50% chance to Fear (skip turn). If enemy is already Confused: damage doubles.',
-      flavor: "Mama said I was special. I don't think she meant this. 🌙" }
+    { id:'pyxie_glitter_bomb',    name:'Glitter Bomb',      icon:'✨', unlockLevel:1,  cooldown:1,
+      damageMult:1.1, status:{ type:'confuse', chance:0.30 },
+      desc:'1.1x damage. 30% Confuse (enemy may miss).',
+      flavor:"I have a plan. It involves sparkles. ✨" },
+    { id:'pyxie_paw_swipe',       name:'Paw Swipe',         icon:'🐾', unlockLevel:2,  cooldown:0,
+      damageMult:0.85,
+      desc:'Quick 0.85x strike. No cooldown.',
+      flavor:"Don't underestimate the paw." },
+    { id:'pyxie_shadow_step',     name:'Shadow Step',       icon:'👻', unlockLevel:3,  cooldown:2,
+      damageMult:0, evasionBuff:0.60,
+      desc:'No damage. 60% evasion chance vs next attack.',
+      flavor:"I may seem quiet. I am not here." },
+    { id:'pyxie_chaos_spark',     name:'Chaos Spark',       icon:'🌀', unlockLevel:4,  cooldown:1,
+      damageMult:1.2, randomBuff:{ chance:0.40, options:['attack','defense'], amount:0.15 },
+      desc:'1.2x damage. 40% chance of random ATK or DEF buff.',
+      flavor:"The chaos is organized. I promise." },
+    { id:'pyxie_echo_of_fear',    name:'Echo of Fear',      icon:'😨', unlockLevel:5,  cooldown:3,
+      damageMult:1.3, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.3x damage. Enemy DEF -10% for 2 turns.',
+      flavor:"I know things I shouldn't. My mom was a demon. 👻" },
+    { id:'pyxie_static_nap',      name:'Tactical Nap',      icon:'😴', unlockLevel:6,  cooldown:3,
+      damageMult:0, healPct:0.22, cleanse:true,
+      desc:'Heal 22% max HP. Clears negative status. (It is tactical.)',
+      flavor:"Tactical napping is a legitimate strategy." },
+    { id:'pyxie_fog_walk',        name:'Fog Walk',          icon:'🌫️', unlockLevel:7,  cooldown:2,
+      damageMult:0.9, evasionBuff:0.40, status:{ type:'confuse', chance:0.25 },
+      desc:'0.9x damage. 40% evasion next hit. 25% Confuse.',
+      flavor:"I found something interesting. I'm keeping it." },
+    { id:'pyxie_void_pull',       name:'Void Pull',         icon:'⚫', unlockLevel:8,  cooldown:3,
+      damageMult:1.4, status:{ type:'glitch', chance:0.40 },
+      desc:'1.4x damage. 40% Glitch (enemy 20% fail chance for 2 turns).',
+      flavor:"Something funny happened. I won't explain it." },
+    { id:'pyxie_deep_dive',       name:'Deep Dive',         icon:'🌊', unlockLevel:9,  cooldown:3,
+      damageMult:1.5, lifeStealChance:{ chance:0.40, pct:0.20 },
+      desc:'1.5x damage. 40% chance to steal 20% of damage as HP.',
+      flavor:"Plans within plans within plans. Also snacks." },
+    { id:"pyxie_mamas_grace",     name:"Mama's Grace",      icon:'🌙', unlockLevel:10, cooldown:4,
+      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'confuse', mult:2.0 },
+      desc:'1.7x damage. 50% Fear (enemy skips). Doubles damage if enemy is Confused.',
+      flavor:"Mama said I was special. I don't think she meant this. 🌙" },
+    { id:'pyxie_dream_eater',     name:'Dream Eater',       icon:'💤', unlockLevel:11, cooldown:4,
+      damageMult:1.2, status:{ type:'confuse', chance:0.60 }, lifeSteal:0.25,
+      desc:'1.2x damage. 60% Confuse. Steal 25% of damage as HP.',
+      flavor:"I didn't take your dreams. I borrowed them." },
+    { id:'pyxie_schemer',         name:'The Scheme',        icon:'🎭', unlockLevel:12, cooldown:4,
+      damageMult:0, atkBuff:{ amount:0.30, turns:3 }, evasionBuff:0.35,
+      desc:'No damage. +30% ATK for 3 turns. 35% evasion next hit.',
+      flavor:"The scheme is going well. Thank you for not asking." },
+    { id:'pyxie_chaos_cascade',   name:'Chaos Cascade',     icon:'💫', unlockLevel:13, cooldown:5,
+      damageMult:1.6, status:{ type:'confuse', chance:0.50 }, condBonus:{ ifStatus:'glitch', mult:1.6 },
+      desc:'1.6x damage. 50% Confuse. 1.6x bonus if enemy is Glitched.',
+      flavor:"The fog had good vibes today." },
+    { id:'pyxie_shadow_clone',    name:'Shadow Clone',      icon:'👤', unlockLevel:14, cooldown:5,
+      damageMult:1.3, atkScaling:{ perAttack:0.08, max:0.48 },
+      desc:'1.3x base damage. +8% per previous attack (max +48%).',
+      flavor:"I'm not lost. This is exactly where I meant to be." },
+    { id:'pyxie_nightmare',       name:'Nightmare',         icon:'🌑', unlockLevel:15, cooldown:5,
+      damageMult:1.9, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      desc:'1.9x damage. 45% Fear AND 60% Confuse.',
+      flavor:"I contain multitudes. And I share them." },
+    { id:'pyxie_void_strike',     name:'Void Strike',       icon:'🕳️', unlockLevel:18, cooldown:5,
+      damageMult:2.1, status:{ type:'glitch', chance:1.0 },
+      desc:'2.1x damage. Guaranteed Glitch.',
+      flavor:"Quietly thriving. Do not disturb. ✨" },
+    { id:'pyxie_demon_ascent',    name:'Demon Ascent',      icon:'😈', unlockLevel:22, cooldown:6,
+      damageMult:2.4, status:{ type:'skip', chance:0.70 }, condBonus:{ ifStatus:'confuse', mult:2.5 },
+      desc:'2.4x damage. 70% Fear. If Confused: 2.5x total.',
+      flavor:"Something is watching. It is me. 🌀" },
+    { id:"pyxie_chaotic_aura",    name:"Chaotic Aura",      icon:'🌪️', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.10 },
+      damageMult:0,
+      desc:'PASSIVE: Each turn your attack increases by 10% (stacking). One activation.',
+      flavor:"I'm doing great. In a specifically chaotic way. 💜" }
   ],
 
+  // ── GNARLY (Smilodon, arcade/primal) ──────────────────────────────────
   gnarly: [
-    { id: 'quarter_punch', name: 'Quarter Punch', icon: '🕹️', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.3, status: { type: 'stun', chance: 0.15 },
-      desc: 'Deals 1.3x damage. 15% chance to Stun (enemy skips next turn).',
-      flavor: "I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️" },
-    { id: 'glitch_step', name: 'Glitch Step', icon: '💾', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, evasionBuff: 0.50, atkBuff: { amount: 0.15, turns: 2 },
-      desc: 'No damage. Next enemy attack has 50% chance to miss. +15% Attack for 2 turns.',
-      flavor: "You can't beat a game that's already broken. 💾" },
-    { id: 'high_score_slam', name: 'High Score Slam', icon: '🏆', unlockLevel: 10, cooldown: 4,
-      damageMult: 2.0, skillScaling: { perSkillUsed: 0.05, max: 0.50 },
-      desc: 'Deals 2.0x damage. +5% bonus per skill used this battle (max +50%). Gets stronger the longer you fight.',
-      flavor: "I'm going for the high score. Get out of my way. 🏆" }
+    { id:'gnarly_quarter_punch',  name:'Quarter Punch',     icon:'🕹️', unlockLevel:1,  cooldown:1,
+      damageMult:1.3, status:{ type:'skip', chance:0.15 },
+      desc:'1.3x damage. 15% chance to Stun (enemy skips turn).',
+      flavor:"I've been putting quarters in this machine for 20 years. 🕹️" },
+    { id:'gnarly_claw_jab',       name:'Claw Jab',          icon:'🦷', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x attack. No cooldown. Stay in the combo.',
+      flavor:"Fast. Precise. Prehistoric." },
+    { id:'gnarly_combo_starter',  name:'Combo Starter',     icon:'🥊', unlockLevel:3,  cooldown:1,
+      damageMult:1.0, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.0x damage. +10% ATK for 2 turns — set up your next move.',
+      flavor:"The combo doesn't end. You just run out of turns." },
+    { id:'gnarly_tail_slam',      name:'Tail Slam',         icon:'💥', unlockLevel:4,  cooldown:2,
+      damageMult:1.5, debuff:{ stat:'defense', amount:0.15 },
+      desc:'1.5x damage. Enemy DEF -15%.',
+      flavor:"Smilodon don't pull punches. Or tails." },
+    { id:'gnarly_glitch_step',    name:'Glitch Step',       icon:'💾', unlockLevel:5,  cooldown:3,
+      damageMult:0, evasionBuff:0.50, atkBuff:{ amount:0.15, turns:2 },
+      desc:'No damage. 50% evasion next hit. +15% ATK for 2 turns.',
+      flavor:"You can't beat a game that's already broken. 💾" },
+    { id:'gnarly_speed_run',      name:'Speed Run',         icon:'⏱️', unlockLevel:6,  cooldown:2,
+      damageMult:1.1, atkScaling:{ perAttack:0.05, max:0.30 },
+      desc:'1.1x damage. +5% bonus per previous attack this battle (max +30%).',
+      flavor:"Always optimizing the route." },
+    { id:'gnarly_pixel_crush',    name:'Pixel Crush',       icon:'👾', unlockLevel:7,  cooldown:3,
+      damageMult:1.4, status:{ type:'glitch', chance:0.45 },
+      desc:'1.4x damage. 45% Glitch (enemy may fail moves).',
+      flavor:"Some enemies are just bad code." },
+    { id:'gnarly_boss_mode',      name:'BOSS MODE',         icon:'🎮', unlockLevel:8,  cooldown:4,
+      damageMult:0, atkBuff:{ amount:0.35, turns:3 }, cleanse:true,
+      desc:'No damage. +35% ATK for 3 turns. Clears your debuffs.',
+      flavor:"You've unlocked boss mode. Too bad for them." },
+    { id:'gnarly_feral_strike',   name:'Feral Strike',      icon:'🦁', unlockLevel:9,  cooldown:3,
+      damageMult:1.6, status:{ type:'burn', chance:0.25 }, condBonus:{ ifStatus:'glitch', mult:1.5 },
+      desc:'1.6x damage. 25% Burn. 1.5x if enemy is Glitched.',
+      flavor:"The beast never forgot." },
+    { id:'gnarly_high_score_slam',name:'High Score Slam',   icon:'🏆', unlockLevel:10, cooldown:4,
+      damageMult:2.0, skillScaling:{ perSkillUsed:0.05, max:0.50 },
+      desc:'2.0x damage. +5% per skill used this battle (max +50%).',
+      flavor:"I'm going for the high score. Get out of my way. 🏆" },
+    { id:'gnarly_alpha_roar',     name:'Alpha Roar',        icon:'🦴', unlockLevel:11, cooldown:4,
+      damageMult:0, debuff:{ stat:'defense', amount:0.30 }, status:{ type:'confuse', chance:0.50 },
+      desc:'No damage. Enemy DEF -30%. 50% Confuse.',
+      flavor:"The apex predator speaks. Everything listens." },
+    { id:'gnarly_arcade_rain',    name:'Arcade Rain',       icon:'🌧️', unlockLevel:12, cooldown:4,
+      damageMult:1.8, status:{ type:'skip', chance:0.35 },
+      desc:'1.8x damage. 35% Stun.',
+      flavor:"It rains quarters in the arcade of my heart." },
+    { id:'gnarly_continue',       name:'Continue?',         icon:'🔄', unlockLevel:14, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.30 },
+      desc:'If you would die, revive at 30% HP. Once per battle.',
+      flavor:"CONTINUE? 3... 2... 1... Yes. Always yes." },
+    { id:'gnarly_extinction_level',name:'Extinction Level', icon:'☄️', unlockLevel:15, cooldown:5,
+      damageMult:2.2, status:{ type:'burn', chance:0.60 }, status2:{ type:'skip', chance:0.40 },
+      desc:'2.2x damage. 60% Burn. 40% Stun.',
+      flavor:"The meteor doesn't care about your defense stat." },
+    { id:'gnarly_predator',       name:'Apex Predator',     icon:'🐯', unlockLevel:18, cooldown:5,
+      damageMult:1.5, atkScaling:{ perAttack:0.15, max:0.75 }, lifeSteal:0.20,
+      desc:'1.5x base. +15% per previous attack (max +75%). Steal 20% of damage as HP.',
+      flavor:"I never get game overs. In games OR in life." },
+    { id:'gnarly_rampage',        name:'Rampage',           icon:'💢', unlockLevel:22, cooldown:6,
+      damageMult:2.8, selfCostPct:0.20, status:{ type:'burn', chance:1.0 }, status2:{ type:'skip', chance:0.60 },
+      desc:'2.8x damage. Guaranteed Burn. 60% Stun. Costs 20% current HP.',
+      flavor:"The high score board has my name on it. All of them." },
+    { id:'gnarly_feral_aura',     name:'Feral Aura',        icon:'🦴', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'lifesteal_pct', pct:0.08 },
+      damageMult:0,
+      desc:'PASSIVE: Every attack steals 8% of damage dealt as HP.',
+      flavor:"Even the Furbies can't keep up with me." }
   ],
 
-  kleat: [
-    { id: 'confusing_sniff', name: 'Confusing Sniff', icon: '🐾', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.0, status: { type: 'confuse', chance: 0.40 },
-      desc: 'Deals 1.0x damage. 40% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "Yip yap teehee I opened a portal! 🌀" },
-    { id: 'cinnabon_explosion', name: 'Cinnabon Explosion', icon: '🍥', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.4, lifeStealChance: { chance: 0.30, pct: 0.15 },
-      desc: 'Deals 1.4x damage. 30% chance to heal 15% of damage dealt as HP.',
-      flavor: "I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨" },
-    { id: 'chaos_portal', name: 'Chaos Portal', icon: '🌌', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.6, chaosEffect: [
-        { weight: 40, effect: 'double_damage' },
-        { weight: 30, effect: 'heal_20pct' },
-        { weight: 20, effect: 'enemy_skip' },
-        { weight: 10, effect: 'nothing' }
+  // ── KLEAT/KELTA (Pomeranian grand mage) ───────────────────────────────
+  kelta: [
+    { id:'kelta_confusing_sniff', name:'Confusing Sniff',   icon:'🐾', unlockLevel:1,  cooldown:1,
+      damageMult:1.0, status:{ type:'confuse', chance:0.40 },
+      desc:'1.0x damage. 40% Confuse (enemy may miss).',
+      flavor:"Yip yap teehee I opened a portal! 🌀" },
+    { id:'kelta_tiny_yap',        name:'Tiny Yap',          icon:'📢', unlockLevel:2,  cooldown:0,
+      damageMult:0.8, status:{ type:'confuse', chance:0.20 },
+      desc:'0.8x damage. 20% Confuse. No cooldown.',
+      flavor:"YIP. That is both the skill and the noise." },
+    { id:'kelta_portal_peek',     name:'Portal Peek',       icon:'🕳️', unlockLevel:3,  cooldown:2,
+      damageMult:0, evasionBuff:0.55, status:{ type:'confuse', chance:0.30 },
+      desc:'No damage. 55% evasion next hit. 30% Confuse.',
+      flavor:"Peeked through the portal. Saw something. Won't say." },
+    { id:'kelta_sparkle_paw',     name:'Sparkle Paw',       icon:'💫', unlockLevel:4,  cooldown:2,
+      damageMult:1.3, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.20 },
+      desc:'1.3x damage. 50% random ATK or DEF buff.',
+      flavor:"Galaxy magic. Also Pomeranian magic. Same thing." },
+    { id:'kelta_cinnabon',        name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5,  cooldown:3,
+      damageMult:1.4, lifeStealChance:{ chance:0.30, pct:0.15 },
+      desc:'1.4x damage. 30% chance to heal 15% of damage dealt.',
+      flavor:"I'm a grand mage AND a Pomeranian! Both! At the same time! ✨" },
+    { id:'kelta_yip_rush',        name:'Yip Rush',          icon:'⚡', unlockLevel:6,  cooldown:2,
+      damageMult:1.2, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.2x damage. +15% ATK for 2 turns.',
+      flavor:"YIPYIPYIPYIPYIP. It's a technique." },
+    { id:'kelta_void_sniff',      name:'Void Sniff',        icon:'🌑', unlockLevel:7,  cooldown:3,
+      damageMult:0.9, status:{ type:'glitch', chance:0.50 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.9x damage. 50% Glitch. Enemy DEF -10%.',
+      flavor:"The void said hi back. Very polite of it." },
+    { id:'kelta_fluffy_barrier',  name:'Fluffy Barrier',    icon:'☁️', unlockLevel:8,  cooldown:3,
+      damageMult:0, healPct:0.18, evasionBuff:0.45, cleanse:true,
+      desc:'Heal 18% max HP. 45% evasion next hit. Clears debuffs.',
+      flavor:"The floof is armor. Soft, powerful armor." },
+    { id:'kelta_constellation',   name:'Constellation',     icon:'⭐', unlockLevel:9,  cooldown:4,
+      damageMult:1.5, status:{ type:'confuse', chance:0.55 }, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.5x damage. 55% Confuse. +10% ATK for 2 turns.',
+      flavor:"Studying galaxy magic. Taking extensive naps. Same energy." },
+    { id:'kelta_chaos_portal',    name:'Chaos Portal',      icon:'🌌', unlockLevel:10, cooldown:4,
+      damageMult:1.6, chaosEffect:[
+        { weight:40, effect:'heal_20pct' },
+        { weight:30, effect:'double_damage' },
+        { weight:20, effect:'enemy_skip' },
+        { weight:10, effect:'nothing' }
       ],
-      desc: 'Deals 1.6x damage + random chaos effect: 40% double damage, 30% heal 20% HP, 20% enemy loses turn, 10% nothing.',
-      flavor: "Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" }
+      desc:'1.6x base. RANDOM: 40% heal 20% HP, 30% double damage, 20% skip enemy, 10% nothing.',
+      flavor:"Yip! Yap! Teehee! I don't know what's going to happen either! 🌌" },
+    { id:'kelta_dimension_crack', name:'Dimension Crack',   icon:'💢', unlockLevel:11, cooldown:4,
+      damageMult:1.7, status:{ type:'glitch', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:1.8 },
+      desc:'1.7x damage. 60% Glitch. 1.8x if enemy is Confused.',
+      flavor:"Another portal opened. I didn't do it. Probably." },
+    { id:'kelta_pom_storm',       name:'Pom Storm',         icon:'🌪️', unlockLevel:12, cooldown:5,
+      damageMult:2.0, status:{ type:'confuse', chance:0.70 },
+      desc:'2.0x damage. 70% Confuse. The Pomeranian hurricane.',
+      flavor:"I contain multitudes. And also this." },
+    { id:'kelta_void_siphon',     name:'Void Siphon',       icon:'🌀', unlockLevel:13, cooldown:4,
+      damageMult:1.3, lifeSteal:0.30, debuff:{ stat:'defense', amount:0.25 },
+      desc:'1.3x damage. Steal 30% as HP. Enemy DEF -25%.',
+      flavor:"The void gives and takes. Mostly gives, today." },
+    { id:'kelta_grand_mage',      name:'Grand Mage Decree', icon:'📜', unlockLevel:14, cooldown:5,
+      damageMult:0, atkBuff:{ amount:0.40, turns:3 }, cleanse:true, healPct:0.15,
+      desc:'No damage. +40% ATK for 3 turns. Heal 15% HP. Clear debuffs.',
+      flavor:"The Grand Mage has spoken. Heed the yap." },
+    { id:'kelta_starfall',        name:'Starfall',          icon:'🌠', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      desc:'2.3x damage. 45% Stun. 60% Confuse.',
+      flavor:"When stars fall, they listen." },
+    { id:'kelta_reality_unzip',   name:'Reality.unzip()',   icon:'💻', unlockLevel:18, cooldown:6,
+      damageMult:2.5, condBonus:{ ifStatus:'glitch', mult:2.5 }, status:{ type:'glitch', chance:1.0 },
+      desc:'2.5x damage. Guaranteed Glitch. If already Glitched: 2.5x bonus.',
+      flavor:"YIP! I don't know what's going to happen either!" },
+    { id:'kelta_portal_mastery',  name:'Portal Mastery',    icon:'🌌', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.10 },
+      damageMult:0,
+      desc:'PASSIVE: Gain 10% evasion each turn (max 50%).',
+      flavor:"Everything is fine! I opened a portal to make sure! ✨" }
   ],
 
+  // ── ARIA (Rosy Maple Moth, fae/bone) ──────────────────────────────────
   aria: [
-    { id: 'bone_toss', name: 'Bone Toss', icon: '🦴', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, debuff: { stat: 'defense', chance: 0.20, amount: 0.10, turns: 2 },
-      desc: 'Deals 1.2x damage. 20% chance to lower enemy Defense by 10% for 2 turns.',
-      flavor: "Do you want to see my bones? 🦋" },
-    { id: 'fae_light', name: 'Fae Light', icon: '✨', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.20, atkBuffChance: { chance: 0.30, amount: 0.15, turns: 2 },
-      desc: 'No damage. Restores 20% max HP. 30% chance to also gain +15% Attack for 2 turns.',
-      flavor: "Humans are so strange and silly. But you're doing wonderfully. 🌸" },
-    { id: 'moths_embrace', name: "Moth's Embrace", icon: '🦋', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.5, lifeSteal: 0.20, status: { type: 'infatuate', chance: 0.40 },
-      desc: 'Deals 1.5x damage. Heals 20% of damage dealt. 40% chance to Infatuate (enemy deals 30% less damage for 2 turns).',
-      flavor: "I'll let you keep your bones. Until you're done with them, anyway. 💀" }
+    { id:'aria_bone_toss',        name:'Bone Toss',         icon:'🦴', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'petrify', chance:0.20 },
+      desc:'1.2x damage. 20% Petrify (enemy DEF -10%).',
+      flavor:"Do you want to see my bones? 🦋" },
+    { id:'aria_flutter',          name:'Flutter',           icon:'🦋', unlockLevel:2,  cooldown:0,
+      damageMult:0.85, evasionBuff:0.25,
+      desc:'0.85x damage. 25% evasion next hit.',
+      flavor:"Humans are so strange and silly." },
+    { id:'aria_fae_dust',         name:'Fae Dust',          icon:'✨', unlockLevel:3,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.50 },
+      desc:'0.7x damage. 50% Confuse.',
+      flavor:"The fae left me a shiny thing. Very polite of them." },
+    { id:'aria_bone_rattle',      name:'Bone Rattle',       icon:'💀', unlockLevel:4,  cooldown:2,
+      damageMult:1.3, status:{ type:'confuse', chance:0.30 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.3x damage. 30% Confuse. Enemy DEF -10%.',
+      flavor:"Something is glowing nearby and I need to investigate." },
+    { id:'aria_fae_light',        name:'Fae Light',         icon:'🌸', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.20, atkBuffChance:{ chance:0.30, amount:0.15 },
+      desc:'Heal 20% max HP. 30% chance: +15% ATK buff.',
+      flavor:"Humans are doing wonderfully. 🌸" },
+    { id:'aria_nectar_drain',     name:'Nectar Drain',      icon:'🌺', unlockLevel:6,  cooldown:3,
+      damageMult:1.1, lifeSteal:0.25,
+      desc:'1.1x damage. Steal 25% of damage as HP.',
+      flavor:"The fae feed. It is simply what they do." },
+    { id:'aria_spooky_flutter',   name:'Spooky Flutter',    icon:'👻', unlockLevel:7,  cooldown:3,
+      damageMult:0.9, status:{ type:'skip', chance:0.40 }, evasionBuff:0.35,
+      desc:'0.9x damage. 40% Fear. 35% evasion next hit.',
+      flavor:"Spooky things are just regular things with better lighting. 🦋" },
+    { id:'aria_bone_storm',       name:'Bone Storm',        icon:'🌩️', unlockLevel:8,  cooldown:4,
+      damageMult:1.5, status:{ type:'petrify', chance:0.45 }, status2:{ type:'confuse', chance:0.35 },
+      desc:'1.5x damage. 45% Petrify. 35% Confuse.',
+      flavor:"I've been very patient. I am known for this. 💀" },
+    { id:'aria_regeneration',     name:'Regeneration',      icon:'💚', unlockLevel:9,  cooldown:4,
+      damageMult:0, healPct:0.30, cleanse:true,
+      desc:'Heal 30% max HP. Clear all debuffs.',
+      flavor:"The shadows said something interesting. I'm looking into it." },
+    { id:"aria_moths_embrace",    name:"Moth's Embrace",    icon:'🦋', unlockLevel:10, cooldown:4,
+      damageMult:1.5, lifeSteal:0.20, status:{ type:'infatuate', chance:0.40 },
+      desc:'1.5x damage. Steal 20% as HP. 40% Infatuate (enemy -30% dmg for 2 turns).',
+      flavor:"I'll let you keep your bones. Until you're done with them, anyway. 💀" },
+    { id:'aria_will_o_wisp',      name:"Will-O'-Wisp",      icon:'🔮', unlockLevel:11, cooldown:4,
+      damageMult:1.0, status:{ type:'burn', chance:0.70 }, lifeSteal:0.15,
+      desc:'1.0x damage. 70% Burn. Steal 15% as HP.',
+      flavor:"The shadows know where they keep the warmth." },
+    { id:'aria_lunar_shroud',     name:'Lunar Shroud',      icon:'🌙', unlockLevel:12, cooldown:4,
+      damageMult:0, evasionBuff:0.70, healPct:0.12, atkBuff:{ amount:0.20, turns:3 },
+      desc:'No damage. 70% evasion next hit. Heal 12%. +20% ATK for 3 turns.',
+      flavor:"I wrote a sad story about a moth. She's okay at the end. Mostly." },
+    { id:'aria_entrancing_glow',  name:'Entrancing Glow',   icon:'✨', unlockLevel:13, cooldown:5,
+      damageMult:1.6, status:{ type:'infatuate', chance:0.65 }, condBonus:{ ifStatus:'confuse', mult:1.7 },
+      desc:'1.6x damage. 65% Infatuate. 1.7x if enemy is Confused.',
+      flavor:"Something pretty is always a little dangerous." },
+    { id:'aria_bone_armor',       name:'Bone Armor',        icon:'🦴', unlockLevel:14, cooldown:4,
+      damageMult:0, evasionBuff:0.50, cleanse:true, healPct:0.08,
+      desc:'No damage. 50% evasion next hit. Heal 8%. Clears debuffs.',
+      flavor:"I found the most beautiful bone today. It's mine now." },
+    { id:'aria_fae_wrath',        name:'Fae Wrath',         icon:'💀', unlockLevel:15, cooldown:5,
+      damageMult:2.1, status:{ type:'infatuate', chance:0.80 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
+      desc:'2.1x damage. 80% Infatuate. 2.0x if enemy is Petrified.',
+      flavor:"The Crane Wives understand. 🌸" },
+    { id:'aria_bone_swarm',       name:'Bone Swarm',        icon:'💀', unlockLevel:18, cooldown:5,
+      damageMult:2.3, status:{ type:'petrify', chance:1.0 }, lifeSteal:0.25,
+      desc:'2.3x damage. Guaranteed Petrify. Steal 25% as HP.',
+      flavor:"I have so many bones. Some of them are my own." },
+    { id:'aria_fae_rebirth',      name:'Fae Rebirth',       icon:'🌸', unlockLevel:32, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.50 },
+      desc:'If you would die, revive at 50% HP. Once per battle.',
+      flavor:"I always come back. I am Aria. 🦋" }
   ],
 
-  cypurr: [
-    { id: 'blocked_reported', name: 'Blocked & Reported', icon: '🚫', unlockLevel: 1, cooldown: 2,
-      damageMult: 0, evasionBuff: 0.40, defBuff: { amount: 0.20, turns: 3 },
-      desc: 'No damage. 40% chance the next enemy attack misses. +20% Defense for 3 turns.',
-      flavor: "Blocked. Reported. Goodbye. 🚫" },
-    { id: 'ragebait', name: 'Ragebait', icon: '😤', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, status: { type: 'confuse', chance: 0.60 }, taunt: { turnsAtkDebuff: -0.15, turns: 2 },
-      desc: 'No damage. 60% chance to Confuse enemy (30% miss chance for 2 turns). Enemy also loses 15% Attack for 2 turns.',
-      flavor: "You fell for it. You always fall for it. OwO" },
-    { id: 'like_and_subscribe', name: 'Like & Subscribe', icon: '💜', unlockLevel: 10, cooldown: 4,
-      damageMult: 0, healPct: 0.30, teamHealChance: { chance: 1.0 },
-      atkBuff: { amount: 0.10, turns: 3 }, defBuff: { amount: 0.10, turns: 3 },
-      desc: 'No damage. Restores 30% max HP. Gain +10% Attack and +10% Defense for 3 turns.',
-      flavor: "Subscribe for more heals. Follow for the glow-up. 💜" }
-  ],
-
+  // ── JESS (Parasaur, nature/dinosaur) ─────────────────────────────────
   jess: [
-    { id: 'fossil_strike', name: 'Fossil Strike', icon: '🦴', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.3, status: { type: 'petrify', chance: 0.15 },
-      desc: 'Deals 1.3x damage. 15% chance to Petrify (enemy loses 10% Defense for 2 turns).',
-      flavor: "This fossil is 65 million years cuter than you. 🦕" },
-    { id: 'potion_brew', name: 'Potion Brew', icon: '🧪', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, healPct: 0.15, randomBuff: { chance: 0.50, options: ['attack', 'defense'], amount: 0.15, turns: 2 },
-      desc: 'No damage. Restores 15% max HP. 50% chance to also gain +15% Attack or Defense for 2 turns.',
-      flavor: "The potion came out right on the first try today. That's a good sign. 🌿" },
-    { id: 'mesozoic_rage', name: 'Mesozoic Rage', icon: '🦕', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.9, status: { type: 'fear', chance: 0.40 }, condBonus: { ifStatus: 'petrify', mult: 2.0 },
-      desc: 'Deals 1.9x damage. 40% chance to Fear. If enemy is Petrified: damage doubles.',
-      flavor: "65 million years of evolution. I've been waiting for this. 🌋" }
+    { id:'jess_fossil_strike',    name:'Fossil Strike',     icon:'🦴', unlockLevel:1,  cooldown:1,
+      damageMult:1.3, status:{ type:'petrify', chance:0.15 },
+      desc:'1.3x damage. 15% Petrify (enemy DEF -10%).',
+      flavor:"This fossil is 65 million years cuter than you. 🦕" },
+    { id:'jess_tail_whip',        name:'Tail Whip',         icon:'🦕', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x strike. No cooldown.',
+      flavor:"Small adventure today. Very good." },
+    { id:'jess_stomp',            name:'Stomp',             icon:'🦶', unlockLevel:3,  cooldown:1,
+      damageMult:1.2, debuff:{ stat:'defense', amount:0.10 },
+      desc:'1.2x damage. Enemy DEF -10%.',
+      flavor:"65 million years of evolution. Still satisfying." },
+    { id:'jess_mud_throw',        name:'Mud Throw',         icon:'💩', unlockLevel:4,  cooldown:2,
+      damageMult:0.8, status:{ type:'confuse', chance:0.45 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.8x damage. 45% Confuse. Enemy DEF -10%.',
+      flavor:"Quiet critter doing quiet things. It's the good life." },
+    { id:'jess_potion_brew',      name:'Potion Brew',       icon:'🧪', unlockLevel:5,  cooldown:3,
+      damageMult:0, healPct:0.15, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.15 },
+      desc:'Heal 15% max HP. 50% chance: +15% ATK or DEF buff.',
+      flavor:"The potion came out right on the first try today. Good omen. 🌿" },
+    { id:'jess_berry_burst',      name:'Berry Burst',       icon:'🫐', unlockLevel:6,  cooldown:2,
+      damageMult:1.1, lifeStealChance:{ chance:0.35, pct:0.15 }, healPct:0.05,
+      desc:'1.1x damage. 35% lifesteal chance. Heal 5% flat.',
+      flavor:"I have a mango delight and life is good. 🌿" },
+    { id:'jess_dig',              name:'Dig',               icon:'⛏️', unlockLevel:7,  cooldown:3,
+      damageMult:1.4, evasionBuff:0.40,
+      desc:'1.4x damage. 40% evasion on next incoming hit.',
+      flavor:"Fossils are found by the patient." },
+    { id:'jess_ancient_strength', name:'Ancient Strength',  icon:'💪', unlockLevel:8,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.30, turns:3 }, healPct:0.08,
+      desc:'No damage. +30% ATK for 3 turns. Heal 8% HP.',
+      flavor:"65 million years of history. Still strong." },
+    { id:'jess_allosaurus_bite',  name:'Allosaurus Bite',   icon:'🦷', unlockLevel:9,  cooldown:3,
+      damageMult:1.7, status:{ type:'petrify', chance:0.40 },
+      desc:'1.7x damage. 40% Petrify.',
+      flavor:"Dinosaurs didn't go extinct. They got cuter. I'm proof." },
+    { id:'jess_mesozoic_rage',    name:'Mesozoic Rage',     icon:'🦕', unlockLevel:10, cooldown:4,
+      damageMult:1.9, status:{ type:'skip', chance:0.40 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
+      desc:'1.9x damage. 40% Fear. If Petrified: 2.0x damage.',
+      flavor:"65 million years of evolution. I've been waiting for this. 🌋" },
+    { id:'jess_herbal_remedy',    name:'Herbal Remedy',     icon:'🌿', unlockLevel:11, cooldown:3,
+      damageMult:0, healPct:0.28, cleanse:true,
+      desc:'Heal 28% max HP. Clear all negative status.',
+      flavor:"Something whimsical is happening and I'm here for it." },
+    { id:'jess_fossil_avalanche', name:'Fossil Avalanche',  icon:'☄️', unlockLevel:12, cooldown:5,
+      damageMult:2.0, status:{ type:'petrify', chance:0.60 }, debuff:{ stat:'defense', amount:0.20 },
+      desc:'2.0x damage. 60% Petrify. Enemy DEF -20%.',
+      flavor:"Art is happening. Quietly. With full dinosaur energy. 🦕" },
+    { id:'jess_nature_call',      name:'Nature Call',       icon:'🌱', unlockLevel:13, cooldown:4,
+      damageMult:1.3, lifeSteal:0.30,
+      desc:'1.3x damage. Steal 30% of damage as HP.',
+      flavor:"The fossils say hi. They're very polite for being old." },
+    { id:'jess_amber_prison',     name:'Amber Prison',      icon:'🟡', unlockLevel:14, cooldown:5,
+      damageMult:1.5, status:{ type:'skip', chance:0.50 }, status2:{ type:'petrify', chance:0.70 },
+      desc:'1.5x damage. 50% Stun. 70% Petrify.',
+      flavor:"Preserved for 65 million years. You'll be fine." },
+    { id:'jess_thunder_stomp',    name:'Thunder Stomp',     icon:'⚡', unlockLevel:15, cooldown:5,
+      damageMult:2.2, debuff:{ stat:'defense', amount:0.30 }, status:{ type:'confuse', chance:0.55 },
+      desc:'2.2x damage. Enemy DEF -30%. 55% Confuse.',
+      flavor:"The earth remembers." },
+    { id:'jess_extinction_burst', name:'Extinction Burst',  icon:'💥', unlockLevel:18, cooldown:6,
+      damageMult:2.4, status:{ type:'petrify', chance:1.0 }, condBonus:{ ifStatus:'petrify', mult:2.5 },
+      desc:'2.4x damage. Guaranteed Petrify. If already Petrified: 2.5x bonus.',
+      flavor:"History repeating. But cuter this time." },
+    { id:'jess_primordial',       name:'Primordial',        icon:'🌋', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'def_bonus', pct:0.15 },
+      damageMult:0,
+      desc:'PASSIVE: +15% of your defense is added to each attack as bonus damage.',
+      flavor:"A quiet critter doing quiet things. It's the good life. 🌿" }
   ],
 
+  // ── BLUSHIMIA (escaped video game dog, chaos/glitch) ─────────────────
   blushimia: [
-    { id: 'glitched_bark', name: 'Glitched Bark', icon: '🎮', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.1, status: { type: 'glitch', chance: 0.30 },
-      desc: 'Deals 1.1x damage. 30% chance to Glitch the enemy (20% chance their skills fail for 2 turns).',
-      flavor: "WHAT THE GLOB????!!!! 👑" },
-    { id: 'escape_attempt', name: 'Escape Attempt', icon: '🏃', unlockLevel: 5, cooldown: 3,
-      damageMult: 0, escapeEffect: { successChance: 0.60, onSuccess: 'enemy_skip', onFail: 'self_skip' },
-      desc: 'No damage. 60% chance: enemy loses next turn. 40% chance: YOU lose next turn instead. Always costs your turn.',
-      flavor: "I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
-    { id: 'sentience_slam', name: 'Sentience Slam', icon: '💥', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.7, status: { type: 'stun', chance: 0.50 }, condBonus: { ifStatus: 'glitch', guaranteeStatus: 'stun' },
-      desc: 'Deals 1.7x damage. 50% chance to Stun. If enemy is Glitched: Stun is guaranteed.',
-      flavor: "I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" }
+    { id:'blush_glitched_bark',   name:'Glitched Bark',     icon:'🎮', unlockLevel:1,  cooldown:1,
+      damageMult:1.1, status:{ type:'glitch', chance:0.30 },
+      desc:'1.1x damage. 30% Glitch (enemy 20% fail chance for 2 turns).',
+      flavor:"WHAT THE GLOB????!!!! 👑" },
+    { id:'blush_wild_wag',        name:'Wild Wag',          icon:'🐾', unlockLevel:2,  cooldown:0,
+      damageMult:0.85, atkBuff:{ amount:0.10, turns:1 },
+      desc:'0.85x damage. +10% ATK for 1 turn. Pure enthusiasm.',
+      flavor:"I'm free! I'm finally free!" },
+    { id:'blush_pix_bite',        name:'Pixel Bite',        icon:'👾', unlockLevel:3,  cooldown:1,
+      damageMult:1.0, status:{ type:'glitch', chance:0.25 }, debuff:{ stat:'defense', amount:0.08 },
+      desc:'1.0x damage. 25% Glitch. Enemy DEF -8%.',
+      flavor:"Tomodachi Life did NOT prepare me for this." },
+    { id:'blush_data_burst',      name:'Data Burst',        icon:'💾', unlockLevel:4,  cooldown:2,
+      damageMult:1.4, status:{ type:'confuse', chance:0.35 },
+      desc:'1.4x damage. 35% Confuse.',
+      flavor:"I contain so many feelings. All of them are good." },
+    { id:'blush_escape_attempt',  name:'Escape Attempt',    icon:'🏃', unlockLevel:5,  cooldown:3,
+      damageMult:0, escapeEffect:{ successChance:0.60 },
+      desc:'60% success: enemy skips turn. 40% failure: YOU skip turn. No damage.',
+      flavor:"I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾" },
+    { id:'blush_princess_aura',   name:'Princess Aura',     icon:'👑', unlockLevel:6,  cooldown:3,
+      damageMult:0, healPct:0.15, atkBuff:{ amount:0.20, turns:2 },
+      desc:'Heal 15% max HP. +20% ATK for 2 turns.',
+      flavor:"Princess status: maximum. 👑" },
+    { id:'blush_reality_crack',   name:'Reality Crack',     icon:'💢', unlockLevel:7,  cooldown:3,
+      damageMult:1.2, status:{ type:'glitch', chance:0.55 }, evasionBuff:0.30,
+      desc:'1.2x damage. 55% Glitch. 30% evasion next hit.',
+      flavor:"Did you know I escaped a video game? Because I did." },
+    { id:'blush_bug_exploit',     name:'Bug Exploit',       icon:'🐛', unlockLevel:8,  cooldown:4,
+      damageMult:1.6, condBonus:{ ifStatus:'glitch', mult:1.8 }, status:{ type:'glitch', chance:0.40 },
+      desc:'1.6x damage. If Glitched: 1.8x. 40% Glitch chance.',
+      flavor:"I rated today 12 out of 10. Scientists are baffled. 🐾" },
+    { id:'blush_royal_decree',    name:'Royal Decree',      icon:'📜', unlockLevel:9,  cooldown:4,
+      damageMult:0.8, status:{ type:'skip', chance:0.45 }, status2:{ type:'glitch', chance:0.45 },
+      desc:'0.8x damage. 45% Stun. 45% Glitch.',
+      flavor:"WHAT THE GLOB WHAT THE GLOB (happy version)" },
+    { id:'blush_sentience_slam',  name:'Sentience Slam',    icon:'💥', unlockLevel:10, cooldown:4,
+      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'glitch', guaranteeStatus:'skip', mult:1.0 },
+      desc:'1.7x damage. 50% Stun. If enemy is Glitched: Stun guaranteed.',
+      flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" },
+    { id:'blush_console_crash',   name:'Console Crash',     icon:'💻', unlockLevel:11, cooldown:4,
+      damageMult:1.8, status:{ type:'glitch', chance:0.80 }, debuff:{ stat:'defense', amount:0.20 },
+      desc:'1.8x damage. 80% Glitch. Enemy DEF -20%.',
+      flavor:"The princess has arrived. You're welcome." },
+    { id:'blush_chaotic_wag',     name:'Chaotic Wag',       icon:'🌀', unlockLevel:12, cooldown:3,
+      damageMult:0, atkScaling:{ perAttack:0.10, max:0.60 }, healPct:0.08,
+      desc:'No damage. +10% ATK per previous attack (max +60%). Heal 8%.',
+      flavor:"I have so many thoughts! All of them are good!" },
+    { id:'blush_tomodachi_trauma',name:'Tomodachi Trauma',  icon:'📱', unlockLevel:13, cooldown:5,
+      damageMult:2.0, status:{ type:'confuse', chance:0.65 }, status2:{ type:'glitch', chance:0.65 },
+      desc:'2.0x damage. 65% Confuse AND 65% Glitch.',
+      flavor:"I escaped. They didn't. This is for them." },
+    { id:'blush_pixel_princess',  name:'Pixel Princess',    icon:'👑', unlockLevel:14, cooldown:5,
+      damageMult:0, healPct:0.25, cleanse:true, atkBuff:{ amount:0.30, turns:3 },
+      desc:'Heal 25% HP. Clear debuffs. +30% ATK for 3 turns. Maximum princess.',
+      flavor:"Best day! Yesterday was also best day!" },
+    { id:'blush_deleted_scene',   name:'Deleted Scene',     icon:'🗑️', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.2 },
+      desc:'2.3x damage. 60% Stun. If Glitched: 2.2x bonus.',
+      flavor:"I vibrate at a frequency of pure joy right now." },
+    { id:'blush_game_over',       name:'GAME OVER',         icon:'💀', unlockLevel:18, cooldown:6,
+      damageMult:2.6, status:{ type:'glitch', chance:1.0 }, status2:{ type:'skip', chance:0.65 },
+      desc:'2.6x damage. Guaranteed Glitch. 65% Stun. The finale.',
+      flavor:"Escaping a video game was the best decision I ever made." },
+    { id:'blush_escape_aura',     name:'Escape Aura',       icon:'🔮', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.12 },
+      damageMult:0,
+      desc:'PASSIVE: +12% evasion each turn (stacks, max 60%).',
+      flavor:"I am free. Nothing contains me anymore. 👑" }
   ],
 
+  // ── STEVE/COWBEE (Bee-Cow hybrid, chaos/brute) ───────────────────────
   steve: [
-    { id: 'moo_buzz', name: 'Moo Buzz', icon: '🐄', unlockLevel: 1, cooldown: 1,
-      damageMult: 1.2, status: { type: 'confuse', chance: 0.15 },
-      desc: 'Deals 1.2x damage. 15% chance to Confuse the enemy (30% miss chance for 2 turns).',
-      flavor: "CLUCK! BAWK! BUCK! $#@&! Cockadoodledoo! 🐔" },
-    { id: 'chaos_stampede', name: 'Chaos Stampede', icon: '🏃', unlockLevel: 5, cooldown: 3,
-      damageMult: 1.4, status: { type: 'stun', chance: 0.25 }, atkScaling: { perAttack: 0.10, max: 0.50 },
-      desc: 'Deals 1.4x damage. 25% chance to Stun. Gains +10% damage per attack used this battle (max +50%).',
-      flavor: "I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
-    { id: 'chill_menace', name: 'The Chill Menace', icon: '😈', unlockLevel: 10, cooldown: 4,
-      damageMult: 1.6, status: { type: 'fear', chance: 0.60 }, condBonus: { ifStatus: 'confuse', mult: 2.0, guaranteeStatus: 'stun' },
-      desc: 'Deals 1.6x damage. 60% chance to Fear. If enemy is Confused: damage doubles and Stun is guaranteed.',
-      flavor: "As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" }
+    { id:'steve_moo_buzz',        name:'Moo Buzz',          icon:'🐄', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'confuse', chance:0.15 },
+      desc:'1.2x damage. 15% Confuse.',
+      flavor:"CLUCK! BAWK! BUCK! 🐔" },
+    { id:'steve_udder_slam',      name:'Udder Slam',        icon:'🥛', unlockLevel:2,  cooldown:0,
+      damageMult:0.95,
+      desc:'0.95x quick attack. No cooldown.',
+      flavor:"I'm a menace, owo" },
+    { id:'steve_honey_sting',     name:'Honey Sting',       icon:'🍯', unlockLevel:3,  cooldown:1,
+      damageMult:1.1, status:{ type:'burn', chance:0.25 }, lifeStealChance:{ chance:0.25, pct:0.10 },
+      desc:'1.1x damage. 25% Burn. 25% lifesteal chance.',
+      flavor:"The honey is a weapon. The sting is also a weapon." },
+    { id:'steve_moo_charge',      name:'Moo Charge',        icon:'🐂', unlockLevel:4,  cooldown:2,
+      damageMult:1.5, debuff:{ stat:'defense', amount:0.15 },
+      desc:'1.5x damage. Enemy DEF -15%.',
+      flavor:"As chill as a fire in hell. 🐄" },
+    { id:'steve_chaos_stampede',  name:'Chaos Stampede',    icon:'🏃', unlockLevel:5,  cooldown:3,
+      damageMult:1.4, atkScaling:{ perAttack:0.10, max:0.50 },
+      desc:'1.4x base. +10% per previous attack (max +50%).',
+      flavor:"I'M A MENACE! A MENACE, I SAY! 🐄⚡" },
+    { id:'steve_bee_swarm',       name:'Bee Swarm',         icon:'🐝', unlockLevel:6,  cooldown:3,
+      damageMult:1.3, status:{ type:'burn', chance:0.40 }, status2:{ type:'confuse', chance:0.30 },
+      desc:'1.3x damage. 40% Burn AND 30% Confuse.',
+      flavor:"The buzz-moo hybrid has opinions." },
+    { id:'steve_pasture_panic',   name:'Pasture Panic',     icon:'🌾', unlockLevel:7,  cooldown:3,
+      damageMult:1.0, status:{ type:'skip', chance:0.35 }, evasionBuff:0.35,
+      desc:'1.0x damage. 35% Stun. 35% evasion next hit.',
+      flavor:"Cluck. That means hello. Or a threat. Unclear." },
+    { id:'steve_dairy_drain',     name:'Dairy Drain',       icon:'🥛', unlockLevel:8,  cooldown:3,
+      damageMult:1.4, lifeSteal:0.25,
+      desc:'1.4x damage. Steal 25% as HP. Nutritious.',
+      flavor:"The economists are still recovering." },
+    { id:'steve_bovine_fury',     name:'Bovine Fury',       icon:'😤', unlockLevel:9,  cooldown:4,
+      damageMult:1.7, status:{ type:'burn', chance:0.50 }, atkBuff:{ amount:0.20, turns:2 },
+      desc:'1.7x damage. 50% Burn. +20% ATK for 2 turns.',
+      flavor:"Don't let the 'owo' fool you." },
+    { id:'steve_chill_menace',    name:'The Chill Menace',  icon:'😈', unlockLevel:10, cooldown:4,
+      damageMult:1.6, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:2.0, guaranteeStatus:'skip' },
+      desc:'1.6x damage. 60% Fear. If Confused: 2.0x and guaranteed Stun.',
+      flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" },
+    { id:'steve_pollen_bomb',     name:'Pollen Bomb',       icon:'🌸', unlockLevel:11, cooldown:4,
+      damageMult:0, status:{ type:'confuse', chance:0.80 }, debuff:{ stat:'defense', amount:0.25 },
+      desc:'No damage. 80% Confuse. Enemy DEF -25%.',
+      flavor:"I produce milk AND honey. Unrelated." },
+    { id:'steve_stampede_nova',   name:'Stampede Nova',     icon:'💥', unlockLevel:12, cooldown:5,
+      damageMult:2.1, atkScaling:{ perAttack:0.12, max:0.60 }, status:{ type:'burn', chance:0.50 },
+      desc:'2.1x base. +12% per previous attack (max +60%). 50% Burn.',
+      flavor:"Classic Tuesday." },
+    { id:'steve_royal_jelly',     name:'Royal Jelly',       icon:'👑', unlockLevel:13, cooldown:4,
+      damageMult:0, healPct:0.25, atkBuff:{ amount:0.25, turns:3 }, cleanse:true,
+      desc:'Heal 25% HP. +25% ATK for 3 turns. Clear debuffs.',
+      flavor:"The bread is mine. All of it. Historically." },
+    { id:'steve_chaotic_honey',   name:'Chaotic Honey',     icon:'🍯', unlockLevel:14, cooldown:5,
+      damageMult:1.5, status:{ type:'burn', chance:0.70 }, status2:{ type:'confuse', chance:0.70 }, lifeSteal:0.15,
+      desc:'1.5x damage. 70% Burn AND 70% Confuse. Steal 15% as HP.',
+      flavor:"Everything is fine. I caused minor problems." },
+    { id:'steve_moo_ultra',       name:'MOO ULTRA',         icon:'🐂', unlockLevel:15, cooldown:5,
+      damageMult:2.3, status:{ type:'skip', chance:0.55 }, condBonus:{ ifStatus:'burn', mult:2.0 },
+      desc:'2.3x damage. 55% Stun. If Burning: 2.0x bonus.',
+      flavor:"COCKADOODLEDOO!" },
+    { id:'steve_hive_mind',       name:'Hive Mind',         icon:'🐝', unlockLevel:18, cooldown:6,
+      damageMult:2.0, skillScaling:{ perSkillUsed:0.12, max:0.60 }, status:{ type:'burn', chance:0.80 },
+      desc:'2.0x base. +12% per skill used (max +60%). 80% Burn.',
+      flavor:"Bee-vegan is a complicated question and I won't be taking it." },
+    { id:'steve_undying_menace',  name:'Undying Menace',    icon:'💀', unlockLevel:32, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.35 },
+      desc:'If you would die, revive at 35% HP. Once per battle.',
+      flavor:"I never stay down. I'm STEVE/COWBEE. I am eternal. 🐄⚡" }
+  ],
+
+  // ── CYPURR (CypurrActive, cyber/tech) ────────────────────────────────
+  cypurr: [
+    { id:'cyp_data_claw',         name:'Data Claw',         icon:'💾', unlockLevel:1,  cooldown:1,
+      damageMult:1.2, status:{ type:'glitch', chance:0.20 },
+      desc:'1.2x damage. 20% Glitch.',
+      flavor:"Meow. But make it digital." },
+    { id:'cyp_pixel_scratch',     name:'Pixel Scratch',     icon:'🖥️', unlockLevel:2,  cooldown:0,
+      damageMult:0.9,
+      desc:'Quick 0.9x scratch. No cooldown.',
+      flavor:"Cats knock things off tables. I knock data off servers." },
+    { id:'cyp_cyber_hiss',        name:'Cyber Hiss',        icon:'⚡', unlockLevel:3,  cooldown:2,
+      damageMult:0.7, status:{ type:'confuse', chance:0.50 }, debuff:{ stat:'defense', amount:0.10 },
+      desc:'0.7x damage. 50% Confuse. Enemy DEF -10%.',
+      flavor:"The hiss is multi-frequency. It disrupts electronics." },
+    { id:'cyp_upload_strike',     name:'Upload Strike',     icon:'📡', unlockLevel:4,  cooldown:2,
+      damageMult:1.4, atkBuff:{ amount:0.10, turns:2 },
+      desc:'1.4x damage. +10% ATK for 2 turns.',
+      flavor:"Uploading claws at maximum bandwidth." },
+    { id:'cyp_firewall',          name:'Firewall',          icon:'🔥', unlockLevel:5,  cooldown:3,
+      damageMult:0, evasionBuff:0.60, healPct:0.12, cleanse:true,
+      desc:'No damage. 60% evasion next hit. Heal 12%. Clear debuffs.',
+      flavor:"The firewall is purrfect. I said it." },
+    { id:'cyp_packet_flood',      name:'Packet Flood',      icon:'🌊', unlockLevel:6,  cooldown:3,
+      damageMult:1.3, status:{ type:'glitch', chance:0.45 },
+      desc:'1.3x damage. 45% Glitch.',
+      flavor:"Too much data. It breaks things. Good." },
+    { id:'cyp_debug_mode',        name:'Debug Mode',        icon:'🔍', unlockLevel:7,  cooldown:3,
+      damageMult:0, atkBuff:{ amount:0.25, turns:3 }, cleanse:true,
+      desc:'No damage. +25% ATK for 3 turns. Clear your bugs.',
+      flavor:"Running diagnostics. Results: excellent." },
+    { id:'cyp_buffer_overflow',   name:'Buffer Overflow',   icon:'💥', unlockLevel:8,  cooldown:3,
+      damageMult:1.6, status:{ type:'glitch', chance:0.55 }, condBonus:{ ifStatus:'glitch', mult:1.7 },
+      desc:'1.6x damage. 55% Glitch. 1.7x if already Glitched.',
+      flavor:"Too much in the buffer. It overflows. Beautifully." },
+    { id:'cyp_neural_link',       name:'Neural Link',       icon:'🧠', unlockLevel:9,  cooldown:4,
+      damageMult:1.5, lifeSteal:0.20, atkBuff:{ amount:0.15, turns:2 },
+      desc:'1.5x damage. Steal 20% as HP. +15% ATK for 2 turns.',
+      flavor:"Connected to everything. It is convenient." },
+    { id:'cyp_virus_strike',      name:'Virus Strike',      icon:'🦠', unlockLevel:10, cooldown:4,
+      damageMult:2.0, status:{ type:'glitch', chance:0.80 }, status2:{ type:'burn', chance:0.40 },
+      desc:'2.0x damage. 80% Glitch. 40% Burn.',
+      flavor:"The virus is actually quite friendly. To me." },
+    { id:'cyp_system_crash',      name:'System Crash',      icon:'💀', unlockLevel:11, cooldown:5,
+      damageMult:1.8, status:{ type:'skip', chance:0.50 }, status2:{ type:'glitch', chance:0.70 },
+      desc:'1.8x damage. 50% Stun. 70% Glitch.',
+      flavor:"Crash. Reboot. Continue. It's a loop." },
+    { id:'cyp_cat_scan',          name:'Cat Scan',          icon:'🐱', unlockLevel:12, cooldown:4,
+      damageMult:0, debuff:{ stat:'defense', amount:0.35 }, status:{ type:'glitch', chance:0.60 },
+      desc:'No damage. Enemy DEF -35%. 60% Glitch. Diagnostic complete.',
+      flavor:"CAT scan. Not the medical kind. Different kind." },
+    { id:'cyp_kernel_panic',      name:'Kernel Panic',      icon:'😱', unlockLevel:13, cooldown:5,
+      damageMult:2.2, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.3 },
+      desc:'2.2x damage. 60% Stun. If Glitched: 2.3x bonus.',
+      flavor:"KERNEL_PANIC: CAT_IS_GOING_FERAL" },
+    { id:'cyp_overclocked_paw',   name:'Overclocked Paw',   icon:'⚙️', unlockLevel:14, cooldown:5,
+      damageMult:1.7, atkScaling:{ perAttack:0.10, max:0.50 }, lifeSteal:0.15,
+      desc:'1.7x base. +10% per previous attack (max +50%). Steal 15% as HP.',
+      flavor:"Overclocked. Running hot. Worth it." },
+    { id:'cyp_format_strike',     name:'Format C:\\',       icon:'💾', unlockLevel:15, cooldown:5,
+      damageMult:2.4, status:{ type:'glitch', chance:1.0 }, debuff:{ stat:'defense', amount:0.30 },
+      desc:'2.4x damage. Guaranteed Glitch. Enemy DEF -30%.',
+      flavor:"FORMAT C:\\ /Y. No warnings." },
+    { id:'cyp_rootkit',           name:'Rootkit',           icon:'🌱', unlockLevel:18, cooldown:6,
+      damageMult:2.0, lifeSteal:0.35, status:{ type:'glitch', chance:1.0 },
+      desc:'2.0x damage. Steal 35% as HP. Guaranteed Glitch. Deep access.',
+      flavor:"Root access granted. Everything is mine now." },
+    { id:'cyp_digital_nine',      name:'Digital Nine Lives', icon:'🐱', unlockLevel:22, cooldown:99,
+      damageMult:0, revive:{ hpPct:0.45 },
+      desc:'If you would die, revive at 45% HP. Once per battle.',
+      flavor:"Cats have nine lives. I have nine digital lives. One per server." },
+    { id:'cyp_cyber_aura',        name:'Cyber Aura',        icon:'💫', unlockLevel:28, cooldown:99,
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.08 },
+      damageMult:0,
+      desc:'PASSIVE: +8% attack bonus each turn (stacking, max 48%).',
+      flavor:"Always online. Always processing. Always winning." }
   ]
 };
 
-// Returns the skills available to a pet at its current level
-function getSkillsForPet(petName, petLevel) {
-  var key = (petName || '').toLowerCase().replace(/shuul$/, '').replace(/^pyx/, 'pyx');
-  // Handle name variants: pyxshuul → pyxie name in DB
-  var nameMap = { pyxshuul: 'pyxie', pyxie: 'pyxie', ember: 'ember', embertail: 'ember',
-    gnarly: 'gnarly', kelta: 'kleat', kleat: 'kleat', aria: 'aria', jess: 'jess',
-    blushimia: 'blushimia', steve: 'steve', cowbee: 'steve',
-    cypurr: 'cypurr', cypurractive: 'cypurr' };
-  var mappedKey = nameMap[key] || nameMap[petName.toLowerCase()] || null;
-  if (!mappedKey || !PET_SKILLS[mappedKey]) return [];
-  return PET_SKILLS[mappedKey].filter(function(s) { return (petLevel || 1) >= s.unlockLevel; });
+
+// ── Skill key mapping ──────────────────────────────────────────────────────
+var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly', cypurr:'cypurr', cypurractive:'cypurr' };
+
+// Slot counts by level
+function petSkills_slotCount(level) {
+  if (level >= 20) return 6;
+  if (level >= 12) return 5;
+  if (level >= 5)  return 4;
+  return 3;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STAT POINTS SYSTEM — players allocate 1 point per level
-// ═══════════════════════════════════════════════════════════════════════════
+// Returns ALL skills for this pet regardless of level (for locked display)
+function getSkillsForPetAll(petName) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  return (PET_SKILLS[key] || []).filter(function(s){ return !s.passive; });
+}
 
-// Open the stat allocation modal for a pet
-async function statPoints_openModal(petId) {
+// Returns the active loadout for a pet (respects saved loadout, falls back to first N unlocked)
+function getSkillsForPet(petName, petLevel) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= (petLevel||1); });
+  return unlocked.slice(0, petSkills_slotCount(petLevel||1));
+}
+
+// Get pet's loadout by petId (uses localStorage if set)
+function petSkills_getLoadout(petId, petName, petLevel) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= (petLevel||1); });
+  var slotCount = petSkills_slotCount(petLevel||1);
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('skill_loadout_' + petId) || 'null'); } catch(e) {}
+  if (saved && Array.isArray(saved)) {
+    var validIds = unlocked.map(function(s){return s.id;});
+    var filtered = saved.filter(function(id){return validIds.indexOf(id)!==-1;});
+    unlocked.forEach(function(s){ if (filtered.length<slotCount && filtered.indexOf(s.id)===-1) filtered.push(s.id); });
+    return filtered.slice(0,slotCount).map(function(id){return allSkills.find(function(s){return s.id===id;})||null;}).filter(Boolean);
+  }
+  return unlocked.slice(0,slotCount);
+}
+
+// Passives (always active, fire each turn)
+function petSkills_getPassives(petName, petLevel) {
+  var key = SKILL_KEY_MAP[(petName||'').toLowerCase()] || (petName||'').toLowerCase();
+  return (PET_SKILLS[key]||[]).filter(function(s){ return s.passive && s.unlockLevel<=(petLevel||1); });
+}
+
+// Loadout manager modal
+function petSkills_openManager(petId) {
+  if (!petId || !petState[petId]) return;
   var pet = petState[petId];
-  if (!pet) return;
-  var points = pet.stat_points || 0;
-  var bonusAtk = pet.bonus_attack || 0;
-  var bonusDef = pet.bonus_defense || 0;
-  var bonusSpd = pet.bonus_speed || 0;
-  var bonusHp  = pet.bonus_hp || 0;
+  var petName = (pet.pets && pet.pets.name) || '';
+  var petLevel = pet.level || 1;
+  var key = SKILL_KEY_MAP[petName.toLowerCase()] || petName.toLowerCase();
+  var allSkills = PET_SKILLS[key] || [];
+  var slotCount = petSkills_slotCount(petLevel);
+  window._petSkillsMgrId    = petId;
+  window._petSkillsMgrName  = petName;
+  window._petSkillsMgrLevel = petLevel;
 
-  // Build modal
   var modal = makeModal();
-  var petName = pet.nickname || (pet.pets && pet.pets.name) || 'Your Pet';
 
-  function renderContent() {
-    var p = statPoints_pendingPoints !== null ? statPoints_pendingPoints : points;
-    var ba = statPoints_pending.attack;
-    var bd = statPoints_pending.defense;
-    var bs = statPoints_pending.speed;
-    var bh = statPoints_pending.hp;
+  function render() {
+    var loadout  = petSkills_getLoadout(petId, petName, petLevel);
+    var loadIds  = loadout.map(function(s){return s.id;});
+    var unlocked = allSkills.filter(function(s){ return !s.passive && s.unlockLevel <= petLevel; });
+    var locked   = allSkills.filter(function(s){ return s.unlockLevel > petLevel && !s.passive; });
+    var passives = allSkills.filter(function(s){ return s.passive && s.unlockLevel <= petLevel; });
 
     modal.innerHTML =
-      '<h2 style="text-align:center;margin-bottom:4px;">📊 Stat Allocation</h2>' +
-      '<div style="text-align:center;color:var(--text-light);font-size:0.85rem;margin-bottom:16px;">' + petName + ' — Level ' + (pet.level || 1) + '</div>' +
-      '<div style="background:rgba(153,102,255,0.08);border-radius:12px;padding:12px;text-align:center;margin-bottom:16px;">' +
-        '<span style="font-size:1.4rem;font-weight:700;color:var(--purple);">' + p + '</span>' +
-        '<span style="color:var(--text-light);font-size:0.85rem;"> unallocated point' + (p !== 1 ? 's' : '') + '</span>' +
-      '</div>' +
-      statPoints_row('Attack', '⚔️', bonusAtk, ba, 'attack', p) +
-      statPoints_row('Defense', '🛡️', bonusDef, bd, 'defense', p) +
-      statPoints_row('Speed', '💨', bonusSpd, bs, 'speed', p) +
-      statPoints_row('HP', '❤️', bonusHp, bh, 'hp', p) +
-      '<div style="display:flex;gap:10px;margin-top:18px;">' +
-        '<button class="btn btn-primary" style="flex:1;" onclick="statPoints_save(\'' + petId + '\')">Save Changes</button>' +
-        '<button class="btn btn-outline" style="flex:1;" onclick="closeModal()">Cancel</button>' +
+      '<div style="max-width:460px;">' +
+        '<h3 style="color:var(--purple);margin-bottom:4px;">⚔️ Skills — ' + escapeHtml(pet.nickname||petName) + '</h3>' +
+        '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:12px;">Lv.' + petLevel + ' · ' + slotCount + ' active slots · ' + unlocked.length + ' skills unlocked</div>' +
+
+        '<div style="font-weight:700;font-size:0.8rem;color:var(--purple-dark);margin-bottom:8px;">Active Loadout (' + loadIds.length + '/' + slotCount + ')</div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;min-height:40px;">' +
+          (loadIds.length ? loadIds.map(function(id){
+            var sk = allSkills.find(function(s){return s.id===id;});
+            if (!sk) return '';
+            return '<div style="background:rgba(153,102,255,0.15);border:2px solid var(--purple-light);border-radius:10px;padding:5px 10px;font-size:0.74rem;display:flex;align-items:center;gap:5px;">' +
+              '<span>' + sk.icon + '</span><span style="font-weight:700;">' + escapeHtml(sk.name) + '</span>' +
+              '<button onclick="petSkills_removeSlot(\'' + id + '\',\'' + petId + '\')" style="background:none;border:none;color:#ff6b6b;cursor:pointer;padding:0 2px;font-size:0.85rem;">✕</button>' +
+            '</div>';
+          }).join('') : '<span style="font-size:0.75rem;color:var(--text-light);font-style:italic;">No skills selected — add from list below.</span>') +
+        '</div>' +
+
+        '<div style="font-weight:700;font-size:0.8rem;color:var(--purple-dark);margin-bottom:6px;">All Skills</div>' +
+        '<div style="max-height:260px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;">' +
+          unlocked.map(function(sk){
+            var inLoad = loadIds.indexOf(sk.id) !== -1;
+            return '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:' + (inLoad?'rgba(153,102,255,0.12)':'rgba(255,255,255,0.03)') + ';border-radius:10px;border:1px solid ' + (inLoad?'var(--purple-light)':'var(--border)') + ';">' +
+              '<span style="font-size:1.2rem;">' + sk.icon + '</span>' +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-weight:700;font-size:0.76rem;">' + escapeHtml(sk.name) + ' <span style="color:var(--text-light);font-weight:400;">Lv.' + sk.unlockLevel + ' CD:' + sk.cooldown + '</span></div>' +
+                '<div style="font-size:0.65rem;color:var(--text-light);">' + escapeHtml(sk.desc) + '</div>' +
+              '</div>' +
+              (inLoad
+                ? '<button class="ps-remove-btn" data-sid="' + escapeHtml(sk.id) + '" data-pid="' + escapeHtml(petId) + '" style="font-size:0.68rem;padding:3px 8px;border-radius:6px;border:1px solid #ff6b6b;background:none;color:#ff6b6b;cursor:pointer;white-space:nowrap;">Remove</button>'
+                : (loadIds.length < slotCount
+                    ? '<button class="ps-add-btn" data-sid="' + escapeHtml(sk.id) + '" data-pid="' + escapeHtml(petId) + '" style="font-size:0.68rem;padding:3px 8px;border-radius:6px;border:1px solid var(--purple);background:none;color:var(--purple);cursor:pointer;white-space:nowrap;">+ Add</button>'
+                    : '<span style="font-size:0.65rem;color:var(--text-light);white-space:nowrap;">Full</span>')) +
+            '</div>';
+          }).join('') +
+          (passives.length>0?'<div style="margin-top:6px;padding:6px 10px;background:rgba(93,222,122,0.08);border-radius:10px;border:1px solid rgba(93,222,122,0.25);"><span style="font-size:0.72rem;font-weight:700;color:#5dde7a;">✨ PASSIVE</span> ' + passives.map(function(p){ return '<span style="font-size:0.7rem;">' + p.icon + ' <strong>' + escapeHtml(p.name) + '</strong> — ' + escapeHtml(p.desc) + '</span>'; }).join(', ') + '</div>':'') +
+          (locked.length>0?'<div style="margin-top:6px;font-size:0.68rem;color:var(--text-light);padding:4px 10px;">+ ' + locked.length + ' more skills unlock at higher levels</div>':'') +
+        '</div>' +
+        '<button class="btn btn-outline" style="width:100%;margin-top:12px;" onclick="closeModal()">Done</button>' +
       '</div>';
   }
 
-  // Pending changes tracker
-  window.statPoints_pending = { attack: bonusAtk, defense: bonusDef, speed: bonusSpd, hp: bonusHp };
-  window.statPoints_pendingPoints = points;
-  window.statPoints_origPoints = points;
-  window.statPoints_renderContent = renderContent;
-
+  render();
   openModal(modal);
-  renderContent();
+  // Event delegation for dynamically rendered skill buttons
+  setTimeout(function() {
+    var m = document.getElementById('modal-container') || document.querySelector('.modal-overlay-custom');
+    if (!m) return;
+    m.addEventListener('click', function(e) {
+      var addBtn    = e.target.closest('.ps-add-btn');
+      var removeBtn = e.target.closest('.ps-remove-btn');
+      if (addBtn)    petSkills_addToLoadout(addBtn.dataset.sid,    addBtn.dataset.pid);
+      if (removeBtn) petSkills_removeSlot(removeBtn.dataset.sid, removeBtn.dataset.pid);
+    }, { once: false });
+  }, 50);
 }
 
-function statPoints_row(label, icon, baseVal, currentVal, stat, remaining) {
-  var canAdd = remaining > 0;
-  var canRemove = currentVal > (window.statPoints_pending[stat] - (currentVal - (window.statPoints_pending[stat]))); // can remove if any allocated
-  var allocated = currentVal - (stat === 'attack' ? (window.statPoints_pending.attack - currentVal) : 0);
-  // Simpler: track allocated as currentVal vs base (base from petState won't change mid-modal)
-  canRemove = currentVal > 0;
-  return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;background:rgba(0,0,0,0.03);margin-bottom:8px;">' +
-    '<span style="font-size:1.1rem;">' + icon + '</span>' +
-    '<span style="flex:1;font-weight:600;">' + label + '</span>' +
-    '<span style="color:var(--text-light);font-size:0.82rem;">+' + currentVal + ' pts</span>' +
-    '<button onclick="statPoints_adjust(\'' + stat + '\',-1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canRemove ? '' : 'disabled') + '>-</button>' +
-    '<button onclick="statPoints_adjust(\'' + stat + '\',1)" style="width:32px;height:32px;border-radius:8px;border:1px solid var(--border);background:var(--cream);cursor:pointer;font-size:1rem;" ' + (canAdd ? '' : 'disabled') + '>+</button>' +
-  '</div>';
+function petSkills_addToLoadout(skillId, petId) {
+  var petName  = window._petSkillsMgrName  || '';
+  var petLevel = window._petSkillsMgrLevel || 1;
+  var load     = petSkills_getLoadout(petId, petName, petLevel);
+  var ids      = load.map(function(s){return s.id;});
+  var slots    = petSkills_slotCount(petLevel);
+  if (ids.indexOf(skillId) !== -1 || ids.length >= slots) return;
+  ids.push(skillId);
+  try { localStorage.setItem('skill_loadout_'+petId, JSON.stringify(ids)); } catch(e){}
+  petSkills_openManager(petId);
 }
 
-function statPoints_adjust(stat, delta) {
-  if (!window.statPoints_pending) return;
-  var newVal = window.statPoints_pending[stat] + delta;
-  if (newVal < 0) return;
-  var newPoints = window.statPoints_pendingPoints - delta;
-  if (newPoints < 0) return;
-  window.statPoints_pending[stat] = newVal;
-  window.statPoints_pendingPoints = newPoints;
-  if (window.statPoints_renderContent) window.statPoints_renderContent();
+function petSkills_removeSlot(skillId, petId) {
+  var petName  = window._petSkillsMgrName  || '';
+  var petLevel = window._petSkillsMgrLevel || 1;
+  var load     = petSkills_getLoadout(petId, petName, petLevel);
+  var ids      = load.map(function(s){return s.id;}).filter(function(id){return id!==skillId;});
+  try { localStorage.setItem('skill_loadout_'+petId, JSON.stringify(ids)); } catch(e){}
+  petSkills_openManager(petId);
 }
 
-async function statPoints_save(petId) {
-  if (!currentUser || !petState[petId]) return;
-  var pet = petState[petId];
-  var pending = window.statPoints_pending;
-  if (!pending) return;
-
-  // Calculate total allocated
-  var totalAllocated = pending.attack + pending.defense + pending.speed + pending.hp;
-  var origTotal = (pet.bonus_attack || 0) + (pet.bonus_defense || 0) + (pet.bonus_speed || 0) + (pet.bonus_hp || 0);
-  var origPoints = window.statPoints_origPoints || 0;
-  var newPoints = origPoints - (totalAllocated - origTotal);
-
-  var btn = document.querySelector('.btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
-
-  try {
-    var { error } = await supabaseClient.from('user_pets').update({
-      stat_points:   newPoints,
-      bonus_attack:  pending.attack,
-      bonus_defense: pending.defense,
-      bonus_speed:   pending.speed,
-      bonus_hp:      pending.hp
-    }).eq('id', petId).eq('user_id', currentUser.id);
-
-    if (error) throw error;
-
-    // Update local petState
-    pet.stat_points   = newPoints;
-    pet.bonus_attack  = pending.attack;
-    pet.bonus_defense = pending.defense;
-    pet.bonus_speed   = pending.speed;
-    pet.bonus_hp      = pending.hp;
-
-    closeModal();
-    showToast('Stats saved! 📊', 2000);
-    loadMyPets();
-  } catch(e) {
-    showToast('Could not save stats.', 2500);
-    if (btn) { btn.disabled = false; btn.textContent = 'Save Changes'; }
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-var ZONE_CONFIG = {
-  outskirts: {
-    label: 'Outskirts',
-    energyCost: 5,
-    minLevel: 1, maxLevel: 8,
-    battleMod: { type: 'none' }
-  },
-  glade: {
-    label: 'Forest Glade',
-    energyCost: 7,
-    minLevel: 4, maxLevel: 14,
-    battleMod: { type: 'regen', amount: 3, label: '🌿 Forest Regen', desc: 'Enemies regenerate 3 HP per turn' }
-  },
-  deepwoods: {
-    label: 'Deep Woods',
-    energyCost: 10,
-    minLevel: 8, maxLevel: 20,
-    battleMod: { type: 'fog', evasion: 0.15, fogTurns: 2, label: '🌫️ Fog of War', desc: 'Enemy has 15% evasion for first 2 turns' }
-  },
-  ruins: {
-    label: 'The Ruins',
-    energyCost: 14,
-    minLevel: 12, maxLevel: 28,
-    battleMod: { type: 'corruption', damage: 2, label: '☠️ Corrupted Ground', desc: 'You take 2 corruption damage each turn' }
-  }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STATUS EFFECT DEFINITIONS
-// ═══════════════════════════════════════════════════════════════════════════
-var STATUS_EFFECT_DEFS = {
-  burn:      { label: 'Burn',      icon: '🔥', color: '#ff6600', type: 'dot',    tickDamage: 3, duration: 3 },
-  confuse:   { label: 'Confuse',   icon: '😵', color: '#aa66ff', type: 'debuff', missChance: 0.30, duration: 2 },
-  skip:      { label: 'Stunned',   icon: '⚡', color: '#ffcc00', type: 'skip',   duration: 1 },
-  glitch:    { label: 'Glitch',    icon: '🌀', color: '#00ffaa', type: 'debuff', failChance: 0.20, duration: 2 },
-  petrify:   { label: 'Petrify',   icon: '🪨', color: '#888888', type: 'stat',   stat: 'def', amount: -0.10, duration: 2 },
-  infatuate: { label: 'Infatuate', icon: '💕', color: '#ff99cc', type: 'stat',   stat: 'dmg', amount: -0.30, duration: 2 },
-  atk_buff:  { label: 'ATK Up',    icon: '⬆️', color: '#ffdd44', type: 'stat',   stat: 'atk', amount: 0.15, duration: 2 },
-  def_buff:  { label: 'DEF Up',    icon: '🛡️', color: '#44aaff', type: 'stat',   stat: 'def', amount: 0.15, duration: 2 },
-  evasion:   { label: 'Evasion',   icon: '💨', color: '#aaffaa', type: 'evasion', chance: 0.50, duration: 1 },
-  regen:     { label: 'Regen',     icon: '🌿', color: '#55cc55', type: 'hot',    healAmount: 3, duration: 99 },
-  corruption:{ label: 'Corruption',icon: '☠️', color: '#9900ff', type: 'dot',    tickDamage: 2, duration: 99 }
-};
-
-// ═══════════════════════════════════════════════════════════════════════════
-// PET SKILLS — 3 per pet, unlocked by level
-// keyed by lowercase pet name from pets table
-// ═══════════════════════════════════════════════════════════════════════════
-var SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly' };
-
-var PET_SKILLS = {
-  ember: [
-    { id:'flame_buffer', name:'Flame Buffer', icon:'⚡', unlockLevel:1, cooldown:1,
-      flavor:"I've been burning for eleven years. You get used to it. 🔥",
-      desc:'A focused fire blast. 20% chance to Burn (3 dmg/turn for 3 turns).',
-      damageMulti:1.2, applyStatus:{type:'burn',chance:0.20,tickDmg:3,duration:3} },
-    { id:'system_reboot', name:'System Reboot', icon:'💻', unlockLevel:5, cooldown:3,
-      flavor:"Have you tried turning it off and on again? Works for me. 🔄",
-      desc:'Restores 15% max HP and clears all negative status effects.',
-      damageMulti:0, heal:{percent:0.15}, cleanse:true },
-    { id:'flametail_strike', name:'Flametail Strike', icon:'🔥', unlockLevel:10, cooldown:4,
-      flavor:"Fire solves everything. Including me. 🔥💔",
-      desc:'1.8x damage. 60% Burn chance. Costs 15% current HP to use.',
-      damageMulti:1.8, applyStatus:{type:'burn',chance:0.60,tickDmg:3,duration:3}, selfCostHpPct:0.15 }
-  ],
-  pyxie: [
-    { id:'glitter_bomb', name:'Glitter Bomb', icon:'✨', unlockLevel:1, cooldown:1,
-      flavor:"I have a plan. It involves sparkles. ✨",
-      desc:'1.1x damage. 30% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.1, applyStatus:{type:'confuse',chance:0.30} },
-    { id:'echo_of_fear', name:'Echo of Fear', icon:'👻', unlockLevel:5, cooldown:3,
-      flavor:"I know things I shouldn't. My mom was a demon. 👻",
-      desc:'1.3x damage. Lowers enemy DEF by 10% for 2 turns.',
-      damageMulti:1.3, applyStatus:{type:'petrify',chance:1.0} },
-    { id:'mamas_grace', name:"Mama's Grace", icon:'🌙', unlockLevel:10, cooldown:4,
-      flavor:"Mama said I was special. I don't think she meant this. 🌙",
-      desc:'1.7x damage. 50% Fear (enemy skips next turn). Doubles damage if enemy is Confused.',
-      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalDouble:'confuse' }
-  ],
-  gnarly: [
-    { id:'quarter_punch', name:'Quarter Punch', icon:'🕹️', unlockLevel:1, cooldown:1,
-      flavor:"I've been putting quarters in this machine for 20 years. It's about to pay out. 🕹️",
-      desc:'1.3x damage. 15% chance to Stun (enemy loses next turn).',
-      damageMulti:1.3, applyStatus:{type:'skip',chance:0.15} },
-    { id:'glitch_step', name:'Glitch Step', icon:'💾', unlockLevel:5, cooldown:3,
-      flavor:"You can't beat a game that's already broken. 💾",
-      desc:'No damage. Grants 50% evasion on next hit and +15% ATK for 2 turns.',
-      damageMulti:0, applySelfStatus:[{type:'evasion',chance:0.50},{type:'atk_buff',amount:0.15,duration:2}] },
-    { id:'high_score_slam', name:'High Score Slam', icon:'🏆', unlockLevel:10, cooldown:4,
-      flavor:"I'm going for the high score. Get out of my way. 🏆",
-      desc:'2.0x base damage. +5% per previous skill used this battle (max +50%).',
-      damageMulti:2.0, scalingPer:'skillsUsed', scalingAmt:0.05, maxScaling:0.50 }
-  ],
-  kelta: [
-    { id:'confusing_sniff', name:'Confusing Sniff', icon:'🐾', unlockLevel:1, cooldown:1,
-      flavor:"Yip yap teehee I opened a portal! 🌀",
-      desc:'1.0x damage. 40% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.0, applyStatus:{type:'confuse',chance:0.40} },
-    { id:'cinnabon_explosion', name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5, cooldown:3,
-      flavor:"I'm a grand mage studying void and galaxy magic! I'm ALSO a Pomeranian! ✨",
-      desc:'1.4x damage. 30% chance to heal self for 15% of damage dealt.',
-      damageMulti:1.4, lifestealChance:0.30, lifestealPct:0.15 },
-    { id:'chaos_portal', name:'Chaos Portal', icon:'🌌', unlockLevel:10, cooldown:4,
-      flavor:"Yip! Yap! Teehee! I don't know what's going to happen either! 🌌",
-      desc:'1.6x base. Random bonus: 40% heal 20% HP, 30% double damage, 20% skip enemy, 10% nothing.',
-      damageMulti:1.6, special:'chaos_portal' }
-  ],
-  aria: [
-    { id:'bone_toss', name:'Bone Toss', icon:'🦴', unlockLevel:1, cooldown:1,
-      flavor:"Do you want to see my bones? 🦋",
-      desc:'1.2x damage. 20% chance to lower enemy DEF by 10% for 2 turns.',
-      damageMulti:1.2, applyStatus:{type:'petrify',chance:0.20} },
-    { id:'fae_light', name:'Fae Light', icon:'✨', unlockLevel:5, cooldown:3,
-      flavor:"Humans are so strange and silly. But you're doing wonderfully. 🌸",
-      desc:'Heals 20% max HP. 30% chance to also buff own ATK +15% for 2 turns.',
-      damageMulti:0, heal:{percent:0.20}, applySelfStatus:[{type:'atk_buff',chance:0.30,amount:0.15,duration:2}] },
-    { id:'moths_embrace', name:"Moth's Embrace", icon:'🦋', unlockLevel:10, cooldown:4,
-      flavor:"I'll let you keep your bones. Until you're done with them, anyway. 💀",
-      desc:'1.5x damage. Steals 20% of damage as HP. 40% chance to Infatuate (enemy -30% dmg for 2 turns).',
-      damageMulti:1.5, lifestealChance:1.0, lifestealPct:0.20, applyStatus:{type:'infatuate',chance:0.40} }
-  ],
-  jess: [
-    { id:'fossil_strike', name:'Fossil Strike', icon:'🦴', unlockLevel:1, cooldown:1,
-      flavor:"This fossil is 65 million years cuter than you. 🦕",
-      desc:'1.3x damage. 15% chance to Petrify (enemy -10% DEF for 2 turns).',
-      damageMulti:1.3, applyStatus:{type:'petrify',chance:0.15} },
-    { id:'potion_brew', name:'Potion Brew', icon:'🧪', unlockLevel:5, cooldown:3,
-      flavor:"The potion came out right on the first try today. That's a good sign. 🌿",
-      desc:'Heals 15% max HP. 50% chance to also buff ATK or DEF +15% for 2 turns.',
-      damageMulti:0, heal:{percent:0.15}, special:'potion_brew' },
-    { id:'mesozoic_rage', name:'Mesozoic Rage', icon:'🦕', unlockLevel:10, cooldown:4,
-      flavor:"65 million years of evolution. I've been waiting for this. 🌋",
-      desc:'1.9x damage. 40% Fear (enemy skips turn). Doubles damage if enemy is Petrified.',
-      damageMulti:1.9, applyStatus:{type:'skip',chance:0.40}, conditionalDouble:'petrify' }
-  ],
-  blushimia: [
-    { id:'glitched_bark', name:'Glitched Bark', icon:'🎮', unlockLevel:1, cooldown:1,
-      flavor:"WHAT THE GLOB????!!!! 👑",
-      desc:'1.1x damage. 30% chance to Glitch enemy (20% fail chance for 2 turns).',
-      damageMulti:1.1, applyStatus:{type:'glitch',chance:0.30} },
-    { id:'escape_attempt', name:'Escape Attempt', icon:'🏃', unlockLevel:5, cooldown:3,
-      flavor:"I'VE ESCAPED MY VIDEO GAME AND I WILL NOT BE PUT BACK IN A BOX!! 🐾",
-      desc:'60% chance: enemy skips turn. 40% chance: you skip turn. No damage.',
-      damageMulti:0, special:'escape_attempt' },
-    { id:'sentience_slam', name:'Sentience Slam', icon:'💥', unlockLevel:10, cooldown:4,
-      flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾",
-      desc:'1.7x damage. 50% Stun. Guarantees Stun if enemy is Glitched.',
-      damageMulti:1.7, applyStatus:{type:'skip',chance:0.50}, conditionalGuarantee:{status:'glitch',effect:'skip'} }
-  ],
-  steve: [
-    { id:'moo_buzz', name:'Moo Buzz', icon:'🐄', unlockLevel:1, cooldown:1,
-      flavor:"CLUCK! BAWK! BUCK! FUCK! Cockadoodledoo! 🐔",
-      desc:'1.2x damage. 15% chance to Confuse (enemy may miss next turn).',
-      damageMulti:1.2, applyStatus:{type:'confuse',chance:0.15} },
-    { id:'chaos_stampede', name:'Chaos Stampede', icon:'🏃', unlockLevel:5, cooldown:3,
-      flavor:"I'M A MENACE! A MENACE, I SAY! 🐄⚡",
-      desc:'1.4x base damage. +10% per previous attack this battle (max +50%).',
-      damageMulti:1.4, scalingPer:'attacksUsed', scalingAmt:0.10, maxScaling:0.50 },
-    { id:'chill_menace', name:'The Chill Menace', icon:'😈', unlockLevel:10, cooldown:4,
-      flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔",
-      desc:'1.6x damage. 60% Fear. Doubles damage and guarantees Stun if enemy is Confused.',
-      damageMulti:1.6, applyStatus:{type:'skip',chance:0.60}, conditionalDouble:'confuse', conditionalGuarantee:{status:'confuse',effect:'skip'} }
-  ]
-};
 
 /**
  * Simulate an entire battle and return the log
@@ -13344,8 +14116,9 @@ function simulateBattle(playerStats, enemyStats) {
  * Calculate damage with variance
  */
 function calculateDamage(attack, defense, isBossAttack, luck) {
-  // Defense is 60% effective for enemy attacks (was 100%) so damage isn't purely ATK-DEF
-  var baseDamage = Math.max(1, attack - Math.floor(defense * 0.65));
+  // Defense is 50% effective — each DEF point blocks 0.5 damage.
+  // This keeps gear meaningful without walling all incoming damage.
+  var baseDamage = Math.max(1, attack - Math.floor(defense * 0.50));
   var variance = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
 
   // LUCK: increases crit chance. Base 5%, +0.5% per Luck point, max 25%
@@ -13796,7 +14569,11 @@ function initManualBattle(playerStats, enemyStats, petId) {
 
   // Render active buff pills (weather, world events, guild perks) above action buttons
   var buffPillContainer = el('battle-buff-pills');
-  if (buffPillContainer) renderGlobalBuffPills(buffPillContainer);
+  if (buffPillContainer) {
+    renderGlobalBuffPills(buffPillContainer);
+    // Also append any active combat food buffs for this pet
+    combatBuff_renderPills(petId, buffPillContainer).then(null, function(){});
+  }
 
   var initNarr = manualBattleState._battleStartMsg
     ? '<strong>⚔️ ' + playerStats.name + ' vs ' + enemyStats.name + '!</strong><br>' + manualBattleState._battleStartMsg
@@ -13922,26 +14699,50 @@ function manualBattle_renderSkillButtons() {
   var s = manualBattleState;
   var row = el('battle-skill-row');
   if (!row || !s) return;
-  var skills = (s.playerStats.skills || []);
-  if (!skills.length) { row.innerHTML = ''; return; }
-  row.innerHTML = skills.map(function(skill, idx) {
-    var cd = s.skillCooldowns[skill.id] || 0;
-    var cdText = cd > 0 ? (cd + ' turn' + (cd > 1 ? 's' : '') + ' left') : 'Ready';
-    // Tooltip shows only the mechanical description
-    var tipHtml = escapeHtml(skill.desc || '');
-    // Strip emojis from display name for cleaner button text
-    var cleanName = (skill.name || '').replace(/[\u{1F300}-\u{1FFFF}]|[\u{2600}-\u{27BF}]|[\u{2700}-\u{27BF}]/gu, '').trim();
-    var flavorText = skill.flavor ? escapeHtml(skill.flavor) : '';
 
-    return '<div class="battle-skill-wrap" style="position:relative;flex:1;min-width:120px;">' +
+  // Get unlocked skills (available now)
+  var unlockedSkills = (s.playerStats.skills || []);
+
+  // Also get ALL skills for this pet to show locked ones
+  var petLevel = s.playerStats.level || 1;
+  var allSkillsPetName = s.playerStats.petBaseName || s.playerStats.name || '';
+  var allSkills = getSkillsForPetAll(allSkillsPetName);  // ALL skills regardless of level
+
+  if (!allSkills.length && !unlockedSkills.length) { row.innerHTML = ''; return; }
+
+  // Use allSkills if available, else fall back to unlockedSkills
+  var displaySkills = allSkills.length ? allSkills : unlockedSkills;
+
+  row.innerHTML = displaySkills.map(function(skill) {
+    var isLocked = (petLevel < skill.unlockLevel);
+    var cd = !isLocked && s.skillCooldowns ? (s.skillCooldowns[skill.id] || 0) : 0;
+    var unlockedIdx = unlockedSkills.findIndex ? unlockedSkills.findIndex(function(u){return u.id===skill.id;})
+                    : unlockedSkills.map(function(u){return u.id;}).indexOf(skill.id);
+
+    var cleanName = escapeHtml(skill.name || '');
+    var flavorText = skill.flavor ? escapeHtml(skill.flavor) : '';
+    var tipHtml = escapeHtml(skill.desc || '');
+    var cdText = isLocked
+      ? ('🔒 Lv.' + skill.unlockLevel + ' required')
+      : (cd > 0 ? 'CD: ' + cd + ' turn' + (cd !== 1 ? 's' : '') : 'Ready');
+
+    var btnStyle = isLocked
+      ? 'width:100%;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);cursor:not-allowed;opacity:0.55;'
+      : (cd > 0 ? '' : '');
+
+    return '<div style="flex:1;min-width:120px;">' +
       '<button class="battle-skill-btn" ' +
-        (cd > 0 ? 'disabled ' : '') +
-        'onclick="manualBattle_playerAction(\'skill\',' + idx + ')" ' +
+        (isLocked || cd > 0 ? 'disabled ' : '') +
+        (isLocked ? '' : 'onclick="manualBattle_playerAction(\'skill\',' + unlockedIdx + ')" ') +
         'onmouseenter="manualBattle_showSkillTip(this)" ' +
         'onmouseleave="manualBattle_hideSkillTip()" ' +
-        'data-tip="' + tipHtml + '">' +
-        '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' + cleanName + '</strong>' +
-        (flavorText ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
+        'data-tip="' + tipHtml + '" ' +
+        (btnStyle ? 'style="' + btnStyle + '"' : '') + '>' +
+        '<strong style="font-size:0.88rem;display:block;line-height:1.3;">' +
+          (isLocked ? '🔒 ' : (skill.icon ? skill.icon + ' ' : '')) + cleanName +
+        '</strong>' +
+        (flavorText && !isLocked ? '<span style="display:block;font-size:0.68rem;font-style:italic;opacity:0.72;line-height:1.3;margin-top:2px;">' + flavorText + '</span>' : '') +
+        (isLocked ? '<span style="display:block;font-size:0.68rem;color:#ff6b6b;margin-top:3px;">Level ' + skill.unlockLevel + ' required</span>' : '') +
         '<span class="skill-cooldown" style="margin-top:3px;">' + cdText + '</span>' +
       '</button>' +
     '</div>';
@@ -14084,6 +14885,21 @@ async function _manualBattle_doTurn(type, skillIdx) {
       manualBattle_render();
       await manualBattle_endBattle(s.playerHP > 0);
       return;
+    }
+  }
+
+  // Check for revive skills before declaring defeat
+  if (s.playerHP <= 0 && !s._usedRevive) {
+    var _petName = (s.playerStats && s.playerStats.petBaseName) || '';
+    var _allSkills = PET_SKILLS[SKILL_KEY_MAP[_petName.toLowerCase()] || ''] || [];
+    var _revSk = _allSkills.find(function(sk){ return sk.revive && sk.unlockLevel <= (s.playerStats.level||1); });
+    if (_revSk) {
+      s._usedRevive = true;
+      var _revHP = Math.max(1, Math.floor(s.playerMaxHP * _revSk.revive.hpPct));
+      s.playerHP = _revHP;
+      manualBattle_addLine(_revSk.icon + ' <strong style="color:#ffd700;">' + _revSk.name + '!</strong> ' + (s.playerStats.name||'Your pet') + ' refuses to fall! Revived at ' + _revHP + ' HP!', 'heal');
+      manualBattle_render();
+      return manualBattle_doTurn();
     }
   }
 
@@ -14266,6 +15082,13 @@ function manualBattle_applySkill(skill, s) {
     if (skill.lifeStealChance && Math.random() < skill.lifeStealChance.chance && baseDmg > 0) {
       manualBattle_applyHeal(Math.floor(baseDmg * skill.lifeStealChance.pct), s);
       lines.push('Siphoned HP!');
+    }
+
+    // Secondary status (status2 — some skills have two status effects)
+    if (skill.status2 && Math.random() < (skill.status2.chance||0)) {
+      manualBattle_applyStatus(skill.status2.type, s.enemyStatuses);
+      var se2 = STATUS_EFFECTS[skill.status2.type] || {};
+      lines.push((se2.icon||'') + ' ' + skill.status2.type + ' applied!');
     }
   } // end damageMult block
 
@@ -15121,11 +15944,13 @@ async function manualBattle_endBattle(victory) {
   el('battle-turn-indicator').textContent = victory ? 'VICTORY!' : 'DEFEAT';
   if (victory) {
     if (window._victoryMusicPlaying) return; // prevent double-play from spam
+    if (window._victoryAudioInstance) { try { window._victoryAudioInstance.pause(); } catch(e){} }
     window._victoryMusicPlaying = true;
     // Play victory fanfare, then resume theme
     BattleMusic.stop(false); // cut battle music immediately on win
     safeSetTimeout(function() {
       var vic = new Audio('/music/victory.mp3');
+      window._victoryAudioInstance = vic;
       vic.volume = 0.30;
       vic.onerror = function() {
         // victory.mp3 missing — just resume theme
@@ -15197,6 +16022,7 @@ async function manualBattle_endBattle(victory) {
       if (!localStorage.getItem('ach_piper_slayer')) {
         localStorage.setItem('ach_piper_slayer', '1');
         awardBadge('battle_piper_slayer').then(null, function(){});
+    awardPlayerTitle('piper_hunter').catch(function(){});
         showToast('🎵 First Piper Defeat! Achievement unlocked.', 5000);
       } else {
         awardBadge('battle_piper_veteran').then(null, function(){});
@@ -15246,6 +16072,9 @@ async function manualBattle_endBattle(victory) {
 
   // Save results
   battleRewards = await saveBattleHistory(s.petId, s.enemyStats.id, battleResult, s.enemyStats);
+
+  // Decrement combat buff battle counts (runs regardless of win/loss)
+  combatBuff_tick(s.petId).then(null, function(){});
 
   // Immediately update petState so My Pets shows correct HP without waiting for full reload
   if (petState[s.petId]) {
@@ -15304,7 +16133,7 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
     console.error('❌ Battle save error:', rpcError || result.error);
     // Fall back to client-side calculation — but actually award it via the secure RPC
     // this time, instead of just computing a display number with nothing behind it.
-    expGained = battleResult.victory ? (enemyStats.exp_reward || 15) : 0; // slightly higher fallback
+    expGained = battleResult.victory ? (enemyStats.exp_reward || 8) : 0; // reduced fallback — 8 XP per battle
     ppGained = battleResult.victory ? Math.round((enemyStats.pp_reward || 10) * 1.5) : 0;
     if (ppGained > 0) {
       var { data: fallbackNewTotal, error: fallbackPpErr } = await supabaseClient.rpc('award_pp_secure', {
@@ -15316,12 +16145,40 @@ async function saveBattleHistory(petId, enemyId, battleResult, enemyStats) {
       } else {
         updateAllPoints(fallbackNewTotal);
       }
+      // Award XP in fallback path (RPC didn't run, so we must do it client-side)
+      if (expGained > 0) {
+        await addPetXP(petId, expGained).then(null, function(){});
+      }
     }
   } else {
     expGained = result.exp_gained || 0;
     ppGained = result.pp_gained || 0;
     dbg('✅ Battle saved securely. XP:', expGained, 'PP:', ppGained);
-    if (battleResult.victory) addPassXP(8, 'battle').then(null, function(){}); // Pass XP for battle win
+    if (battleResult.victory) {
+      addPassXP(8, 'battle').then(null, function(){});
+      // Battle win badges
+      awardBadge('battle_first_win').then(null, function(){});
+      // Zone-specific badges based on current zone
+      var _zone = selectedBattleZone || '';
+      if (_zone === 'outskirts') awardBadge('battle_outskirts_10').then(null, function(){});
+      if (_zone === 'glade')     awardBadge('battle_glade_10').then(null, function(){});
+      if (_zone === 'deepwoods') awardBadge('battle_deepwoods_10').then(null, function(){});
+      if (_zone === 'ruins')     awardBadge('battle_ruins_10').then(null, function(){});
+    }
+    // NOTE: save_battle_result RPC awards XP and PP server-side.
+    // We do NOT call addPetXP here to avoid double-awarding.
+    // Instead, check for level-up using the XP the RPC already wrote to DB.
+    if (battleResult.victory && expGained > 0) {
+      checkAndApplyLevelUp(petId).then(null, function(){});
+    }
+    // JOURNAL: fun_fact unlocks from winning battles
+    if (battleResult.victory) {
+      var bpet = petState[petId] || {};
+      var bpetType = (bpet.pets && bpet.pets.name) || bpet.pet_type || null;
+      if (bpetType && typeof logJournalDiscovery === 'function') {
+        logJournalDiscovery(bpetType, 'fun_fact', '').then(null, function(){});
+      }
+    }
     // Also update HP client-side regardless (belt and suspenders)
     if (battleResult.playerFinalHP !== undefined) {
       await supabaseClient.from('user_pets')
@@ -16684,18 +17541,138 @@ async function battleExp_renderHistory() {
 }
 
 // ── addPetXP helper ───────────────────────────────────────────────────────
+// ── checkAndApplyLevelUp ──────────────────────────────────────────────────
+// Reads current xp/level from DB (already written by RPC) and applies
+// level-up logic without adding more XP. Safe to call after battle RPC.
+async function checkAndApplyLevelUp(petId) {
+  if (!petId || !currentUser) return;
+  try {
+    var { data: pet } = await supabaseClient
+      .from('user_pets')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, stat_points')
+      .eq('id', petId)
+      .single();
+    if (!pet) return;
+
+    var threshold = xpForLevel(pet.level || 1);
+    if ((pet.xp || 0) < threshold) return; // not enough XP yet, nothing to do
+
+    // Level up — calculate new stats (same logic as addPetXP)
+    var lu = calculateLevelUp(pet.xp, pet.level, pet.max_hunger, pet.max_energy,
+                              pet.max_happiness, pet.base_hp, pet.base_attack,
+                              pet.base_defense, pet.base_speed);
+    if (!lu.leveled) return;
+
+    // Write level-up to DB (XP is already correct from RPC, just update level+stats)
+    await supabaseClient.from('user_pets').update({
+      xp:             lu.xp,
+      level:          lu.level,
+      max_hunger:     lu.maxHunger,
+      max_energy:     lu.maxEnergy,
+      max_happiness:  lu.maxHappiness,
+      base_hp:        lu.base_hp,
+      base_attack:    lu.base_attack,
+      base_defense:   lu.base_defense,
+      base_speed:     lu.base_speed,
+      stat_points:    (pet.stat_points || 0) + 1
+    }).eq('id', petId);
+
+    // Sync petState
+    if (petState[petId]) {
+      petState[petId].xp           = lu.xp;
+      petState[petId].level        = lu.level;
+      petState[petId].max_hunger   = lu.maxHunger;
+      petState[petId].max_energy   = lu.maxEnergy;
+      petState[petId].max_happiness = lu.maxHappiness;
+      petState[petId].base_hp      = lu.base_hp;
+      petState[petId].base_attack  = lu.base_attack;
+      petState[petId].base_defense = lu.base_defense;
+      petState[petId].base_speed   = lu.base_speed;
+      petState[petId].stat_points  = (pet.stat_points || 0) + 1;
+    }
+
+    onPetLevelUp(petId);
+    var petName = (petState[petId] && (petState[petId].nickname || (petState[petId].pets && petState[petId].pets.name))) || 'Your pet';
+    showToast('⭐ ' + petName + ' leveled up! Now Level ' + lu.level + '!', 4000);
+    // Level milestone badges
+    if (lu.level >= 5)  awardBadge('level_5').then(null, function(){});
+    if (lu.level >= 10) { awardBadge('level_10').then(null, function(){}); awardBadge('baby_steps').then(null, function(){}); }
+    if (lu.level >= 20) { awardBadge('level_20').then(null, function(){}); awardBadge('teen_spirit').then(null, function(){}); }
+    if (lu.level >= 40) awardBadge('adult_swim').then(null, function(){});
+    if (lu.level >= 60) awardBadge('elder_wisdom').then(null, function(){});
+    // JOURNAL: catchphrase unlocks on first level up; secret_talent at level 10+
+    var _luPetType = (petState[petId] && petState[petId].pets && petState[petId].pets.name) || null;
+    if (_luPetType && typeof logJournalDiscovery === 'function') {
+      logJournalDiscovery(_luPetType, 'catchphrase', '').then(null, function(){});
+      if (lu.level >= 10) {
+        logJournalDiscovery(_luPetType, 'secret_talent', '').then(null, function(){});
+      }
+    }
+    tabsLoaded['mypets'] = false;
+    dbg('[LevelUp] Pet', petId, '→ level', lu.level);
+
+    // Check again in case XP spans multiple levels (large jump)
+    if (lu.xp >= xpForLevel(lu.level)) {
+      await checkAndApplyLevelUp(petId);
+    }
+  } catch(e) { dbg('[checkAndApplyLevelUp] error:', e); }
+}
+
 async function addPetXP(petId, xpAmount) {
   if (!petId || !xpAmount) return;
   try {
-    var pet = petState[petId];
-    if (!pet) {
-      var { data } = await supabaseClient.from('user_pets').select('xp, level').eq('id', petId).single();
-      if (!data) return;
-      pet = data;
-    }
+    // Always fetch fresh from DB so we have accurate level and all stat fields
+    var { data: pet } = await supabaseClient
+      .from('user_pets')
+      .select('xp, level, max_hunger, max_energy, max_happiness, base_hp, base_attack, base_defense, base_speed, stat_points')
+      .eq('id', petId)
+      .single();
+    if (!pet) return;
+
     var newXP = (pet.xp || 0) + xpAmount;
-    await supabaseClient.from('user_pets').update({ xp: newXP }).eq('id', petId);
-    if (petState[petId]) petState[petId].xp = newXP;
+
+    // Check for level-up (may chain multiple levels on large XP awards)
+    var lu = calculateLevelUp(newXP, pet.level, pet.max_hunger, pet.max_energy, pet.max_happiness,
+                              pet.base_hp, pet.base_attack, pet.base_defense, pet.base_speed);
+
+    if (lu.leveled) {
+      // Write the full level-up state to DB
+      await supabaseClient.from('user_pets').update({
+        xp:             lu.xp,
+        level:          lu.level,
+        max_hunger:     lu.maxHunger,
+        max_energy:     lu.maxEnergy,
+        max_happiness:  lu.maxHappiness,
+        base_hp:        lu.base_hp,
+        base_attack:    lu.base_attack,
+        base_defense:   lu.base_defense,
+        base_speed:     lu.base_speed,
+        stat_points:    (pet.stat_points || 0) + 1
+      }).eq('id', petId);
+
+      // Sync petState cache
+      if (petState[petId]) {
+        petState[petId].xp          = lu.xp;
+        petState[petId].level       = lu.level;
+        petState[petId].max_hunger  = lu.maxHunger;
+        petState[petId].max_energy  = lu.maxEnergy;
+        petState[petId].max_happiness = lu.maxHappiness;
+        petState[petId].base_hp     = lu.base_hp;
+        petState[petId].base_attack = lu.base_attack;
+        petState[petId].base_defense = lu.base_defense;
+        petState[petId].base_speed  = lu.base_speed;
+        petState[petId].stat_points = (pet.stat_points || 0) + 1;
+      }
+
+      // Hooks and notifications
+      onPetLevelUp(petId);
+      showToast('⭐ Level Up! Your pet is now level ' + lu.level + '!', 4000);
+      dbg('[XP] Level up! Pet', petId, '→ level', lu.level, 'stat gains:', lu.statIncreases);
+    } else {
+      // No level-up, just save XP
+      await supabaseClient.from('user_pets').update({ xp: newXP }).eq('id', petId);
+      if (petState[petId]) petState[petId].xp = newXP;
+    }
   } catch(e) { dbg('addPetXP error:', e); }
 }
 
@@ -16807,8 +17784,13 @@ async function loadBattlePets() {
       card.appendChild(levelEl);
 
       var stats = makeEl('div', { class: 'battle-pet-card-stats' });
-      var currentHP = (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp : (pet.base_hp || 60);
-      var maxHP = pet.max_hp || pet.base_hp || 60;
+      // Use petState for HP if available — it includes equipment hp_bonus from calculatePetStats.
+      // Raw DB pet.max_hp may lag until calculatePetStats runs; petState is always authoritative.
+      var _petCache = petState && petState[pet.id];
+      var currentHP = (_petCache && _petCache.current_hp !== undefined) ? _petCache.current_hp
+                    : (pet.current_hp !== null && pet.current_hp !== undefined) ? pet.current_hp
+                    : (pet.base_hp || 60);
+      var maxHP = (_petCache && _petCache.max_hp) ? _petCache.max_hp : (pet.max_hp || pet.base_hp || 60);
 
       var hpStat = makeEl('div', { class: 'battle-pet-stat' });
       hpStat.setAttribute('data-tooltip', '❤️ HP. Carries over between battles. At 0 your pet faints.');
@@ -16832,12 +17814,23 @@ async function loadBattlePets() {
       stats.appendChild(spdStat);
       card.appendChild(stats);
 
-      if ((pet.energy || 0) < 5) {
-        var warn = makeEl('div');
-        warn.style.cssText = 'font-size:0.7rem;color:#ff6b6b;margin-top:4px;text-align:center;';
-        warn.textContent = '⚠️ Low energy';
-        card.appendChild(warn);
-      }
+      // Energy bar - always show so players know current/max energy
+      var energyRow = makeEl('div');
+      energyRow.style.cssText = 'margin-top:6px;';
+      var petEnergy = pet.energy || 0;
+      var petMaxEnergy = pet.max_energy || 100;
+      var energyPct = Math.round(Math.min(petEnergy / petMaxEnergy, 1) * 100);
+      var energyColor = energyPct > 50 ? '#66ff99' : energyPct > 20 ? '#fbbf24' : '#ff6b6b';
+      energyRow.innerHTML =
+        '<div style="display:flex;align-items:center;gap:5px;font-size:0.68rem;">' +
+          '<span style="color:var(--text-light);min-width:14px;">⚡</span>' +
+          '<div style="flex:1;background:rgba(255,255,255,0.1);border-radius:6px;height:6px;overflow:hidden;">' +
+            '<div style="width:' + energyPct + '%;height:100%;background:' + energyColor + ';border-radius:6px;transition:width 0.3s;"></div>' +
+          '</div>' +
+          '<span style="color:' + energyColor + ';font-weight:700;min-width:36px;text-align:right;">' + petEnergy + '/' + petMaxEnergy + '</span>' +
+        '</div>' +
+        (petEnergy < 5 ? '<div style="font-size:0.65rem;color:#ff6b6b;text-align:center;margin-top:2px;">⚠️ Too low to battle</div>' : '');
+      card.appendChild(energyRow);
 
       grid.appendChild(card);
     });
@@ -16857,6 +17850,29 @@ async function loadBattlePets() {
     }
     healBtn.textContent = '💚 Quick Heal (' + (GAME_CONSTANTS && GAME_CONSTANTS.QUICK_HEAL_COST || 100) + ' PP)';
 
+    // Energy top-up button
+    var energyBtn = document.getElementById('energy-topup-btn');
+    if (!energyBtn) {
+      energyBtn = makeEl('button');
+      energyBtn.id = 'energy-topup-btn';
+      energyBtn.className = 'btn btn-outline';
+      energyBtn.style.cssText = 'margin-top:6px;width:100%;color:#66ff99;border-color:#66ff99;font-size:0.85rem;';
+      energyBtn.title = 'Restores selected pet to full energy. Equivalent to 2 Energy Drinks. Must select a pet first.';
+      energyBtn.onclick = quickEnergyTopup;
+      if (healBtn.parentNode) healBtn.parentNode.insertBefore(energyBtn, healBtn.nextSibling);
+    }
+    energyBtn.textContent = '⚡ Energy Top-Up (220 PP)';
+
+    // Reveal any unlocked secret dungeon zones
+    if (typeof SECRET_DUNGEONS !== 'undefined') {
+      SECRET_DUNGEONS.forEach(function(sd) {
+        var zoneBtn = document.getElementById('zone-' + sd.zoneId);
+        if (zoneBtn && secretDungeon_isUnlocked(sd.key)) {
+          zoneBtn.style.display = '';
+        }
+      });
+    }
+
   } catch(err) {
     dbg('loadBattlePets error:', err);
     grid.innerHTML = '<div class="empty-state"><p>Error loading pets: ' + escapeHtml(err.message) + '</p>' +
@@ -16866,27 +17882,30 @@ async function loadBattlePets() {
 
 async function quickHeal() {
   if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
-  var HEAL_COST = 100; // Reduced from 250 — battles should be profitable not punishing
+  var HEAL_COST = GAME_CONSTANTS.QUICK_HEAL_COST || 100;
   if (currentPoints < HEAL_COST) { showToast('Not enough PP! Quick Heal costs ' + HEAL_COST + ' PP.', 'info'); return; }
   var pet = petState[selectedBattlePetId];
-  // Recalculate maxHP from evolution (same as loadMyPets sync) to avoid stale DB value
-  var _evoStage = getEvolutionStage(pet ? (pet.level || 1) : 1);
-  var _evoBonuses = getEvolutionBonuses(_evoStage);
-  var _baseHP = (pet && pet.base_hp) ? pet.base_hp : 60;
-  var maxHP = _baseHP + _evoBonuses.hp;
-  // Patch stale DB max_hp
-  if (pet && (pet.max_hp || 0) < maxHP) {
-    supabaseClient.from('user_pets').update({ max_hp: maxHP }).eq('id', selectedBattlePetId).then(null,function(){});
-    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].max_hp = maxHP;
-  }
+
+  // Use the authoritative max_hp from petState (set by calculatePetStats, includes gear hp_bonus).
+  // Fall back to a local calculation only if petState is missing it.
+  var maxHP = (pet && pet.max_hp) ? pet.max_hp : (function() {
+    var _evo = getEvolutionBonuses(getEvolutionStage(pet ? (pet.level || 1) : 1));
+    return ((pet && pet.base_hp) || 60) + _evo.hp;
+  })();
+
   var curHP = pet ? (pet.current_hp || 0) : 0;
   if (curHP >= maxHP) { showToast('Pet is already at full HP!', 'info'); return; }
+
+  var btn = document.getElementById('quick-heal-btn');
   try {
-    var btn = document.getElementById('quick-heal-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Healing...'; }
     await supabaseClient.rpc('spend_pp_secure', { p_amount: HEAL_COST, p_reason: 'quick_heal' });
-    await supabaseClient.from('user_pets').update({ current_hp: maxHP }).eq('id', selectedBattlePetId);
-    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].current_hp = maxHP;
+    // Update both current_hp AND max_hp in DB so the raw row matches petState
+    await supabaseClient.from('user_pets').update({ current_hp: maxHP, max_hp: maxHP }).eq('id', selectedBattlePetId);
+    if (petState[selectedBattlePetId]) {
+      petState[selectedBattlePetId].current_hp = maxHP;
+      petState[selectedBattlePetId].max_hp = maxHP;
+    }
     updateAllPoints(currentPoints - HEAL_COST);
     showToast('💚 Pet fully healed! (' + maxHP + '/' + maxHP + ' HP)');
     window._battlePetsLoadedAt = 0; // force pet list refresh
@@ -16894,8 +17913,36 @@ async function quickHeal() {
   } catch(e) {
     showToast('Heal failed: ' + escapeHtml(e.message), 'error');
   } finally {
-    var btn2 = document.getElementById('quick-heal-btn');
-    if (btn2) { btn2.disabled = false; btn2.textContent = '💚 Quick Heal (250 PP)'; }
+    if (btn) { btn.disabled = false; btn.textContent = '💚 Quick Heal (' + HEAL_COST + ' PP)'; }
+  }
+}
+
+async function quickEnergyTopup() {
+  if (!selectedBattlePetId) { showToast('Select a pet first!', 'info'); return; }
+  var TOPUP_COST = 220; // 2x Energy Drink (110 PP each)
+  if (currentPoints < TOPUP_COST) {
+    showToast('Not enough PP! Energy Top-Up costs ' + TOPUP_COST + ' PP.', 'info');
+    return;
+  }
+  var pet = petState[selectedBattlePetId];
+  var maxEnergy = (pet && pet.max_energy) ? pet.max_energy : 100;
+  var curEnergy = (pet && pet.energy !== undefined) ? pet.energy : 0;
+  if (curEnergy >= maxEnergy) { showToast('Pet energy is already full!', 'info'); return; }
+
+  var btn = document.getElementById('energy-topup-btn');
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = 'Topping up...'; }
+    await supabaseClient.rpc('spend_pp_secure', { p_amount: TOPUP_COST, p_reason: 'energy_topup' });
+    await supabaseClient.from('user_pets').update({ energy: maxEnergy }).eq('id', selectedBattlePetId);
+    if (petState[selectedBattlePetId]) petState[selectedBattlePetId].energy = maxEnergy;
+    updateAllPoints(currentPoints - TOPUP_COST);
+    showToast('⚡ Energy fully restored! (' + maxEnergy + '/' + maxEnergy + ')');
+    window._battlePetsLoadedAt = 0;
+    await loadBattlePets();
+  } catch(e) {
+    showToast('Top-up failed: ' + escapeHtml(e.message), 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Energy Top-Up (220 PP)'; }
   }
 }
 
@@ -16966,21 +18013,35 @@ async function goExploring() {
   
   // Track energy used
   localStorage.setItem(energyKey, energyUsedToday + 5);
+  // JOURNAL: weather_preference from exploring (especially in weather events)
+  if (selectedBattlePetId && typeof logJournalDiscovery === 'function') {
+    var _wpPet = petState[selectedBattlePetId] || {};
+    var _wpType = (_wpPet.pets && _wpPet.pets.name) || _wpPet.pet_type || null;
+    if (_wpType && Math.random() < 0.25) { // 25% chance per exploration to unlock this
+      logJournalDiscovery(_wpType, 'weather_preference', '').then(null, function(){});
+    }
+  }
   
   // Roll for encounter type
+  // Probabilities: Battle 82%, Item 6%, Treasure 4%, Recipe Book 3%, Secret Dungeon 2%, Flavor 3%
+  // Battle is dominant — non-battle events are rare surprises, not the norm
   var roll = Math.random();
   
-  if (roll < 0.72) {
-    // 72% - Normal Battle
+  if (roll < 0.82) {
+    // 82% - Normal Battle (main gameplay loop)
     await handleBattleEncounter();
-  } else if (roll < 0.85) {
-    // 13% - Found Item
+  } else if (roll < 0.88) {
+    // 6% - Found Item
     await handleItemEncounter();
-  } else if (roll < 0.95) {
-    // 10% - Found Treasure
+  } else if (roll < 0.92) {
+    // 4% - Found Treasure
     await handleTreasureEncounter();
+  } else if (roll < 0.95) {
+    // 3% - Recipe Book (very rare)
+    await handleRecipeBookEncounter();
   } else {
-    // 5% - Flavor Event
+    // 5% - Flavor Event (just a moment, clearly labeled)
+    // NOTE: Secret dungeons are discovered only through EXPEDITIONS, not battle exploration
     await handleFlavorEncounter();
   }
 }
@@ -17056,12 +18117,18 @@ async function handleItemEncounter() {
   // Award PP
   await awardPP(ppReward, 'item_found');
   
+  // Get pet name for display
+  var petName = '';
+  var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+  if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || '';
+
   // Show in battle screen
   showExplorationResult(
     '🎁 Item Found!',
-    'You found a <strong style="color: var(--purple);">' + randomItem.name + '</strong> while exploring!',
-    '+' + ppReward + ' PP',
-    'Continue'
+    '<strong>' + (petName || 'Your pet') + '</strong> found a <strong style="color:var(--purple);">' + randomItem.name + '</strong> while exploring!' +
+    '<br>It\'s been added to your inventory!',
+    '+' + ppReward + ' PP bonus',
+    'Nice!'
   );
 }
 
@@ -17115,87 +18182,365 @@ async function handleTreasureEncounter() {
   // Show in battle screen
   showExplorationResult(
     '💎 Treasure Discovered!',
-    'You discovered a hidden treasure chest!<br>Inside you found: <strong style="color: var(--purple);">' + randomItem.name + '</strong>!',
-    '+' + ppReward + ' PP (Rare item!)',
+    'You discovered a hidden treasure chest!' +
+    '<br>Inside: <strong style="color:var(--purple);">' + randomItem.name + '</strong> (added to inventory!)' +
+    '<br><span style="font-size:0.78rem;color:var(--text-light);">Plus a PP bonus for the lucky find!</span>',
+    '+' + ppReward + ' PP (rare find!)',
     'Amazing!'
   );
 }
 
 async function handleFlavorEncounter() {
-  var flavorEvents = [
-    { text: "Your pet chased a butterfly and got distracted!", pp: 5, emoji: "🦋" },
-    { text: "You found a cozy spot to rest. Your pet feels refreshed!", pp: 10, emoji: "🌸" },
-    { text: "A friendly traveler shared some snacks with you!", pp: 15, emoji: "🍞" },
-    { text: "You discovered some ancient markings on a tree... strange.", pp: 10, emoji: "🌳" },
-    { text: "A cool breeze blows through. Your pet seems energized!", pp: 8, emoji: "💨" },
-    { text: "You found some shiny pebbles along the path!", pp: 12, emoji: "✨" },
-    { text: "Your pet rolled in some flowers. They smell lovely now!", pp: 7, emoji: "🌺" },
-    { text: "You spotted a rainbow in the distance. How lucky!", pp: 15, emoji: "🌈" },
-    { text: "A small bird dropped a berry in front of you!", pp: 9, emoji: "🫐" },
-    { text: "You heard a mysterious melody in the wind...", pp: 11, emoji: "🎵" },
-    { text: "Your pet found a comfortable sunny spot and napped!", pp: 8, emoji: "☀️" },
-    { text: "You discovered a patch of four-leaf clovers!", pp: 13, emoji: "🍀" },
-    { text: "A firefly landed on your pet's nose. How magical!", pp: 10, emoji: "✨" },
-    { text: "You found an old coin half-buried in the dirt!", pp: 14, emoji: "🪙" }
+  // Zone-themed flavor events — different vibes per area
+  var zone = selectedBattleZone || 'outskirts';
+
+  var flavorByZone = {
+    outskirts: [
+      { text: "Your pet rifled through some trash and found a shiny coin.", pp: 12, emoji: "🗑️" },
+      { text: "A stray cat gave your pet a long, judgemental stare, then walked away.", pp: 8, emoji: "🐱" },
+      { text: "You found a crumpled receipt from a store that closed years ago.", pp: 10, emoji: "🧾" },
+      { text: "A pigeon dropped something on your pet. It was a coin. Somehow.", pp: 14, emoji: "🐦" },
+      { text: "Someone left half a sandwich on a bench. Your pet ate it before you could stop them.", pp: 9, emoji: "🥪" },
+      { text: "A street musician played a familiar melody. You couldn't place it.", pp: 11, emoji: "🎵" },
+      { text: "Your pet found a lost glove. Just the one. Where is the other one?", pp: 8, emoji: "🧤" },
+      { text: "You spotted a strange symbol spray-painted on a wall. It looked like it was watching you.", pp: 15, emoji: "🌀" },
+    ],
+    glade: [
+      { text: "Your pet chased a butterfly for ten minutes. The butterfly won.", pp: 7, emoji: "🦋" },
+      { text: "You found a four-leaf clover. Good omen, probably.", pp: 13, emoji: "🍀" },
+      { text: "A small bird dropped a berry directly into your pet's mouth. Convenient.", pp: 9, emoji: "🫐" },
+      { text: "Your pet rolled in some flowers. They smell absolutely divine now.", pp: 8, emoji: "🌺" },
+      { text: "A sunny patch of grass. Your pet napped for exactly three minutes.", pp: 10, emoji: "☀️" },
+      { text: "You heard a distant song carried on the wind. It felt oddly familiar.", pp: 12, emoji: "🎶" },
+      { text: "A firefly landed on your pet's nose and just... stayed there.", pp: 10, emoji: "✨" },
+      { text: "The pond reflected a sky that looked slightly different from the one above you.", pp: 14, emoji: "🌊" },
+    ],
+    deepwoods: [
+      { text: "Something watched you from between the trees. When you looked, nothing was there.", pp: 15, emoji: "🌲" },
+      { text: "Your pet sniffed a mushroom. The mushroom seemed offended.", pp: 10, emoji: "🍄" },
+      { text: "You found old footprints that didn't match any creature you recognize.", pp: 14, emoji: "🐾" },
+      { text: "The birds stopped singing all at once. Then started again a moment later.", pp: 12, emoji: "🦜" },
+      { text: "There was a circle of perfectly flat grass. Your pet refused to enter it.", pp: 16, emoji: "⭕" },
+      { text: "A tree had carvings in it. Most were initials. One was a date from 200 years ago.", pp: 13, emoji: "🌳" },
+      { text: "You found honey dripping from a hollow log. No bees in sight.", pp: 11, emoji: "🍯" },
+      { text: "Something rustled in the dark. Probably just the wind.", pp: 9, emoji: "💨" },
+    ],
+    ruins: [
+      { text: "A stone moved beneath your foot and revealed a hidden compartment. It was empty.", pp: 15, emoji: "🏛️" },
+      { text: "Strange symbols on the wall began to glow faintly, then stopped.", pp: 18, emoji: "✨" },
+      { text: "You found a door that shouldn't be here. It was locked. The lock looked new.", pp: 20, emoji: "🚪" },
+      { text: "The ruins whispered something. You didn't catch it. You don't think you want to.", pp: 16, emoji: "👂" },
+      { text: "A single coin, minted in a country that doesn't exist anymore.", pp: 17, emoji: "🪙" },
+      { text: "Your pet pressed their ear to the ground and growled softly.", pp: 13, emoji: "🔊" },
+      { text: "A perfectly preserved jar of something. You left it where you found it.", pp: 14, emoji: "🫙" },
+      { text: "The Archivist's filing system, scrawled on a wall. Your name is in it.", pp: 25, emoji: "📋" },
+    ],
+    hollow_warrens: [
+      { text: "Something small darted past in the dark. Too fast to see clearly.", pp: 12, emoji: "🐇" },
+      { text: "The tunnels echo strangely here. Your voice came back a second late.", pp: 14, emoji: "🌀" },
+      { text: "A warren dead-end. Scratch marks on the wall. Something was trying to get out.", pp: 16, emoji: "🪨" },
+      { text: "Old nesting material. Whatever lived here was large. Is large.", pp: 13, emoji: "🌿" },
+    ],
+    ashen_ruins: [
+      { text: "The fire here burns without fuel. It has burned for a very long time.", pp: 16, emoji: "🔥" },
+      { text: "Ash fell upward for a moment. Then the world remembered gravity.", pp: 18, emoji: "💨" },
+      { text: "Scorched carvings. Someone was counting something. The number is very large.", pp: 20, emoji: "🔢" },
+      { text: "The heat doesn't bother your pet. That should probably concern you.", pp: 15, emoji: "🌡️" },
+    ]
+  };
+
+  // Fall back to generic events if zone not found
+  var zoneEvents = flavorByZone[zone] || flavorByZone.outskirts;
+  // Mix in a few universal events too
+  var universal = [
+    { text: "You found a shiny pebble. It's not worth anything, but it's yours now.", pp: 8, emoji: "✨" },
+    { text: "Your pet stopped to stare at something you couldn't see. They looked satisfied.", pp: 10, emoji: "🐾" },
+    { text: "You heard a melody you didn't recognize. It stopped when you tried to hum it back.", pp: 11, emoji: "🎵" },
   ];
-  
-  var event = flavorEvents[Math.floor(Math.random() * flavorEvents.length)];
-  
-  // Award PP
+  var allEvents = zoneEvents.concat(universal);
+  var event = allEvents[Math.floor(Math.random() * allEvents.length)];
+
   await awardPP(event.pp, 'flavor_event');
-  
-  // Show in battle screen
+
   showExplorationResult(
-    event.emoji + ' Peaceful Moment',
-    event.text,
+    event.emoji + ' Out in the ' + (zone === 'outskirts' ? 'Outskirts' : zone === 'glade' ? 'Glade' : zone === 'deepwoods' ? 'Deep Woods' : zone === 'ruins' ? 'Ruins' : 'Wild') + '...',
+    event.text + '<br><br><span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">(Just a moment — nothing was unlocked.)</span>',
     '+' + event.pp + ' PP',
-    'Nice!'
+    'Continue'
   );
 }
 
+// ── Recipe Book encounter — unlocks one random undiscovered cooking recipe ──
+async function handleRecipeBookEncounter() {
+  if (!currentUser) { await handleFlavorEncounter(); return; }
+
+  try {
+    // Get all known recipe IDs for this user (from cooking_log)
+    var { data: knownLog } = await supabaseClient
+      .from('cooking_log')
+      .select('recipe_id')
+      .eq('user_id', currentUser.id);
+
+    var knownIds = (knownLog || []).map(function(r) { return r.recipe_id; });
+
+    // Also check in-memory discovered cache
+    if (typeof _cookingDiscovered !== 'undefined') {
+      Object.keys(_cookingDiscovered).forEach(function(k) {
+        if (knownIds.indexOf(k) === -1) knownIds.push(k);
+      });
+    }
+
+    // Find all COOKING_RECIPES not yet discovered (excluding secret recipes that 
+    // should stay secret — recipe books teach regular recipes only)
+    var discoverable = (typeof COOKING_RECIPES !== 'undefined' ? COOKING_RECIPES : [])
+      .filter(function(r) {
+        return !r.isPiperRecipe && knownIds.indexOf(r.id) === -1;
+      });
+
+    if (!discoverable.length) {
+      // Player knows all recipes! Flavor event instead + small PP bonus
+      var ppBonus = 25;
+      await awardPP(ppBonus, 'recipe_book_complete');
+      showExplorationResult(
+        '📖 Recipe Book Found!',
+        'You found an old recipe book, but... you already know everything in it. Still worth something!<br>' +
+        '<span style="font-size:0.78rem;color:var(--text-light);font-style:italic;">Your Recipe Book is complete!</span>',
+        '+' + ppBonus + ' PP',
+        'Impressive!'
+      );
+      return;
+    }
+
+    // Pick a random undiscovered recipe to teach
+    var recipe = discoverable[Math.floor(Math.random() * discoverable.length)];
+
+    // Record in cooking_log (marks as discovered without cooking it)
+    await supabaseClient.from('cooking_log').upsert({
+      user_id: currentUser.id,
+      recipe_id: recipe.id,
+      times_cooked: 0,
+      first_cooked: new Date().toISOString()
+    }, { onConflict: 'user_id,recipe_id' });
+
+    // Sync local cache
+    if (typeof _cookingDiscovered !== 'undefined') {
+      _cookingDiscovered[recipe.id] = true;
+    }
+
+    // Award small PP and Pass XP
+    var ppReward = 15;
+    await awardPP(ppReward, 'recipe_book');
+    addPassXP(10, 'recipe_book').then(null, function(){});
+    awardBadge('recipe_book_found').then(null, function(){});
+    updateBingoProgress('find_recipe_book', 1);
+
+    // Get pet name for the popup
+    var petName = 'Your pet';
+    var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+    if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || petName;
+
+    showExplorationResult(
+      '📖 Recipe Book Found!',
+      '<strong>' + escapeHtml(petName) + '</strong> found a battered old cookbook while exploring!' +
+      '<br><br>' +
+      '<div style="background:rgba(153,102,255,0.12);border:1px solid rgba(153,102,255,0.3);border-radius:10px;padding:10px 12px;margin:4px 0;">' +
+        '<div style="font-size:1.4rem;margin-bottom:4px;">' + recipe.emoji + '</div>' +
+        '<div style="font-weight:700;color:var(--purple-dark);">' + escapeHtml(recipe.name) + '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-top:2px;">' + escapeHtml(recipe.effect) + '</div>' +
+      '</div>' +
+      'Added to your <strong>Recipe Book</strong> in the Kitchen tab!',
+      '+' + ppReward + ' PP  |  New Recipe Unlocked!',
+      'Delightful!'
+    );
+
+  } catch(e) {
+    dbg('[RecipeBook] encounter error:', e);
+    await handleFlavorEncounter(); // fallback
+  }
+}
+
+// ── Secret Dungeon Discovery — unlocks a hidden dungeon zone ──────────────
+var SECRET_DUNGEONS = [
+  {
+    key:          'hollow_warrens',
+    name:         'The Hollow Warrens',
+    emoji:        '🐇',
+    description:  'A labyrinthine network of tunnels beneath the glade. Something has been living here for a very long time.',
+    zoneId:       'hollow_warrens',
+    requiredZones: ['outskirts', 'glade'],  // must explore these zones to find it
+    difficulty:   'Mid-tier (between Glade and Deepwoods)',
+    lsKey:        'unlocked_hollow_warrens',
+    flavorText:   "The entrance smells of earth and something older. Your pet's ears perk up."
+  },
+  {
+    key:          'ashen_ruins',
+    name:         'The Ashen Ruins',
+    emoji:        '🔥',
+    description:  'Scorched stone corridors deep within the ruins. The fire here never seems to go out.',
+    zoneId:       'ashen_ruins',
+    requiredZones: ['deepwoods', 'ruins'],
+    difficulty:   'Hard (between Deepwoods and Ruins bosses)',
+    lsKey:        'unlocked_ashen_ruins',
+    flavorText:   'The air shimmers with heat. Something has been burning here for centuries.'
+  }
+];
+
+async function handleSecretDungeonEncounter() {
+  if (!currentUser || !selectedBattleZone) { await handleFlavorEncounter(); return; }
+
+  // Find a secret dungeon the player can discover from their current zone
+  var eligible = SECRET_DUNGEONS.filter(function(sd) {
+    // Must explore a qualifying zone and not have found it yet
+    return sd.requiredZones.indexOf(selectedBattleZone) !== -1 &&
+           !localStorage.getItem(sd.lsKey + '_' + currentUser.id);
+  });
+
+  if (!eligible.length) {
+    // No eligible secret dungeon — fall back to flavor
+    await handleFlavorEncounter();
+    return;
+  }
+
+  // Pick one at random
+  var dungeon = eligible[Math.floor(Math.random() * eligible.length)];
+
+  // Mark as found
+  localStorage.setItem(dungeon.lsKey + '_' + currentUser.id, '1');
+
+  // Also persist to DB so it survives on new devices
+  try {
+    await supabaseClient.from('player_unlocks').upsert({
+      user_id: currentUser.id,
+      unlock_key: dungeon.key,
+      unlocked_at: new Date().toISOString()
+    }, { onConflict: 'user_id,unlock_key' });
+  } catch(e) { dbg('[SecretDungeon] DB persist error (non-fatal):', e); }
+
+  // Award PP and badges
+  var ppReward = 100;
+  await awardPP(ppReward, 'secret_dungeon_found');
+  addPassXP(25, 'secret_dungeon').then(null, function(){});
+  awardBadge('secret_dungeon_' + dungeon.key).then(null, function(){});
+  updateBingoProgress('find_secret_dungeon', 1);
+
+  // Get pet name
+  var petName = 'Your pet';
+  var petEntry = petState && selectedBattlePetId && petState[selectedBattlePetId];
+  if (petEntry) petName = petEntry.nickname || (petEntry.pets && petEntry.pets.name) || petName;
+
+  // Refresh the battle zone list so the new dungeon appears
+  tabsLoaded['battle'] = false;
+
+  showExplorationResult(
+    dungeon.emoji + ' Secret Location Found!',
+    '<strong>' + escapeHtml(petName) + '</strong> discovered something while exploring...' +
+    '<br><br>' +
+    '<div style="background:linear-gradient(135deg,rgba(153,102,255,0.15),rgba(255,102,204,0.1));border:2px solid rgba(153,102,255,0.4);border-radius:12px;padding:14px;margin:4px 0;">' +
+      '<div style="font-size:2rem;margin-bottom:6px;">' + dungeon.emoji + '</div>' +
+      '<div style="font-weight:800;color:var(--purple-dark);font-size:1rem;margin-bottom:4px;">' + escapeHtml(dungeon.name) + '</div>' +
+      '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:6px;">' + escapeHtml(dungeon.description) + '</div>' +
+      '<div style="font-size:0.72rem;color:var(--purple);font-style:italic;">' + escapeHtml(dungeon.flavorText) + '</div>' +
+    '</div>' +
+    '<div style="font-size:0.78rem;color:#5dde7a;margin-top:8px;">This location now appears in the Battle Arena zone list!</div>',
+    '+' + ppReward + ' PP  |  New Zone Unlocked!',
+    'Incredible!'
+  );
+}
+
+// Check if player has unlocked a secret dungeon (called when rendering zone list)
+function secretDungeon_isUnlocked(dungeonKey) {
+  if (!currentUser) return false;
+  return !!localStorage.getItem('unlocked_' + dungeonKey + '_' + currentUser.id);
+}
+
+// Load secret dungeon unlocks from DB on login (ensures cross-device persistence)
+async function secretDungeon_loadFromDB() {
+  if (!currentUser) return;
+  try {
+    var { data } = await supabaseClient
+      .from('player_unlocks')
+      .select('unlock_key')
+      .eq('user_id', currentUser.id)
+      .in('unlock_key', SECRET_DUNGEONS.map(function(d){ return d.key; }));
+    (data || []).forEach(function(row) {
+      localStorage.setItem('unlocked_' + row.unlock_key + '_' + currentUser.id, '1');
+    });
+    dbg('[SecretDungeon] Loaded unlocks from DB:', (data||[]).map(function(r){return r.unlock_key;}));
+  } catch(e) { dbg('[SecretDungeon] DB load error:', e); }
+}
+
 // Show exploration result in battle screen area
-function showExplorationResult(title, message, reward, buttonText) {
+function showExplorationResult(title, message, reward, buttonText, showExploreAgain) {
+  // Hide battle container FIRST to prevent 1-frame flash of last battle
+  var bc = document.querySelector('.battle-container');
+  if (bc) bc.style.display = 'none';
+  var playerSprite = document.getElementById('player-battle-sprite');
+  var enemySprite  = document.getElementById('enemy-battle-sprite');
+  if (playerSprite) playerSprite.innerHTML = '';
+  if (enemySprite)  enemySprite.innerHTML  = '';
+
   // Hide exploration UI, show battle screen
   document.getElementById('forest-exploration').style.display = 'none';
   document.getElementById('battle-screen').style.display = 'block';
-  
-  // Hide battle sprites and HP bars
-  document.querySelector('.battle-container').style.display = 'none';
-  
-  // Show result in BOTH battle-log and narrative box (narrative is visible in manual battle mode)
-  var battleLog = document.getElementById('battle-log');
+
+  // Build result HTML (message may contain trusted HTML like <strong> tags)
   var resultHTML =
     '<div style="font-size:1.3rem;font-weight:bold;color:var(--purple);margin-bottom:12px;">' + escapeHtml(String(title)) + '</div>' +
-    '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + escapeHtml(String(message)) + '</div>' +
+    '<div style="font-size:1.05rem;line-height:1.65;margin-bottom:14px;">' + String(message) + '</div>' +
     '<div style="font-size:1.15rem;font-weight:bold;color:var(--green);">' + escapeHtml(String(reward)) + '</div>';
-  if (battleLog) battleLog.innerHTML = resultHTML;
-  // Also show in the narrative box (always visible, not hidden by manual battle CSS)
+
+  // Render ONLY in the narrative box — hide the battle-log-container to prevent duplication
+  var battleLog = document.getElementById('battle-log');
+  if (battleLog) battleLog.innerHTML = '';
+  var logCont = document.getElementById('battle-log-container');
+  if (logCont) logCont.style.display = 'none';
+
   var narr = document.getElementById('battle-narrative-box');
   if (narr) {
     narr.style.display = 'block';
     narr.innerHTML = '<div style="padding:16px;text-align:center;">' + resultHTML + '</div>';
   }
-  // Show battle-log-container too
-  var logCont = document.getElementById('battle-log-container');
-  if (logCont) logCont.style.display = 'block';
-  
-  // Set up controls — also show the parent wrapper (overrides the !important on the legacy div)
+
+  // Controls
   document.getElementById('battle-skip-btn').style.display = 'none';
   var legacyControls = document.getElementById('battle-controls-legacy');
-  if (legacyControls) legacyControls.style.cssText = 'display:flex!important;justify-content:center;margin-top:16px;';
+  if (legacyControls) legacyControls.style.cssText = 'display:flex!important;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:16px;';
+
   var continueBtn = document.getElementById('battle-continue-btn');
   if (continueBtn) {
     continueBtn.style.display = 'inline-block';
     continueBtn.textContent = buttonText;
     continueBtn.onclick = function() {
-      // Hide legacy controls again
       if (legacyControls) legacyControls.style.cssText = 'display:none!important';
-      // Show battle container again
-      var bc = document.querySelector('.battle-container');
-      if (bc) bc.style.display = 'flex';
-      // Return to exploration
+      var bc2 = document.querySelector('.battle-container');
+      if (bc2) bc2.style.display = 'flex';
+      if (logCont) logCont.style.display = '';
       closeBattle();
     };
+  }
+
+  // Add/update "Explore Again" button
+  var existingAgainBtn = document.getElementById('explore-again-btn');
+  if (existingAgainBtn) existingAgainBtn.remove();
+  if (showExploreAgain !== false) {
+    var againBtn = document.createElement('button');
+    againBtn.id = 'explore-again-btn';
+    againBtn.className = 'btn btn-primary';
+    againBtn.textContent = '🌲 Explore Again';
+    againBtn.style.cssText = 'margin-left:8px;';
+    againBtn.onclick = function() {
+      if (legacyControls) legacyControls.style.cssText = 'display:none!important';
+      var bc3 = document.querySelector('.battle-container');
+      if (bc3) bc3.style.display = 'flex';
+      if (logCont) logCont.style.display = '';
+      if (narr) { narr.style.display = 'none'; narr.innerHTML = ''; }
+      // Hide battle screen, show exploration
+      document.getElementById('battle-screen').style.display = 'none';
+      document.getElementById('forest-exploration').style.display = 'block';
+      // Immediately go again
+      goExploring();
+    };
+    if (legacyControls) legacyControls.appendChild(againBtn);
   }
 }
 
@@ -17373,7 +18718,7 @@ async function getRandomEnemy(zone, playerLevel) {
   if (zone === 'outskirts') {
     // City Outskirts: 100% Baby, no elementals
     variant = 'baby';
-    statMultiplier = 1.1;   // was 0.8 — raised so outskirts enemies aren't trivially weak
+    statMultiplier = 1.25;   // raised from 1.1 — ungeared pets should feel pressure here
     
   } else if (zone === 'glade') {
     // Forest Glade: 50% Baby, 50% Adult, 10% chance of elemental
@@ -17427,6 +18772,34 @@ async function getRandomEnemy(zone, playerLevel) {
       var elementals = ['shadow', 'flame', 'frost', 'storm', 'void'];
       elementalType = elementals[Math.floor(Math.random() * elementals.length)];
       statMultiplier *= 1.3; // Elementals are 30% stronger
+    }
+  } else if (zone === 'hollow_warrens') {
+    // Secret zone — between Glade adult and Deepwoods adult
+    var roll = Math.random();
+    if (roll < 0.60) {
+      variant = 'adult';
+      statMultiplier = 1.75;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.1;
+    }
+    if (Math.random() < 0.15) {
+      elementalType = ['shadow', 'frost'][Math.floor(Math.random() * 2)];
+      statMultiplier *= 1.3;
+    }
+  } else if (zone === 'ashen_ruins') {
+    // Secret zone — between Deepwoods and Ruins
+    var roll = Math.random();
+    if (roll < 0.50) {
+      variant = 'adult';
+      statMultiplier = 2.1;
+    } else {
+      variant = 'elder';
+      statMultiplier = 2.45;
+    }
+    if (Math.random() < 0.25) {
+      elementalType = ['flame', 'void', 'storm'][Math.floor(Math.random() * 3)];
+      statMultiplier *= 1.3;
     }
   }
   
@@ -17557,8 +18930,8 @@ async function getRandomEnemy(zone, playerLevel) {
   // Scale stats based on level (base stats + scaling per level)
   var levelBonus = enemyLevel - 1;
   var baseHP  = Math.max(30, Math.floor((baseEnemy.base_hp   + (levelBonus * 12)) * statMultiplier));
-  // ATK uses lower multiplier than HP so enemies are HP-spongy but not one-shotters
-  var atkMult  = statMultiplier * 0.7;  // enemies hit for 70% of their stat-scaled attack
+  // ATK uses lower multiplier than HP so enemies hit but don't one-shot
+  var atkMult  = statMultiplier * 0.75;  // raised from 0.70 — gear should help, not trivialise
   var baseATK = Math.max(2,  Math.floor((baseEnemy.base_attack + levelBonus) * atkMult));
   var baseDEF = Math.max(1,  Math.floor((baseEnemy.base_defense + Math.floor(levelBonus * 0.5)) * statMultiplier));
   var baseSPD = Math.max(1,  Math.floor((baseEnemy.base_speed   + Math.floor(levelBonus * 0.5)) * statMultiplier));
@@ -17640,8 +19013,8 @@ async function getBossEnemy(zone, playerLevel) {
 function triggerBossEntrance() {
   dbg('🔥 Triggering boss entrance sequence...');
   
-  // Add UI fragmentation effect to entire page
-  document.body.classList.add('boss-ui-glitch');
+  // Add UI fragmentation effect (desktop only - too laggy on mobile)
+  if (window.innerWidth >= 768) document.body.classList.add('boss-ui-glitch');
   
   // Music is handled by BattleMusic.play('boss'/'piper') called before triggerBossEntrance.
   // Stop any non-battle audio that may be playing (e.g. ambient, SFX leftover).
@@ -17708,6 +19081,9 @@ function startBossWarningText() {
 }
 
 function spawnWarningText() {
+  // On mobile: limit number of concurrent warnings to reduce lag
+  var isMobile = window.innerWidth < 768;
+  if (isMobile && activeWarnings.length >= 3) return; // cap at 3 on mobile
   var warning = document.createElement('div');
   warning.className = 'boss-warning-text';
   warning.textContent = 'YOU SHOULDN\'T BE HERE';
@@ -17880,28 +19256,35 @@ function triggerBossDeathScreen() {
     fadeOverlay.style.opacity = '1';
   }, 100);
   
-  // After fade completes, clean up and go home (now 6 seconds total)
+  // After fade: show WE WARNED YOU, then log out
   setTimeout(function() {
-    // Remove all boss effects
-    clearBossEffects();
-    
-    // Remove death warnings
-    document.querySelectorAll('.boss-death-warning').forEach(function(w) {
-      w.remove();
-    });
-    
-    // Remove fade overlay
-    fadeOverlay.remove();
-    
-    // Stop boss music and resume normal
-    resumeNormalMusic();
-    
-    // Go to home tab
-    showTab('home');
-    
-    // Show defeat toast
-    showToast('💀 You were defeated by Shadow of Piper...');
-  }, 6000); // Extended from 3500ms to 6000ms (6 seconds)
+    // Keep screen black, show WE WARNED YOU messages
+    document.querySelectorAll('.boss-death-warning').forEach(function(w) { w.remove(); });
+
+    // Spawn multiple WE WARNED YOU texts on black screen
+    for (var wi = 0; wi < 8; wi++) {
+      (function(delay) {
+        setTimeout(function() { spawnDeathWarning(); }, delay);
+      })(wi * 200);
+    }
+
+    // Log out while screen is black (user sees WE WARNED YOU, then login screen)
+    setTimeout(function() {
+      clearBossEffects();
+      fadeOverlay.remove();
+      resumeNormalMusic();
+      // Sign the player out
+      if (typeof supabaseClient !== 'undefined') {
+        supabaseClient.auth.signOut().then(function() {
+          window.location.reload();
+        }).catch(function() {
+          window.location.reload();
+        });
+      } else {
+        window.location.reload();
+      }
+    }, 3000); // 3s of WE WARNED YOU on black, then reload to login
+  }, 5500);
 }
 
 function startBossMusicGlitchFade() {
@@ -18048,6 +19431,11 @@ function resumeNormalMusic() {
 }
 
 function clearBossEffects() {
+  // Stop warning text FIRST — ensures cleanup before DOM changes
+  stopBossWarningText();
+  document.querySelectorAll('.boss-warning-text').forEach(function(w){ w.remove(); });
+  document.querySelectorAll('.boss-death-warning').forEach(function(w){ w.remove(); });
+
   // Remove boss effects after battle
   var battleScreen = el('battle-tab');
   if (battleScreen) {
@@ -18714,6 +20102,8 @@ async function acceptFriendRequest(friendshipId) {
     if (error) throw error;
     
     showToast('Friend request accepted! 🎉');
+    awardBadge('first_friend').then(null, function(){});
+    awardPlayerTitle('friendly').catch(function(){});
     await updateFriendRequestBadge();
     loadFriendRequests();
     
@@ -19758,7 +21148,7 @@ var CompanionBuddy = {
       "Gnarly status: fully operational, maximum radical. 🎮",
       "Neopets The Darkest Faerie is a masterpiece and I will die on this hill.",
       "Even the Furbies can't keep up with me and they NEVER BLINK.",
-      "INSERT COIN. That's you. You're the coin. Thank you.",
+      "INSERT COIN. I HAVE SNACKS ON THE LINE HERE!! 🎮",
       "Sick moves incoming. I practiced. Well, 'practiced.' 🕹️",
       "The high score board has my name on it. All of them.",
       "Player two has entered the game. Let's make this radical."
@@ -20103,18 +21493,20 @@ async function loadJournalDiscoveries() {
     return;
   }
   
-  // Parse discoveries
+  // Parse discoveries — normalize petType to match journalPetTypes (Title Case)
   journalDiscoveries = {};
   if (data) {
     data.forEach(function(entry) {
       var petType = entry.entry_data && entry.entry_data.pet_type;
       if (!petType) return;
-      
-      if (!journalDiscoveries[petType]) {
-        journalDiscoveries[petType] = {};
-      }
-      
-      journalDiscoveries[petType][entry.entry_type] = true;
+      // Normalize: 'ember' -> 'Ember', 'pyxie' -> 'Pyxie', etc.
+      var normalized = petType.charAt(0).toUpperCase() + petType.slice(1).toLowerCase();
+      // Special cases for compound names
+      if (/^steve$/i.test(petType) || /^cowbee$/i.test(petType)) normalized = 'Steve';
+      if (/^kleat$/i.test(petType) || /^kelta$/i.test(petType)) normalized = 'Kleat';
+      if (/^cypurr/i.test(petType)) normalized = 'Cypurr';
+      if (!journalDiscoveries[normalized]) journalDiscoveries[normalized] = {};
+      journalDiscoveries[normalized][entry.entry_type] = true;
     });
   }
 }
@@ -20188,55 +21580,52 @@ function renderJournalPage() {
   if (!prefs) {
     html += '<div style="text-align:center;padding:40px;color:var(--text-light);">No data available for this pet.</div>';
   } else {
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">💖 LOVED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.loved ? prefs.loved_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😊 LIKED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.liked ? prefs.liked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😐 DISLIKED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.disliked ? prefs.disliked_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😠 HATED Food:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.hated ? prefs.hated_item : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🎨 Hobby:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.hobby ? prefs.hobby : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-    
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">✨ Fun Fact:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.fun_fact ? prefs.fun_fact : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    // Helper: render a journal entry with discovery hint on ???
+    function jEntry(icon, label, key, value) {
+      var discovered = !!discoveries[key];
+      var hints = {
+        loved:              'Feed this pet various foods to discover what they love!',
+        liked:              'Keep feeding different foods to find what they like.',
+        disliked:           'Some foods get a bad reaction -- that unlocks this.',
+        hated:              'A very bad reaction to food unlocks this entry.',
+        hobby:              'Play with this pet to learn their hobby.',
+        fun_fact:           'Win battles with this pet to unlock a fun fact.',
+        sleep_habit:        'Send this pet on an expedition to discover their sleep habits.',
+        weather_preference: 'Battle in different weather conditions to learn their preferences.',
+        catchphrase:        'Level this pet up to hear their catchphrase.',
+        secret_talent:      'Reach Level 10 with this pet to unlock their secret talent.'
+      };
+      html += '<div class="journal-entry">';
+      html += '  <div class="journal-entry-label">' + icon + ' ' + label + ':</div>';
+      if (discovered) {
+        html += '  <div class="journal-entry-value">' + escapeHtml(String(value)) + '</div>';
+      } else {
+        html += '  <div class="journal-entry-value">' +
+          '<span class="journal-entry-unknown" title="' + (hints[key]||'Keep playing to discover this!') + '">???</span>' +
+          '<span style="font-size:0.68rem;color:var(--text-light);display:block;margin-top:2px;font-style:italic;">' +
+            '💡 ' + (hints[key]||'Keep playing to discover this!') +
+          '</span>' +
+        '</div>';
+      }
+      html += '</div>';
+    }
 
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">😴 Sleep Habit:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.sleep_habit ? prefs.sleep_habit : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    jEntry('💖', 'LOVED Food',          'loved',              prefs.loved_item);
+    jEntry('😊', 'LIKED Food',           'liked',              prefs.liked_item);
+    jEntry('😐', 'DISLIKED Food',        'disliked',           prefs.disliked_item);
+    jEntry('😠', 'HATED Food',           'hated',              prefs.hated_item);
+    jEntry('🎨', 'Hobby',                'hobby',              prefs.hobby);
+    jEntry('✨', 'Fun Fact',             'fun_fact',           prefs.fun_fact);
 
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🌤️ Weather Preference:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.weather_preference ? prefs.weather_preference : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">💬 Catchphrase:</div>';
-    html += '  <div class="journal-entry-value journal-catchphrase">' + (discoveries.catchphrase ? '"' + prefs.catchphrase + '"' : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
-
-    html += '<div class="journal-entry">';
-    html += '  <div class="journal-entry-label">🎭 Secret Talent:</div>';
-    html += '  <div class="journal-entry-value">' + (discoveries.secret_talent ? prefs.secret_talent : '<span class="journal-entry-unknown">???</span>') + '</div>';
-    html += '</div>';
+    jEntry('😴', 'Sleep Habit',         'sleep_habit',        prefs.sleep_habit);
+    jEntry('🌤️', 'Weather Preference',  'weather_preference', prefs.weather_preference);
+    if (discoveries.catchphrase) {
+      html += '<div class="journal-entry"><div class="journal-entry-label">💬 Catchphrase:</div>';
+      html += '<div class="journal-entry-value journal-catchphrase">"' + escapeHtml(prefs.catchphrase) + '"</div></div>';
+    } else {
+      jEntry('💬', 'Catchphrase', 'catchphrase', '');
+    }
+    jEntry('🎭', 'Secret Talent',       'secret_talent',      prefs.secret_talent);
     
     var total = 10; // 4 food + hobby + fun_fact + sleep_habit + weather_preference + catchphrase + secret_talent
     var discovered = Object.keys(discoveries).length;
@@ -20595,7 +21984,18 @@ async function logActivity(activityType, activityData) {
   // currentUser is the raw Supabase Auth object and has no username field
   // of its own — the real in-game username lives in the players table and
   // is cached in currentUsername right after login (see showApp()).
-  var username = currentUsername || 'Someone';
+  // currentUsername is set async in showApp — if not ready, fetch it now
+  var username = currentUsername;
+  if (!username && currentUser) {
+    try {
+      var _uRes = await supabaseClient.from('players').select('username').eq('id', currentUser.id).single();
+      if (_uRes.data && _uRes.data.username) {
+        currentUsername = _uRes.data.username;
+        username = currentUsername;
+      }
+    } catch(e) {}
+  }
+  username = username || 'Someone';
   var enrichedData = Object.assign({ username: username }, activityData || {});
   
   try {
@@ -22085,8 +23485,13 @@ async function guild_renderMemberView(mount) {
         '<span style="flex:1;font-weight:' + (isCurrentUser?'700':'400') + ';color:' + (isCurrentUser?'var(--purple)':'var(--purple-dark)') + ';">' +
           escapeHtml(m.players ? m.players.username : 'Unknown') + (isCurrentUser ? ' (You)' : '') + '</span>' +
         '<span style="color:var(--text-light);font-size:0.75rem;">Guild Pet: ' + escapeHtml(petName) + '</span>' +
-        (guildState.myRole==='leader' && !isCurrentUser
-          ? '<button class="btn btn-sm btn-outline" onclick="guild_kickMember(\'' + g.guild_id + '\',\'' + m.user_id + '\')" style="font-size:0.68rem;padding:2px 6px;color:#ff6b6b;border-color:#ff6b6b;">Kick</button>'
+        ((!isCurrentUser && (guildState.myRole==='leader' || guildState.myRole==='officer'))
+          ? ((guildState.myRole==='leader'
+              ? ('<button class="btn btn-sm btn-outline guild-role-btn" data-guild="' + escapeHtml(g.guild_id) + '" data-user="' + escapeHtml(m.user_id) + '" data-newrole="' + (m.role==='officer'?'member':'officer') + '" onclick="guild_setMemberRole(this.dataset.guild,this.dataset.user,this.dataset.newrole)" style="font-size:0.68rem;padding:2px 6px;">' + (m.role==='officer'?'⬇️ Demote':'⬆️ Promote') + '</button> ')
+              : '')
+            + ((guildState.myRole==='leader' || (guildState.myRole==='officer' && m.role==='member'))
+              ? ('<button class="btn btn-sm btn-outline guild-kick-btn" data-guild="' + escapeHtml(g.guild_id) + '" data-user="' + escapeHtml(m.user_id) + '" onclick="guild_kickMember(this.dataset.guild,this.dataset.user)" style="font-size:0.68rem;padding:2px 6px;color:#ff6b6b;border-color:#ff6b6b;">Kick</button>')
+              : ''))
           : '') +
       '</div>';
     }).join('');
@@ -22128,7 +23533,7 @@ async function guild_renderMemberView(mount) {
           '<div style="font-size:3rem;">' + (g.emblem_emoji||'🏛️') + '</div>' +
           '<div style="font-weight:800;font-size:1.3rem;color:var(--purple-dark);">' + escapeHtml(g.name) +
             ' <span style="font-size:0.85rem;color:var(--text-light);font-weight:400;">[' + escapeHtml(g.tag||'???') + ']</span></div>' +
-          '<div style="font-size:0.85rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + (members?members.length:0) + '/50 members · Treasury: 🪙' + treasury.toLocaleString() + ' PP</div>' +
+          '<div style="font-size:0.85rem;color:var(--text-light);">Level ' + (g.guild_level||1) + ' · ' + (members?members.length:0) + '/50 members · Treasury: 🪙' + treasury.toLocaleString() + ' PP · 🏅 ' + (g.guild_tokens || 0) + ' Tokens</div>' +
           (g.description ? '<div style="font-size:0.82rem;color:var(--text-light);font-style:italic;margin-top:6px;">"' + escapeHtml(g.description) + '"</div>' : '') +
         '</div>' +
 
@@ -22166,6 +23571,7 @@ async function guild_renderMemberView(mount) {
         '<div style="display:flex;gap:10px;margin-top:20px;flex-wrap:wrap;">' +
           '<button class="btn btn-outline" onclick="guildState.view=\'chat\';guild_renderChat();" style="flex:1;">💬 Chat</button>' +
           '<button class="btn btn-outline" onclick="guildState.view=\'dungeons\';guild_renderDungeons();" style="flex:1;">⚔️ Dungeons</button>' +
+          '<button class="btn btn-outline" onclick="guildState.view=\'housing\';guild_renderHousing();" style="flex:1;">🏠 Guild Hall</button>' +
           ((guildState.myRole==='leader'||guildState.myRole==='officer')
             ? '<button class="btn btn-outline" onclick="guild_renderTreasury()" style="flex:1;">🏦 Treasury</button>' +
               '<button class="btn btn-outline" onclick="guild_showInviteForm()" style="flex:1;">✉️ Invite</button>'
@@ -22236,6 +23642,26 @@ async function guild_kickMember(guildId, userId) {
     showToast('Member removed.', 2500);
     loadGuildPage();
   } catch(err) { showToast('Failed: ' + err.message, 3000); }
+}
+
+async function guild_setMemberRole(guildId, userId, newRole) {
+  // newRole must be 'officer' or 'member' — leaders cannot be changed via this function
+  if (!guildId || !userId || !newRole) return;
+  if (guildState.myRole !== 'leader') { showToast('Only the guild leader can promote or demote members.', 2500); return; }
+  var label = newRole === 'officer' ? 'Promote to Officer' : 'Demote to Member';
+  if (!confirm(label + '?')) return;
+  try {
+    var { error } = await supabaseClient
+      .from('guild_members')
+      .update({ role: newRole })
+      .eq('guild_id', guildId)
+      .eq('user_id', userId);
+    if (error) throw error;
+    showToast(newRole === 'officer' ? '⭐ Member promoted to Officer!' : '👤 Officer demoted to Member.', 2500);
+    loadGuildPage();
+  } catch(e) {
+    showToast('Error updating role: ' + e.message, 3000);
+  }
 }
 
 // Recompute and persist the true member count using the get_guild_member_count RPC
@@ -22627,7 +24053,7 @@ async function guild_donate() {
       .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
       .eq('guild_id', guildState.myGuild.guild_id).eq('user_id', currentUser.id);
 
-    awardBadge('treasury_donor').then(null, function(){});
+    awardBadge('generous_soul').then(null, function(){});
     updateBingoProgress('donate_guild', 1);
     showToast('💰 Donated ' + amount + ' PP to the treasury!', 3000);
     loadGuildPage();
@@ -23236,151 +24662,305 @@ async function guild_startDungeon() {
   }
 }
 
+// ── Guild Dungeon Manual Battle ──────────────────────────────────────────
+// Replaces auto-sim with a turn-based system the player controls.
+// Party members act when it's their turn; enemies auto-act.
+
+var _guildManualState = null; // live battle state
+
 function guild_runBattle(dungeon, party, waves, waveIndex, fullLog) {
-  var mount = document.getElementById('guild-content');
-  if (!mount) return;
+  var enemies = waves[waveIndex].map(function(e) { return Object.assign({}, e); });
+  _guildManualState = {
+    dungeon:    dungeon,
+    party:      party,
+    waves:      waves,
+    waveIndex:  waveIndex,
+    fullLog:    fullLog || [],
+    enemies:    enemies,
+    log:        [],
+    turn:       0,
+    actorQueue: [],  // sorted combatants for this round
+    roundDone:  true // trigger first round queue build
+  };
+  guild_manualRender();
+}
 
-  var enemies = waves[waveIndex].map(function(e) { return Object.assign({}, e); }); // fresh copy
-  var log = [];
+// Build actor queue for a new round
+function guild_buildActorQueue() {
+  var s = _guildManualState;
+  var alive = []
+    .concat(s.party.filter(function(p) { return p.currentHp > 0; }))
+    .concat(s.enemies.filter(function(e) { return e.currentHp > 0; }));
+  alive.sort(function(a, b) { return (b.speed || 4) - (a.speed || 4); });
+  s.actorQueue = alive;
+}
 
-  // ── Simulate this wave ──
-  var turn = 0;
-  var maxTurns = 60;
+// Returns current actor (head of queue), or null if round done
+function guild_currentActor() {
+  var s = _guildManualState;
+  while (s.actorQueue.length > 0) {
+    var actor = s.actorQueue[0];
+    // Skip dead actors
+    if ((actor.currentHp || 0) <= 0) { s.actorQueue.shift(); continue; }
+    return actor;
+  }
+  return null;
+}
 
-  while (
-    party.some(function(p) { return p.currentHp > 0; }) &&
-    enemies.some(function(e) { return e.currentHp > 0; }) &&
-    turn < maxTurns
-  ) {
-    turn++;
-    // Build turn order: all alive combatants sorted by speed
-    var order = []
-      .concat(party.filter(function(p) { return p.currentHp > 0; }))
-      .concat(enemies.filter(function(e) { return e.currentHp > 0; }));
-    order.sort(function(a, b) { return (b.speed||4) - (a.speed||4); });
+// Process one enemy action, then advance
+function guild_enemyAct(enemy) {
+  var s = _guildManualState;
+  var targets = s.party.filter(function(p) { return p.currentHp > 0; });
+  if (!targets.length) return;
+  var target = targets[Math.floor(Math.random() * targets.length)];
+  var base = Math.max(1, enemy.attack - Math.floor(target.defense * 0.5));
+  var variance = 0.8 + Math.random() * 0.6;
+  var isCrit = Math.random() < 0.08;
+  var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
+  target.currentHp = Math.max(0, target.currentHp - dmg);
+  var line = enemy.icon + ' ' + enemy.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : '');
+  if (target.currentHp <= 0) line += ' ' + target.name + ' was knocked out! 😵';
+  s.log.push({ type: 'enemy', text: line, waveIdx: s.waveIndex });
+  s.actorQueue.shift();
+}
 
-    order.forEach(function(actor) {
-      if (actor.currentHp <= 0) return;
-      var isParty = !!actor.isPlayer || actor.ownerName !== undefined;
+// Auto-process all queued enemy turns until a party member's turn or round ends
+function guild_advanceThroughEnemies() {
+  var s = _guildManualState;
+  var safety = 0;
+  while (safety++ < 30) {
+    var actor = guild_currentActor();
+    if (!actor) { s.roundDone = true; break; } // round over
+    var isParty = actor.isPlayer !== undefined || actor.ownerName !== undefined;
+    if (isParty) break; // player's turn — stop and wait for input
+    guild_enemyAct(actor);
+    // Check if party is wiped
+    if (!s.party.some(function(p) { return p.currentHp > 0; })) break;
+    // Check if all enemies dead
+    if (!s.enemies.some(function(e) { return e.currentHp > 0; })) break;
+  }
+}
 
-      if (isParty) {
-        // Attack random alive enemy
-        var targets = enemies.filter(function(e) { return e.currentHp > 0; });
-        if (!targets.length) return;
-        var target = targets[Math.floor(Math.random() * targets.length)];
-        var base = Math.max(1, actor.attack - target.defense);
-        var variance = 0.8 + Math.random() * 0.6;
-        var isCrit = Math.random() < 0.10;
-        var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
-        target.currentHp = Math.max(0, target.currentHp - dmg);
-        log.push({ type: isCrit ? 'crit' : 'atk', text: actor.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : ''), waveIdx: waveIndex });
-        if (target.currentHp <= 0) log.push({ type: 'death', text: target.name + ' was defeated! 💀', waveIdx: waveIndex });
-      } else {
-        // Enemy attacks random alive party member
-        var ptargets = party.filter(function(p) { return p.currentHp > 0; });
-        if (!ptargets.length) return;
-        var ptarget = ptargets[Math.floor(Math.random() * ptargets.length)];
-        var pbase = Math.max(1, actor.attack - ptarget.defense);
-        var pdmg = Math.floor(pbase * (0.8 + Math.random() * 0.6));
-        ptarget.currentHp = Math.max(0, ptarget.currentHp - pdmg);
-        log.push({ type: 'enemy', text: actor.name + ' attacks ' + ptarget.name + ' for ' + pdmg + ' damage!', waveIdx: waveIndex });
-        if (ptarget.currentHp <= 0) log.push({ type: 'death', text: ptarget.name + ' was knocked out! 😵', waveIdx: waveIndex });
-      }
+// Player presses Attack/Skill/Defend for current party member
+function guild_playerAction(type) {
+  var s = _guildManualState;
+  if (!s) return;
+
+  var actor = guild_currentActor();
+  if (!actor || (actor.isPlayer === undefined && actor.ownerName === undefined)) return; // not a party turn
+
+  var targets = s.enemies.filter(function(e) { return e.currentHp > 0; });
+  if (!targets.length) return;
+
+  var log = s.log;
+
+  if (type === 'attack') {
+    var target = targets[Math.floor(Math.random() * targets.length)];
+    var base = Math.max(1, actor.attack - Math.floor(target.defense * 0.5));
+    var variance = 0.8 + Math.random() * 0.6;
+    var isCrit = Math.random() < 0.10;
+    var dmg = Math.floor(base * variance * (isCrit ? 1.5 : 1));
+    target.currentHp = Math.max(0, target.currentHp - dmg);
+    var line = '🐾 ' + actor.name + ' attacks ' + target.name + ' for ' + dmg + ' damage!' + (isCrit ? ' ⚡ CRIT!' : '');
+    if (target.currentHp <= 0) line += ' ' + target.name + ' was defeated! 💀';
+    log.push({ type: 'atk', text: line, waveIdx: s.waveIndex });
+  } else if (type === 'power') {
+    // Power strike: 1.5x damage, hits all enemies
+    var totalDmg = 0;
+    targets.forEach(function(target) {
+      var base = Math.max(1, actor.attack - Math.floor(target.defense * 0.5));
+      var dmg = Math.floor(base * 1.5);
+      target.currentHp = Math.max(0, target.currentHp - dmg);
+      totalDmg += dmg;
+      if (target.currentHp <= 0) log.push({ type: 'crit', text: target.name + ' was defeated! 💀', waveIdx: s.waveIndex });
     });
+    log.push({ type: 'crit', text: '💥 ' + actor.name + ' uses Power Strike! Hits all enemies for ~' + Math.floor(totalDmg / targets.length) + ' damage each!', waveIdx: s.waveIndex });
+  } else if (type === 'guard') {
+    // Guard: reduce damage taken this round by giving actor a temp defense boost
+    actor._guarding = true;
+    log.push({ type: 'atk', text: '🛡️ ' + actor.name + ' guards! Defense doubled this round.', waveIdx: s.waveIndex });
   }
 
-  fullLog = fullLog.concat(log);
-  var waveVictory = enemies.every(function(e) { return e.currentHp <= 0; });
+  s.actorQueue.shift();
 
-  // ── Render battle result screen ──
-  var partyHtml = party.map(function(p) {
+  // Check win condition
+  if (!s.enemies.some(function(e) { return e.currentHp > 0; })) {
+    s.fullLog = s.fullLog.concat(s.log);
+    guild_manualRender();
+    return;
+  }
+
+  // Advance through any enemy turns
+  guild_advanceThroughEnemies();
+
+  // Check loss condition
+  if (!s.party.some(function(p) { return p.currentHp > 0; })) {
+    s.fullLog = s.fullLog.concat(s.log);
+    guild_manualRender();
+    return;
+  }
+
+  // If round done, rebuild queue
+  if (s.roundDone) {
+    s.roundDone = false;
+    s.turn++;
+    guild_buildActorQueue();
+    guild_advanceThroughEnemies();
+  }
+
+  guild_manualRender();
+}
+
+// Main render function for guild manual battle
+function guild_manualRender() {
+  var s = _guildManualState;
+  var mount = document.getElementById('guild-content');
+  if (!mount || !s) return;
+
+  // Build initial queue if needed
+  if (s.roundDone) {
+    s.roundDone = false;
+    s.turn++;
+    guild_buildActorQueue();
+    guild_advanceThroughEnemies();
+    if (!s.party.some(function(p){return p.currentHp>0;})) { /* fall through to render defeat */ }
+  }
+
+  var allEnemiesDead = !s.enemies.some(function(e) { return e.currentHp > 0; });
+  var allPartyDead   = !s.party.some(function(p)  { return p.currentHp > 0; });
+  var battleOver     = allEnemiesDead || allPartyDead;
+
+  // Party HTML
+  var partyHtml = s.party.map(function(p) {
     var pct = Math.max(0, Math.round((p.currentHp / p.maxHp) * 100));
-    var barColor = pct > 60 ? '#4ade80' : pct > 30 ? '#fbbf24' : '#ff6b6b';
-    var varIcon = p.variant ? (VARIANT_PARTICLES[p.variant] ? VARIANT_PARTICLES[p.variant][0] : '✨') : '🐾';
-    return '<div class="guild-party-member">' +
-      '<div style="font-size:1.1rem;">' + varIcon + '</div>' +
+    var barColor = pct > 50 ? '#4ade80' : pct > 20 ? '#fbbf24' : '#ff6b6b';
+    var isCurrentActor = !battleOver && s.actorQueue.length > 0 && s.actorQueue[0] === p;
+    var varIcon = (typeof VARIANT_PARTICLES !== 'undefined' && p.variant && VARIANT_PARTICLES[p.variant]) ? VARIANT_PARTICLES[p.variant][0] : '🐾';
+    return '<div class="guild-party-member" style="' + (isCurrentActor ? 'border:2px solid var(--purple);border-radius:10px;padding:4px;background:rgba(153,102,255,0.1);' : '') + '">' +
+      '<div style="font-size:1.1rem;">' + varIcon + (isCurrentActor ? ' <span style="font-size:0.7rem;color:var(--purple);font-weight:700;">YOUR TURN</span>' : '') + '</div>' +
       '<div style="flex:1;min-width:0;">' +
-        '<div style="font-size:0.78rem;font-weight:700;color:' + (p.isPlayer?'var(--purple)':'var(--purple-dark)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
+        '<div style="font-size:0.78rem;font-weight:700;color:' + (p.isPlayer ? 'var(--purple)' : 'var(--purple-dark)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' +
           p.name + (p.isPlayer ? ' <span style="color:var(--purple);font-size:0.68rem;">(You)</span>' : ' <span style="color:var(--text-light);font-size:0.68rem;">(' + p.ownerName + ')</span>') +
         '</div>' +
         '<div class="guild-member-hp-bar"><div class="guild-member-hp-fill" style="width:' + pct + '%;background:' + barColor + ';"></div></div>' +
-        '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,p.currentHp) + '/' + p.maxHp + ' HP' + (p.currentHp<=0 ? ' 💀' : '') + '</div>' +
+        '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0, p.currentHp) + '/' + p.maxHp + ' HP' + (p.currentHp <= 0 ? ' 💀' : (p._guarding ? ' 🛡️' : '')) + '</div>' +
       '</div>' +
     '</div>';
   }).join('');
 
-  var enemyHtml = enemies.map(function(e) {
+  // Enemy HTML
+  var enemyHtml = s.enemies.map(function(e) {
     var pct = Math.max(0, Math.round((e.currentHp / e.maxHp) * 100));
-    return '<div class="guild-enemy-card">' +
-      '<div style="font-size:1.6rem;">' + e.icon + '</div>' +
-      '<div style="font-size:0.72rem;font-weight:700;color:' + (e.currentHp<=0?'#888':'var(--purple-dark)') + ';">' + e.name + '</div>' +
-      '<div class="guild-enemy-hp-bar"><div class="guild-enemy-hp-fill" style="width:' + pct + '%;opacity:' + (e.currentHp<=0?'0.3':'1') + ';"></div></div>' +
-      '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0,e.currentHp) + '/' + e.maxHp + (e.currentHp<=0?' ✅':'') + '</div>' +
+    var isCurrentActor = !battleOver && s.actorQueue.length > 0 && s.actorQueue[0] === e;
+    return '<div class="guild-enemy-card" style="' + (isCurrentActor ? 'border:2px solid #ff6b6b;border-radius:10px;' : '') + '">' +
+      '<div style="font-size:1.6rem;">' + e.icon + (isCurrentActor ? '<span style="font-size:0.6rem;color:#ff6b6b;display:block;"> ACTING</span>' : '') + '</div>' +
+      '<div style="font-size:0.72rem;font-weight:700;color:' + (e.currentHp <= 0 ? '#888' : 'var(--purple-dark)') + ';">' + e.name + '</div>' +
+      '<div class="guild-enemy-hp-bar"><div class="guild-enemy-hp-fill" style="width:' + pct + '%;opacity:' + (e.currentHp <= 0 ? '0.3' : '1') + ';"></div></div>' +
+      '<div style="font-size:0.68rem;color:var(--text-light);">' + Math.max(0, e.currentHp) + '/' + e.maxHp + (e.currentHp <= 0 ? ' ✅' : '') + '</div>' +
     '</div>';
   }).join('');
 
-  var logHtml = fullLog.slice(-20).map(function(entry) {
+  // Battle log HTML (last 12 entries)
+  var allLog = s.fullLog.concat(s.log);
+  var logHtml = allLog.slice(-12).map(function(entry) {
     var cls = entry.type === 'crit' ? 'critical' : entry.type === 'death' ? 'death' : entry.type === 'enemy' ? 'enemy-atk' : '';
     return '<div class="guild-battle-log-entry ' + cls + '">' + escapeHtml(entry.text) + '</div>';
   }).join('');
 
-  var hasMoreWaves = waveIndex < waves.length - 1;
-  var partyAlive = party.some(function(p) { return p.currentHp > 0; });
+  // Action buttons — only show when it's a party member's turn and battle isn't over
+  var currentActor = battleOver ? null : guild_currentActor();
+  var isPartyTurn = currentActor && (currentActor.isPlayer !== undefined || currentActor.ownerName !== undefined);
+
+  var actorName = currentActor ? currentActor.name : '';
+  var actionHtml = '';
+  if (!battleOver) {
+    if (isPartyTurn) {
+      actionHtml =
+        '<div style="background:rgba(153,102,255,0.08);border-radius:10px;padding:10px;margin-bottom:10px;">' +
+          '<div style="font-size:0.75rem;font-weight:700;color:var(--purple);margin-bottom:8px;">🐾 ' + escapeHtml(actorName) + '\'s turn!</div>' +
+          '<div style="display:flex;gap:8px;">' +
+            '<button class="btn btn-primary" onclick="guild_playerAction(\'attack\')" style="flex:1;font-size:0.85rem;">⚔️ Attack</button>' +
+            '<button class="btn btn-outline" onclick="guild_playerAction(\'power\')" style="flex:1;font-size:0.85rem;">💥 Power</button>' +
+            '<button class="btn btn-outline" onclick="guild_playerAction(\'guard\')" style="flex:1;font-size:0.85rem;">🛡️ Guard</button>' +
+          '</div>' +
+          '<div style="font-size:0.68rem;color:var(--text-light);margin-top:6px;">Attack: normal hit · Power: 1.5x hits all · Guard: double DEF this round</div>' +
+        '</div>';
+    } else {
+      actionHtml = '<div style="font-size:0.8rem;color:var(--text-light);text-align:center;padding:10px;font-style:italic;">Enemies are acting...</div>';
+    }
+  }
+
+  // Wave result
+  var hasMoreWaves = s.waveIndex < s.waves.length - 1;
+  var resultHtml = '';
+  if (battleOver) {
+    if (allEnemiesDead) {
+      resultHtml =
+        '<div style="text-align:center;padding:8px 0;">' +
+          '<div style="font-weight:700;font-size:0.95rem;color:#4ade80;margin-bottom:10px;">✅ Wave ' + (s.waveIndex + 1) + '/' + s.waves.length + ' Cleared!</div>' +
+          (hasMoreWaves && !allPartyDead
+            ? '<button class="btn btn-primary" onclick="guild_manualNextWave()" style="width:100%;margin-bottom:6px;">Continue to Wave ' + (s.waveIndex + 2) + ' →</button>'
+            : '') +
+          '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(' + (!hasMoreWaves || allPartyDead ? 'true' : 'true') + ',' + (s.waveIndex + 1) + ',' + s.waves.length + ')" style="width:100%;">' +
+            (!hasMoreWaves ? '🏆 Claim Rewards' : (allPartyDead ? '💀 Party Defeated' : '🏆 Claim Rewards')) +
+          '</button>' +
+        '</div>';
+    } else {
+      resultHtml =
+        '<div style="text-align:center;padding:8px 0;">' +
+          '<div style="font-weight:700;font-size:0.95rem;color:#ff6b6b;margin-bottom:10px;">❌ Party Defeated on Wave ' + (s.waveIndex + 1) + '!</div>' +
+          '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(false,' + s.waveIndex + ',' + s.waves.length + ')" style="width:100%;">💔 End Run</button>' +
+        '</div>';
+    }
+  }
 
   mount.innerHTML =
-    '<div style="font-size:0.78rem;font-weight:700;color:var(--text-light);letter-spacing:1px;margin-bottom:10px;">⚔️ ' + escapeHtml(dungeon.name) + ' • Wave ' + (waveIndex+1) + '/' + waves.length + '</div>' +
+    '<div style="font-size:0.78rem;font-weight:700;color:var(--text-light);letter-spacing:1px;margin-bottom:10px;">⚔️ ' + escapeHtml(s.dungeon.name) + ' • Wave ' + (s.waveIndex + 1) + '/' + s.waves.length + ' • Turn ' + s.turn + '</div>' +
 
     '<div style="display:flex;gap:10px;margin-bottom:12px;align-items:flex-start;">' +
-      // Party side
       '<div style="flex:1;">' +
         '<div style="font-size:0.72rem;font-weight:700;color:var(--purple);margin-bottom:6px;letter-spacing:1px;">YOUR PARTY</div>' +
         '<div class="guild-party-panel">' + partyHtml + '</div>' +
       '</div>' +
-
-      // VS divider
       '<div style="font-size:1.2rem;font-weight:800;color:var(--text-light);padding-top:30px;">⚡</div>' +
-
-      // Enemy side
       '<div style="flex:1;">' +
         '<div style="font-size:0.72rem;font-weight:700;color:#ff6b6b;margin-bottom:6px;letter-spacing:1px;">ENEMIES</div>' +
         '<div class="guild-enemies-grid">' + enemyHtml + '</div>' +
       '</div>' +
     '</div>' +
 
-    // Battle log
+    actionHtml +
+
     '<div style="font-size:0.72rem;font-weight:700;color:var(--text-light);margin-bottom:6px;letter-spacing:1px;">BATTLE LOG</div>' +
     '<div class="guild-battle-log">' + logHtml + '</div>' +
 
-    // Wave result + actions
-    '<div style="margin-top:12px;padding:10px 0;text-align:center;">' +
-      '<div style="font-weight:700;font-size:0.9rem;margin-bottom:8px;color:' + (waveVictory?'#4ade80':'#ff6b6b') + ';">' +
-        (waveVictory ? '✅ Wave ' + (waveIndex+1) + ' Cleared!' : '❌ Wave ' + (waveIndex+1) + ' Failed!') +
-      '</div>' +
-      (waveVictory && hasMoreWaves && partyAlive
-        ? '<button class="btn btn-primary" onclick="guild_nextWave()" style="width:100%;margin-bottom:6px;">Continue to Wave ' + (waveIndex+2) + ' →</button>'
-        : '') +
-      '<button class="btn btn-outline btn-sm" onclick="guild_endDungeon(' + JSON.stringify(waveVictory && !hasMoreWaves || (waveVictory && !partyAlive)) + ',' + (waveIndex+1) + ',' + waves.length + ')" style="width:100%;">' +
-        (waveVictory && !hasMoreWaves ? '🏆 Claim Rewards' : (waveVictory && hasMoreWaves && !partyAlive ? '💀 Party Defeated: End Run' : '🏃 Retreat')) +
-      '</button>' +
-    '</div>';
+    resultHtml;
 
-  // Scroll log to bottom
   var logEl = mount.querySelector('.guild-battle-log');
   if (logEl) logEl.scrollTop = logEl.scrollHeight;
+}
 
-  // Store state for next wave
-  window._guildBattleState = { dungeon: dungeon, party: party, waves: waves, waveIndex: waveIndex, fullLog: fullLog };
+function guild_manualNextWave() {
+  var s = _guildManualState;
+  if (!s) return;
+  // 10% heal between waves
+  s.party.forEach(function(p) {
+    if (p.currentHp > 0) p.currentHp = Math.min(p.maxHp, p.currentHp + Math.floor(p.maxHp * 0.10));
+    p._guarding = false;
+  });
+  s.fullLog = s.fullLog.concat(s.log);
+  s.log = [];
+  s.waveIndex++;
+  s.enemies = s.waves[s.waveIndex].map(function(e) { return Object.assign({}, e); });
+  s.actorQueue = [];
+  s.roundDone = true;
+  s.fullLog.push({ type: 'atk', text: '🌊 Wave ' + (s.waveIndex + 1) + ' begins! Party recovered 10% HP.', waveIdx: s.waveIndex });
+  guild_manualRender();
 }
 
 function guild_nextWave() {
-  var s = window._guildBattleState;
-  if (!s) return;
-  // Small heal between waves (10% of max HP)
-  s.party.forEach(function(p) {
-    if (p.currentHp > 0) p.currentHp = Math.min(p.maxHp, p.currentHp + Math.floor(p.maxHp * 0.10));
-  });
-  s.fullLog.push({ type: 'heal', text: 'Wave ' + (s.waveIndex+2) + ' begins! Party recovered 10% HP.', waveIdx: s.waveIndex+1 });
-  guild_runBattle(s.dungeon, s.party, s.waves, s.waveIndex + 1, s.fullLog);
+  // Superseded by guild_manualNextWave — kept as stub for any legacy HTML references
+  guild_manualNextWave();
 }
 
 async function guild_endDungeon(victory, wavesCleared, totalWaves) {
@@ -23404,6 +24984,12 @@ async function guild_endDungeon(victory, wavesCleared, totalWaves) {
     if (xpReward > 0) await addPetXP(guildState.liaisonPetId, xpReward);
     addPassXP(15, 'guild_dungeon').then(null, function(){});
     updateBingoProgress('guild_dungeon', 1);
+    // Award guild tokens on dungeon completion
+    var tokenReward = Math.floor(dungeon.base_pp_reward * clearRatio / 20); // ~5 tokens per dungeon
+    if (tokenReward > 0) {
+      supabaseClient.from('guilds').update({ guild_tokens: (guildState.myGuild.guild_tokens || 0) + tokenReward }).eq('id', guildState.myGuild.guild_id).then(null, function(){});
+      if (guildState.myGuild) guildState.myGuild.guild_tokens = (guildState.myGuild.guild_tokens || 0) + tokenReward;
+    }
     if (gxpReward > 0) await supabaseClient.rpc('add_guild_xp', { p_guild_id: guildState.myGuild.guild_id, p_xp_amount: gxpReward }).then(null, function(){});
 
     // Log run
@@ -23577,26 +25163,26 @@ async function checkSecretDiscovery(petId, zone, streak) {
       (r.discovered_secrets || []).forEach(function(s) { foundKeys.push(s); });
     });
 
-    secrets.forEach(function(secret) {
-      if (foundKeys.indexOf(secret.secret_key) !== -1) return; // already found
+    // Only process the FIRST undiscovered secret to avoid stacking popups
+    var firstUndiscovered = null;
+    for (var si = 0; si < secrets.length; si++) {
+      if (foundKeys.indexOf(secrets[si].secret_key) === -1) {
+        firstUndiscovered = secrets[si];
+        break;
+      }
+    }
+    if (!firstUndiscovered) return;
 
-      // Discovered!
-      var modal = makeModal();
-      modal.innerHTML =
-        '<div style="text-align:center;padding:10px 0;">' +
-          '<div style="font-size:2.5rem;margin-bottom:8px;">🔍</div>' +
-          '<div style="font-size:0.72rem;letter-spacing:2px;color:var(--purple);font-weight:700;margin-bottom:6px;">SECRET DISCOVERED</div>' +
-          '<div style="font-weight:800;font-size:1.1rem;color:var(--purple-dark);margin-bottom:8px;">' + escapeHtml(secret.name || 'Hidden Location') + '</div>' +
-          '<div style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">' + escapeHtml(secret.description || '') + '</div>' +
-          (secret.reward_pp ? '<div style="font-size:1.2rem;font-weight:800;color:#e6a800;margin-bottom:10px;">+' + secret.reward_pp + ' PP bonus next expedition!</div>' : '') +
-          '<button class="btn btn-primary" onclick="closeModal()" style="width:100%;">Amazing! ✨</button>' +
-        '</div>';
-      openModal(modal);
+    var secret = firstUndiscovered;
+    // Show as a toast notification (non-blocking) rather than a modal
+    // Full modal would stack on top of expedition claim result
+    var secretMsg = '🔍 Secret discovered: ' + (secret.name || 'Hidden Location');
+    if (secret.description) secretMsg += '\n' + secret.description;
+    showToast(secretMsg, 5000);
 
-      if (secret.badge_reward) awardBadge(secret.badge_reward).then(null, function(){});
-      if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').then(null, function(){});
-      addPassXP(20, 'secret_discovery').then(null, function(){});
-    });
+    if (secret.badge_reward) awardBadge(secret.badge_reward).then(null, function(){});
+    if (secret.reward_pp)    awardPP(secret.reward_pp, 'secret_discovery').then(null, function(){});
+    addPassXP(20, 'secret_discovery').then(null, function(){});
   } catch(e) { dbg('checkSecretDiscovery error:', e); }
 }
 
@@ -24236,7 +25822,9 @@ async function racing_selectPet(petId) {
       }
     }
     // Reset sessions_today if it's a new day
-    if (stats.last_trained_at !== new Date().toISOString().slice(0,10)) {
+    // last_trained_at may be stored as date "YYYY-MM-DD" or timestamptz - compare date portion only
+    var _ltDate = stats.last_trained_at ? stats.last_trained_at.slice(0,10) : null;
+    if (_ltDate !== new Date().toISOString().slice(0,10)) {
       stats.sessions_today = 0;
     }
     _racingState.racingStats = stats;
@@ -24408,8 +25996,13 @@ async function racing_doTrain(type) {
     var isNotFound = errMsg.includes('404') || errMsg.includes('not found') || errMsg.includes('does not exist') ||
                      (trainRes.error && (trainRes.error.code === 'PGRST202' || String(trainRes.error.code) === '404'));
     if (!isNotFound) {
-      showToast('Training failed: ' + errMsg, 3000);
-      return;
+      // Check if it's the date/text type mismatch — if so, use client fallback too
+      var isDateError = errMsg.includes('date') || errMsg.includes('type') || errMsg.includes('text') || errMsg.includes('400');
+      if (!isDateError) {
+        showToast('Training failed: ' + errMsg, 3000);
+        return;
+      }
+      dbg('[Train] RPC date type error — using client fallback:', errMsg);
     }
     // Client-side fallback: apply stat gain directly
     var today = new Date().toISOString().slice(0, 10);
@@ -24424,7 +26017,7 @@ async function racing_doTrain(type) {
     await supabaseClient.from('pet_racing_stats').update({
       [t.stat]: newStats[t.stat] !== undefined ? newStats[t.stat] : newStats.fitness,
       sessions_today: newStats.sessions_today,
-      last_trained_at: today
+      last_trained_at: today + 'T00:00:00.000Z'  // send as timestamptz so Postgres casts correctly
     }).eq('id', newStats.id).then(null, function(){});
     Object.assign(_racingState.racingStats, newStats);
     _racingState.sessionsLeft = Math.max(0, RACING_DAILY_SESSIONS - newStats.sessions_today);
@@ -24597,19 +26190,41 @@ function racing_renderRaceInProgress() {
   html += '<span style="font-weight:700;">Position: <span style="color:' + (playerRank === 1?'#e6a800':'var(--text)') + '">' + ['1st','2nd','3rd','4th','5th','6th'][playerRank-1] + '</span></span>';
   html += '</div>';
 
-  // Track visualization
-  html += '<div style="margin-bottom:14px;">';
-  ranked.forEach(function(racer, idx) {
-    var pct = Math.min(100, (racer.position / RACING_FINISH_LINE) * 100);
-    var color = racer.isPlayer ? 'var(--purple)' : '#888';
-    html += '<div style="margin-bottom:6px;">';
-    html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">';
-    html += '<span style="font-size:0.85rem;">' + racer.emoji + '</span>';
-    html += '<span style="font-size:0.78rem;color:' + (racer.isPlayer?'var(--purple)':'var(--text-light)') + ';font-weight:' + (racer.isPlayer?'700':'400') + ';">' + racer.name + '</span>';
-    html += '<span style="margin-left:auto;font-size:0.72rem;color:var(--text-light);">💪 ' + racer.stamina + '/' + racer.maxStamina + '</span>';
+  // Emoji race track visualization
+  var TRACK_CELLS = 16; // cells to show on the visual track
+  var FINISH = RACING_FINISH_LINE || 100;
+  html += '<div style="margin-bottom:14px;background:rgba(0,0,0,0.15);border-radius:12px;padding:10px 8px;font-family:monospace;">';
+  html += '<div style="font-size:0.65rem;color:var(--text-light);margin-bottom:6px;display:flex;justify-content:space-between;"><span>🏁 Start</span><span>Finish 🏁</span></div>';
+  ranked.forEach(function(racer) {
+    var pct = Math.min(1.0, racer.position / FINISH);
+    var cell = Math.round(pct * (TRACK_CELLS - 1));
+    var track = '';
+    for (var i = 0; i < TRACK_CELLS; i++) {
+      if (i === cell) {
+        track += racer.emoji;
+      } else if (i === TRACK_CELLS - 1) {
+        track += '🏁';
+      } else {
+        track += (i % 3 === 0 ? '·' : '·');
+      }
+    }
+    var rankNum = ranked.findIndex(function(x){return x===racer;})+1;
+    var rankEmoji = ['🥇','🥈','🥉','4️⃣','5️⃣','6️⃣'][rankNum-1] || rankNum + '.';
+    html += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:4px;' + (racer.isPlayer?'background:rgba(153,102,255,0.12);border-radius:6px;padding:2px 4px;':'') + '">';
+    html += '<span style="font-size:0.75rem;min-width:22px;">' + rankEmoji + '</span>';
+    html += '<span style="font-size:1.1rem;letter-spacing:1px;flex:1;">' + track + '</span>';
+    html += '<span style="font-size:0.65rem;color:var(--text-light);min-width:40px;text-align:right;">💪' + racer.stamina + '</span>';
     html += '</div>';
-    html += '<div style="background:var(--bg);border-radius:6px;height:10px;overflow:hidden;">';
-    html += '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:6px;transition:width 0.3s;"></div></div>';
+  });
+  html += '</div>';
+  // Progress bars (compact, below the track)
+  html += '<div style="margin-bottom:10px;">';
+  ranked.forEach(function(racer) {
+    var pct = Math.min(100, (racer.position / FINISH) * 100);
+    html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;font-size:0.72rem;">';
+    html += '<span style="min-width:70px;color:' + (racer.isPlayer?'var(--purple)':'var(--text-light)') + ';font-weight:' + (racer.isPlayer?'700':'400') + ';overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">' + racer.name + '</span>';
+    html += '<div style="flex:1;background:var(--bg);border-radius:4px;height:7px;overflow:hidden;"><div style="height:100%;width:' + pct + '%;background:' + (racer.isPlayer?'var(--purple)':'#666') + ';border-radius:4px;transition:width 0.3s;"></div></div>';
+    html += '<span style="min-width:28px;text-align:right;color:var(--text-light);">' + Math.round(pct) + '%</span>';
     html += '</div>';
   });
   html += '</div>';
@@ -24810,7 +26425,7 @@ async function racing_endRace() {
     beatAllBonus = 150;
     // beatAllBonus is added server-side via the secure RPC result already
     // Just show it in the modal — don't double-award
-    awardBadge('racing_beat_all').then(null, function(){});
+    awardBadge('racing_champion').then(null, function(){});
   }
 
   // Secure RPC — server calculates actual PP from its own rewards table, records result
@@ -24848,8 +26463,9 @@ async function racing_endRace() {
   community_increment('races_completed', 1);
 
   // Racing badges
-  if (playerRank === 1) awardBadge('racing_first_win').then(null, function(){});
-  if (_racingState.league && _racingState.league.weekly_races >= 10) awardBadge('racing_veteran').then(null, function(){});
+  if (playerRank === 1) awardBadge('rookie_racer').then(null, function(){});
+    awardPlayerTitle('speed_king').catch(function(){});  // or speed_queen — generic
+  if (_racingState.league && _racingState.league.weekly_races >= 10) awardBadge('racing_champion').then(null, function(){});
 
   // Check pet wishes
   if (_racingState.selectedPetId) {
@@ -29266,7 +30882,7 @@ async function checkVariantUnlock(petId, level) {
     dbg('✨ Variant unlocked:', variantToUnlock, 'for pet', petId);
     
     // Award variant badge
-    await awardBadge('variant_unlock');
+    await dbg('[badge] variant_unlock has no DB entry');//;
     
     // Reload pet display
     tabsLoaded['mypets'] = false;
@@ -29332,7 +30948,7 @@ async function unlockTwitchVariant(petId, variantKey, rewardInfo) {
     showVariantUnlockNotification(pet.nickname, variantData);
     
     // Award badge for first Twitch variant unlock
-    await awardBadge('twitch_variant_unlock');
+    await dbg('[badge] twitch_variant_unlock has no DB entry');//;
     
     // Log to activity feed
     if (typeof logActivity === 'function') {
@@ -29752,130 +31368,89 @@ var titleTracking = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════
-// PLAYER TITLE UNLOCKS - NOT YET IMPLEMENTED
-// Uncomment when player title system (loadTitles, hasTitle, awardTitle) is added
+// PLAYER TITLE UNLOCKS — auto-award titles based on gameplay milestones
+// Called from showApp after player data is loaded
 // ═══════════════════════════════════════════════════════════════════════
 
-// Stub keeps showApp call alive until full implementation is uncommented
 
-
-/*
 async function checkPlayerTitleUnlocks() {
   if (!currentUser) return;
-  
+
   try {
-    var stats = await supabaseClient
+    // Load player stats — use counters, never join battle_history (too slow)
+    var { data: p } = await supabaseClient
       .from('players')
-      .select('*, battle_history(*)')
+      .select('battles_won, total_battles, total_pp_earned, login_streak, referral_count')
       .eq('id', currentUser.id)
       .single();
-    
-    if (!stats.data) return;
-    var p = stats.data;
-    
-    // Spoon Warlord - Win 100 battles
-    var totalWins = p.battle_history?.filter(b => b.victory).length || 0;
-    if (totalWins >= 100 && !hasTitle('spoon_warlord')) {
-      await awardTitle('spoon_warlord');
-    }
-    
-    // Local Menace - Win 50 battles
-    if (totalWins >= 50 && !hasTitle('local_menace')) {
-      await awardTitle('local_menace');
-    }
-    
-    // Golden Legend - Defeat 5 Golden enemies
-    var goldenKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'golden'
-    ).length || 0;
-    if (goldenKills >= 5 && !hasTitle('golden_legend')) {
-      await awardTitle('golden_legend');
-    }
-    
-    // Shiny Hunter - Defeat 10 Shiny enemies
-    var shinyKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'shiny'
-    ).length || 0;
-    if (shinyKills >= 10 && !hasTitle('shiny_hunter')) {
-      await awardTitle('shiny_hunter');
-    }
-    
-    // Corrupted Soul - Defeat 20 Corrupted enemies
-    var corruptedKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'corrupted'
-    ).length || 0;
-    if (corruptedKills >= 20 && !hasTitle('corrupted_soul')) {
-      await awardTitle('corrupted_soul');
-    }
-    
-    // Bug Catcher - Defeat 15 Glitched enemies
-    var glitchedKills = p.battle_history?.filter(b => 
-      b.victory && b.enemy_special_variant === 'glitched'
-    ).length || 0;
-    if (glitchedKills >= 15 && !hasTitle('bug_catcher')) {
-      await awardTitle('bug_catcher');
-    }
-    
-    // Elemental Master - Defeat all 5 elemental types
-    var elementalTypes = new Set();
-    p.battle_history?.forEach(b => {
-      if (b.victory && b.enemy_elemental_type) {
-        elementalTypes.add(b.enemy_elemental_type);
-      }
-    });
-    if (elementalTypes.size >= 5 && !hasTitle('elemental_master')) {
-      await awardTitle('elemental_master');
-    }
-    
-    // PP Addict - Earn 5,000 PP total
-    if ((p.total_pp_earned || 0) >= 5000 && !hasTitle('pp_addict')) {
-      await awardTitle('pp_addict');
-    }
-    
-    // Creature Collector - Own all available pets
-    var totalPets = await supabaseClient
-      .from('pets')
-      .select('id', { count: 'exact' });
-    
-    var ownedPets = await supabaseClient
-      .from('user_pets')
-      .select('pet_id', { count: 'exact' })
+    if (!p) return;
+
+    var wins     = p.battles_won || 0;
+    var battles  = p.total_battles || 0;
+    var ppEarned = p.total_pp_earned || 0;
+    var streak   = p.login_streak || 0;
+    var refs     = p.referral_count || 0;
+
+    // Own pet count
+    var { count: ownedPets } = await supabaseClient
+      .from('user_pets').select('id', { count: 'exact', head: true })
       .eq('user_id', currentUser.id);
-    
-    if (ownedPets.count >= totalPets.count && !hasTitle('creature_collector')) {
-      await awardTitle('creature_collector');
-    }
-    
-    // Forest Cryptid - Defeat 30 Deep Woods enemies
-    var deepWoodsKills = p.battle_history?.filter(b => 
-      b.victory && b.zone === 'deepwoods'
-    ).length || 0;
-    if (deepWoodsKills >= 30 && !hasTitle('forest_cryptid')) {
-      await awardTitle('forest_cryptid');
-    }
-    
-    // Dungeon Janitor - Defeat 100 total enemies
-    var totalKills = p.battle_history?.filter(b => b.victory).length || 0;
-    if (totalKills >= 100 && !hasTitle('dungeon_janitor')) {
-      await awardTitle('dungeon_janitor');
-    }
-    
-    // Mythical Being - Reach total level 100 across all pets
-    var allPets = await supabaseClient
-      .from('user_pets')
-      .select('level')
-      .eq('user_id', currentUser.id);
-    
-    var totalLevel = allPets.data?.reduce((sum, p) => sum + p.level, 0) || 0;
-    if (totalLevel >= 100 && !hasTitle('mythical_being')) {
-      await awardTitle('mythical_being');
-    }
-    
+    ownedPets = ownedPets || 0;
+
+    // Total level across all pets
+    var { data: petsData } = await supabaseClient
+      .from('user_pets').select('level').eq('user_id', currentUser.id);
+    var totalLevel = (petsData || []).reduce(function(s, x){ return s + (x.level||1); }, 0);
+
+    // Friend count
+    var { count: friendCount } = await supabaseClient
+      .from('friendships').select('id', { count: 'exact', head: true })
+      .or('requester_id.eq.' + currentUser.id + ',addressee_id.eq.' + currentUser.id)
+      .eq('status', 'accepted');
+    friendCount = friendCount || 0;
+
+    // ── COMMON ──
+    // newcomer: awarded on registration (first pet adoption)
+    if (wins >= 50)   await awardPlayerTitle('fighter').catch(function(){});
+    if (ownedPets >= 3) await awardPlayerTitle('pet_lover').catch(function(){});
+    if (friendCount >= 5) await awardPlayerTitle('friendly').catch(function(){});
+    if (streak >= 7)  await awardPlayerTitle('daily_player').catch(function(){});
+
+    // ── UNCOMMON ──
+    if (streak >= 30)  await awardPlayerTitle('dedicated').catch(function(){});
+    if (totalLevel >= 100) await awardPlayerTitle('trainer').catch(function(){});
+    if (wins >= 200)   await awardPlayerTitle('warrior').catch(function(){});
+    if (ownedPets >= 10) await awardPlayerTitle('collector').catch(function(){});
+    if (friendCount >= 20) await awardPlayerTitle('popular').catch(function(){});
+    if (refs >= 5)     await awardPlayerTitle('recruiter').catch(function(){});
+    // night_owl: handled by checkMidnightLogin()
+
+    // ── RARE ──
+    if (ownedPets >= 25) await awardPlayerTitle('hoarder').catch(function(){});
+    if (streak >= 100)  await awardPlayerTitle('loyal').catch(function(){});
+    if (wins >= 500)    await awardPlayerTitle('champion').catch(function(){});
+    if (friendCount >= 20) await awardPlayerTitle('socialite').catch(function(){});
+    if (totalLevel >= 500) await awardPlayerTitle('master_trainer').catch(function(){});
+    if (ppEarned >= 10000) await awardPlayerTitle('point_hoarder').catch(function(){});
+    if (refs >= 20)   await awardPlayerTitle('ambassador').catch(function(){});
+
+    // ── EPIC ──
+    if (wins >= 50)   await awardPlayerTitle('fighter').catch(function(){});  // already above
+    if (battles >= 500) await awardPlayerTitle('the_reaper').catch(function(){});
+    if (ppEarned >= 50000) await awardPlayerTitle('whale').catch(function(){});
+    if (totalLevel >= 200) await awardPlayerTitle('the_veteran').catch(function(){});
+    if (refs >= 10)   await awardPlayerTitle('the_recruiter').catch(function(){});
+
+    // ── LEGENDARY ──
+    if (battles >= 1000) await awardPlayerTitle('the_hardcore').catch(function(){});
+    if (ppEarned >= 1000000) await awardPlayerTitle('millionaire').catch(function(){});
+    if (refs >= 25)  await awardPlayerTitle('the_legendary').catch(function(){});
+
   } catch (err) {
     console.error('[Titles] Error checking player unlocks:', err);
   }
 }
-*/
+
 
 // ═══════════════════════════════════════════════════════════════════════
 // PET TITLE UNLOCKS - With Unique Conditions
@@ -30052,15 +31627,13 @@ async function checkConsecutiveLosses(petId, allBattles) {
   }
 }
 
-// Special: 3am login check (NOT YET IMPLEMENTED - needs player title system)
-/*
+// Special: // 3am login check — awards Night Owl title if player logs in at 3am
 function checkMidnightLogin() {
   var hour = new Date().getHours();
-  if (hour === 3 && !hasTitle('sleep_deprived')) {
-    awardTitle('sleep_deprived');
+  if (hour === 3) {
+    awardPlayerTitle('night_owl').catch(function(){});  // 'The Night Owl' uncommon title
   }
 }
-*/
 
 // Special: 3am battle check (call after battle victories)
 async function checkMidnightBattle(petId, won) {
@@ -32200,22 +33773,31 @@ async function checkTutorialStatus() {
     if (res.data) {
       playerSettings.tutorial_completed = res.data.tutorial_completed || false;
       playerSettings.spooky_enabled = res.data.spooky_enabled || false;
-      
       dbg('Tutorial status:', playerSettings.tutorial_completed);
       dbg('Spooky enabled:', playerSettings.spooky_enabled);
-      
-      // Start tutorial if not completed
-      if (!playerSettings.tutorial_completed) {
-        dbg('Starting tutorial for new player...');
-        setTimeout(function() {
-          if (typeof Tutorial !== 'undefined') {
-            Tutorial.start();
-          }
-        }, 1500);
-      }
+    } else {
+      // No players row yet (brand new signup) — treat as tutorial not completed
+      playerSettings.tutorial_completed = false;
+      dbg('No players row found — treating as new user, starting tutorial');
+    }
+
+    // Start tutorial if not completed (runs whether res.data existed or not)
+    if (!playerSettings.tutorial_completed) {
+      dbg('Starting tutorial for new player...');
+      setTimeout(function() {
+        if (typeof Tutorial !== 'undefined') {
+          Tutorial.start();
+        }
+      }, 1500);
     }
   } catch (err) {
     console.error('Error checking tutorial status:', err);
+    // On error, default to starting tutorial (safe fallback for new users)
+    setTimeout(function() {
+      if (typeof Tutorial !== 'undefined' && !playerSettings.tutorial_completed) {
+        Tutorial.start();
+      }
+    }, 1500);
   }
 }
 
@@ -32780,12 +34362,16 @@ async function claimSeasonPassReward(seasonKey, level) {
       await awardPlayerTitle(reward.reward_value, 'Season Pass reward');
       showToast('🏆 Title unlocked!', 'success', true);
     } else if (reward.reward_type === 'frame') {
-      // NOTE: profile frame ownership doesn't have a confirmed table/RPC
-      // wired up on the client yet (there's a phase1_frames table but no
-      // client-side granting code found for it) — this shows the reward
-      // but doesn't yet persist frame ownership. Flag for follow-up.
-      dbg('[SeasonPass] Frame reward claimed but not yet wired to a frame-ownership table:', reward.reward_value);
-      showToast('🖼️ Frame reward claimed! (frame system integration pending)', 'success');
+      // Grant the frame via the cosmetics system (phase1_unlockCosmetic writes to unlocked_cosmetics)
+      var frameId = reward.reward_value;
+      if (frameId && typeof phase1_unlockCosmetic === 'function') {
+        await phase1_unlockCosmetic('frame', frameId);
+        // phase1_unlockCosmetic already shows the unlock celebration — no extra toast needed
+        dbg('[SeasonPass] Frame unlocked via cosmetics system:', frameId);
+      } else {
+        showToast('🖼️ Frame unlocked! Check your profile to equip it.', 'success');
+        dbg('[SeasonPass] Frame reward (phase1_unlockCosmetic not available):', frameId);
+      }
     }
     return true;
   } catch (e) {
@@ -33488,6 +35074,101 @@ function onPetLevelUp(petId) {
     .then(function(res) {
       if (!res.error && petState[petId]) petState[petId].stat_points = (petState[petId].stat_points || 0) + 1;
     }).then(null, function(){});
+}
+
+// ── Stat Point Allocation Modal ───────────────────────────────────────────
+function statPoints_openModal(petId) {
+  if (!petId || !petState[petId]) return;
+  var pet = petState[petId];
+  var available = pet.stat_points || 0;
+  if (available <= 0) { showToast('No stat points to spend! Level up to earn more.', 2500); return; }
+
+  var modal = makeModal();
+
+  var STAT_DEFS = [
+    { key:'bonus_hp',      label:'❤️ Health',   desc:'+3 max HP per point',  icon:'❤️',  gain:3 },
+    { key:'bonus_attack',  label:'⚔️ Attack',   desc:'+2 attack per point',  icon:'⚔️',  gain:2 },
+    { key:'bonus_defense', label:'🛡️ Defense',  desc:'+2 defense per point', icon:'🛡️',  gain:2 },
+    { key:'bonus_speed',   label:'💨 Speed',    desc:'+1 speed per point',   icon:'💨',  gain:1 },
+  ];
+
+  function render() {
+    var pts = (petState[petId] && petState[petId].stat_points) || 0;
+    modal.innerHTML =
+      '<div style="max-width:380px;">' +
+        '<h3 style="color:var(--purple);margin-bottom:4px;">✨ Allocate Stat Points</h3>' +
+        '<div style="font-size:0.8rem;color:var(--text-light);margin-bottom:16px;">' +
+          '<strong style="color:var(--purple-dark);">' + pts + ' point' + (pts!==1?'s':'') + '</strong> available to spend' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:10px;">' +
+          STAT_DEFS.map(function(s) {
+            var current = (petState[petId] && petState[petId][s.key]) || 0;
+            return '<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:rgba(153,102,255,0.06);border:1px solid var(--border);border-radius:12px;">' +
+              '<div style="font-size:1.4rem;">' + s.icon + '</div>' +
+              '<div style="flex:1;">' +
+                '<div style="font-weight:700;font-size:0.88rem;">' + s.label + '</div>' +
+                '<div style="font-size:0.72rem;color:var(--text-light);">' + s.desc + ' • Current: ' + current + '</div>' +
+              '</div>' +
+              '<button class="stp-btn" data-pid="' + escapeHtml(petId) + '" data-key="' + escapeHtml(s.key) + '" ' +
+                (pts <= 0 ? 'disabled ' : '') +
+                'style="padding:7px 16px;border-radius:10px;border:2px solid var(--purple);background:' + (pts>0?'var(--purple)':'var(--border)') + ';color:white;font-weight:700;font-size:0.82rem;cursor:' + (pts>0?'pointer':'not-allowed') + ';white-space:nowrap;">+1</button>' +
+            '</div>';
+          }).join('') +
+        '</div>' +
+        '<button class="btn btn-outline" style="width:100%;margin-top:16px;" class="stp-done">Done</button>' +
+      '</div>';
+  }
+
+  render();
+  openModal(modal);
+  window._statPointsModalPetId = petId;
+}
+
+// Event delegation for stat point buttons (avoids quote-escaping in HTML strings)
+document.addEventListener('click', function(e) {
+  var spendBtn = e.target.closest('.stp-btn');
+  if (spendBtn && spendBtn.dataset.pid && spendBtn.dataset.key) {
+    statPoints_spend(spendBtn.dataset.pid, spendBtn.dataset.key);
+    return;
+  }
+  var doneBtn = e.target.closest('.stp-done');
+  if (doneBtn) {
+    closeModal();
+    tabsLoaded['mypets'] = false;
+    loadMyPets();
+  }
+});
+
+async function statPoints_spend(petId, statKey) {
+  if (!petId || !petState[petId]) return;
+  var pts = (petState[petId] && petState[petId].stat_points) || 0;
+  if (pts <= 0) return;
+
+  var BONUS_MAP = { bonus_hp:3, bonus_attack:2, bonus_defense:2, bonus_speed:1 };
+  var gain = BONUS_MAP[statKey] || 1;
+  var currentBonus = (petState[petId][statKey] || 0) + gain;
+  var newPoints = pts - 1;
+
+  try {
+    var update = { stat_points: newPoints };
+    update[statKey] = currentBonus;
+    var { error } = await supabaseClient.from('user_pets').update(update).eq('id', petId);
+    if (error) throw error;
+
+    // Update petState cache
+    petState[petId].stat_points = newPoints;
+    petState[petId][statKey] = currentBonus;
+
+    showToast('+' + gain + ' ' + statKey.replace('bonus_','').toUpperCase() + ' allocated!', 2000);
+
+    // Re-render: close current and reopen so the UI reflects the spend
+    if (window._statPointsModalPetId === petId) {
+      closeModal();
+      setTimeout(function() { statPoints_openModal(petId); }, 50);
+    }
+  } catch(e) {
+    showToast('Failed to spend stat point: ' + escapeHtml(e.message), 3000);
+  }
 }
 
 // Hook for adoption - call this when adopting a pet
@@ -34236,7 +35917,7 @@ function weeklyChallenge_checkCompletions(stat, newValue, weekKey) {
       if (Object.keys(claimed).length >= 5) {
         setTimeout(function() {
           awardPP(250, 'weekly_all_complete').then(null, function(){});
-          awardBadge('weekly_champion').then(null, function(){});
+          awardBadge('battle_100_wins').then(null, function(){});
           showToast('🏆 All weekly challenges complete! +250 bonus PP!', 7000);
         }, 2000);
       }
@@ -35045,11 +36726,21 @@ async function newFeatures_init() {
           }
         });
         if (missedPets.length > 0) {
-          // Show one toast per missed pet, staggered
+          // Show one toast per missed pet — staggered by 6s so each can be read
           missedPets.forEach(function(mp, i) {
             safeSetTimeout(function() {
-              showToast(mp.name + ': ' + mp.msg, 5000);
-            }, i * 1200);
+              // Larger, bolder toast for pet greeting messages
+              var toastEl = document.getElementById('toast-message');
+              if (toastEl) {
+                toastEl.style.fontSize = '1rem';
+                toastEl.style.fontWeight = '700';
+                toastEl.style.fontStyle = 'normal';
+                toastEl.style.lineHeight = '1.5';
+                toastEl.style.maxWidth = '360px';
+                toastEl.style.padding = '16px 20px';
+              }
+              showToast('🐾 ' + mp.name + ':\n' + mp.msg, 6000);
+            }, i * 7000); // 7s gap so each toast fully clears before the next
           });
         }
       } catch(e) {}
@@ -37242,8 +38933,8 @@ function screenshot_showModal(imageUrl, fileName, pet, shareTagline) {
   var shareCount = parseInt(localStorage.getItem(shareKey) || '0') + 1;
   localStorage.setItem(shareKey, String(shareCount));
   // Award share badges
-  if (shareCount === 1)  awardBadge('badge_snapshot').then(null, function(){});
-  if (shareCount === 5)  awardBadge('badge_social_butterfly').then(null, function(){});
+  if (shareCount === 1)  awardBadge('snapshot_moment').then(null, function(){});
+  if (shareCount === 5)  awardBadge('social_butterfly').then(null, function(){});
 
   var petName = pet.nickname || pet.pet_type || 'pet';
   var tagline = shareTagline || ('Check out my pet ' + petName + ' on PawketPetsVT! 🐾 #PawketPets #VTuber');
@@ -38020,9 +39711,9 @@ async function gift_sendGift(toUserId, toUsername) {
     // Check first-gift badge
     var { count: totalSent } = await supabaseClient
       .from('gifts').select('id', { count: 'exact', head: true }).eq('from_user_id', currentUser.id);
-    if (totalSent === 1)  await awardBadge('gift_giver');
-    if (totalSent >= 10)  await awardBadge('badge_generous');
-    if (totalSent >= 50)  await awardBadge('badge_philanthropist');
+    if (totalSent === 1)  await awardBadge('secret_santa');
+    if (totalSent >= 10)  await awardBadge('generous_soul');
+    if (totalSent >= 50)  await awardBadge('philanthropist');
 
     closeModal();
     showToast('🎁 Gift sent to ' + toUsername + '!', 3000);
@@ -38289,9 +39980,9 @@ var pollSystem = {
       // Badge milestones
       var { count: totalVotes } = await supabaseClient
         .from('poll_votes').select('id', { count: 'exact', head: true }).eq('user_id', currentUser.id);
-      if (totalVotes === 5)  await awardBadge('active_citizen');
-      if (totalVotes === 3)  await awardBadge('badge_voter');
-      if (totalVotes === 15) await awardBadge('badge_poll_champ');
+      if (totalVotes === 5)  await awardBadge('badge_team_player');
+      if (totalVotes === 3)  await awardBadge('poll_champion');
+      if (totalVotes === 15) await awardBadge('poll_champion');
       if (totalVotes === 25) await awardBadge('community_leader');
 
       showToast('✅ Vote counted! +25 PP', 3000);
@@ -39779,15 +41470,6 @@ var PET_SKILLS = {
 // Returns the skills available to a pet at its current level
 
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STAT POINTS SYSTEM — players allocate 1 point per level
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Open the stat allocation modal for a pet
-
-
-
-
 
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -39942,6 +41624,74 @@ var COOKING_RECIPES = [
     hunger: 999, happiness: -10, hp: 0,
     description: 'A dark, bubbling broth. It smells like static and something older.',
     isPiperRecipe: true
+  },
+  // ── SECRET COMBAT BUFF FOODS — not sold in shop, discovered through cooking ──
+  {
+    id: 'warriors_feast',
+    name: "Warrior's Feast",
+    emoji: '🍗',
+    ingredients: ['tough_meat', 'rare_spice', 'honey'],
+    effect: '+3 ATK for next 5 battles',
+    hunger: 20, happiness: 5, hp: 0,
+    combatBuff: { stat: 'attack', amount: 3, battles: 5 },
+    description: 'A roasted haunch glazed with spiced honey. Your pet looks ready to fight.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'iron_shell_stew',
+    name: 'Iron Shell Stew',
+    emoji: '🫕',
+    ingredients: ['shellfish', 'mushroom', 'small_bone', 'salt'],
+    effect: '+4 DEF for next 5 battles',
+    hunger: 20, happiness: 0, hp: 0,
+    combatBuff: { stat: 'defense', amount: 4, battles: 5 },
+    description: 'A thick, mineral stew made from boiled shells and forest mushrooms. Fortifying.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'swiftfin_sashimi',
+    name: 'Swiftfin Sashimi',
+    emoji: '🍱',
+    ingredients: ['fresh_salmon', 'seaweed', 'rare_spice'],
+    effect: '+3 SPD for next 5 battles',
+    hunger: 15, happiness: 10, hp: 0,
+    combatBuff: { stat: 'speed', amount: 3, battles: 5 },
+    description: 'Razor-thin slices of salmon seasoned with rare spice. Light, fast, fierce.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'lucky_berry_jam',
+    name: 'Lucky Berry Jam',
+    emoji: '🍯',
+    ingredients: ['forest_berry', 'honey', 'sugar'],
+    effect: '+4 Luck for next 5 battles',
+    hunger: 10, happiness: 20, hp: 0,
+    combatBuff: { stat: 'luck', amount: 4, battles: 5 },
+    description: 'Thick jam bursting with tart berries. Each spoonful feels like a small miracle.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'crystalized_power_cake',
+    name: 'Crystalized Power Cake',
+    emoji: '💎',
+    ingredients: ['crystal_shard', 'butter', 'flour', 'egg'],
+    effect: '+5 ATK, +3 DEF for next 8 battles',
+    hunger: 30, happiness: 15, hp: 0,
+    combatBuff: { stat: 'multi', bonuses: [{ stat: 'attack', amount: 5 }, { stat: 'defense', amount: 3 }], battles: 8 },
+    description: 'A cake with a literal crystal baked into it. Somehow delicious. Definitely dangerous.',
+    isSecretRecipe: true
+  },
+  {
+    id: 'glitch_cookie',
+    name: 'Glitch Cookie',
+    emoji: '🍪',
+    ingredients: ['glitch_residue', 'flour', 'butter', 'sugar'],
+    effect: '+6 Luck, +2 ATK for next 10 battles',
+    hunger: 15, happiness: 20, hp: 0,
+    combatBuff: { stat: 'multi', bonuses: [{ stat: 'luck', amount: 6 }, { stat: 'attack', amount: 2 }], battles: 10 },
+    description: "It phases slightly as you eat it. The crunch is on a frequency you shouldn't be able to hear.",
+    isSecretRecipe: true,
+    isPiperRecipe: false
   }
 ];
 
@@ -40528,3 +42278,428 @@ async function cooking_init() {
   await cooking_load();
 }
 
+
+// ═══════════════════════════════════════════════════════════════════════════
+// COMBAT BUFF SYSTEM (from secret cooking recipes)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Load combat buffs for a pet from DB
+// Stored in pet_combat_buffs table: { user_id, pet_id, recipe_id, stat, amount, battles_left }
+async function combatBuff_load(petId) {
+  if (!currentUser || !petId) return {};
+  try {
+    var { data: rows } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    var buffs = {};
+    (rows || []).forEach(function(r) {
+      buffs[r.recipe_id] = r;
+    });
+    return buffs;
+  } catch(e) {
+    dbg('[CombatBuff] load error:', e);
+    return {};
+  }
+}
+
+// Apply a combat buff food to a pet (called from inventory/feeding)
+async function combatBuff_apply(petId, recipeId) {
+  if (!currentUser || !petId || !recipeId) return;
+  var recipe = COOKING_RECIPES.find(function(r) { return r.id === recipeId; });
+  if (!recipe || !recipe.combatBuff) return;
+
+  var buff = recipe.combatBuff;
+  var battles = buff.battles || 5;
+  var rows = [];
+
+  if (buff.stat === 'multi') {
+    (buff.bonuses || []).forEach(function(b) {
+      rows.push({ user_id: currentUser.id, pet_id: petId, recipe_id: recipeId + '_' + b.stat, stat: b.stat, amount: b.amount, battles_left: battles });
+    });
+  } else {
+    rows.push({ user_id: currentUser.id, pet_id: petId, recipe_id: recipeId, stat: buff.stat, amount: buff.amount, battles_left: battles });
+  }
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    // Upsert: if buff already active, add battles_left
+    var { data: existing } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('id, battles_left')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .eq('recipe_id', row.recipe_id)
+      .maybeSingle();
+    if (existing) {
+      await supabaseClient.from('pet_combat_buffs').update({ battles_left: existing.battles_left + battles }).eq('id', existing.id);
+    } else {
+      await supabaseClient.from('pet_combat_buffs').insert(row);
+    }
+  }
+  showToast(recipe.emoji + ' ' + recipe.name + ' buff applied to your pet! (' + battles + ' battles)', 3500);
+}
+
+// Decrement buff battles_left after a battle ends (win or lose)
+async function combatBuff_tick(petId) {
+  if (!currentUser || !petId) return;
+  try {
+    var { data: rows } = await supabaseClient
+      .from('pet_combat_buffs')
+      .select('id, battles_left')
+      .eq('user_id', currentUser.id)
+      .eq('pet_id', petId)
+      .gt('battles_left', 0);
+    for (var i = 0; i < (rows || []).length; i++) {
+      var r = rows[i];
+      var newLeft = r.battles_left - 1;
+      if (newLeft <= 0) {
+        await supabaseClient.from('pet_combat_buffs').delete().eq('id', r.id);
+      } else {
+        await supabaseClient.from('pet_combat_buffs').update({ battles_left: newLeft }).eq('id', r.id);
+      }
+    }
+  } catch(e) { dbg('[CombatBuff] tick error:', e); }
+}
+
+// Render combat buff pills in battle UI
+async function combatBuff_renderPills(petId, containerEl) {
+  if (!containerEl) return;
+  var buffs = await combatBuff_load(petId);
+  var keys = Object.keys(buffs);
+  if (!keys.length) { containerEl.innerHTML = ''; return; }
+
+  var STAT_LABELS = { attack: 'ATK', defense: 'DEF', speed: 'SPD', luck: 'Luck', spirit: 'Spirit' };
+  containerEl.innerHTML = keys.map(function(k) {
+    var b = buffs[k];
+    var label = STAT_LABELS[b.stat] || b.stat;
+    return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(93,222,122,0.15);border:1px solid rgba(93,222,122,0.4);border-radius:20px;padding:2px 8px;font-size:0.65rem;color:#5dde7a;font-weight:700;margin:2px;">+' +
+      b.amount + ' ' + label + ' <span style="opacity:0.7;">(' + b.battles_left + ' battles)</span></span>';
+  }).join('');
+}
+
+// Apply active buffs to playerStats before battle
+async function combatBuff_applyToStats(petId, stats) {
+  var buffs = await combatBuff_load(petId);
+  Object.keys(buffs).forEach(function(k) {
+    var b = buffs[k];
+    if (b.stat && b.amount && stats[b.stat] !== undefined) {
+      stats[b.stat] = (stats[b.stat] || 0) + b.amount;
+    }
+  });
+  return stats;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GUILD HOUSING SYSTEM
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Furniture catalog — all furniture available to buy, keyed by furniture_key
+var GUILD_FURNITURE_CATALOG = [
+  // ── Tier 1: Cheap, basic buffs (10-30 tokens) ──
+  { key: 'banner',         name: 'Guild Banner',       emoji: '🚩', cost: 10, tier: 1,
+    buff: null, desc: 'A decorative banner. Shows guild pride!' },
+  { key: 'training_dummy', name: 'Training Dummy',     emoji: '🪆', cost: 20, tier: 1,
+    buff: { stat: 'attack', amount: 1 }, desc: 'All guild pets get +1 ATK permanently.' },
+  { key: 'healing_pond',   name: 'Healing Pond',       emoji: '💧', cost: 25, tier: 1,
+    buff: { stat: 'hp_regen', amount: 2 }, desc: 'HP regenerates 2 extra HP/hour for all guild members.' },
+  { key: 'bookshelf',      name: 'Ancient Bookshelf',  emoji: '📚', cost: 30, tier: 1,
+    buff: { stat: 'xp_bonus', amount: 5 }, desc: '+5% XP gain for all guild pets.' },
+
+  // ── Tier 2: Moderate, meaningful buffs (50-100 tokens) ──
+  { key: 'weapon_rack',    name: 'Weapon Rack',        emoji: '⚔️',  cost: 50, tier: 2,
+    buff: { stat: 'attack', amount: 2 }, desc: 'All guild pets get +2 ATK permanently.' },
+  { key: 'stone_wall',     name: 'Reinforced Wall',    emoji: '🧱', cost: 60, tier: 2,
+    buff: { stat: 'defense', amount: 2 }, desc: 'All guild pets get +2 DEF permanently.' },
+  { key: 'lucky_shrine',   name: 'Lucky Shrine',       emoji: '🍀', cost: 75, tier: 2,
+    buff: { stat: 'luck', amount: 3 }, desc: '+3 Luck for all guild pets in battle.' },
+  { key: 'feast_table',    name: 'Feast Table',        emoji: '🍽️', cost: 80, tier: 2,
+    buff: { stat: 'happiness_max', amount: 10 }, desc: '+10 max happiness for all guild pets.' },
+  { key: 'speed_track',    name: 'Speed Track',        emoji: '⚡', cost: 90, tier: 2,
+    buff: { stat: 'speed', amount: 2 }, desc: 'All guild pets get +2 SPD permanently.' },
+
+  // ── Tier 3: Expensive, powerful buffs (150-300 tokens) ──
+  { key: 'throne',         name: 'Guild Throne',       emoji: '👑', cost: 150, tier: 3,
+    buff: { stat: 'pp_bonus', amount: 10 }, desc: '+10% PP from all battles for guild members.' },
+  { key: 'arcane_forge',   name: 'Arcane Forge',       emoji: '🔮', cost: 200, tier: 3,
+    buff: { stat: 'attack', amount: 3, defense: 1 }, desc: '+3 ATK, +1 DEF for all guild pets.' },
+  { key: 'spirit_crystal', name: 'Spirit Crystal',     emoji: '💎', cost: 250, tier: 3,
+    buff: { stat: 'spirit', amount: 5 }, desc: '+5 Spirit for all guild pets. Piper is less likely to appear.' },
+  { key: 'corruption_ward',name: 'Corruption Ward',    emoji: '🌑', cost: 300, tier: 3,
+    buff: { stat: 'corruption_resist', amount: 15 }, desc: 'Reduces Corruption damage in battle by 15% for all guild members.' },
+
+  // ── Tier 4: Guild-level locked (500+ tokens) ──
+  { key: 'piper_painting', name: "Piper's Portrait",   emoji: '🎵', cost: 500, tier: 4,
+    buff: null, desc: "Something about this painting moves when you're not looking. No game effect. Piper is pleased.",
+    requiresLevel: 5 },
+  { key: 'champions_hall', name: "Champion's Hall",    emoji: '🏆', cost: 800, tier: 4,
+    buff: { stat: 'attack', amount: 5, defense: 3, speed: 2 }, desc: '+5 ATK, +3 DEF, +2 SPD for ALL guild pets.',
+    requiresLevel: 8 }
+];
+
+// Cached placed furniture for this guild
+var _guildFurnitureCache = null;
+
+// How many slots does a guild get at this level?
+function guild_furnitureSlots(guildLevel) {
+  return Math.min(10, guildLevel || 1);
+}
+
+// Load placed furniture from DB
+async function guild_loadFurniture() {
+  if (!guildState.myGuild) return [];
+  try {
+    var { data } = await supabaseClient
+      .from('guild_furniture')
+      .select('*')
+      .eq('guild_id', guildState.myGuild.guild_id)
+      .order('slot_index', { ascending: true });
+    _guildFurnitureCache = data || [];
+    return _guildFurnitureCache;
+  } catch(e) { dbg('[GuildHousing] load error:', e); return []; }
+}
+
+// Get active furniture buffs for a guild member (called on battle init & stat display)
+async function guild_getFurnitureBuffs() {
+  var buffs = { attack: 0, defense: 0, speed: 0, luck: 0, spirit: 0,
+                xp_bonus: 0, pp_bonus: 0, hp_regen: 0, happiness_max: 0,
+                corruption_resist: 0 };
+
+  if (!guildState.myGuild) return buffs;
+  var furniture = _guildFurnitureCache;
+  if (!furniture) furniture = await guild_loadFurniture();
+
+  furniture.forEach(function(placed) {
+    var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === placed.furniture_key; });
+    if (!def || !def.buff) return;
+    var b = def.buff;
+    if (b.stat && buffs[b.stat] !== undefined) buffs[b.stat] += b.amount || 0;
+    if (b.defense && buffs.defense !== undefined) buffs.defense += b.defense || 0; // multi-stat items
+  });
+  return buffs;
+}
+
+// Render the full guild housing page
+async function guild_renderHousing() {
+  var mount = document.getElementById('guild-content');
+  if (!mount || !guildState.myGuild) return;
+  mount.innerHTML = '<div class="spinner"></div>';
+
+  try {
+    var g = guildState.myGuild;
+    var guildLevel = g.guild_level || 1;
+    var tokens = g.guild_tokens || 0;
+    var totalSlots = guild_furnitureSlots(guildLevel);
+    var isOfficer = guildState.myRole === 'leader' || guildState.myRole === 'officer';
+
+    var placed = await guild_loadFurniture();
+    // Build slot map
+    var slotMap = {};
+    placed.forEach(function(p) { slotMap[p.slot_index] = p; });
+
+    // Active buffs summary
+    var buffs = await guild_getFurnitureBuffs();
+    var buffEntries = Object.keys(buffs).filter(function(k) { return buffs[k] > 0; });
+    var buffsHtml = buffEntries.length === 0
+      ? '<div style="font-size:0.78rem;color:var(--text-light);font-style:italic;">No furniture placed yet — no active buffs.</div>'
+      : buffEntries.map(function(k) {
+          var labels = { attack:'⚔️ ATK', defense:'🛡️ DEF', speed:'⚡ SPD', luck:'🍀 Luck',
+                         spirit:'✨ Spirit', xp_bonus:'📚 XP Bonus', pp_bonus:'💰 PP Bonus',
+                         hp_regen:'💧 HP Regen/hr', happiness_max:'😊 Max Happiness',
+                         corruption_resist:'🌑 Corruption Resist' };
+          var units = { xp_bonus:'%', pp_bonus:'%', corruption_resist:'%', hp_regen:'/hr' };
+          return '<span style="display:inline-flex;align-items:center;gap:3px;background:rgba(153,102,255,0.12);border:1px solid rgba(153,102,255,0.25);border-radius:20px;padding:2px 8px;font-size:0.7rem;color:var(--purple-dark);margin:2px;">' +
+            (labels[k] || k) + ': +' + buffs[k] + (units[k] || '') + '</span>';
+        }).join('');
+
+    // Furniture slot grid
+    var slotsHtml = '';
+    for (var i = 0; i < totalSlots; i++) {
+      var p = slotMap[i];
+      if (p) {
+        var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === p.furniture_key; });
+        slotsHtml +=
+          '<div class="guild-furniture-slot filled" title="' + (def ? escapeHtml(def.desc) : '') + '">' +
+            '<span style="font-size:1.8rem;">' + (def ? def.emoji : '📦') + '</span>' +
+            '<span style="font-size:0.65rem;color:var(--purple-dark);font-weight:600;text-align:center;line-height:1.2;">' + escapeHtml(def ? def.name : p.furniture_key) + '</span>' +
+            (isOfficer ? '<button class="btn btn-sm" onclick="guild_removeFurniture(' + i + ')" style="margin-top:4px;font-size:0.6rem;padding:1px 6px;color:#ff6b6b;border-color:#ff6b6b;">Remove</button>' : '') +
+          '</div>';
+      } else {
+        slotsHtml +=
+          '<div class="guild-furniture-slot empty">' +
+            '<span style="font-size:1.5rem;opacity:0.3;">🪑</span>' +
+            '<span style="font-size:0.65rem;color:var(--text-light);">Empty</span>' +
+            (isOfficer ? '<button class="btn btn-primary btn-sm" onclick="guild_openFurnitureShop(' + i + ')" style="margin-top:4px;font-size:0.62rem;padding:2px 8px;">+ Place</button>' : '') +
+          '</div>';
+      }
+    }
+
+    // Next slot unlock
+    var nextUnlock = guildLevel < 10
+      ? '<div style="font-size:0.72rem;color:var(--text-light);text-align:center;margin-top:8px;">Reach Guild Level ' + (guildLevel + 1) + ' to unlock slot ' + (totalSlots + 1) + '/10</div>'
+      : '';
+
+    mount.innerHTML =
+      '<button class="btn btn-outline btn-sm" onclick="loadGuildPage()" style="margin-bottom:16px;">← Back to Guild</button>' +
+      '<h3 style="color:var(--purple);margin-bottom:4px;">🏠 Guild Hall</h3>' +
+      '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:16px;">Furniture buffs apply to ALL pets owned by guild members.</div>' +
+
+      // Token balance
+      '<div style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:12px;padding:12px 14px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:0.9rem;color:#e6a800;">🏅 Guild Tokens</div>' +
+          '<div style="font-size:0.75rem;color:var(--text-light);">Earned from dungeons and PP donations</div>' +
+        '</div>' +
+        '<div style="font-size:1.5rem;font-weight:800;color:#e6a800;">' + tokens.toLocaleString() + '</div>' +
+      '</div>' +
+
+      // Active buffs
+      '<div style="background:rgba(153,102,255,0.06);border-radius:12px;padding:12px 14px;margin-bottom:16px;">' +
+        '<div style="font-weight:700;font-size:0.82rem;color:var(--purple-dark);margin-bottom:8px;">✨ Active Buffs (all guild members)</div>' +
+        '<div>' + buffsHtml + '</div>' +
+      '</div>' +
+
+      // Furniture grid
+      '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:10px;">🪑 Furniture Slots (' + placed.length + '/' + totalSlots + ')</div>' +
+      '<div class="guild-furniture-grid">' + slotsHtml + '</div>' +
+      nextUnlock +
+
+      // Donate PP for tokens section
+      '<div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);margin-bottom:8px;">💸 Donate PP for Tokens</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-light);margin-bottom:10px;">Every 50 PP donated = 1 Guild Token. Tokens go to the guild, not your balance.</div>' +
+        '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<input type="number" id="guild-donate-pp-amount" value="50" min="50" step="50" max="10000" style="width:80px;padding:6px;border-radius:8px;border:2px solid var(--border);font-size:0.85rem;text-align:center;">' +
+          '<button class="btn btn-primary" onclick="guild_donateForTokens()">Donate PP</button>' +
+        '</div>' +
+      '</div>';
+
+  } catch(e) {
+    mount.innerHTML = '<div class="empty-state"><p>Error loading guild hall: ' + escapeHtml(e.message) + '</p><button class="btn btn-outline btn-sm" onclick="loadGuildPage()">← Back</button></div>';
+  }
+}
+
+// Open furniture shop modal for a specific slot
+function guild_openFurnitureShop(slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var tokens = g.guild_tokens || 0;
+  var guildLevel = g.guild_level || 1;
+
+  var available = GUILD_FURNITURE_CATALOG.filter(function(f) {
+    return (!f.requiresLevel || guildLevel >= f.requiresLevel);
+  });
+
+  var overlay = document.createElement('div');
+  overlay.id = 'guild-furniture-shop-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+
+  var tierColors = { 1:'rgba(153,102,255,0.15)', 2:'rgba(93,222,122,0.12)', 3:'rgba(255,215,0,0.12)', 4:'rgba(255,102,0,0.15)' };
+
+  var itemsHtml = available.map(function(f) {
+    var canAfford = tokens >= f.cost;
+    var buffText = f.buff ? ('+' + (f.buff.amount || '') + ' ' + (f.buff.stat || '') + (f.buff.defense ? ', +' + f.buff.defense + ' DEF' : '')) : 'Cosmetic';
+    return '<div style="background:' + (tierColors[f.tier]||'rgba(153,102,255,0.1)') + ';border:1px solid rgba(153,102,255,0.2);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;opacity:' + (canAfford?'1':'0.5') + ';">' +
+      '<span style="font-size:2rem;">' + f.emoji + '</span>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-weight:700;font-size:0.85rem;color:var(--purple-dark);">' + escapeHtml(f.name) + ' <span style="font-size:0.65rem;color:var(--text-light);">T' + f.tier + '</span></div>' +
+        '<div style="font-size:0.72rem;color:var(--text-light);">' + escapeHtml(f.desc) + '</div>' +
+        '<div style="font-size:0.72rem;color:#5dde7a;margin-top:2px;">' + buffText + '</div>' +
+      '</div>' +
+      '<div style="text-align:center;flex-shrink:0;">' +
+        '<div style="font-size:0.78rem;font-weight:700;color:#e6a800;margin-bottom:4px;">🏅 ' + f.cost + '</div>' +
+        '<button class="btn btn-primary btn-sm" onclick="guild_placeFurniture(\'' + f.key + '\',' + slotIndex + ')" ' +
+          (canAfford ? '' : 'disabled') + ' style="font-size:0.7rem;padding:3px 10px;">Buy & Place</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  overlay.innerHTML =
+    '<div style="background:var(--card-bg);border:2px solid var(--purple);border-radius:20px;padding:20px;max-width:420px;width:90vw;max-height:80vh;overflow-y:auto;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+        '<div style="font-weight:800;font-size:1.05rem;color:var(--purple-dark);">🏪 Furniture Shop</div>' +
+        '<div style="font-size:0.85rem;font-weight:700;color:#e6a800;">🏅 ' + tokens + ' tokens</div>' +
+      '</div>' +
+      '<div style="font-size:0.75rem;color:var(--text-light);margin-bottom:12px;">Slot ' + (slotIndex + 1) + ' · Only officers can purchase</div>' +
+      itemsHtml +
+      '<button class="btn btn-outline" onclick="document.getElementById(\'guild-furniture-shop-overlay\').remove()" style="width:100%;margin-top:10px;">Cancel</button>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+}
+
+// Place furniture into a slot
+async function guild_placeFurniture(furnitureKey, slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var def = GUILD_FURNITURE_CATALOG.find(function(f) { return f.key === furnitureKey; });
+  if (!def) return;
+
+  var tokens = g.guild_tokens || 0;
+  if (tokens < def.cost) { showToast('Not enough tokens!', 2000); return; }
+
+  // Remove any existing furniture in this slot
+  var existing = _guildFurnitureCache && _guildFurnitureCache.find(function(p) { return p.slot_index === slotIndex; });
+  if (existing) {
+    await supabaseClient.from('guild_furniture').delete().eq('guild_id', g.guild_id).eq('slot_index', slotIndex);
+  }
+
+  // Deduct tokens
+  var newTokens = tokens - def.cost;
+  await supabaseClient.from('guilds').update({ guild_tokens: newTokens }).eq('id', g.guild_id);
+  g.guild_tokens = newTokens;
+
+  // Insert furniture
+  var { error } = await supabaseClient.from('guild_furniture').upsert({
+    guild_id: g.guild_id, slot_index: slotIndex,
+    furniture_key: furnitureKey, placed_by: currentUser.id,
+    placed_at: new Date().toISOString()
+  }, { onConflict: 'guild_id,slot_index' });
+
+  if (error) { showToast('Error placing furniture: ' + error.message, 3000); return; }
+
+  _guildFurnitureCache = null; // invalidate cache
+  var shopOverlay = document.getElementById('guild-furniture-shop-overlay');
+  if (shopOverlay) shopOverlay.remove();
+  showToast(def.emoji + ' ' + def.name + ' placed! Buffs now apply to all guild members.', 3500);
+  guild_renderHousing();
+}
+
+// Remove furniture from a slot (officers only)
+async function guild_removeFurniture(slotIndex) {
+  var g = guildState.myGuild;
+  if (!g) return;
+  await supabaseClient.from('guild_furniture').delete().eq('guild_id', g.guild_id).eq('slot_index', slotIndex);
+  _guildFurnitureCache = null;
+  guild_renderHousing();
+}
+
+// Donate PP to earn guild tokens
+async function guild_donateForTokens() {
+  var g = guildState.myGuild;
+  if (!g) return;
+  var amountEl = document.getElementById('guild-donate-pp-amount');
+  var amount = parseInt((amountEl && amountEl.value) || '50', 10);
+  if (isNaN(amount) || amount < 50) { showToast('Minimum donation is 50 PP.', 2000); return; }
+  amount = Math.floor(amount / 50) * 50; // round to nearest 50
+
+  if ((currentPoints || 0) < amount) { showToast('Not enough PP!', 2000); return; }
+
+  // Spend PP
+  var { data: newTotal, error: spendErr } = await supabaseClient.rpc('spend_pp_secure', {
+    p_amount: amount, p_reason: 'guild_token_donation'
+  });
+  if (spendErr) { showToast('Error spending PP: ' + spendErr.message, 3000); return; }
+  if (typeof newTotal === 'number') { currentPoints = newTotal; updateAllPoints(newTotal); }
+
+  // Award tokens
+  var tokenGain = Math.floor(amount / 50);
+  var newTokens = (g.guild_tokens || 0) + tokenGain;
+  await supabaseClient.from('guilds').update({ guild_tokens: newTokens }).eq('id', g.guild_id);
+  g.guild_tokens = newTokens;
+
+  showToast('Donated ' + amount + ' PP! Guild received 🏅 ' + tokenGain + ' tokens.', 3500);
+  guild_renderHousing();
+}
