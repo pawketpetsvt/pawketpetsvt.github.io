@@ -1,0 +1,21 @@
+// The design-system base (CSS custom properties, fonts, buttons, forms, layout
+// primitives) is loaded separately in main.js as a plain CSS import — Sass
+// deliberately does not inline .css-extension @imports, so chaining them
+// through here would just get left as a broken literal @import in the
+// compiled output. This file holds only genuine Sass/SCSS content.
+
+// Global utility classes needed by more than one page/component in this app.
+// Anything used by only a single component lives in that component's own
+// <style lang="scss" scoped> block instead.
+
+.pets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.hint {
+  color: var(--text-light);
+  font-weight: 400;
+}
