@@ -2,9 +2,15 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router.js'
 import { authService } from './services/AuthService.js'
-import '../../css/style.css'
-import '../../css/style-additions.css'
+import { vTooltip } from './directives/tooltip.js'
+import '../../style.css'
+
+authService.subscribeToAuthChanges(() => {
+  router.push('/reset-password')
+})
 
 authService.restoreSession().finally(() => {
-  createApp(App).use(router).mount('#app')
+  const app = createApp(App)
+  app.directive('tooltip', vTooltip)
+  app.use(router).mount('#app')
 })

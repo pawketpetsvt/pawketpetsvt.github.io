@@ -61,7 +61,7 @@ import { ref, computed } from 'vue'
 import StatBar from './StatBar.vue'
 import { ownedPetsService } from '../services/OwnedPetsService.js'
 import { inventoryService } from '../services/InventoryService.js'
-import { showToast } from '../utils/Toast.js'
+import { toastService } from '../services/ToastService.js'
 
 const props = defineProps({
   pet: { type: Object, required: true },
@@ -119,10 +119,10 @@ async function handleUseItem() {
     await ownedPetsService.useItem(props.pet, item)
     await inventoryService.useItem(item)
     flash('✨ ' + item.name + ': ' + item.effectText, '#b06aff')
-    showToast('Used ' + item.name + ' on ' + props.pet.nickname + '!')
+    toastService.success('Used ' + item.name + ' on ' + props.pet.nickname + '!')
     selectedInvId.value = ''
   } catch (err) {
-    showToast('Error: ' + err.message)
+    toastService.error('Error: ' + err.message)
   } finally {
     usingItem.value = false
   }

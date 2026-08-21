@@ -1,0 +1,53 @@
+import { reactive } from 'vue'
+import { supabase } from './SupabaseService.js'
+import { AppState } from '../AppState.js'
+
+export const STREAMERS = [
+  { id: 'ember', name: 'Embertail', login: 'embertail', image: 'pets/ember.png' },
+  { id: 'pyxs', name: 'Pyxshuul', login: 'pyxshuul', image: 'pets/pyxie.png' },
+  { id: 'aria', name: 'Aria', login: 'ariadoestwitch', image: 'pets/aria.png' },
+  { id: 'blushimia', name: 'Blushimia', login: 'realblushimia', image: 'pets/blushimia.png' },
+  { id: 'cowbee', name: 'Cowbee', login: 'cowbeevt', image: 'pets/cowbee.png' },
+  { id: 'kelta', name: 'Kelta', login: 'keltathepomeranian', image: 'pets/kelta.png' },
+  { id: 'jess', name: 'Jess', login: 'teatimejess', image: 'pets/jess.png' },
+  { id: 'gnarly', name: 'Gnarly', login: 'gnarly_neon_smilodon', image: 'pets/gnarly.png' }
+]
+
+export const streamStatus = reactive(
+  Object.fromEntries(STREAMERS.map(s => [s.id, { live: false }]))
+)
+
+const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
+
+class StreamStatusService {
+  // Ports checkSidebarStreamStatus(), game.js:7638+. Checking live status
+  // requires a linked viewer's Twitch token (twitch_token on `players`) —
+  // linking itself is a later migration phase, so without a token this
+  // gracefully leaves every streamer OFFLINE, matching the original's
+  // fallback behavior exactly (no console errors, no broken UI).
+  async refresh() {
+    if (!AppState.user) return
+    try {
+      const pr = await supabase.from('players').select('twitch_token').eq('id', AppState.user.id).maybeSingle()
+      const token = pr.data && pr.data.twitch_token
+      if (!token) return
+
+      const logins = STREAMERS.map(s => 'user_login=' + s.login).join('&')
+      const resp = await fetch(`https://api.twitch.tv/helix/streams?${logins}`, {
+        headers: { 'Client-Id': TWITCH_CLIENT_ID, Authorization: `Bearer ${token}` }
+      })
+      const data = await resp.json()
+      STREAMERS.forEach(s => { streamStatus[s.id].live = false })
+      if (data.data) {
+        data.data.forEach(stream => {
+          const match = STREAMERS.find(s => s.login.toLowerCase() === stream.user_login.toLowerCase())
+          if (match) streamStatus[match.id].live = true
+        })
+      }
+    } catch (err) {
+      // Network/CORS hiccups shouldn't break the sidebar
+    }
+  }
+}
+
+export const streamStatusService = new StreamStatusService()

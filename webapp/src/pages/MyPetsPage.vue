@@ -17,16 +17,6 @@
     <div v-else class="pets-grid">
       <PetCard v-for="pet in AppState.ownedPets" :key="pet.id" :pet="pet" :inventory="AppState.inventory" />
     </div>
-
-    <div class="modal-overlay" :class="{ show: bonusInfo }">
-      <div class="modal" v-if="bonusInfo">
-        <div class="bonus-coins">🪙</div>
-        <h2>Daily Bonus!</h2>
-        <p>Welcome back! You earned <strong>{{ bonusInfo.amount }} PP</strong> for logging in today!</p>
-        <p class="hint">Come back tomorrow for another bonus! ✨</p>
-        <button class="btn btn-primary btn-lg" @click="bonusInfo = null">✨ Awesome!</button>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -40,14 +30,13 @@ import PointsBanner from '../components/PointsBanner.vue'
 import PetCard from '../components/PetCard.vue'
 
 const loading = ref(true)
-const bonusInfo = ref(null)
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 
+// The daily-login streak reward is now shown once at the app-shell level
+// (AppShell.vue, via StreakService + ModalService) rather than per-page.
 onMounted(async () => {
   await playerService.getPlayer(AppState.user.id)
-  const bonus = await playerService.checkDailyBonus(AppState.user.id)
-  if (bonus.awarded) bonusInfo.value = bonus
   await inventoryService.getInventory(AppState.user.id)
   await ownedPetsService.getMyPets(AppState.user.id)
   loading.value = false
@@ -67,20 +56,5 @@ onMounted(async () => {
 .empty-icon {
   font-size: 3.5rem;
   margin-bottom: 16px;
-}
-
-.bonus-coins {
-  font-size: 3.5rem;
-  margin-bottom: 8px;
-  animation: bonus-bounce 0.6s ease infinite alternate;
-}
-
-@keyframes bonus-bounce {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-10px);
-  }
 }
 </style>

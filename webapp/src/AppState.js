@@ -6,5 +6,9 @@ export const AppState = reactive({
   petCatalog: [],
   ownedPetIds: [],
   ownedPets: [],
-  inventory: []
+  inventory: [],
+  tabKey: 'home',
+  sidebarStats: { petCount: 0, itemCount: 0, streak: 0 },
+  notifications: [],
+  unreadNotificationCount: 0
 })

@@ -19,6 +19,9 @@
       <button class="btn btn-primary btn-lg form-submit" :disabled="submitting" @click="handleLogin">
         {{ submitting ? '✨ Logging in...' : '✨ Login' }}
       </button>
+      <div style="text-align:center;margin:10px 0 0;">
+        <router-link to="/forgot" style="font-size:0.85rem;color:var(--text-light);">Forgot your password?</router-link>
+      </div>
       <div class="form-footer">New here? <router-link to="/register">Create an account!</router-link></div>
     </div>
   </div>
@@ -47,7 +50,7 @@ async function handleLogin() {
   try {
     await authService.login(email.value.trim(), password.value)
     success.value = 'Logged in! Redirecting... 🎉'
-    setTimeout(() => router.push('/my-pets'), 1000)
+    setTimeout(() => router.push('/home'), 1000)
   } catch (err) {
     error.value = err.message || 'Login failed.'
     submitting.value = false

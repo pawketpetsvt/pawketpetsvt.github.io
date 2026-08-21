@@ -1,34 +1,40 @@
 <template>
-  <NavBar />
-  <router-view />
-  <footer class="footer">
-    <div class="footer-sparkles">✦ ✧ ★ ✦ ✧ ★ ✦</div>
-    <p>© 2026 PawketPetsVT &nbsp;|&nbsp; Made with 💖</p>
-  </footer>
-  <div v-if="toastState.visible" class="toast">{{ toastState.message }}</div>
+  <svg width="0" height="0" style="position:absolute;pointer-events:none;" aria-hidden="true">
+    <defs>
+      <filter id="cb-deuteranopia">
+        <feColorMatrix type="matrix" values="0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0"/>
+      </filter>
+      <filter id="cb-protanopia">
+        <feColorMatrix type="matrix" values="0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0"/>
+      </filter>
+      <filter id="cb-tritanopia">
+        <feColorMatrix type="matrix" values="0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0"/>
+      </filter>
+    </defs>
+  </svg>
+
+  <div class="pp-app-shell-wrap">
+    <NavBar />
+    <AppShell v-if="AppState.user" />
+    <GuestLayout v-else />
+    <SiteFooter />
+  </div>
 </template>
 
 <script setup>
+import { AppState } from './AppState.js'
 import NavBar from './components/NavBar.vue'
-import { toastState } from './utils/Toast.js'
+import SiteFooter from './components/SiteFooter.vue'
+import AppShell from './layouts/AppShell.vue'
+import GuestLayout from './layouts/GuestLayout.vue'
 </script>
 
 <style lang="scss">
 @import './assets/scss/globals.scss';
-</style>
 
-<style lang="scss" scoped>
-.toast {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--purple-dark, #4a2e7a);
-  color: white;
-  padding: 12px 24px;
-  border-radius: 24px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
-  z-index: 300;
-  font-weight: 700;
+.pp-app-shell-wrap {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 </style>

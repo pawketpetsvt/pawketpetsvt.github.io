@@ -4,3 +4,6 @@ dist
 .env.local
 .env.*.local
 public/images
+public/music
+public/sounds
+public/music.mp3

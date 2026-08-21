@@ -8,6 +8,27 @@ class AuthService {
     return AppState.user
   }
 
+  // Must be called once, before the app mounts — Supabase processes a
+  // password-recovery link's hash immediately and fires PASSWORD_RECOVERY via
+  // this listener. Registering it late means missing the event entirely.
+  subscribeToAuthChanges(onPasswordRecovery) {
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        if (onPasswordRecovery) onPasswordRecovery()
+      } else if (event === 'SIGNED_IN' && session) {
+        AppState.user = session.user
+      } else if (event === 'SIGNED_OUT') {
+        AppState.user = null
+      }
+    })
+  }
+
+  async updatePasswordAfterRecovery(newPassword) {
+    const result = await supabase.auth.updateUser({ password: newPassword })
+    if (result.error) throw new Error(result.error.message)
+    return result.data
+  }
+
   async register(email, password, username) {
     const result = await supabase.auth.signUp({
       email,
@@ -15,6 +36,11 @@ class AuthService {
       options: { data: { username } }
     })
     if (result.error) throw new Error(result.error.message)
+    // Supabase returns success even for existing emails (security by design),
+    // but the returned user has empty identities — that's the real signal.
+    if (result.data.user && result.data.user.identities && result.data.user.identities.length === 0) {
+      throw new Error('That email address already has an account. Try logging in, or use a different email.')
+    }
     if (result.data.user) {
       const pr = await supabase.from('players').insert([{
         id: result.data.user.id, username, pawketpoints: 0
@@ -52,9 +78,8 @@ class AuthService {
   }
 
   async resetPassword(email) {
-    const result = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
-    })
+    // No redirectTo override — let Supabase use the Site URL from its own settings.
+    const result = await supabase.auth.resetPasswordForEmail(email)
     if (result.error) throw new Error(result.error.message)
     return result.data
   }

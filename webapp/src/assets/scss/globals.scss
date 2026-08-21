@@ -7,15 +7,26 @@
 // Global utility classes needed by more than one page/component in this app.
 // Anything used by only a single component lives in that component's own
 // <style lang="scss" scoped> block instead.
-
-.pets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 24px;
-  margin-top: 24px;
-}
+//
+// .pets-grid is deliberately NOT defined here — the root style.css (imported
+// in main.js) already defines it, and duplicating it here would just be two
+// competing sources of truth for the same class.
 
 .hint {
   color: var(--text-light);
   font-weight: 400;
+}
+
+// Custom paw cursor, ported from cursor-trail.js (a plain CSS cursor swap
+// despite the filename — no actual trail/particles). Expressed as static
+// CSS here instead of a JS-injected <style> tag, since Vue has no need for
+// the injection pattern the original used.
+$paw-cursor-svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E";
+
+*, *::before, *::after {
+  cursor: url("#{$paw-cursor-svg}") 4 2, auto !important;
+}
+
+a, button, [role="button"], .btn, input[type="submit"], label[for], select, .sidebar-nav-btn, .clickable {
+  cursor: url("#{$paw-cursor-svg}") 4 2, pointer !important;
 }

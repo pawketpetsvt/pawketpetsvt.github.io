@@ -54,7 +54,7 @@
         <p>{{ successMessage }}</p>
         <div class="modal-buttons">
           <button class="btn btn-outline" @click="successMessage = ''">Adopt More</button>
-          <router-link to="/my-pets" class="btn btn-primary">💖 My Pets</router-link>
+          <router-link to="/mypets" class="btn btn-primary">💖 My Pets</router-link>
         </div>
       </div>
     </div>
@@ -67,7 +67,7 @@ import { AppState } from '../AppState.js'
 import { petsService } from '../services/PetsService.js'
 import { playerService } from '../services/PlayerService.js'
 import { ownedPetsService } from '../services/OwnedPetsService.js'
-import { showToast } from '../utils/Toast.js'
+import { toastService } from '../services/ToastService.js'
 import PointsBanner from '../components/PointsBanner.vue'
 
 const loading = ref(true)
@@ -111,7 +111,7 @@ async function confirmAdopt() {
     closeModal()
     successMessage.value = finalNickname + ' has joined your collection! 💖'
   } catch (err) {
-    showToast('Error: ' + err.message)
+    toastService.error('Error: ' + err.message)
   } finally {
     adopting.value = false
   }
