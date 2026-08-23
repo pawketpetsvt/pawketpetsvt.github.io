@@ -19,6 +19,7 @@ import { streakService } from '../services/StreakService.js'
 import { melonService } from '../services/MelonService.js'
 import { tutorialService } from '../services/TutorialService.js'
 import { notificationService } from '../services/NotificationService.js'
+import { friendService } from '../services/FriendService.js'
 import { settingsService } from '../services/SettingsService.js'
 import { themeService } from '../services/ThemeService.js'
 import LeftSidebar from '../components/LeftSidebar.vue'
@@ -36,6 +37,7 @@ onMounted(async () => {
   await playerService.refreshSidebarStats(AppState.user.id)
   await tutorialService.checkStatus(AppState.user.id)
   await notificationService.refreshBadge(AppState.user.id)
+  await friendService.refreshRequestCount(AppState.user.id)
   await settingsService.load(AppState.user.id)
   themeService.loadSaved()
 

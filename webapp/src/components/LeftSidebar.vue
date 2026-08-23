@@ -3,7 +3,7 @@
     <div class="sidebar-section">
       <div class="sidebar-title">🐾 PawketPetsVT</div>
       <div class="activity-feed-box">
-        <div class="activity-feed-message">Add friends to see their activity!</div>
+        <div :key="activityIndex" class="activity-feed-message">{{ activityMessage }}</div>
       </div>
     </div>
 
@@ -23,7 +23,9 @@
               class="sidebar-nav-btn child"
               :class="{ active: AppState.tabKey === item.tab }"
               @click="go(item.tab)"
-            >{{ item.icon }} {{ item.label }}</button>
+            >{{ item.icon }} {{ item.label }}
+              <span v-if="item.tab === 'friends' && AppState.friendRequestCount > 0" class="nav-badge">{{ AppState.friendRequestCount }}</span>
+            </button>
           </div>
         </div>
 
@@ -58,15 +60,43 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { streakService } from '../services/StreakService.js'
+import { friendService } from '../services/FriendService.js'
 
 const router = useRouter()
 const openGroup = ref(null)
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 const milestoneText = computed(() => streakService.nextMilestoneText(AppState.sidebarStats.streak))
+
+// Ports the activity feed rotation, game.js:21876-21975/22059-22067 —
+// rotate through friends' recent public activity every 5s, reload from the
+// DB every 2min. Empty until the user has accepted friends with activity.
+const activities = ref([])
+const activityIndex = ref(0)
+const activityMessage = computed(() => (activities.value.length ? activities.value[activityIndex.value] : "Add friends to see their activity!"))
+let rotateTimer = null
+let refreshTimer = null
+
+async function loadActivities() {
+  activities.value = await friendService.loadFriendActivity(AppState.user.id)
+  activityIndex.value = 0
+}
+
+onMounted(async () => {
+  await loadActivities()
+  rotateTimer = setInterval(() => {
+    if (activities.value.length) activityIndex.value = (activityIndex.value + 1) % activities.value.length
+  }, 5000)
+  refreshTimer = setInterval(loadActivities, 120000)
+})
+
+onUnmounted(() => {
+  clearInterval(rotateTimer)
+  clearInterval(refreshTimer)
+})
 
 const navGroups = [
   {
@@ -120,6 +150,17 @@ function go(tab) {
 </script>
 
 <style lang="scss" scoped>
+.nav-badge {
+  display: inline-block;
+  background: var(--red, #ff4d4d);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 10px;
+  padding: 1px 6px;
+  margin-left: 4px;
+}
+
 .streak-milestone {
   font-size: 0.68rem;
   color: #ffaa00;

@@ -9,11 +9,9 @@ const stubTabs = [
   { tab: 'twitch', name: 'Twitch' },
   { tab: 'redeem', name: 'Redeem' },
   { tab: 'battle', name: 'Battle Arena' },
-  { tab: 'friends', name: 'Friends' },
   { tab: 'racing', name: 'Racing' },
   { tab: 'housing', name: 'Housing' },
   { tab: 'guild', name: 'Guild' },
-  { tab: 'leaderboard', name: 'Leaderboard' },
   { tab: 'stats', name: 'Statistics' },
   { tab: 'forum', name: 'Forum' },
   { tab: 'profile', name: 'Public Profile' },
@@ -42,6 +40,8 @@ const routes = [
   { path: '/cooking', name: 'cooking', component: () => import('./pages/CookingPage.vue'), meta: { requiresAuth: true, tabKey: 'cooking' } },
   { path: '/minigames', name: 'minigames', component: () => import('./pages/MinigamesPage.vue'), meta: { requiresAuth: true, tabKey: 'minigames' } },
   { path: '/fishing', name: 'fishing', component: () => import('./pages/FishingPage.vue'), meta: { requiresAuth: true, tabKey: 'fishing' } },
+  { path: '/friends', name: 'friends', component: () => import('./pages/FriendsPage.vue'), meta: { requiresAuth: true, tabKey: 'friends' } },
+  { path: '/leaderboard', name: 'leaderboard', component: () => import('./pages/LeaderboardPage.vue'), meta: { requiresAuth: true, tabKey: 'leaderboard' } },
 
   // Stubbed tabs — not built this phase
   ...stubTabs.map(({ tab, name }) => ({

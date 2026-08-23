@@ -10,5 +10,6 @@ export const AppState = reactive({
   tabKey: 'home',
   sidebarStats: { petCount: 0, itemCount: 0, streak: 0 },
   notifications: [],
-  unreadNotificationCount: 0
+  unreadNotificationCount: 0,
+  friendRequestCount: 0
 })
