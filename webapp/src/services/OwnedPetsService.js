@@ -2,6 +2,7 @@ import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { OwnedPet } from '../models/OwnedPet.js'
 import { playerService } from './PlayerService.js'
+import { inventoryService } from './InventoryService.js'
 import { calculateEnergyRegen, calculateHungerDecay, calculateHappinessDecay, calculateLevelUp } from '../utils/PetStatMath.js'
 
 class OwnedPetsService {
@@ -85,16 +86,41 @@ class OwnedPetsService {
     return lu
   }
 
-  async useItem(pet, invItem) {
+  // Ports useOnPet(), game.js:7734-7827. Healing items (effect='healing'/
+  // 'full_heal'/'revive') go through a direct HP update since use_item_secure
+  // only covers hunger/energy/happiness/xp, not the current_hp column.
+  // Everything else calls the secure RPC, which validates ownership,
+  // applies effects, and decrements the inventory row server-side — so the
+  // client only needs to mirror that decrement locally, not repeat it.
+  async useItemOnPet(pet, invItem) {
+    const isHealing = invItem.effect === 'healing' || invItem.effect === 'full_heal' || invItem.effect === 'revive'
+    if (isHealing) {
+      const healAmount = invItem.effectValue > 0 ? invItem.effectValue : 9999
+      const petRow = await supabase.from('user_pets').select('current_hp, max_hp').eq('id', pet.id).maybeSingle()
+      if (!petRow.data) throw new Error('Could not find pet.')
+      const { current_hp: curHP, max_hp: maxHP } = petRow.data
+      if (curHP >= maxHP) throw new Error('Pet is already at full HP!')
+      const newHP = Math.min(curHP + healAmount, maxHP)
+      const healed = newHP - curHP
+      await supabase.from('user_pets').update({ current_hp: newHP }).eq('id', pet.id)
+      await inventoryService.useItem(invItem)
+      return { healed, currentHp: newHP, maxHp: maxHP }
+    }
+
+    const { data: ef, error } = await supabase.rpc('use_item_secure', { p_pet_id: pet.id, p_inv_id: invItem.invId })
+    if (error) throw new Error(error.message)
+    if (ef && ef.error) throw new Error(ef.error)
+
     const updates = {}
-    if (invItem.h > 0) updates.hunger = Math.min(pet.hunger + invItem.h, pet.max_hunger)
-    if (invItem.e > 0) updates.energy = Math.min(pet.energy + invItem.e, pet.max_energy)
-    if (invItem.hap > 0) updates.happiness = Math.min(pet.happiness + invItem.hap, pet.max_happiness)
-    if (invItem.xp > 0) updates.xp = pet.xp + invItem.xp
-    if (!Object.keys(updates).length) throw new Error('This item has no effects yet.')
-    const res = await supabase.from('user_pets').update(updates).eq('id', pet.id)
-    if (res.error) throw new Error(res.error.message)
+    if (ef.hunger !== undefined) updates.hunger = ef.hunger
+    if (ef.energy !== undefined) updates.energy = ef.energy
+    if (ef.happiness !== undefined) updates.happiness = ef.happiness
+    if (ef.xp !== undefined) updates.xp = ef.xp
+    if (ef.leveled_up && ef.new_level) updates.level = ef.new_level
     Object.assign(pet, updates)
+    inventoryService.decrementLocal(invItem)
+
+    return { reactionType: ef.reaction_type, leveledUp: !!ef.leveled_up, newLevel: ef.new_level }
   }
 }
 

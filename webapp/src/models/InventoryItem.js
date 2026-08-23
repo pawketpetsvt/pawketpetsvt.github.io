@@ -8,6 +8,11 @@ export class InventoryItem {
     this.e = data.e || 0
     this.hap = data.hap || 0
     this.xp = data.xp || 0
+    this.itemType = data.itemType || ''
+    this.imageUrl = data.imageUrl || ''
+    this.foodCategory = data.foodCategory || ''
+    this.effect = data.effect || ''
+    this.effectValue = data.effectValue || 0
   }
 
   get effectText() {
@@ -16,6 +21,7 @@ export class InventoryItem {
     if (this.e > 0) parts.push('+' + this.e + ' Energy')
     if (this.hap > 0) parts.push('+' + this.hap + ' Happiness')
     if (this.xp > 0) parts.push('+' + this.xp + ' XP')
+    if (this.effect === 'healing' && this.effectValue > 0) parts.push('+' + this.effectValue + ' HP')
     return parts.join('  ')
   }
 }

@@ -15,7 +15,7 @@
       <router-link to="/adopt" class="btn btn-primary btn-lg">🐣 Adopt a Pet</router-link>
     </div>
     <div v-else class="pets-grid">
-      <PetCard v-for="pet in AppState.ownedPets" :key="pet.id" :pet="pet" :inventory="AppState.inventory" />
+      <PetCard v-for="pet in AppState.ownedPets" :key="pet.id" :pet="pet" :inventory="AppState.inventory" :discoveries="discoveries" />
     </div>
   </div>
 </template>
@@ -26,10 +26,12 @@ import { AppState } from '../AppState.js'
 import { playerService } from '../services/PlayerService.js'
 import { ownedPetsService } from '../services/OwnedPetsService.js'
 import { inventoryService } from '../services/InventoryService.js'
+import { journalService } from '../services/JournalService.js'
 import PointsBanner from '../components/PointsBanner.vue'
 import PetCard from '../components/PetCard.vue'
 
 const loading = ref(true)
+const discoveries = ref({})
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 
@@ -39,6 +41,7 @@ onMounted(async () => {
   await playerService.getPlayer(AppState.user.id)
   await inventoryService.getInventory(AppState.user.id)
   await ownedPetsService.getMyPets(AppState.user.id)
+  discoveries.value = await journalService.loadDiscoveries(AppState.user.id)
   loading.value = false
 })
 </script>

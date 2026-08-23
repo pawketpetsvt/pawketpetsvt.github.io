@@ -59,13 +59,15 @@
 <script setup>
 import { ref, computed } from 'vue'
 import StatBar from './StatBar.vue'
+import { AppState } from '../AppState.js'
 import { ownedPetsService } from '../services/OwnedPetsService.js'
-import { inventoryService } from '../services/InventoryService.js'
+import { journalService } from '../services/JournalService.js'
 import { toastService } from '../services/ToastService.js'
 
 const props = defineProps({
   pet: { type: Object, required: true },
-  inventory: { type: Array, required: true }
+  inventory: { type: Array, required: true },
+  discoveries: { type: Object, default: () => ({}) }
 })
 
 const imgError = ref(false)
@@ -116,10 +118,21 @@ async function handleUseItem() {
   if (!item) return
   usingItem.value = true
   try {
-    await ownedPetsService.useItem(props.pet, item)
-    await inventoryService.useItem(item)
-    flash('✨ ' + item.name + ': ' + item.effectText, '#b06aff')
-    toastService.success('Used ' + item.name + ' on ' + props.pet.nickname + '!')
+    const result = await ownedPetsService.useItemOnPet(props.pet, item)
+    if (result.healed) {
+      flash('💚 Healed ' + result.healed + ' HP!', '#5dde7a')
+      toastService.success('Healed ' + props.pet.nickname + ' with ' + item.name + '!')
+    } else {
+      flash('✨ ' + item.name + ': ' + item.effectText, '#b06aff')
+      toastService.success(
+        result.leveledUp
+          ? '🎉 Used ' + item.name + ' — ' + props.pet.nickname + ' leveled up to ' + result.newLevel + '!'
+          : 'Used ' + item.name + ' on ' + props.pet.nickname + '!'
+      )
+      if (result.reactionType && result.reactionType !== 'normal') {
+        await journalService.logDiscovery(AppState.user.id, props.pet.species.name, props.discoveries, result.reactionType, item.name)
+      }
+    }
     selectedInvId.value = ''
   } catch (err) {
     toastService.error('Error: ' + err.message)

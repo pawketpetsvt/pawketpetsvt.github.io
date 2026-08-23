@@ -6,9 +6,6 @@ const ComingSoonPage = () => import('./pages/ComingSoonPage.vue')
 // Tabs not yet migrated get a ComingSoonPage stub with a display name —
 // same route shape as the real ones so later phases just swap the component.
 const stubTabs = [
-  { tab: 'shop', name: 'Shop' },
-  { tab: 'minigames', name: 'Minigames' },
-  { tab: 'fishing', name: 'Fishing' },
   { tab: 'twitch', name: 'Twitch' },
   { tab: 'redeem', name: 'Redeem' },
   { tab: 'battle', name: 'Battle Arena' },
@@ -20,8 +17,7 @@ const stubTabs = [
   { tab: 'stats', name: 'Statistics' },
   { tab: 'forum', name: 'Forum' },
   { tab: 'profile', name: 'Public Profile' },
-  { tab: 'myprofile', name: 'My Profile' },
-  { tab: 'cooking', name: 'Cooking' }
+  { tab: 'myprofile', name: 'My Profile' }
 ]
 
 const routes = [
@@ -42,6 +38,10 @@ const routes = [
   { path: '/privacy', name: 'privacy', component: () => import('./pages/PrivacyPage.vue'), meta: { requiresAuth: true, tabKey: 'privacy' } },
   { path: '/settings', name: 'settings', component: () => import('./pages/SettingsPage.vue'), meta: { requiresAuth: true, tabKey: 'settings' } },
   { path: '/team', name: 'team', component: () => import('./pages/TeamPage.vue'), meta: { requiresAuth: true, tabKey: 'team' } },
+  { path: '/shop', name: 'shop', component: () => import('./pages/ShopPage.vue'), meta: { requiresAuth: true, tabKey: 'shop' } },
+  { path: '/cooking', name: 'cooking', component: () => import('./pages/CookingPage.vue'), meta: { requiresAuth: true, tabKey: 'cooking' } },
+  { path: '/minigames', name: 'minigames', component: () => import('./pages/MinigamesPage.vue'), meta: { requiresAuth: true, tabKey: 'minigames' } },
+  { path: '/fishing', name: 'fishing', component: () => import('./pages/FishingPage.vue'), meta: { requiresAuth: true, tabKey: 'fishing' } },
 
   // Stubbed tabs — not built this phase
   ...stubTabs.map(({ tab, name }) => ({
