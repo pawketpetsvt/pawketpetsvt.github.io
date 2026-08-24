@@ -37,7 +37,6 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { notificationService } from '../services/NotificationService.js'
-import { toastService } from '../services/ToastService.js'
 import { getTimeAgo } from '../utils/timeAgo.js'
 
 const router = useRouter()
@@ -53,16 +52,13 @@ function markAllRead() {
   notificationService.markAllRead(AppState.user.id)
 }
 
-// Ports handleNotificationClick(), game.js:22201-22221. Profile links have
-// nowhere to go yet (Profile/MyProfile land in Phase 6) — an honest "not
-// available yet" toast rather than a dead navigation, same pattern used for
-// the Tutorial "Replay" button in Phase 2.
+// Ports handleNotificationClick(), game.js:22201-22221.
 async function handleClick(n) {
   await notificationService.markRead(n.id)
   const target = notificationService.resolveLink(n.link)
   open.value = false
   if (target && target.kind === 'tab') router.push('/' + target.value)
-  else if (target && target.kind === 'profile') toastService.info('Profile pages are coming soon!')
+  else if (target && target.kind === 'profile') router.push('/profile/' + encodeURIComponent(target.value))
 }
 
 // Close on any click outside the bell/dropdown. Both the bell and the

@@ -18,7 +18,7 @@
     <template v-else>
       <div v-if="!entries.length" class="empty-state"><p>No data yet! Be the first! 🌟</p></div>
       <div v-else class="lb-list">
-        <div v-for="(p, i) in entries" :key="p.userId || p.username" class="leaderboard-item" @click="viewProfileStub">
+        <div v-for="(p, i) in entries" :key="p.userId || p.username" class="leaderboard-item" @click="viewProfile(p.username)">
           <div class="leaderboard-rank" :class="rankClass(i)">{{ rankLabel(i) }}</div>
           <div class="leaderboard-avatar">{{ p.username.charAt(0).toUpperCase() }}</div>
           <div class="leaderboard-info">
@@ -43,12 +43,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { AppState } from '../AppState.js'
+import { useRouter } from 'vue-router'
 import { leaderboardService } from '../services/LeaderboardService.js'
-import { toastService } from '../services/ToastService.js'
 
-// Profile pages are Phase 6 — an honest stub rather than a dead click.
-function viewProfileStub() {
-  toastService.info('Profile pages are coming soon!')
+const router = useRouter()
+
+function viewProfile(username) {
+  router.push('/profile/' + encodeURIComponent(username))
 }
 
 const activeTab = ref('points')

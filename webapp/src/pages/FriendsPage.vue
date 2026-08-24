@@ -6,7 +6,7 @@
       <p>Find players, manage requests, and see who's online. 🌐</p>
     </div>
 
-    <FriendSearchBar @view-profile="viewProfileStub" />
+    <FriendSearchBar @view-profile="viewProfile" />
 
     <div class="friends-tabs">
       <button class="friends-tab" :class="{ active: activeTab === 'list' }" @click="switchTab('list')">
@@ -34,7 +34,7 @@
           :key="f.friendshipId"
           :profile="f"
           variant="friend"
-          @view-profile="viewProfileStub"
+          @view-profile="viewProfile"
           @visit-room="visitRoomStub"
           @remove="removeFriend"
         />
@@ -68,11 +68,14 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { friendService } from '../services/FriendService.js'
 import { toastService } from '../services/ToastService.js'
 import FriendSearchBar from '../components/friends/FriendSearchBar.vue'
 import FriendCard from '../components/friends/FriendCard.vue'
+
+const router = useRouter()
 
 const loading = ref(true)
 const activeTab = ref('list')
@@ -81,12 +84,12 @@ const requests = ref([])
 const blocked = ref([])
 const loadedTabs = new Set(['list'])
 
-// Profile pages and player rooms are later phases (Phase 6 / Housing) — an
-// honest "not available yet" stub rather than a dead link, same pattern used
-// for the Tutorial "Replay" button in Phase 2.
-function viewProfileStub() {
-  toastService.info('Profile pages are coming soon!')
+function viewProfile(username) {
+  router.push('/profile/' + encodeURIComponent(username))
 }
+
+// Player rooms belong to Housing, which isn't migrated yet — an honest
+// "not available yet" stub rather than a dead link.
 function visitRoomStub() {
   toastService.info('Visiting player rooms is coming soon!')
 }

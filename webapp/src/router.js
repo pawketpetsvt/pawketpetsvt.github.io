@@ -11,11 +11,7 @@ const stubTabs = [
   { tab: 'battle', name: 'Battle Arena' },
   { tab: 'racing', name: 'Racing' },
   { tab: 'housing', name: 'Housing' },
-  { tab: 'guild', name: 'Guild' },
-  { tab: 'stats', name: 'Statistics' },
-  { tab: 'forum', name: 'Forum' },
-  { tab: 'profile', name: 'Public Profile' },
-  { tab: 'myprofile', name: 'My Profile' }
+  { tab: 'guild', name: 'Guild' }
 ]
 
 const routes = [
@@ -42,6 +38,10 @@ const routes = [
   { path: '/fishing', name: 'fishing', component: () => import('./pages/FishingPage.vue'), meta: { requiresAuth: true, tabKey: 'fishing' } },
   { path: '/friends', name: 'friends', component: () => import('./pages/FriendsPage.vue'), meta: { requiresAuth: true, tabKey: 'friends' } },
   { path: '/leaderboard', name: 'leaderboard', component: () => import('./pages/LeaderboardPage.vue'), meta: { requiresAuth: true, tabKey: 'leaderboard' } },
+  { path: '/forum', name: 'forum', component: () => import('./pages/ForumPage.vue'), meta: { requiresAuth: true, tabKey: 'forum' } },
+  { path: '/stats', name: 'stats', component: () => import('./pages/StatsPage.vue'), meta: { requiresAuth: true, tabKey: 'stats' } },
+  { path: '/myprofile', name: 'myprofile', component: () => import('./pages/MyProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'myprofile' } },
+  { path: '/profile/:username', name: 'profile', component: () => import('./pages/ProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'profile' } },
 
   // Stubbed tabs — not built this phase
   ...stubTabs.map(({ tab, name }) => ({

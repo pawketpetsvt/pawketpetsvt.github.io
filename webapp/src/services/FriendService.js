@@ -177,6 +177,55 @@ class FriendService {
     if (error) throw error
   }
 
+  // Ports the state-resolution half of updateProfileButtons(),
+  // game.js:20285-20338 — returns which relationship exists so the Profile
+  // page can decide which action buttons to render.
+  async getRelationship(otherUserId) {
+    const myId = AppState.user.id
+    if (otherUserId === myId) return { kind: 'self' }
+
+    const { data: block } = await supabase
+      .from('blocked_users')
+      .select('id')
+      .eq('blocker_id', myId)
+      .eq('blocked_user_id', otherUserId)
+      .maybeSingle()
+    if (block) return { kind: 'blocked', blockId: block.id }
+
+    const { data: friendship } = await supabase
+      .from('friendships')
+      .select('id, status')
+      .or('and(requester_id.eq.' + myId + ',addressee_id.eq.' + otherUserId + '),and(requester_id.eq.' + otherUserId + ',addressee_id.eq.' + myId + ')')
+      .maybeSingle()
+    if (friendship) return { kind: friendship.status, friendshipId: friendship.id }
+
+    return { kind: 'none' }
+  }
+
+  // Ports blockUser(), game.js:20177-20209 — removes any existing friendship
+  // in either direction first, then records the block.
+  async blockUser(otherUserId) {
+    const myId = AppState.user.id
+    await supabase
+      .from('friendships')
+      .delete()
+      .or('and(requester_id.eq.' + myId + ',addressee_id.eq.' + otherUserId + '),and(requester_id.eq.' + otherUserId + ',addressee_id.eq.' + myId + ')')
+
+    const { error } = await supabase.from('blocked_users').insert([{ blocker_id: myId, blocked_user_id: otherUserId }])
+    if (error) throw error
+  }
+
+  // Ports unblockUser()'s profile-page variant, game.js:20212-20231 — keyed
+  // by the blocked user rather than a block row id.
+  async unblockByUserId(otherUserId) {
+    const { error } = await supabase
+      .from('blocked_users')
+      .delete()
+      .eq('blocker_id', AppState.user.id)
+      .eq('blocked_user_id', otherUserId)
+    if (error) throw error
+  }
+
   // Ports loadFriendActivities() + formatActivityMessage(), game.js:21900-22056.
   // Returns pre-formatted message strings — LeftSidebar just rotates through them.
   async loadFriendActivity(userId) {

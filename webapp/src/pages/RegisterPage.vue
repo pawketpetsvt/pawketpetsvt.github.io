@@ -10,27 +10,40 @@
       <p class="form-subtitle">Already have an account? <router-link to="/login">Login here!</router-link></p>
       <div class="alert alert-error" :class="{ show: error }">{{ error }}</div>
       <div class="alert alert-success" :class="{ show: success }">
-        <template v-if="success">Account created! 🎉<br /><small>Now <router-link to="/login">login here</router-link> to start playing!</small></template>
+        <template v-if="success">Account created! 🎉<br /><small>Now <router-link to="/login">login here</router-link>
+            to start playing!</small></template>
       </div>
-      <div class="form-group"><label>Username</label><input type="text" v-model="username" placeholder="CoolPetTrainer123" maxlength="30" @keydown.enter="handleRegister" /></div>
-      <div class="form-group"><label>Email Address</label><input type="email" v-model="email" placeholder="your@email.com" autocomplete="email" @keydown.enter="handleRegister" /></div>
-      <div class="form-group"><label>Password</label><input type="password" v-model="password" placeholder="At least 6 characters" autocomplete="new-password" @keydown.enter="handleRegister" /></div>
-      <div class="form-group"><label>Confirm Password</label><input type="password" v-model="confirmPassword" placeholder="••••••••" @keydown.enter="handleRegister" /></div>
+      <div class="form-group"><label>Username</label><input type="text" v-model="username"
+          placeholder="CoolPetTrainer123" minlength="2" maxlength="30" @keydown.enter="handleRegister" /></div>
+      <div class="form-group"><label>Email Address</label><input type="email" v-model="email"
+          placeholder="your@email.com" autocomplete="email" @keydown.enter="handleRegister" /></div>
+      <div class="form-group"><label>Password</label><input type="password" v-model="password"
+          placeholder="At least 6 characters" autocomplete="new-password" @keydown.enter="handleRegister" /></div>
+      <div class="form-group"><label>Confirm Password</label><input type="password" v-model="confirmPassword"
+          placeholder="••••••••" @keydown.enter="handleRegister" /></div>
 
       <div class="form-group">
         <label>Date of Birth <span style="color:#ff9f43;font-size:0.8rem;">* Required</span></label>
-        <input type="date" v-model="dob" :max="todayStr" style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:1rem;background:var(--card-bg);color:var(--text);" />
-        <div style="font-size:0.75rem;color:var(--text-light);margin-top:4px;">You must be 13 or older to register. By providing your date of birth you confirm you meet this requirement.</div>
+        <input type="date" v-model="dob" :max="todayStr"
+          style="width:100%;padding:10px 12px;border:2px solid var(--border);border-radius:10px;font-size:1rem;background:var(--card-bg);color:var(--text);" />
+        <div style="font-size:0.75rem;color:var(--text-light);margin-top:4px;">You must be 13 or older to register. By
+          providing your date of birth you confirm you meet this requirement.</div>
       </div>
 
-      <div style="margin:12px 0;padding:12px;background:rgba(153,102,255,0.08);border-radius:10px;border:1px solid rgba(153,102,255,0.2);">
+      <div
+        style="margin:12px 0;padding:12px;background:rgba(153,102,255,0.08);border-radius:10px;border:1px solid rgba(153,102,255,0.2);">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.88rem;line-height:1.5;">
-          <input type="checkbox" v-model="termsAccepted" style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:var(--purple);" />
-          <span>I have read and agree to the Privacy Policy. I confirm that I am 13 years of age or older, or that I have parental consent to create this account. I understand this is a beta and game data may be reset before full launch.</span>
+          <input type="checkbox" v-model="termsAccepted"
+            style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:var(--purple);" />
+          <span>I have read and agree to the Privacy Policy. I confirm that I am 13 years of age or older, or that I
+            have
+            parental consent to create this account. I understand this is a beta and game data may be reset before full
+            launch.</span>
         </label>
       </div>
 
-      <button class="btn btn-primary btn-lg form-submit" :disabled="submitting" @click="handleRegister">{{ btnText }}</button>
+      <button class="btn btn-primary btn-lg form-submit" :disabled="submitting" @click="handleRegister">{{ btnText
+        }}</button>
       <div class="form-footer">Already have an account? <router-link to="/login">Login!</router-link></div>
     </div>
   </div>
@@ -61,8 +74,8 @@ async function handleRegister() {
     error.value = 'Please fill in all fields!'
     return
   }
-  if (u.length < 3) {
-    error.value = 'Username must be at least 3 characters!'
+  if (u.length < 2) {
+    error.value = 'Username must be at least 2 characters!'
     return
   }
   if (password.value.length < 6) {
