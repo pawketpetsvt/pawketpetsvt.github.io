@@ -8,8 +8,8 @@
 
     <div v-if="loading" class="spinner"></div>
 
-    <div v-else class="fishing-page-inner">
-      <div v-if="shoalState.active" class="shoal-banner">
+    <div v-else class="fishing-page-inner mx-auto">
+      <div v-if="shoalState.active" class="shoal-banner text-center px-3 py-2 mb-2 rounded-3">
         🐠 Rare Shoal! (+50% rare chance for {{ shoalState.castsLeft }} more cast{{ shoalState.castsLeft === 1 ? '' : 's' }})
       </div>
 
@@ -19,37 +19,43 @@
         <div class="game-title">🎣 Fishing</div>
         <div class="game-desc">Cast your line at different spots. Catch rare fish, build your collection, and upgrade your rod!</div>
 
-        <div class="game-area fishing-game-area">
+        <div class="game-area fishing-game-area mx-auto">
           <div v-if="onCooldown" class="cooldown-msg">Already fished today! Come back tomorrow. 🎣</div>
 
           <template v-else>
-            <div class="shop-row">
-              <RodShop :rod-level="rodLevel" @upgraded="onRodUpgraded" />
-              <AutoFisherWidget :level="autoFisherLevel" @purchased="onAutoFisherPurchased" />
-              <div class="session-stats">
-                <div class="session-stats-title">📊 Today's Session</div>
-                <div>Casts left: <strong>{{ castsLeft }}</strong></div>
-                <div>Earned: <strong>{{ sessionTotal }}</strong> PP</div>
-                <div class="session-stats-sub">Total: {{ collected }}/{{ totalFish }} found</div>
+            <div class="row row-cols-1 row-cols-md-2 g-2 mb-3 align-items-start">
+              <div class="col"><RodShop :rod-level="rodLevel" @upgraded="onRodUpgraded" /></div>
+              <div class="col"><AutoFisherWidget :level="autoFisherLevel" @purchased="onAutoFisherPurchased" /></div>
+              <div class="col">
+                <div class="session-stats h-100 px-3 py-2 rounded-2">
+                  <div class="session-stats-title">📊 Today's Session</div>
+                  <div>Casts left: <strong>{{ castsLeft }}</strong></div>
+                  <div>Earned: <strong>{{ sessionTotal }}</strong> PP</div>
+                  <div class="session-stats-sub">Total: {{ collected }}/{{ totalFish }} found</div>
+                </div>
               </div>
             </div>
 
-            <div class="selector-section">
+            <div class="mb-3">
               <div class="selector-label">📍 Choose Fishing Spot</div>
-              <div class="spot-grid">
-                <button v-for="(data, key) in FISH_SPOTS" :key="key" class="fishing-spot-btn" :class="{ active: spot === key }" :title="data.description" @click="selectSpot(key)">
-                  {{ data.name.split(' ')[0] }}<br /><span>{{ data.name.split(' ')[1] }}</span><br /><span class="spot-tier">{{ SPOT_TIERS[key] }}</span>
-                </button>
+              <div class="row row-cols-4 g-1 spot-grid">
+                <div v-for="(data, key) in FISH_SPOTS" :key="key" class="col">
+                  <button class="fishing-spot-btn w-100 h-100" :class="{ active: spot === key }" :title="data.description" @click="selectSpot(key)">
+                    {{ data.name.split(' ')[0] }}<br /><span>{{ data.name.split(' ')[1] }}</span><br /><span class="spot-tier">{{ SPOT_TIERS[key] }}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-            <div class="selector-section">
+            <div class="mb-3">
               <div class="selector-label">🪱 Choose Bait</div>
-              <div class="spot-grid">
-                <button v-for="(data, key) in FISH_BAIT" :key="key" class="fishing-bait-btn" :class="{ active: bait === key }" :title="data.description" @click="bait = key">
-                  {{ data.name.split(' ')[0] }}<br /><span>{{ data.name.split(' ').slice(1).join(' ') }}</span><br />
-                  <span class="bait-price" :class="{ free: data.cost === 0 }">{{ data.cost === 0 ? 'Free' : data.cost + ' PP' }}</span>
-                </button>
+              <div class="row row-cols-4 g-1 spot-grid">
+                <div v-for="(data, key) in FISH_BAIT" :key="key" class="col">
+                  <button class="fishing-bait-btn w-100 h-100" :class="{ active: bait === key }" :title="data.description" @click="bait = key">
+                    {{ data.name.split(' ')[0] }}<br /><span>{{ data.name.split(' ').slice(1).join(' ') }}</span><br />
+                    <span class="bait-price" :class="{ free: data.cost === 0 }">{{ data.cost === 0 ? 'Free' : data.cost + ' PP' }}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -209,45 +215,29 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; the max-widths (which
+// utilities can't express) and the visual treatments stay here.
+// `.fishing-card`'s old `grid-column: 1 / -1` was dropped: its parent has not
+// been a CSS grid since this page was built, so the declaration was inert.
 .fishing-page-inner {
   max-width: 720px;
-  margin: 0 auto;
-}
-
-.fishing-card {
-  grid-column: 1 / -1;
 }
 
 .fishing-game-area {
   max-width: 680px;
-  margin: 0 auto;
 }
 
 .shoal-banner {
   background: linear-gradient(135deg, rgba(77, 171, 247, 0.15), rgba(93, 222, 122, 0.12));
   border: 1px solid rgba(77, 171, 247, 0.4);
-  border-radius: 12px;
-  padding: 8px 14px;
-  margin-bottom: 10px;
   font-weight: 700;
   font-size: 0.82rem;
   color: #2980b9;
-  text-align: center;
-}
-
-.shop-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 12px;
-  align-items: start;
 }
 
 .session-stats {
   background: rgba(77, 171, 247, 0.08);
   border: 1px solid rgba(77, 171, 247, 0.2);
-  border-radius: 10px;
-  padding: 10px 12px;
   font-size: 0.78rem;
 }
 
@@ -262,10 +252,6 @@ onMounted(async () => {
   color: var(--text-light);
 }
 
-.selector-section {
-  margin-bottom: 12px;
-}
-
 .selector-label {
   font-size: 0.75rem;
   font-weight: 700;
@@ -273,15 +259,11 @@ onMounted(async () => {
   margin-bottom: 6px;
 }
 
-.spot-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-
-  span {
-    font-size: 0.6rem;
-    opacity: 0.7;
-  }
+// The 4-across track is now `row row-cols-4 g-1`; this class is retained
+// purely to scope the small-label typography inside the buttons.
+.spot-grid span {
+  font-size: 0.6rem;
+  opacity: 0.7;
 }
 
 .spot-tier {

@@ -1,11 +1,29 @@
 <template>
-  <div class="app-container">
-    <LeftSidebar />
-    <div class="center-content">
-      <router-view />
+  <!-- Phase 6.5: the legacy `.app-container` CSS grid (240px/260px 1fr …,
+       defined six competing times across style.css) is replaced by Bootstrap's
+       container/row/col system. `container-xxl` reproduces the legacy geometry
+       exactly — fluid below 1400px, capped and centered above — because both
+       the container max-width and Bootstrap's xxl breakpoint are 1400px. -->
+  <div class="container-xxl p-gap">
+    <div class="row g-3 align-items-start">
+      <aside class="col-auto d-none d-lg-block pp-sidebar-col">
+        <LeftSidebar />
+      </aside>
+
+      <!-- `center-content` is retained deliberately: its remaining style.css
+           rules are non-grid (min-height, position) and still wanted. It gets
+           folded into a scoped block when the shell components themselves are
+           converted later in this phase. -->
+      <main class="col center-content">
+        <router-view />
+      </main>
+
+      <aside class="col-auto d-none d-lg-block pp-sidebar-col">
+        <RightSidebar />
+      </aside>
     </div>
-    <RightSidebar />
   </div>
+
   <ToastHost />
   <CenteredModal />
   <MelonPopup />
@@ -49,3 +67,12 @@ onMounted(async () => {
   melonService.checkMilestones()
 })
 </script>
+
+<style lang="scss" scoped>
+// The only piece Bootstrap's grid can't express directly: the sidebars are a
+// fixed 260px rather than a fraction of the row. `col-auto` sizes to content,
+// so the width is set here and the center column takes the remainder via `col`.
+.pp-sidebar-col {
+  width: 260px;
+}
+</style>

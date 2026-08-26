@@ -1,5 +1,8 @@
 <template>
-  <div class="left-sidebar">
+  <!-- `left-sidebar` is kept as a styling hook (night-mode and the remaining
+       decorative rules still target it); only its layout declarations moved
+       to Bootstrap utilities. -->
+  <div class="left-sidebar d-flex flex-column gap-3 align-self-start">
     <div class="sidebar-section">
       <div class="sidebar-title">🐾 PawketPetsVT</div>
       <div class="activity-feed-box">

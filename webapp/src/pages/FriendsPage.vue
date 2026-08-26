@@ -8,15 +8,16 @@
 
     <FriendSearchBar @view-profile="viewProfile" />
 
-    <div class="friends-tabs">
-      <button class="friends-tab" :class="{ active: activeTab === 'list' }" @click="switchTab('list')">
-        👥 Friends <span v-if="friends.length" class="tab-badge">{{ friends.length }}</span>
-      </button>
-      <button class="friends-tab" :class="{ active: activeTab === 'requests' }" @click="switchTab('requests')">
-        📬 Requests <span v-if="requests.length" class="tab-badge">{{ requests.length }}</span>
-      </button>
-      <button class="friends-tab" :class="{ active: activeTab === 'blocked' }" @click="switchTab('blocked')">
-        🚫 Blocked <span v-if="blocked.length" class="tab-badge">{{ blocked.length }}</span>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <button
+        v-for="t in TABS"
+        :key="t.key"
+        class="friends-tab d-flex align-items-center gap-2 px-3 py-2 rounded-pill"
+        :class="{ active: activeTab === t.key }"
+        @click="switchTab(t.key)"
+      >
+        {{ t.label }}
+        <span v-if="t.count.value.length" class="tab-badge px-2 rounded-pill">{{ t.count.value.length }}</span>
       </button>
     </div>
 
@@ -83,6 +84,13 @@ const friends = ref([])
 const requests = ref([])
 const blocked = ref([])
 const loadedTabs = new Set(['list'])
+
+// Refs are passed through so the badge counts stay reactive inside v-for.
+const TABS = [
+  { key: 'list', label: '👥 Friends', count: friends },
+  { key: 'requests', label: '📬 Requests', count: requests },
+  { key: 'blocked', label: '🚫 Blocked', count: blocked }
+]
 
 function viewProfile(username) {
   router.push('/profile/' + encodeURIComponent(username))
@@ -152,25 +160,14 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-.friends-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .friends-tab {
-  padding: 8px 16px;
-  border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--text-light);
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 
   &.active {
     background: var(--purple);
@@ -181,8 +178,6 @@ onMounted(async () => {
 
 .tab-badge {
   background: rgba(0, 0, 0, 0.15);
-  border-radius: 10px;
-  padding: 1px 7px;
   font-size: 0.7rem;
 }
 

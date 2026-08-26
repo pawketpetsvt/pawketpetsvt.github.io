@@ -1,33 +1,33 @@
 <template>
-  <div class="cos-panel">
-    <h2 class="cos-title">✨ Profile Cosmetics</h2>
-    <p class="cos-desc">Customize how your profile looks to everyone. Equip up to {{ MAX_EQUIPPED_BADGES }} badge pips.</p>
+  <div class="mt-4">
+    <h2 class="cos-title mb-1">✨ Profile Cosmetics</h2>
+    <p class="cos-desc mb-3">Customize how your profile looks to everyone. Equip up to {{ MAX_EQUIPPED_BADGES }} badge pips.</p>
 
-    <div class="cos-tabs">
+    <div class="d-flex flex-wrap gap-2 mb-3">
       <button
         v-for="t in TABS"
         :key="t.key"
-        class="cos-tab"
+        class="cos-tab px-3 py-1 rounded-pill"
         :class="{ active: tab === t.key }"
         @click="tab = t.key"
       >{{ t.label }}</button>
     </div>
 
-    <div class="cos-grid">
-      <button
-        v-for="item in items"
-        :key="item.id"
-        class="cos-card"
-        :class="{ equipped: isEquipped(item.id), locked: !isUnlocked(item) }"
-        :title="isUnlocked(item) ? item.name : '🔒 ' + item.unlockHint"
-        @click="pick(item)"
-      >
-        <span v-if="tab === 'backgrounds'" class="cos-swatch" :style="{ background: item.gradient }"></span>
-        <span v-else class="cos-emoji" :style="tab === 'badges' ? { filter: 'drop-shadow(0 0 4px ' + item.color + ')' } : null">{{ item.emoji }}</span>
-        <span class="cos-name">{{ isUnlocked(item) ? item.name : '???' }}</span>
-        <span v-if="!isUnlocked(item)" class="cos-hint">🔒 {{ item.unlockHint }}</span>
-        <span v-else-if="isEquipped(item.id)" class="cos-equipped-tag">Equipped</span>
-      </button>
+    <div class="row row-cols-2 row-cols-md-4 row-cols-lg-5 g-2">
+      <div v-for="item in items" :key="item.id" class="col">
+        <button
+          class="cos-card d-flex flex-column align-items-center gap-1 w-100 h-100 text-center px-2 py-3 rounded-3"
+          :class="{ equipped: isEquipped(item.id), locked: !isUnlocked(item) }"
+          :title="isUnlocked(item) ? item.name : '🔒 ' + item.unlockHint"
+          @click="pick(item)"
+        >
+          <span v-if="tab === 'backgrounds'" class="cos-swatch w-100 rounded-2" :style="{ background: item.gradient }"></span>
+          <span v-else class="cos-emoji" :style="tab === 'badges' ? { filter: 'drop-shadow(0 0 4px ' + item.color + ')' } : null">{{ item.emoji }}</span>
+          <span class="cos-name">{{ isUnlocked(item) ? item.name : '???' }}</span>
+          <span v-if="!isUnlocked(item)" class="cos-hint">🔒 {{ item.unlockHint }}</span>
+          <span v-else-if="isEquipped(item.id)" class="cos-equipped-tag">Equipped</span>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -73,32 +73,18 @@ function pick(item) {
 </script>
 
 <style lang="scss" scoped>
-.cos-panel {
-  margin-top: 24px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .cos-title {
   font-size: 1.15rem;
   color: var(--purple-dark);
-  margin-bottom: 4px;
 }
 
 .cos-desc {
   font-size: 0.82rem;
   color: var(--text-light);
-  margin-bottom: 12px;
-}
-
-.cos-tabs {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
 }
 
 .cos-tab {
-  padding: 7px 14px;
-  border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
   font-size: 0.8rem;
@@ -113,23 +99,10 @@ function pick(item) {
   }
 }
 
-.cos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 10px;
-}
-
 .cos-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 12px 8px;
   border: 2px solid var(--border);
-  border-radius: 12px;
   background: var(--card-bg, #fff);
   cursor: pointer;
-  text-align: center;
 
   &.equipped {
     border-color: var(--purple);
@@ -143,9 +116,7 @@ function pick(item) {
 }
 
 .cos-swatch {
-  width: 100%;
   height: 38px;
-  border-radius: 8px;
 }
 
 .cos-emoji {

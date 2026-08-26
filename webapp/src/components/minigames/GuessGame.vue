@@ -84,6 +84,27 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// The field already has `text-align: center` from the root style.css; the
+// value only *looked* off-centre because the number-input spinner arrows
+// occupy the right edge of the control, so the usable text box is narrower
+// than the visible box. Removing the spinners centres both the value and the
+// placeholder, and is what was wanted visually anyway.
+//
+// The two rules are kept separate deliberately: an unrecognised pseudo-element
+// invalidates an entire selector list, so pairing the -webkit- spin buttons
+// with a -moz- selector would silently break the rule in both engines.
+.guess-input {
+  appearance: textfield; // Firefox + spec-compliant engines
+  -moz-appearance: textfield;
+
+  &::-webkit-outer-spin-button,
+  &::-webkit-inner-spin-button {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
 .guess-hotcold {
   font-weight: 700;
   font-size: 0.85rem;

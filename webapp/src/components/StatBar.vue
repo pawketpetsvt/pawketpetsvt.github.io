@@ -1,10 +1,10 @@
 <template>
-  <div class="stat-row">
-    <span class="stat-label">{{ label }}</span>
-    <div class="stat-bar-wrap">
-      <div class="stat-bar-fill" :class="stat" :style="{ width: pct + '%' }"></div>
+  <div class="sb-row">
+    <span class="sb-label">{{ label }}</span>
+    <div class="sb-track">
+      <div class="sb-fill" :class="stat" :style="{ width: pct + '%' }"></div>
     </div>
-    <span class="stat-value">{{ value }}/{{ max }}</span>
+    <span class="sb-value">{{ value }}/{{ max }}</span>
   </div>
 </template>
 
@@ -22,31 +22,44 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
 </script>
 
 <style lang="scss" scoped>
-.stat-row {
+// These classes are deliberately component-owned (`sb-*`) rather than the
+// shared `.stat-row` / `.stat-bar-wrap` names this component used to carry.
+// Those names collide with the sidebar's own stat rows in the root style.css,
+// which layers several competing `!important` rules over them — including a
+// top-level `.stat-bar-wrap, .xp-bar-wrap { width: auto !important }` that can
+// collapse the track to zero width. The values below reproduce the appearance
+// those global rules were producing (20px track, 2px border, dotted row rule),
+// so the look is unchanged but nothing outside this file can alter it.
+.sb-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 2px dotted rgba(153, 102, 255, 0.3);
 }
 
-.stat-label {
+.sb-label {
+  flex-shrink: 0;
+  width: 90px;
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-light);
-  width: 90px;
-  flex-shrink: 0;
 }
 
-.stat-bar-wrap {
-  flex: 1;
-  height: 14px;
-  background: var(--purple-light);
-  border-radius: 10px;
+.sb-track {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  background: rgba(153, 102, 255, 0.15);
+  border: 2px solid var(--border);
+  border-radius: 15px;
   overflow: hidden;
+  position: relative;
 }
 
-.stat-bar-fill {
+.sb-fill {
   height: 100%;
-  border-radius: 10px;
+  border-radius: 15px;
   transition: width 0.5s ease;
 
   &.hunger {
@@ -60,14 +73,18 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
   &.energy {
     background: linear-gradient(90deg, var(--cyan), #a0f0ff);
   }
+
+  &.xp {
+    background: linear-gradient(90deg, var(--purple), var(--pink));
+  }
 }
 
-.stat-value {
+.sb-value {
+  flex-shrink: 0;
+  width: 52px;
+  text-align: right;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-light);
-  width: 44px;
-  text-align: right;
-  flex-shrink: 0;
 }
 </style>

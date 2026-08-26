@@ -6,18 +6,22 @@
       <p>Combine ingredients to discover recipes and cook meals for your pets.</p>
     </div>
 
-    <div class="cooking-subtabs">
-      <button class="cooking-tab-btn" :class="{ active: activeTab === 'craft' }" @click="activeTab = 'craft'">🍳 Cook</button>
-      <button class="cooking-tab-btn" :class="{ active: activeTab === 'recipes' }" @click="activeTab = 'recipes'">📖 Recipe Book</button>
-      <button class="cooking-tab-btn" :class="{ active: activeTab === 'ingredients' }" @click="activeTab = 'ingredients'">🧺 Ingredients</button>
+    <div class="cooking-subtabs d-flex flex-wrap gap-2">
+      <button
+        v-for="t in TABS"
+        :key="t.key"
+        class="cooking-tab-btn"
+        :class="{ active: activeTab === t.key }"
+        @click="activeTab = t.key"
+      >{{ t.label }}</button>
     </div>
 
     <div v-if="loading" class="spinner"></div>
 
     <template v-else>
       <!-- CRAFT -->
-      <div v-if="activeTab === 'craft'" class="craft-layout">
-        <div class="craft-ingredients">
+      <div v-if="activeTab === 'craft'" class="row g-3">
+        <div class="col-12 col-md-7">
           <div class="craft-col-label">Your Ingredients</div>
           <div class="cooking-ingredient-grid">
             <div
@@ -35,30 +39,26 @@
           </div>
         </div>
 
-        <div class="craft-slots">
+        <div class="col-12 col-md-5">
           <div class="craft-col-label">Crafting Slots</div>
-          <div class="cooking-slots-grid">
-            <div
-              v-for="(id, idx) in slots"
-              :key="idx"
-              class="cooking-slot"
-              :class="{ filled: id }"
-              @click="removeSlot(idx)"
-            >
-              <template v-if="id">
-                <span class="cook-slot-emoji">{{ COOKING_INGREDIENTS[id].emoji }}</span>
-                <span class="cook-slot-ing-name">{{ COOKING_INGREDIENTS[id].name }}</span>
-              </template>
-              <span v-else class="cook-slot-label">+</span>
+          <div class="row row-cols-2 g-2 mb-3">
+            <div v-for="(id, idx) in slots" :key="idx" class="col">
+              <div class="cooking-slot" :class="{ filled: id }" @click="removeSlot(idx)">
+                <template v-if="id">
+                  <span class="cook-slot-emoji">{{ COOKING_INGREDIENTS[id].emoji }}</span>
+                  <span class="cook-slot-ing-name">{{ COOKING_INGREDIENTS[id].name }}</span>
+                </template>
+                <span v-else class="cook-slot-label">+</span>
+              </div>
             </div>
           </div>
           <div class="cooking-recipe-hint">{{ hint }}</div>
           <button class="btn btn-primary cook-btn" :class="{ 'recipe-ready': !!match }" :disabled="!filled.length || cooking" @click="cook">
             {{ cooking ? 'Cooking...' : (filled.length && !match ? 'Try Cooking' : 'Cook!') }}
           </button>
-          <div class="multi-count-row">
+          <div class="multi-count-row d-flex align-items-center gap-2 mt-2">
             <label>x</label>
-            <input type="number" v-model.number="multiCount" min="1" max="20" />
+            <input type="number" v-model.number="multiCount" min="1" max="20" class="px-2 py-1 rounded-1" />
             <span>batches (multi-craft)</span>
           </div>
         </div>
@@ -126,6 +126,12 @@ import { COOKING_INGREDIENTS, COOKING_RECIPES, INGREDIENT_SOURCE_CATEGORIES } fr
 const ingredientIds = Object.keys(COOKING_INGREDIENTS)
 
 const loading = ref(true)
+const TABS = [
+  { key: 'craft', label: '🍳 Cook' },
+  { key: 'recipes', label: '📖 Recipe Book' },
+  { key: 'ingredients', label: '🧺 Ingredients' }
+]
+
 const activeTab = ref('craft')
 const ingredients = ref({})
 const discovered = ref({})
@@ -241,9 +247,9 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Layout comes from Bootstrap utilities in the template; the underline that
+// defines this tab strip visually stays here.
 .cooking-subtabs {
-  display: flex;
-  gap: 8px;
   margin-bottom: 20px;
   border-bottom: 2px solid var(--border);
 }
@@ -255,34 +261,14 @@ onMounted(async () => {
   margin-bottom: 10px;
 }
 
-.craft-layout {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  align-items: flex-start;
-}
-
-.craft-ingredients {
-  flex: 1;
-  min-width: 260px;
-}
-
+// The ingredient tray keeps a real CSS grid: it's an auto-fill track sized by
+// content width (80px minimum), which Bootstrap's fixed 12-column row/col
+// system can't express. The two-column slot grid and the outer split DID map
+// cleanly and are now `row`/`col-*` in the template.
 .cooking-ingredient-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
   gap: 8px;
-}
-
-.craft-slots {
-  flex: 0 0 220px;
-  min-width: 200px;
-}
-
-.cooking-slots-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin-bottom: 14px;
 }
 
 .cook-slot-emoji {
@@ -313,17 +299,11 @@ onMounted(async () => {
 }
 
 .multi-count-row {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
   font-size: 0.78rem;
   color: var(--text-light);
 
   input {
     width: 54px;
-    padding: 4px 6px;
-    border-radius: 8px;
     border: 2px solid var(--border);
     font-size: 0.85rem;
     text-align: center;

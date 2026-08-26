@@ -1,9 +1,14 @@
 <template>
-  <div class="fishing-shop-box rod-shop">
-    <div class="shop-box-title">🎣 Upgrade Your Rod</div>
-    <div v-for="rod in FISHING_RODS.slice(1)" :key="rod.level" class="shop-box-row" :class="{ current: rodLevel === rod.level }">
+  <div class="fishing-shop-box rod-shop h-100 px-3 py-2 rounded-2">
+    <div class="shop-box-title mb-2">🎣 Upgrade Your Rod</div>
+    <div
+      v-for="rod in FISHING_RODS.slice(1)"
+      :key="rod.level"
+      class="shop-box-row d-flex align-items-center gap-2 p-2 mb-1 rounded-2"
+      :class="{ current: rodLevel === rod.level }"
+    >
       <span class="rod-emoji">{{ rod.emoji }}</span>
-      <div class="rod-info">
+      <div class="flex-grow-1 min-w-0">
         <div class="rod-name">{{ rod.name }}</div>
         <div class="rod-desc">{{ rod.desc }}</div>
       </div>
@@ -43,26 +48,18 @@ async function upgrade(rod) {
 </script>
 
 <style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; visuals only here.
 .fishing-shop-box {
   background: rgba(153, 102, 255, 0.06);
   border: 1px solid rgba(153, 102, 255, 0.2);
-  border-radius: 10px;
-  padding: 10px 12px;
 }
 
 .shop-box-title {
   font-weight: 700;
-  margin-bottom: 8px;
   color: var(--purple-dark);
 }
 
 .shop-box-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: 10px;
-  margin-bottom: 6px;
   background: rgba(0, 0, 0, 0.03);
 
   &.current {
@@ -74,9 +71,6 @@ async function upgrade(rod) {
   font-size: 1.4rem;
 }
 
-.rod-info {
-  flex: 1;
-}
 
 .rod-name {
   font-weight: 700;

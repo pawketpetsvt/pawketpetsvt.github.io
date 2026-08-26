@@ -4,6 +4,7 @@ import { OwnedPet } from '../models/OwnedPet.js'
 import { playerService } from './PlayerService.js'
 import { inventoryService } from './InventoryService.js'
 import { calculateEnergyRegen, calculateHungerDecay, calculateHappinessDecay, calculateLevelUp } from '../utils/PetStatMath.js'
+import { containsProfanity } from '../utils/profanity.js'
 
 class OwnedPetsService {
   async getOwnedPetIds(userId) {
@@ -28,6 +29,29 @@ class OwnedPetsService {
       happiness: calculateHappinessDecay(pet.happiness, pet.last_fed, pet.last_played)
     }))
     return AppState.ownedPets
+  }
+
+  // Ports saveNickname(), game.js:4171-4227 — the rename flow that lived
+  // behind the pet card's edit button. Validation order and messages are kept
+  // as they were; throwing lets the caller surface them through the toast
+  // service instead of the service reaching for UI itself.
+  async rename(pet, rawNickname) {
+    const nickname = (rawNickname || '').trim()
+    if (!nickname) throw new Error('Please enter a nickname!')
+    if (nickname.length > 30) throw new Error('Nickname too long! (Max 30 characters)')
+    if (/<\/?[a-z][\s\S]*>/i.test(nickname)) throw new Error('Nickname cannot contain HTML tags!')
+    if (containsProfanity(nickname)) throw new Error('Please choose a family-friendly nickname!')
+
+    const res = await supabase.from('user_pets')
+      .update({ nickname })
+      .eq('id', pet.id)
+      .eq('user_id', AppState.user.id)
+    if (res.error) throw new Error('Failed to update nickname')
+
+    // Mutating the reactive model updates every view of this pet at once —
+    // legacy had to call loadMyPets() to re-render the whole tab.
+    pet.nickname = nickname
+    return nickname
   }
 
   async adopt(pet, nickname, price) {

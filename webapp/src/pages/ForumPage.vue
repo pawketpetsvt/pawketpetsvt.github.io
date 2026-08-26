@@ -6,7 +6,7 @@
       <p>Chat with the community, share tips, and make friends! 🌐</p>
     </div>
 
-    <div v-if="isModerator" class="fm-mod-bar">
+    <div v-if="isModerator" class="mb-3">
       <button class="btn btn-outline btn-sm" @click="openAdmin">🛡️ Moderator Panel</button>
     </div>
 
@@ -21,15 +21,15 @@
       <div
         v-for="c in categories"
         :key="c.id"
-        class="fm-category-card"
+        class="fm-category-card d-flex align-items-center gap-3 p-3 mb-2 rounded-4"
         @click="openCategory(c)"
       >
-        <div class="fm-category-icon">{{ c.icon }}</div>
-        <div class="fm-category-info">
+        <div class="fm-category-icon flex-shrink-0">{{ c.icon }}</div>
+        <div class="flex-grow-1 min-w-0">
           <div class="fm-category-name">{{ c.name }}</div>
           <div class="fm-category-desc">{{ c.description }}</div>
         </div>
-        <div class="fm-category-stats">
+        <div class="text-center flex-shrink-0">
           <div class="fm-stat-number">{{ c.threadCount }}</div>
           <div class="fm-stat-label">Threads</div>
         </div>
@@ -38,9 +38,9 @@
 
     <!-- Thread list -->
     <template v-else-if="view === 'category'">
-      <div class="fm-crumb">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
         <button class="btn btn-outline btn-sm" @click="backToCategories">← All Categories</button>
-        <h2 class="fm-crumb-title">{{ activeCategory.name }}</h2>
+        <h2 class="fm-crumb-title flex-grow-1 min-w-0 m-0">{{ activeCategory.name }}</h2>
         <button class="btn btn-primary btn-sm" @click="openNewThread">✏️ New Thread</button>
       </div>
 
@@ -56,37 +56,37 @@
         <div
           v-for="t in threads"
           :key="t.id"
-          class="fm-thread-row"
+          class="fm-thread-row d-flex align-items-center gap-3 px-3 py-2 mb-2 rounded-3"
           :class="{ pinned: t.is_pinned, locked: t.is_locked }"
           @click="openThread(t.id)"
         >
-          <div class="fm-thread-icon">{{ t.is_pinned ? '📌' : t.is_locked ? '🔒' : '💬' }}</div>
-          <div class="fm-thread-content">
+          <div class="fm-thread-icon flex-shrink-0">{{ t.is_pinned ? '📌' : t.is_locked ? '🔒' : '💬' }}</div>
+          <div class="flex-grow-1 min-w-0">
             <div class="fm-thread-title">{{ t.title }}</div>
             <div class="fm-thread-meta">
               Started by <strong>{{ t.players ? t.players.username : 'Unknown' }}</strong> • {{ getTimeAgo(new Date(t.created_at)) }}
             </div>
           </div>
-          <div class="fm-thread-stats">
-            <div class="fm-thread-stat">
+          <div class="d-flex gap-4 flex-shrink-0">
+            <div class="text-center">
               <div class="fm-thread-stat-number">{{ t.reply_count || 0 }}</div>
               <div class="fm-thread-stat-label">Replies</div>
             </div>
-            <div class="fm-thread-stat">
+            <div class="text-center">
               <div class="fm-thread-stat-number">{{ t.view_count || 0 }}</div>
               <div class="fm-thread-stat-label">Views</div>
             </div>
           </div>
         </div>
-        <button v-if="hasMore" class="btn btn-outline fm-load-more" @click="loadMoreThreads">⬇️ Load More Threads</button>
+        <button v-if="hasMore" class="btn btn-outline w-100 mt-2 py-2" @click="loadMoreThreads">⬇️ Load More Threads</button>
       </template>
     </template>
 
     <!-- Single thread -->
     <template v-else-if="view === 'thread'">
-      <div class="fm-crumb">
+      <div class="d-flex flex-wrap align-items-center gap-3 mb-3">
         <button class="btn btn-outline btn-sm" @click="backToCategory">← {{ activeCategory.name }}</button>
-        <h2 class="fm-crumb-title">{{ thread.title }}</h2>
+        <h2 class="fm-crumb-title flex-grow-1 min-w-0 m-0">{{ thread.title }}</h2>
       </div>
 
       <ForumPost
@@ -108,26 +108,28 @@
         @delete="deletePost(r.id, 'reply')"
       />
 
-      <div v-if="thread.is_locked && !isModerator" class="fm-locked-note">🔒 This thread is locked.</div>
-      <div v-else class="fm-reply-box">
-        <textarea v-model="replyDraft" class="fm-textarea" rows="4" placeholder="Write a reply..."></textarea>
-        <div class="fm-emoji-row">
-          <button v-for="e in EMOJI" :key="e" class="fm-emoji" @click="replyDraft += e">{{ e }}</button>
+      <div v-if="thread.is_locked && !isModerator" class="fm-locked-note text-center mt-4 p-3 rounded-3">
+        🔒 This thread is locked.
+      </div>
+      <div v-else class="mt-4">
+        <textarea v-model="replyDraft" class="fm-input mb-2 p-2 rounded-3" rows="4" placeholder="Write a reply..."></textarea>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button v-for="e in EMOJI" :key="e" class="fm-emoji px-2 py-1 rounded-2" @click="replyDraft += e">{{ e }}</button>
         </div>
         <button class="btn btn-primary btn-sm" :disabled="posting || !replyDraft.trim()" @click="submitReply">Post Reply</button>
       </div>
     </template>
 
     <!-- New thread modal -->
-    <div v-if="showNewThread" class="fm-modal-backdrop" @click.self="showNewThread = false">
-      <div class="fm-modal">
-        <h3 class="fm-modal-title">✏️ New Thread</h3>
-        <input v-model="newThreadTitle" class="fm-input" type="text" placeholder="Thread title" maxlength="200" />
-        <textarea v-model="newThreadContent" class="fm-textarea" rows="6" placeholder="What's on your mind?"></textarea>
-        <div class="fm-emoji-row">
-          <button v-for="e in EMOJI" :key="e" class="fm-emoji" @click="newThreadContent += e">{{ e }}</button>
+    <div v-if="showNewThread" class="fm-modal-backdrop position-fixed d-flex align-items-center justify-content-center p-gap" @click.self="showNewThread = false">
+      <div class="fm-modal w-100 p-gap rounded-4">
+        <h3 class="fm-modal-title m-0 mb-3">✏️ New Thread</h3>
+        <input v-model="newThreadTitle" class="fm-input mb-2 p-2 rounded-3" type="text" placeholder="Thread title" maxlength="200" />
+        <textarea v-model="newThreadContent" class="fm-input mb-2 p-2 rounded-3" rows="6" placeholder="What's on your mind?"></textarea>
+        <div class="d-flex flex-wrap gap-1 mb-2">
+          <button v-for="e in EMOJI" :key="e" class="fm-emoji px-2 py-1 rounded-2" @click="newThreadContent += e">{{ e }}</button>
         </div>
-        <div class="fm-modal-actions">
+        <div class="d-flex justify-content-end gap-2 mt-3">
           <button class="btn btn-outline btn-sm" @click="showNewThread = false">Cancel</button>
           <button class="btn btn-primary btn-sm" :disabled="posting" @click="submitThread">Create Thread</button>
         </div>
@@ -135,22 +137,26 @@
     </div>
 
     <!-- Moderator panel -->
-    <div v-if="showAdmin" class="fm-modal-backdrop" @click.self="showAdmin = false">
-      <div class="fm-modal">
-        <h3 class="fm-modal-title">🛡️ Moderator Panel</h3>
-        <div class="fm-admin-tabs">
-          <button class="fm-admin-tab" :class="{ active: adminTab === 'bans' }" @click="switchAdminTab('bans')">Banned Users</button>
-          <button class="fm-admin-tab" :class="{ active: adminTab === 'recent' }" @click="switchAdminTab('recent')">Recent Posts</button>
+    <div v-if="showAdmin" class="fm-modal-backdrop position-fixed d-flex align-items-center justify-content-center p-gap" @click.self="showAdmin = false">
+      <div class="fm-modal w-100 p-gap rounded-4">
+        <h3 class="fm-modal-title m-0 mb-3">🛡️ Moderator Panel</h3>
+        <div class="d-flex gap-2 mb-3">
+          <button class="fm-admin-tab px-3 py-1 rounded-pill" :class="{ active: adminTab === 'bans' }" @click="switchAdminTab('bans')">Banned Users</button>
+          <button class="fm-admin-tab px-3 py-1 rounded-pill" :class="{ active: adminTab === 'recent' }" @click="switchAdminTab('recent')">Recent Posts</button>
         </div>
 
         <template v-if="adminTab === 'bans'">
-          <div class="fm-ban-form">
-            <input v-model="banUsername" class="fm-input" type="text" placeholder="Username to ban" />
-            <input v-model="banReason" class="fm-input" type="text" placeholder="Reason (optional)" />
+          <div class="d-flex flex-column gap-1 mb-3">
+            <input v-model="banUsername" class="fm-input p-2 rounded-3" type="text" placeholder="Username to ban" />
+            <input v-model="banReason" class="fm-input p-2 rounded-3" type="text" placeholder="Reason (optional)" />
             <button class="btn btn-danger btn-sm" @click="doBan">Ban User</button>
           </div>
-          <div v-if="!bans.length" class="fm-admin-empty">No banned users</div>
-          <div v-for="b in bans" :key="b.id" class="fm-admin-row">
+          <div v-if="!bans.length" class="fm-admin-empty py-3">No banned users</div>
+          <div
+            v-for="b in bans"
+            :key="b.id"
+            class="fm-admin-row d-flex align-items-center justify-content-between gap-2 px-3 py-2 mb-1 rounded-3"
+          >
             <div>
               <strong>{{ b.players ? b.players.username : 'Unknown' }}</strong>
               <div v-if="b.reason" class="fm-admin-sub">{{ b.reason }}</div>
@@ -160,8 +166,12 @@
         </template>
 
         <template v-else>
-          <div v-if="!recentThreads.length" class="fm-admin-empty">No recent posts</div>
-          <div v-for="t in recentThreads" :key="t.id" class="fm-admin-row column">
+          <div v-if="!recentThreads.length" class="fm-admin-empty py-3">No recent posts</div>
+          <div
+            v-for="t in recentThreads"
+            :key="t.id"
+            class="fm-admin-row d-flex flex-column align-items-start gap-2 px-3 py-2 mb-1 rounded-3"
+          >
             <div>
               <strong>{{ t.title }}</strong>
               <div class="fm-admin-sub">by {{ t.players ? t.players.username : 'Unknown' }} • {{ getTimeAgo(new Date(t.created_at)) }}</div>
@@ -170,7 +180,7 @@
           </div>
         </template>
 
-        <div class="fm-modal-actions">
+        <div class="d-flex justify-content-end gap-2 mt-3">
           <button class="btn btn-outline btn-sm" @click="showAdmin = false">Close</button>
         </div>
       </div>
@@ -378,19 +388,13 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-.fm-mod-bar {
-  margin-bottom: 12px;
-}
+// Layout (flex/grid, spacing, radii, centering) is expressed with Bootstrap
+// utilities in the template. What remains here is only what utilities can't
+// express: the game's colors, the pinned/locked accents, and the modal chrome.
 
 .fm-category-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 14px;
   background: var(--card-bg, #fff);
-  margin-bottom: 10px;
   cursor: pointer;
 
   &:hover {
@@ -401,12 +405,6 @@ onMounted(async () => {
 
 .fm-category-icon {
   font-size: 2rem;
-  flex-shrink: 0;
-}
-
-.fm-category-info {
-  flex: 1;
-  min-width: 0;
 }
 
 .fm-category-name {
@@ -421,11 +419,6 @@ onMounted(async () => {
   margin-top: 2px;
 }
 
-.fm-category-stats {
-  text-align: center;
-  flex-shrink: 0;
-}
-
 .fm-stat-number {
   font-size: 1.3rem;
   font-weight: 700;
@@ -437,31 +430,14 @@ onMounted(async () => {
   color: var(--text-light);
 }
 
-.fm-crumb {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
 .fm-crumb-title {
-  flex: 1;
-  min-width: 0;
   font-size: 1.1rem;
   color: var(--purple-dark);
-  margin: 0;
 }
 
 .fm-thread-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
   background: var(--card-bg, #fff);
-  margin-bottom: 8px;
   cursor: pointer;
 
   &:hover {
@@ -479,12 +455,6 @@ onMounted(async () => {
 
 .fm-thread-icon {
   font-size: 1.3rem;
-  flex-shrink: 0;
-}
-
-.fm-thread-content {
-  flex: 1;
-  min-width: 0;
 }
 
 .fm-thread-title {
@@ -499,16 +469,6 @@ onMounted(async () => {
   margin-top: 2px;
 }
 
-.fm-thread-stats {
-  display: flex;
-  gap: 14px;
-  flex-shrink: 0;
-}
-
-.fm-thread-stat {
-  text-align: center;
-}
-
 .fm-thread-stat-number {
   font-weight: 700;
   font-size: 0.9rem;
@@ -520,53 +480,24 @@ onMounted(async () => {
   color: var(--text-light);
 }
 
-.fm-load-more {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-}
-
-.fm-reply-box {
-  margin-top: 16px;
-}
-
 .fm-locked-note {
-  margin-top: 16px;
-  padding: 12px;
-  text-align: center;
   border: 1px dashed var(--border);
-  border-radius: 10px;
   color: var(--text-light);
   font-size: 0.85rem;
 }
 
-.fm-textarea,
+// Shared by every text input and textarea in this view.
 .fm-input {
   width: 100%;
-  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
   font-size: 0.85rem;
   font-family: inherit;
-  margin-bottom: 8px;
-}
-
-.fm-textarea {
   resize: vertical;
-}
-
-.fm-emoji-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-bottom: 8px;
 }
 
 .fm-emoji {
   border: 1px solid var(--border);
   background: transparent;
-  border-radius: 8px;
-  padding: 3px 7px;
   font-size: 1rem;
   cursor: pointer;
 
@@ -576,48 +507,27 @@ onMounted(async () => {
 }
 
 .fm-modal-backdrop {
-  position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   z-index: 9999;
-  padding: 20px;
 }
 
 .fm-modal {
   background: var(--white, #fff);
-  border-radius: 16px;
-  padding: 20px;
-  width: 100%;
   max-width: 540px;
   max-height: 86vh;
   overflow-y: auto;
+  // Explicit: the modal is genuinely 16px, while `rounded-4` maps to the
+  // design's more common 14px card radius.
+  border-radius: 16px;
 }
 
 .fm-modal-title {
-  margin: 0 0 12px;
   font-size: 1.1rem;
   color: var(--purple-dark);
 }
 
-.fm-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.fm-admin-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .fm-admin-tab {
-  padding: 6px 14px;
-  border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
   font-size: 0.8rem;
@@ -632,27 +542,8 @@ onMounted(async () => {
   }
 }
 
-.fm-ban-form {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-bottom: 14px;
-}
-
 .fm-admin-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  margin-bottom: 6px;
-
-  &.column {
-    flex-direction: column;
-    align-items: flex-start;
-  }
 }
 
 .fm-admin-sub {
@@ -664,7 +555,6 @@ onMounted(async () => {
 .fm-admin-empty {
   color: var(--text-light);
   font-size: 0.85rem;
-  padding: 12px 0;
 }
 
 .empty-state {
@@ -677,4 +567,5 @@ onMounted(async () => {
   font-size: 3rem;
   margin-bottom: 12px;
 }
+
 </style>

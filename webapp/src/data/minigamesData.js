@@ -25,7 +25,7 @@ export const TYPING_WORDS = [
   'Crystal', 'Thunder', 'Frost', 'Storm', 'Flame', 'Void', 'Chaos', 'Spirit', 'Nature',
   'Crimson', 'Violet', 'Silver', 'Golden', 'Scarlet', 'Cobalt',
   'Constellation', 'Catastrophe', 'Spectacular', 'Extraordinary', 'Championship', 'Celebration',
-  'Magnificent', 'Phenomenal', 'Adventurous', 'Mysterious', 'Adventurer', 'Triumphant'
+  'Magnificent', 'Phenomenal', 'Adventurous', 'Mysterious', 'Adventurer', 'Triumphant', 'Ry'
 ]
 
 export const MEMORY_EMOJIS = ['🐾', '🍉', '⭐', '🎈', '🌙', '🔥', '💎', '🌸', '🦋', '🍀', '🎵', '⚡']

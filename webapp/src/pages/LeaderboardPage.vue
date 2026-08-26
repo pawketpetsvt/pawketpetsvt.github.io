@@ -6,30 +6,43 @@
       <p>See how you stack up against the rest of Pawket Pets! ⭐</p>
     </div>
 
-    <div class="leaderboard-tabs">
-      <button class="leaderboard-tab" :class="{ active: activeTab === 'points' }" @click="switchTab('points')">🪙 Most Points</button>
-      <button class="leaderboard-tab" :class="{ active: activeTab === 'streak' }" @click="switchTab('streak')">🔥 Login Streak</button>
-      <button class="leaderboard-tab" :class="{ active: activeTab === 'levels' }" @click="switchTab('levels')">⭐ Highest Levels</button>
-      <button class="leaderboard-tab" :class="{ active: activeTab === 'badges' }" @click="switchTab('badges')">🎖️ Most Badges</button>
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      <button
+        v-for="t in TABS"
+        :key="t.key"
+        class="leaderboard-tab px-3 py-2 rounded-pill"
+        :class="{ active: activeTab === t.key }"
+        @click="switchTab(t.key)"
+      >{{ t.label }}</button>
     </div>
 
     <div v-if="loading" class="spinner"></div>
 
     <template v-else>
       <div v-if="!entries.length" class="empty-state"><p>No data yet! Be the first! 🌟</p></div>
-      <div v-else class="lb-list">
-        <div v-for="(p, i) in entries" :key="p.userId || p.username" class="leaderboard-item" @click="viewProfile(p.username)">
-          <div class="leaderboard-rank" :class="rankClass(i)">{{ rankLabel(i) }}</div>
-          <div class="leaderboard-avatar">{{ p.username.charAt(0).toUpperCase() }}</div>
-          <div class="leaderboard-info">
+      <div v-else class="d-flex flex-column gap-2">
+        <div
+          v-for="(p, i) in entries"
+          :key="p.userId || p.username"
+          class="leaderboard-item d-flex align-items-center gap-3 px-3 py-2 rounded-3"
+          @click="viewProfile(p.username)"
+        >
+          <div class="leaderboard-rank text-center flex-shrink-0" :class="rankClass(i)">{{ rankLabel(i) }}</div>
+          <div class="leaderboard-avatar d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle">
+            {{ p.username.charAt(0).toUpperCase() }}
+          </div>
+          <div class="flex-grow-1 min-w-0">
             <div class="leaderboard-username">{{ p.username }}</div>
             <div class="leaderboard-stats">{{ p.stat }}</div>
           </div>
-          <div class="leaderboard-value">{{ p.value }}</div>
+          <div class="leaderboard-value flex-shrink-0">{{ p.value }}</div>
         </div>
       </div>
 
-      <div v-if="activeTab === 'streak' && myStreakWidget" class="my-streak-widget">
+      <div
+        v-if="activeTab === 'streak' && myStreakWidget"
+        class="my-streak-widget d-flex align-items-center justify-content-between mt-4 px-3 py-3 rounded-4"
+      >
         <div>
           <div class="my-streak-title">Your Streak</div>
           <div class="my-streak-rank">{{ myStreakWidget.rankText }}</div>
@@ -51,6 +64,13 @@ const router = useRouter()
 function viewProfile(username) {
   router.push('/profile/' + encodeURIComponent(username))
 }
+
+const TABS = [
+  { key: 'points', label: '🪙 Most Points' },
+  { key: 'streak', label: '🔥 Login Streak' },
+  { key: 'levels', label: '⭐ Highest Levels' },
+  { key: 'badges', label: '🎖️ Most Badges' }
+]
 
 const activeTab = ref('points')
 const loading = ref(true)
@@ -126,16 +146,10 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-.leaderboard-tabs {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-}
-
+// Layout is Bootstrap utilities in the template throughout this file; these
+// rules carry only what utilities can't express — the game's colors, the
+// active-tab treatment, and the fixed avatar/rank sizing.
 .leaderboard-tab {
-  padding: 8px 16px;
-  border-radius: 20px;
   border: 1px solid var(--border);
   background: transparent;
   font-size: 0.85rem;
@@ -150,26 +164,9 @@ onMounted(async () => {
   }
 }
 
-// The global stylesheet's `.leaderboard-list` defaults to `display: none`
-// and only shows via a `.active` class the legacy JS toggles — a pattern
-// this Vue port doesn't use (v-if/v-else instead), so the list rendered
-// invisible despite loading real data. Sidestepping with an app-owned class
-// name, same fix pattern as NotificationBell's `.notif-panel`.
-.lb-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .leaderboard-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
   background: var(--card-bg, #fff);
-  margin-bottom: 8px;
   cursor: pointer;
 
   &:hover {
@@ -179,11 +176,9 @@ onMounted(async () => {
 
 .leaderboard-rank {
   width: 32px;
-  text-align: center;
   font-weight: 700;
   font-size: 1.05rem;
   color: var(--text-light);
-  flex-shrink: 0;
 
   &.top1 {
     font-size: 1.3rem;
@@ -197,20 +192,11 @@ onMounted(async () => {
 .leaderboard-avatar {
   width: 38px;
   height: 38px;
-  flex-shrink: 0;
-  border-radius: 50%;
   background: linear-gradient(135deg, var(--purple), var(--pink, #ff66cc));
   color: #fff;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-.leaderboard-info {
-  flex: 1;
-  min-width: 0;
-}
 
 .leaderboard-username {
   font-weight: 700;
@@ -226,7 +212,6 @@ onMounted(async () => {
 .leaderboard-value {
   font-weight: 700;
   color: var(--purple);
-  flex-shrink: 0;
 }
 
 .empty-state {
@@ -236,14 +221,8 @@ onMounted(async () => {
 }
 
 .my-streak-widget {
-  margin-top: 20px;
-  padding: 14px 18px;
-  border-radius: 14px;
   background: linear-gradient(135deg, rgba(153, 102, 255, 0.12), rgba(255, 102, 153, 0.08));
   border: 1px solid rgba(153, 102, 255, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
 }
 
 .my-streak-title {

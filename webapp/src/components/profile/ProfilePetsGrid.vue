@@ -2,25 +2,30 @@
   <div v-if="!pets.length" class="empty-note">
     <p>No pets yet! 🐾</p>
   </div>
-  <div v-else class="pf-pets-grid">
-    <div v-for="p in decorated" :key="p.id" class="pf-pet-card">
-      <div class="pf-pet-image">
-        <img
-          v-if="p.imageFile && !imgErrors[p.id]"
-          :src="'/images/' + p.imageFile"
-          :alt="p.displayName"
-          @error="imgErrors[p.id] = true"
-        />
-        <span v-else class="pf-pet-image-fallback">🐾</span>
-      </div>
-      <div class="pf-pet-body">
-        <div class="pf-pet-top">
-          <h3>{{ p.displayName }}</h3>
-          <span class="pf-pet-level">Lv {{ p.level }}</span>
+  <div v-else class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
+    <div v-for="p in decorated" :key="p.id" class="col">
+      <div class="pf-pet-card h-100 overflow-hidden rounded-4">
+        <div class="pf-pet-image d-flex align-items-center justify-content-center">
+          <img
+            v-if="p.imageFile && !imgErrors[p.id]"
+            :src="'/images/' + p.imageFile"
+            :alt="p.displayName"
+            @error="imgErrors[p.id] = true"
+          />
+          <span v-else class="pf-pet-image-fallback">🐾</span>
         </div>
-        <div class="pf-pet-mood" :style="{ borderColor: p.mood.color, background: p.mood.color + '22' }">
-          <span class="pf-pet-mood-emoji">{{ p.mood.emoji }}</span>
-          <span>Mood: {{ p.mood.mood }}</span>
+        <div class="px-3 py-2">
+          <div class="pf-pet-top d-flex align-items-center justify-content-between gap-2">
+            <h3>{{ p.displayName }}</h3>
+            <span class="pf-pet-level flex-shrink-0">Lv {{ p.level }}</span>
+          </div>
+          <div
+            class="pf-pet-mood d-flex align-items-center gap-2 mt-2 px-2 py-1 rounded-3"
+            :style="{ borderColor: p.mood.color, background: p.mood.color + '22' }"
+          >
+            <span class="pf-pet-mood-emoji">{{ p.mood.emoji }}</span>
+            <span>Mood: {{ p.mood.mood }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -53,24 +58,14 @@ const decorated = computed(() =>
 </script>
 
 <style lang="scss" scoped>
-.pf-pets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .pf-pet-card {
   border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
   background: var(--card-bg, #fff);
 }
 
 .pf-pet-image {
   aspect-ratio: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   background: rgba(153, 102, 255, 0.06);
 
   img {
@@ -84,41 +79,23 @@ const decorated = computed(() =>
   opacity: 0.5;
 }
 
-.pf-pet-body {
-  padding: 10px 12px;
-}
-
-.pf-pet-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-
-  h3 {
-    margin: 0;
-    font-size: 0.9rem;
-    color: var(--purple-dark);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
+.pf-pet-top h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--purple-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pf-pet-level {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--purple);
-  flex-shrink: 0;
 }
 
 .pf-pet-mood {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 4px 8px;
   border: 1px solid;
-  border-radius: 10px;
   font-size: 0.72rem;
 }
 

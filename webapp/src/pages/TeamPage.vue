@@ -6,42 +6,56 @@
       <p>Get to know the streamers behind PawketPetsVT! 🌟</p>
     </div>
 
-    <div class="team-profiles-grid">
-      <div v-for="m in MEMBERS" :key="m.name" class="team-profile-card">
-        <div class="team-profile-header">
-          <div class="team-profile-avatar">
-            <img :src="'/images/pets/' + m.image" :alt="m.name" @error="$event.target.style.display = 'none'" />
-          </div>
-          <div class="team-profile-info">
-            <h2 class="team-profile-name">{{ m.name }}</h2>
-            <div class="team-profile-role" :style="m.roleStyle">{{ m.role }}</div>
-          </div>
-        </div>
-
-        <div class="team-profile-body">
-          <p class="team-profile-bio">{{ m.bio }}</p>
-
-          <div class="team-profile-stats">
-            <div v-for="s in m.stats" :key="s.label" class="team-stat">
-              <span class="team-stat-label">{{ s.label }}</span>
-              <span class="team-stat-value">{{ s.value }}</span>
+    <!-- Was `.team-profiles-grid` (auto-fill minmax 350px, 24px gap). -->
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+      <div v-for="m in MEMBERS" :key="m.name" class="col">
+        <!-- Column flex + `mt-auto` on the socials keeps the stat panel and
+             buttons aligned across cards in a row, however long the bio is. -->
+        <div class="team-profile-card h-100 d-flex flex-column">
+          <div class="team-profile-banner">
+            <div class="team-profile-avatar">
+              <img :src="'/images/pets/' + m.image" :alt="m.name" @error="$event.target.style.display = 'none'" />
+            </div>
+            <!-- Explicitly stacked: name above role. -->
+            <div class="team-profile-info d-flex flex-column">
+              <h2 class="team-profile-name">{{ m.name }}</h2>
+              <div class="team-profile-role" :style="m.roleStyle">{{ m.role }}</div>
             </div>
           </div>
 
-          <div class="team-profile-socials">
-            <a v-for="s in m.socials" :key="s.platform" :href="s.url" target="_blank" class="team-social-btn" :class="s.platform">
-              <span class="social-icon">{{ s.icon }}</span> {{ s.label }}
-            </a>
+          <div class="team-profile-body flex-grow-1 d-flex flex-column">
+            <p class="team-profile-bio">{{ m.bio }}</p>
+
+            <!-- The Bootstrap row sits INSIDE the panel: `.team-profile-stats`
+                 keeps the background/padding, and the row's negative gutter
+                 margins would fight that padding if they shared an element. -->
+            <div class="team-profile-stats mt-auto">
+              <div class="row row-cols-2 g-3">
+                <div v-for="s in m.stats" :key="s.label" class="team-stat">
+                  <span class="team-stat-label">{{ s.label }}</span>
+                  <span class="team-stat-value">{{ s.value }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="team-profile-socials">
+              <a v-for="s in m.socials" :key="s.platform" :href="s.url" target="_blank" class="team-social-btn"
+                :class="s.platform">
+                <span class="social-icon">{{ s.icon }}</span> {{ s.label }}
+              </a>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="team-profile-card team-join-card">
-        <div class="team-join-content">
-          <div style="font-size:4rem;margin-bottom:20px;">✨</div>
-          <h3>Want to Join?</h3>
-          <p>We're looking for VTubers to join the PawketPetsVT team!</p>
-          <button class="btn btn-primary" @click="showContactModal = true">Get in Touch</button>
+      <div class="col">
+        <div class="team-profile-card team-join-card h-100">
+          <div class="team-join-content">
+            <div class="team-join-sparkle">✨</div>
+            <h3>Want to Join?</h3>
+            <p>We're looking for VTubers to join the PawketPetsVT team!</p>
+            <button class="btn btn-primary" @click="showContactModal = true">Get in Touch</button>
+          </div>
         </div>
       </div>
     </div>
@@ -51,14 +65,16 @@
         <h2>📞 Contact Us</h2>
         <p>Need help or found a bug? Reach out to us!</p>
         <div class="contact-options">
-          <a href="mailto:PawketPetsVT@gmail.com" class="contact-option" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
+          <a href="mailto:PawketPetsVT@gmail.com" class="contact-option"
+            style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none;">
             <div class="contact-icon">✉️</div>
             <div class="contact-text">
               <strong style="color: white; font-size: 1.1rem;">Email Us</strong>
               <span style="color: rgba(255,255,255,0.95); font-weight: 600;">PawketPetsVT@gmail.com</span>
             </div>
           </a>
-          <a href="https://discord.com/users/embertail" target="_blank" class="contact-option" style="background: linear-gradient(135deg, #5865F2 0%, #7289DA 100%); color: white; border: none;">
+          <a href="https://discord.com/users/embertail" target="_blank" class="contact-option"
+            style="background: linear-gradient(135deg, #5865F2 0%, #7289DA 100%); color: white; border: none;">
             <div class="contact-icon">💬</div>
             <div class="contact-text">
               <strong style="color: white; font-size: 1.1rem;">Discord</strong>
@@ -156,7 +172,7 @@ const MEMBERS = [
   {
     name: 'CypurrActive', image: 'cy.png', role: 'Cybergoth Catgirl of the Internet 🐱💜', roleStyle: 'font-size:0.78rem;',
     bio: 'Cybergoth Vtuber, Gamer, and Artist! Her consciousness was uploaded to the internet as part of a medical experiment — she streams from cyberspace while her body rests safely in stasis. 🐱💜',
-    stats: [{ label: 'Vibe', value: 'Cybergoth Catgirl' }, { label: 'Status', value: 'Uploaded & Online' }],
+    stats: [{ label: 'Streaming Since', value: '2026' }, { label: 'Favorite Game', value: 'Final Fantasy XIV' }],
     socials: [
       { platform: 'twitch', url: 'https://www.twitch.tv/cypurractive', icon: '📺', label: 'Twitch' },
       { platform: 'youtube', url: 'https://www.youtube.com/@cypurractive', icon: '▶️', label: 'YouTube' },
@@ -165,3 +181,11 @@ const MEMBERS = [
   }
 ]
 </script>
+
+<style lang="scss" scoped>
+// Was an inline style attribute on the sparkle div.
+.team-join-sparkle {
+  font-size: 4rem;
+  margin-bottom: 20px;
+}
+</style>

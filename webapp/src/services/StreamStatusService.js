@@ -1,4 +1,4 @@
-import { reactive } from 'vue'
+import { reactive, computed } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 
@@ -14,7 +14,21 @@ export const STREAMERS = [
 ]
 
 export const streamStatus = reactive(
-  Object.fromEntries(STREAMERS.map(s => [s.id, { live: false }]))
+  Object.fromEntries(STREAMERS.map(s => [s.id, { live: false, viewers: 0, title: '' }]))
+)
+
+// Ports the `_currentlyLiveStreamers` global (game.js:40936) that the live
+// banner and any other "who's on right now" consumer read. Derived rather than
+// maintained as a second source of truth, so it can't drift from streamStatus.
+export const liveStreamers = computed(() =>
+  STREAMERS
+    .filter(s => streamStatus[s.id].live)
+    .map(s => ({
+      ...s,
+      twitchUrl: 'https://twitch.tv/' + s.login,
+      viewers: streamStatus[s.id].viewers,
+      title: streamStatus[s.id].title
+    }))
 )
 
 const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
@@ -37,11 +51,18 @@ class StreamStatusService {
         headers: { 'Client-Id': TWITCH_CLIENT_ID, Authorization: `Bearer ${token}` }
       })
       const data = await resp.json()
-      STREAMERS.forEach(s => { streamStatus[s.id].live = false })
+      STREAMERS.forEach(s => {
+        streamStatus[s.id].live = false
+        streamStatus[s.id].viewers = 0
+        streamStatus[s.id].title = ''
+      })
       if (data.data) {
         data.data.forEach(stream => {
           const match = STREAMERS.find(s => s.login.toLowerCase() === stream.user_login.toLowerCase())
-          if (match) streamStatus[match.id].live = true
+          if (!match) return
+          streamStatus[match.id].live = true
+          streamStatus[match.id].viewers = stream.viewer_count || 0
+          streamStatus[match.id].title = stream.title || ''
         })
       }
     } catch (err) {

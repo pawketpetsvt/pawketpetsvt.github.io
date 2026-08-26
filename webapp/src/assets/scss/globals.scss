@@ -4,6 +4,12 @@
 // through here would just get left as a broken literal @import in the
 // compiled output. This file holds only genuine Sass/SCSS content.
 
+// Bootstrap's grid + utilities are NOT imported here — this file is pulled in
+// through App.vue's <style> block, which Vite emits BEFORE main.js's
+// style.css import, so anything added here would lose every !important tie to
+// style.css. Bootstrap is imported directly in main.js instead, immediately
+// after style.css. See the header comment in bootstrap.scss.
+
 // Global utility classes needed by more than one page/component in this app.
 // Anything used by only a single component lives in that component's own
 // <style lang="scss" scoped> block instead.

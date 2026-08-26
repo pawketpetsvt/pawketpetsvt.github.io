@@ -10,7 +10,7 @@
       </div>
       <div v-if="onCooldown" class="cooldown-msg">Already played today! Come back tomorrow.</div>
       <template v-else>
-        <div v-if="showDonBtns" class="don-btns">
+        <div v-if="showDonBtns" class="don-btns d-flex gap-2 mt-2">
           <button class="btn btn-primary don-btn" @click="takeIt">💰 Take {{ currentEarned }} PP</button>
           <button class="btn don-btn don-btn-risk" @click="doubleOrNothing">🎲 Double or Nothing!</button>
         </div>
@@ -116,13 +116,10 @@ function doubleOrNothing() {
   50% { transform: rotate(4deg); }
 }
 
-// Overrides the global #dice-don-btns rule's display:none default —
-// scoped here rather than left as an inline style override.
-.don-btns {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
+// The row's layout is now Bootstrap utilities in the template (`d-flex gap-2
+// mt-2`), which also supply the display:flex that overrides the global
+// #dice-don-btns display:none default — Bootstrap loads after style.css and
+// its utilities are !important, so the class alone is enough.
 
 .don-btn {
   flex: 1;

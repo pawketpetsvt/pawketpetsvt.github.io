@@ -1,19 +1,24 @@
 <template>
-  <div class="quest-card">
-    <div class="quest-title">🐟 Melon's Weekly Request <span class="quest-count">({{ questDone }}/3 found)</span></div>
-    <div class="quest-desc">Bring Melon these fish before the week ends. Reward: <strong>+300 PP</strong></div>
-    <div class="quest-chips">
-      <span v-for="f in targets" :key="f.id" class="quest-chip" :class="{ got: questProgress[f.id] }">{{ f.emoji }} {{ f.name }}{{ questProgress[f.id] ? ' ✓' : '' }}</span>
+  <div class="quest-card px-3 py-3 mb-3 rounded-4">
+    <div class="quest-title mb-1">🐟 Melon's Weekly Request <span class="quest-count">({{ questDone }}/3 found)</span></div>
+    <div class="quest-desc mb-2">Bring Melon these fish before the week ends. Reward: <strong>+300 PP</strong></div>
+    <div class="d-flex flex-wrap gap-2">
+      <span
+        v-for="f in targets"
+        :key="f.id"
+        class="quest-chip px-2 py-1 rounded-pill"
+        :class="{ got: questProgress[f.id] }"
+      >{{ f.emoji }} {{ f.name }}{{ questProgress[f.id] ? ' ✓' : '' }}</span>
     </div>
-    <div v-if="questClaimed" class="quest-claimed">✅ Quest complete this week!</div>
+    <div v-if="questClaimed" class="quest-claimed mt-2">✅ Quest complete this week!</div>
   </div>
 
-  <div class="daily-card">
+  <div class="daily-card px-3 py-2 mb-3 rounded-4">
     <div class="daily-title">📅 Daily Challenge</div>
-    <div class="daily-desc">{{ challenge.label }} <span class="daily-reward">+{{ challenge.reward }} PP</span></div>
-    <div class="daily-progress-row">
-      <div class="daily-progress-track">
-        <div class="daily-progress-fill" :class="{ done: dailyClaimed }" :style="{ width: dailyPct + '%' }"></div>
+    <div class="daily-desc mb-1">{{ challenge.label }} <span class="daily-reward">+{{ challenge.reward }} PP</span></div>
+    <div class="d-flex align-items-center gap-2">
+      <div class="daily-progress-track flex-grow-1 overflow-hidden rounded-pill">
+        <div class="daily-progress-fill rounded-pill" :class="{ done: dailyClaimed }" :style="{ width: dailyPct + '%' }"></div>
       </div>
       <span class="daily-progress-label">{{ dailyClaimed ? '✅ Done' : dailyProgress + '/' + challenge.target }}</span>
     </div>
@@ -47,18 +52,15 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; visuals only here.
 .quest-card {
   background: linear-gradient(135deg, rgba(153, 102, 255, 0.08), rgba(255, 102, 204, 0.06));
   border: 1px solid rgba(153, 102, 255, 0.2);
-  border-radius: 14px;
-  padding: 14px 16px;
-  margin-bottom: 14px;
 }
 
 .quest-title {
   font-weight: 700;
   font-size: 0.88rem;
-  margin-bottom: 6px;
 }
 
 .quest-count {
@@ -70,18 +72,9 @@ onMounted(async () => {
 .quest-desc {
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 8px;
-}
-
-.quest-chips {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .quest-chip {
-  padding: 4px 10px;
-  border-radius: 20px;
   font-size: 0.78rem;
   background: rgba(0, 0, 0, 0.05);
   border: 1px solid var(--border);
@@ -97,26 +90,20 @@ onMounted(async () => {
 .quest-claimed {
   font-size: 0.75rem;
   color: #27ae60;
-  margin-top: 8px;
 }
 
 .daily-card {
   background: rgba(255, 159, 67, 0.06);
   border: 1px solid rgba(255, 159, 67, 0.25);
-  border-radius: 14px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
 }
 
 .daily-title {
   font-weight: 700;
   font-size: 0.85rem;
-  margin-bottom: 4px;
 }
 
 .daily-desc {
   font-size: 0.82rem;
-  margin-bottom: 6px;
 }
 
 .daily-reward {
@@ -124,24 +111,14 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.daily-progress-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 .daily-progress-track {
-  flex: 1;
   background: rgba(0, 0, 0, 0.08);
-  border-radius: 20px;
   height: 6px;
-  overflow: hidden;
 }
 
 .daily-progress-fill {
   background: #ff9f43;
   height: 100%;
-  border-radius: 20px;
   transition: width 0.4s;
 
   &.done {

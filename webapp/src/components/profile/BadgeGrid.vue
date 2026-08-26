@@ -2,13 +2,17 @@
   <div v-if="!badges.length" class="empty-note">
     <p>{{ emptyText }}</p>
   </div>
-  <div v-else class="pf-badge-grid">
-    <div v-for="b in badges" :key="b.id" class="pf-badge-card" :class="{ locked: b.earned === false }">
-      <div v-if="b.rarity && b.rarity !== 'common'" class="pf-badge-rarity" :class="b.rarity">{{ b.rarity }}</div>
-      <div class="pf-badge-icon">{{ b.icon }}</div>
-      <div class="pf-badge-name">{{ b.earned === false ? '???' : b.name }}</div>
-      <div class="pf-badge-desc">{{ b.earned === false ? 'Not yet earned' : b.description }}</div>
-      <div v-if="b.earnedAt" class="pf-badge-date">Earned {{ formatDate(b.earnedAt) }}</div>
+  <div v-else class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
+    <div v-for="b in badges" :key="b.id" class="col">
+      <div class="pf-badge-card position-relative h-100 text-center px-2 py-3 rounded-3" :class="{ locked: b.earned === false }">
+        <div v-if="b.rarity && b.rarity !== 'common'" class="pf-badge-rarity position-absolute top-0 end-0 m-1 px-2 rounded-pill" :class="b.rarity">
+          {{ b.rarity }}
+        </div>
+        <div class="pf-badge-icon">{{ b.icon }}</div>
+        <div class="pf-badge-name">{{ b.earned === false ? '???' : b.name }}</div>
+        <div class="pf-badge-desc">{{ b.earned === false ? 'Not yet earned' : b.description }}</div>
+        <div v-if="b.earnedAt" class="pf-badge-date">Earned {{ formatDate(b.earnedAt) }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -25,18 +29,9 @@ function formatDate(iso) {
 </script>
 
 <style lang="scss" scoped>
-.pf-badge-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .pf-badge-card {
-  position: relative;
-  padding: 14px 10px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  text-align: center;
   background: var(--card-bg, #fff);
 
   &.locked {
@@ -46,14 +41,9 @@ function formatDate(iso) {
 }
 
 .pf-badge-rarity {
-  position: absolute;
-  top: 6px;
-  right: 6px;
   font-size: 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  padding: 1px 6px;
-  border-radius: 8px;
   background: rgba(153, 102, 255, 0.15);
   color: var(--purple-dark);
 }

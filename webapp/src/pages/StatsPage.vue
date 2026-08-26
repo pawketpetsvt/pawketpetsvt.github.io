@@ -10,29 +10,37 @@
 
     <template v-else>
       <h2 class="st-section-title">📊 Your Statistics</h2>
-      <div class="st-grid">
-        <div v-for="c in personal.cards" :key="c.label" class="st-card">
-          <div class="st-icon">{{ c.icon }}</div>
-          <div class="st-value">{{ c.value.toLocaleString() }}</div>
-          <div class="st-label">{{ c.label }}</div>
-          <div v-if="c.sub" class="st-sub">{{ c.sub }}</div>
+      <div class="row row-cols-2 row-cols-md-3 row-cols-xl-4 g-3">
+        <div v-for="c in personal.cards" :key="c.label" class="col">
+          <div class="st-card h-100 text-center p-3 rounded-4">
+            <div class="st-icon">{{ c.icon }}</div>
+            <div class="st-value">{{ c.value.toLocaleString() }}</div>
+            <div class="st-label">{{ c.label }}</div>
+            <div v-if="c.sub" class="st-sub">{{ c.sub }}</div>
+          </div>
         </div>
-        <div class="st-card">
-          <div class="st-icon">📅</div>
-          <div class="st-value st-value-date">{{ personal.memberSince }}</div>
-          <div class="st-label">Member Since</div>
+        <div class="col">
+          <div class="st-card h-100 text-center p-3 rounded-4">
+            <div class="st-icon">📅</div>
+            <div class="st-value st-value-date">{{ personal.memberSince }}</div>
+            <div class="st-label">Member Since</div>
+          </div>
         </div>
       </div>
 
       <h2 class="st-section-title">🌍 Community Statistics</h2>
-      <div class="st-list">
-        <div v-for="s in community" :key="s.key" class="st-row">
+      <div class="d-flex flex-column gap-2">
+        <div
+          v-for="s in community"
+          :key="s.key"
+          class="st-row d-flex align-items-center justify-content-between gap-2 px-3 py-2 rounded-3"
+        >
           <span class="st-row-label">{{ s.label }}</span>
           <span class="st-row-value">{{ s.value.toLocaleString() }}</span>
         </div>
       </div>
 
-      <div class="st-footer">
+      <div class="st-footer text-center mt-5 p-gap rounded-4">
         <p>🎮 Keep playing to improve your stats!</p>
         <p class="st-footer-sub">Adopt more pets, catch more fish, and log in daily to climb the leaderboards!</p>
       </div>
@@ -72,17 +80,10 @@ onMounted(async () => {
   margin: 24px 0 12px;
 }
 
-.st-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
+// Layout (grid, spacing, centering, radius) is expressed with Bootstrap
+// utilities in the template; only the visual identity lives here.
 .st-card {
-  padding: 18px 12px;
   border: 1px solid var(--border);
-  border-radius: 14px;
-  text-align: center;
   background: rgba(153, 102, 255, 0.05);
 }
 
@@ -114,20 +115,8 @@ onMounted(async () => {
   opacity: 0.85;
 }
 
-.st-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
 .st-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
   background: var(--card-bg, #fff);
 }
 
@@ -141,11 +130,7 @@ onMounted(async () => {
 }
 
 .st-footer {
-  margin-top: 30px;
-  padding: 24px;
-  border-radius: 14px;
   background: rgba(153, 102, 255, 0.06);
-  text-align: center;
 }
 
 .st-footer-sub {

@@ -1,8 +1,10 @@
 <template>
-  <div class="pf-stats">
-    <div v-for="s in cards" :key="s.label" class="pf-stat-card">
-      <div class="pf-stat-value">{{ s.value }}</div>
-      <div class="pf-stat-label">{{ s.label }}</div>
+  <div class="row row-cols-2 row-cols-md-3 row-cols-lg-5 g-2 mt-2">
+    <div v-for="s in cards" :key="s.label" class="col">
+      <div class="pf-stat-card h-100 text-center px-2 py-3 rounded-3">
+        <div class="pf-stat-value">{{ s.value }}</div>
+        <div class="pf-stat-label">{{ s.label }}</div>
+      </div>
     </div>
   </div>
 </template>
@@ -25,18 +27,9 @@ const cards = computed(() => [
 </script>
 
 <style lang="scss" scoped>
-.pf-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 10px;
-  margin-top: 16px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .pf-stat-card {
-  padding: 14px 10px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  text-align: center;
   background: rgba(153, 102, 255, 0.05);
 }
 

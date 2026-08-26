@@ -7,15 +7,20 @@
     </div>
     <PointsBanner :points="points" />
 
-    <div class="games-grid">
-      <DiceGame />
-      <GuessGame />
-      <MemoryGame />
-      <SlotMachine />
-      <WheelGame />
-      <WhackGame />
-      <ShellGame />
-      <TypingGame />
+    <!-- Was the global `.games-grid` auto-fit track (minmax 300px, 28px gap).
+         Each game renders its own `.game-card`, so the col is just the cell. -->
+    <!-- `h-100` falls through to each game's root `.game-card`, so every card
+         in a row stretches to match the tallest one (Bootstrap rows already
+         stretch their columns; this makes the card fill its column). -->
+    <div class="row row-cols-1 row-cols-md-2 g-wide">
+      <div class="col"><DiceGame class="h-100" /></div>
+      <div class="col"><GuessGame class="h-100" /></div>
+      <div class="col"><MemoryGame class="h-100" /></div>
+      <div class="col"><SlotMachine class="h-100" /></div>
+      <div class="col"><WheelGame class="h-100" /></div>
+      <div class="col"><WhackGame class="h-100" /></div>
+      <div class="col"><ShellGame class="h-100" /></div>
+      <div class="col"><TypingGame class="h-100" /></div>
     </div>
   </div>
 </template>
@@ -40,3 +45,25 @@ onMounted(() => {
   if (!AppState.player) playerService.getPlayer(AppState.user.id)
 })
 </script>
+
+<style lang="scss" scoped>
+// The game cards are laid out by `.game-card` (flex column) in the root
+// style.css, so every element below the description inherits its height —
+// meaning a 2-line blurb and a 3-line blurb pushed the reward badge and the
+// game area to different heights across a row. Reserving the tallest case
+// (3 lines at 0.95rem/1.6) lines the badges and play areas up with each other.
+//
+// `:deep()` because the descriptions live inside the individual game
+// components, and scoped styles otherwise stop at this page's own elements.
+// Scoped to this page on purpose: `.game-desc` is shared with FishingPage,
+// whose single card has a short blurb and would just gain dead space.
+:deep(.game-desc) {
+  min-height: 4.6rem;
+}
+
+// Titles are single-line today, but a longer name wrapping to two lines would
+// reintroduce the same misalignment, so reserve one line's worth here too.
+:deep(.game-title) {
+  min-height: 2.2rem;
+}
+</style>

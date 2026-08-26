@@ -1,16 +1,16 @@
 <template>
-  <div class="gb-panel">
-    <h2 class="gb-title">📖 Guestbook</h2>
+  <div class="mt-4">
+    <h2 class="gb-title mb-3">📖 Guestbook</h2>
 
-    <div v-if="canPost" class="gb-form">
+    <div v-if="canPost" class="mb-3">
       <textarea
         v-model="draft"
-        class="gb-input"
+        class="gb-input px-3 py-2 rounded-3"
         rows="3"
         :maxlength="GUESTBOOK_MAX_LENGTH"
         placeholder="Leave a nice message..."
       ></textarea>
-      <div class="gb-form-row">
+      <div class="d-flex align-items-center justify-content-between mt-1">
         <span class="gb-count">{{ draft.length }} / {{ GUESTBOOK_MAX_LENGTH }}</span>
         <button class="btn btn-primary btn-sm" :disabled="posting || !draft.trim()" @click="post">Post Message</button>
       </div>
@@ -19,16 +19,18 @@
     <div v-if="loading" class="spinner"></div>
 
     <template v-else>
-      <div v-if="!entries.length" class="gb-empty">
+      <div v-if="!entries.length" class="gb-empty text-center p-4">
         <div class="gb-empty-icon">📖</div>
         <p>No messages yet!</p>
-        <p class="gb-empty-sub">Be the first to leave a message!</p>
+        <p class="gb-empty-sub mt-1">Be the first to leave a message!</p>
       </div>
 
-      <div v-for="e in entries" :key="e.id" class="gb-entry">
-        <div class="gb-entry-top">
-          <div class="gb-author">
-            <div class="gb-author-avatar">{{ e.authorName.charAt(0).toUpperCase() }}</div>
+      <div v-for="e in entries" :key="e.id" class="gb-entry px-3 py-2 mb-2 rounded-3">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <div class="d-flex align-items-center gap-2 min-w-0">
+            <div class="gb-author-avatar d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle">
+              {{ e.authorName.charAt(0).toUpperCase() }}
+            </div>
             <div>
               <div class="gb-author-name" @click="$emit('view-profile', e.authorName)">{{ e.authorName }}</div>
               <div class="gb-timestamp">{{ getTimeAgo(new Date(e.createdAt)) }}</div>
@@ -36,10 +38,10 @@
           </div>
           <button v-if="e.canDelete" class="btn btn-outline btn-sm btn-danger" @click="remove(e)">Delete</button>
         </div>
-        <div class="gb-message">{{ e.message }}</div>
+        <div class="gb-message mt-2">{{ e.message }}</div>
       </div>
 
-      <button v-if="hasMore" class="btn btn-outline gb-load-more" :disabled="loadingMore" @click="loadMore">
+      <button v-if="hasMore" class="btn btn-outline w-100 mt-2 py-2" :disabled="loadingMore" @click="loadMore">
         {{ loadingMore ? 'Loading...' : '⬇️ Load More' }}
       </button>
     </template>
@@ -121,35 +123,18 @@ onMounted(load)
 </script>
 
 <style lang="scss" scoped>
-.gb-panel {
-  margin-top: 24px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
 .gb-title {
   font-size: 1.15rem;
   color: var(--purple-dark);
-  margin-bottom: 12px;
-}
-
-.gb-form {
-  margin-bottom: 16px;
 }
 
 .gb-input {
   width: 100%;
-  padding: 10px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
   font-size: 0.85rem;
   font-family: inherit;
   resize: vertical;
-}
-
-.gb-form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 6px;
 }
 
 .gb-count {
@@ -158,38 +143,16 @@ onMounted(load)
 }
 
 .gb-entry {
-  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  margin-bottom: 8px;
   background: var(--card-bg, #fff);
-}
-
-.gb-entry-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.gb-author {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
 }
 
 .gb-author-avatar {
   width: 34px;
   height: 34px;
-  flex-shrink: 0;
-  border-radius: 50%;
   background: linear-gradient(135deg, var(--purple), var(--pink, #ff66cc));
   color: #fff;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .gb-author-name {
@@ -209,15 +172,12 @@ onMounted(load)
 }
 
 .gb-message {
-  margin-top: 8px;
   font-size: 0.85rem;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .gb-empty {
-  text-align: center;
-  padding: 30px;
   color: var(--text-light);
 }
 
@@ -228,12 +188,6 @@ onMounted(load)
 
 .gb-empty-sub {
   font-size: 0.85rem;
-  margin-top: 6px;
 }
 
-.gb-load-more {
-  width: 100%;
-  margin-top: 10px;
-  padding: 10px;
-}
 </style>

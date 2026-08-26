@@ -2,12 +2,13 @@
   <div class="game-card">
     <div class="game-title">🎰 Slot Machine</div>
     <div class="game-desc">Bet your PP! Match 2 = get bet back. Match 3 = 4x profit!</div>
-    <span class="game-reward reward-warning">High risk, high reward!</span>
+    <span class="game-reward">High risk, high reward!</span>
     <div class="game-area">
       <div class="slot-bet-selector">
         <label class="bet-label">Choose Your Bet:</label>
         <div class="bet-buttons">
-          <button v-for="bet in SLOT_BETS" :key="bet" class="btn bet-btn" :class="{ active: selectedBet === bet }" :disabled="spinning" @click="selectedBet = bet">{{ bet }} PP</button>
+          <button v-for="bet in SLOT_BETS" :key="bet" class="btn bet-btn" :class="{ active: selectedBet === bet }"
+            :disabled="spinning" @click="selectedBet = bet">{{ bet }} PP</button>
         </div>
       </div>
 
@@ -114,10 +115,6 @@ async function resolveSpin(final) {
 </script>
 
 <style lang="scss" scoped>
-.reward-warning {
-  color: var(--orange);
-}
-
 .bet-label {
   font-weight: bold;
   color: var(--purple);

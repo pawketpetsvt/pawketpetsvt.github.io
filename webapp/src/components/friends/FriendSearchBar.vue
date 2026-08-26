@@ -1,9 +1,9 @@
 <template>
-  <div class="friend-search">
-    <div class="friend-search-row">
+  <div>
+    <div class="d-flex gap-2 mb-3">
       <input
         v-model="query"
-        class="friend-search-input"
+        class="friend-search-input flex-grow-1 px-3 py-2 rounded-3"
         type="text"
         placeholder="Search players by username..."
         @keyup.enter="search"
@@ -12,20 +12,24 @@
     </div>
 
     <div v-if="searching" class="spinner"></div>
-    <div v-else-if="searched && !results.length" class="empty-note">No players found matching "{{ lastQuery }}"</div>
-    <div v-else class="search-results">
-      <div v-for="p in results" :key="p.id" class="friend-card">
-        <div class="friend-avatar">{{ p.username.charAt(0).toUpperCase() }}</div>
-        <div class="friend-info">
+    <div v-else-if="searched && !results.length" class="empty-note text-center p-3">
+      No players found matching "{{ lastQuery }}"
+    </div>
+    <div v-else>
+      <div v-for="p in results" :key="p.id" class="friend-card d-flex align-items-center gap-3 px-3 py-2 mb-2 rounded-3">
+        <div class="friend-avatar d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle">
+          {{ p.username.charAt(0).toUpperCase() }}
+        </div>
+        <div class="flex-grow-1 min-w-0">
           <div class="friend-username" @click="$emit('view-profile', p.username)">{{ p.username }}</div>
-          <div class="friend-stats">
+          <div class="d-flex flex-wrap gap-2 mt-1">
             <span class="friend-stat">🪙 {{ (p.pawketpoints || 0).toLocaleString() }} PP</span>
             <span class="friend-stat">🐾 {{ p.petCount || 0 }} Pets</span>
             <span class="friend-stat">⭐ Level {{ p.totalLevel || 0 }}</span>
             <span class="friend-stat">🎖️ {{ p.badgeCount || 0 }} Badges</span>
           </div>
         </div>
-        <div class="friend-actions">
+        <div class="d-flex flex-column align-items-end gap-1 flex-shrink-0">
           <span v-if="p.isSelf" class="self-note">This is you!</span>
           <button v-else-if="p.friendshipStatus === 'accepted'" class="btn btn-success btn-sm" disabled>✅ Friends</button>
           <button v-else-if="p.friendshipStatus === 'pending'" class="btn btn-outline btn-sm" disabled>⏳ Request Pending</button>
@@ -76,55 +80,26 @@ async function sendRequest(p) {
 </script>
 
 <style lang="scss" scoped>
-.friend-search-row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
+// Layout via Bootstrap utilities in the template; visuals only here.
+// (These mirror FriendCard.vue's — the two can't share a block because
+// scoped styles are per-component, but both are now down to visuals only.)
 .friend-search-input {
-  flex: 1;
-  padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 10px;
   font-size: 0.85rem;
-}
-
-.empty-note {
-  text-align: center;
-  color: var(--text-light);
-  font-size: 0.85rem;
-  padding: 16px;
 }
 
 .friend-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
   background: var(--card-bg, #fff);
-  margin-bottom: 8px;
 }
 
 .friend-avatar {
   width: 42px;
   height: 42px;
-  flex-shrink: 0;
-  border-radius: 50%;
   background: linear-gradient(135deg, var(--purple), var(--pink, #ff66cc));
   color: #fff;
   font-weight: 700;
   font-size: 1.1rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.friend-info {
-  flex: 1;
-  min-width: 0;
 }
 
 .friend-username {
@@ -138,28 +113,15 @@ async function sendRequest(p) {
   }
 }
 
-.friend-stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 4px;
-}
-
 .friend-stat {
   font-size: 0.74rem;
   color: var(--text-light);
 }
 
-.friend-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex-shrink: 0;
-  align-items: flex-end;
+.empty-note,
+.self-note {
+  color: var(--text-light);
+  font-size: 0.85rem;
 }
 
-.self-note {
-  font-size: 0.8rem;
-  color: var(--text-light);
-}
 </style>

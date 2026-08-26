@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { minigamesService } from '../../services/MinigamesService.js'
 import { WHEEL_PRIZES } from '../../data/minigamesData.js'
 
@@ -109,7 +109,17 @@ async function finishSpin(winningPrize) {
 
 onMounted(async () => {
   onCooldown.value = await minigamesService.isOnCooldown('wheel')
-  if (!onCooldown.value) drawWheel()
+  // The canvas lives inside `v-else`, so it does not exist in the DOM until
+  // this flips onCooldown to false — and Vue applies that change on the next
+  // tick. Drawing synchronously here found `canvasEl.value === null` and bailed
+  // out via its own guard, leaving the wheel permanently blank. Introduced when
+  // the cooldown check became async (Phase 4's server-side claim gating);
+  // before that onCooldown was known synchronously and the canvas already
+  // existed at mount.
+  if (!onCooldown.value) {
+    await nextTick()
+    drawWheel()
+  }
 })
 </script>
 

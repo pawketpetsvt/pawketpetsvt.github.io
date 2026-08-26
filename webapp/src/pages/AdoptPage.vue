@@ -9,22 +9,29 @@
 
     <div v-if="loading" class="spinner"></div>
     <p v-else-if="loadError" class="load-error">Could not load pets.</p>
-    <div v-else class="pets-grid">
-      <div v-for="pet in AppState.petCatalog" :key="pet.id" class="pet-card" :class="{ placeholder: pet.isPlaceholder, 'already-owned': isOwned(pet.id) }">
-        <div class="pet-image-wrap">
-          <img v-if="pet.image_file && !pet.isPlaceholder && !imgErrors[pet.id]" :src="'/images/' + pet.image_file" :alt="pet.name" @error="imgErrors[pet.id] = true" />
-          <span v-else class="pet-image-placeholder">{{ pet.isPlaceholder ? '❓' : '🐾' }}</span>
+    <!-- Was the global `.pets-grid` auto-fill track (minmax 240px, 24px gap);
+         now Bootstrap's grid with the same effective column counts. -->
+    <div v-else class="row row-cols-2 row-cols-md-3 g-4">
+      <div v-for="pet in AppState.petCatalog" :key="pet.id" class="col">
+        <div
+          class="pet-card h-100"
+          :class="{ placeholder: pet.isPlaceholder, 'already-owned': isOwned(pet.id) }"
+        >
+          <div class="pet-image-wrap">
+            <img v-if="pet.image_file && !pet.isPlaceholder && !imgErrors[pet.id]" :src="'/images/' + pet.image_file" :alt="pet.name" @error="imgErrors[pet.id] = true" />
+            <span v-else class="pet-image-placeholder">{{ pet.isPlaceholder ? '❓' : '🐾' }}</span>
+          </div>
+          <div class="pet-name">{{ pet.isPlaceholder ? '???' : pet.name }}</div>
+          <div v-if="pet.vtuber_name && !pet.isPlaceholder" class="pet-vtuber">🎭 {{ pet.vtuber_name }}</div>
+          <div class="pet-description">{{ pet.isPlaceholder ? 'A mystery pet shrouded in shadow... who could it be? 👀' : pet.description }}</div>
+          <span v-if="!pet.isPlaceholder" class="pet-price" :class="{ free: effectivePrice(pet) === 0 }">
+            {{ effectivePrice(pet) === 0 ? '✨ FREE' : '🪙 ' + pet.price + ' PP' }}
+          </span>
+          <button v-if="pet.isPlaceholder" class="btn-locked">🔒 Coming Soon</button>
+          <button v-else-if="isOwned(pet.id)" class="btn-owned">✅ Already Adopted!</button>
+          <button v-else-if="points < effectivePrice(pet)" class="btn-locked">Need {{ pet.price }} PP</button>
+          <button v-else class="btn btn-primary btn-adopt" @click="openAdoptModal(pet)">🐣 Adopt!</button>
         </div>
-        <div class="pet-name">{{ pet.isPlaceholder ? '???' : pet.name }}</div>
-        <div v-if="pet.vtuber_name && !pet.isPlaceholder" class="pet-vtuber">🎭 {{ pet.vtuber_name }}</div>
-        <div class="pet-description">{{ pet.isPlaceholder ? 'A mystery pet shrouded in shadow... who could it be? 👀' : pet.description }}</div>
-        <span v-if="!pet.isPlaceholder" class="pet-price" :class="{ free: effectivePrice(pet) === 0 }">
-          {{ effectivePrice(pet) === 0 ? '✨ FREE' : '🪙 ' + pet.price + ' PP' }}
-        </span>
-        <button v-if="pet.isPlaceholder" class="btn-locked">🔒 Coming Soon</button>
-        <button v-else-if="isOwned(pet.id)" class="btn-owned">✅ Already Adopted!</button>
-        <button v-else-if="points < effectivePrice(pet)" class="btn-locked">Need {{ pet.price }} PP</button>
-        <button v-else class="btn btn-primary btn-adopt" @click="openAdoptModal(pet)">🐣 Adopt!</button>
       </div>
     </div>
 

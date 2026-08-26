@@ -105,26 +105,11 @@ a:hover { color: var(--pink) !important; }
   text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
 }
 
-/* NEWS TICKER */
-.news-ticker { 
-  background: linear-gradient(90deg, #ffdd00, #ff9933, #ff66cc) !important; 
-  color: var(--text) !important; 
-  padding: 10px 0 !important; 
-  overflow: hidden !important; 
-  white-space: nowrap !important; 
-  font-family: 'Chewy', cursive !important; 
-  font-size: 1rem !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-  border-bottom: 3px solid rgba(255,255,255,0.5) !important;
-}
-.news-ticker-inner { 
-  display: inline-block !important; 
-  animation: ticker 40s linear 1 !important; 
-  padding-left: 100% !important;
-  font-weight: 600 !important;
-  text-shadow: 1px 1px 0 rgba(255,255,255,0.5) !important;
-}
-@keyframes ticker { 0% { transform: translateX(0); } 100% { transform: translateX(-100%); } }
+/* NEWS TICKER — base appearance, the inner scroll and its @keyframes now live
+   in webapp/src/components/NewsTicker.vue's scoped block. The `.news-ticker`
+   class is still carried on that component's root as a styling hook, because
+   `body.night-mode .news-ticker` (below) and the night-mode transition group
+   both target it as an ancestor-scoped rule. */
 
 /* CONSOLIDATED NAVBAR STYLES */
 .navbar-consolidated .navbar-inner {
@@ -264,15 +249,9 @@ a:hover { color: var(--pink) !important; }
 }
 
 /* NAVBAR - ROUNDED BOTTOM CORNERS */
-.navbar { 
-  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important; 
-  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important; 
-  position: sticky !important; 
-  top: 0 !important; 
-  z-index: 100 !important;
-  border-bottom: 4px solid rgba(255,255,255,0.3) !important;
-  border-radius: 0 0 32px 32px !important;
-}
+/* .navbar rule removed in Phase 6.5 — folded into the single consolidated
+   .navbar definition further down this file. Its border-radius (32px) and
+   purple glow shadow were already dead here, overridden downstream. */
 .navbar-inner { 
   max-width: 1400px !important; 
   margin: 0 auto !important; 
@@ -658,12 +637,6 @@ a:hover { color: var(--pink) !important; }
 }
 
 /* PET CARDS */
-.pets-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important;
-  gap: 24px !important;
-  margin-top: 24px !important;
-}
 .pet-card {
   background: var(--white) !important;
   border: 4px solid var(--border) !important;
@@ -861,43 +834,6 @@ a:hover { color: var(--pink) !important; }
   margin: 0 auto 24px !important;
 }
 
-/* QUICKLINKS */
-.quicklinks {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)) !important;
-  gap: 20px !important;
-  margin: 30px 0 !important;
-}
-.quicklink-card {
-  background: linear-gradient(135deg, var(--card-bg, rgba(255,255,255,0.08)), var(--card-bg, rgba(255,255,255,0.04))) !important;
-  border: 4px solid var(--border) !important;
-  border-radius: var(--radius-xl) !important;
-  padding: 28px 20px !important;
-  text-align: center !important;
-  cursor: pointer !important;
-  transition: all 0.3s !important;
-  box-shadow: 0 6px 20px rgba(153,102,255,0.2) !important;
-  position: relative !important;
-  overflow: hidden !important;
-}
-.quicklink-card:hover {
-  transform: translateY(-8px) scale(1.05) !important;
-  box-shadow: 0 12px 30px rgba(153,102,255,0.35) !important;
-  border-color: var(--pink) !important;
-}
-.ql-icon {
-  font-size: 3rem !important;
-  display: block !important;
-  margin-bottom: 12px !important;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)) !important;
-}
-.ql-label {
-  font-family: 'Chewy', cursive !important;
-  font-size: 1.1rem !important;
-  color: var(--purple-dark) !important;
-  font-weight: 600 !important;
-  display: block !important;
-}
 
 /* FOOTER */
 .footer {
@@ -1049,17 +985,6 @@ a:hover { color: var(--pink) !important; }
   flex-wrap: wrap !important;
   justify-content: center !important;
   margin-bottom: 12px !important;
-}
-.ach-badge {
-  background: linear-gradient(135deg, var(--yellow), var(--orange)) !important;
-  color: var(--text) !important;
-  font-family: 'Chewy', cursive !important;
-  font-size: 0.75rem !important;
-  padding: 4px 10px !important;
-  border-radius: 15px !important;
-  border: 2px solid rgba(255,255,255,0.6) !important;
-  font-weight: 600 !important;
-  box-shadow: 0 2px 6px rgba(255,153,51,0.3) !important;
 }
 .ach-badge.trained { background: linear-gradient(135deg, var(--purple), var(--purple-light)) !important; color: var(--white) !important; }
 
@@ -1326,12 +1251,6 @@ a:hover { color: var(--pink) !important; }
   box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
 }
 
-.shop-grid, .inventory-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)) !important;
-  gap: 24px !important;
-  margin-top: 20px !important;
-}
 
 .shop-card {
   background: var(--white) !important;
@@ -1491,12 +1410,6 @@ a:hover { color: var(--pink) !important; }
 }
 
 /* ========== MINIGAMES SECTION ========== */
-.games-grid {
-  display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
-  gap: 28px !important;
-  margin-top: 28px !important;
-}
 
 .game-card {
   background: var(--white) !important;
@@ -2322,18 +2235,12 @@ body::after {
 }
 
 /* 3-COLUMN LAYOUT CONTAINER */
-.app-container {
-  display: grid !important;
-  grid-template-columns: 240px 1fr 240px !important;
-  gap: 20px !important;
-  max-width: 1400px !important;
-  margin: 0 auto !important;
-  padding: 20px !important;
-  padding-top: 20px !important;
-  position: relative !important;
-  z-index: 1 !important;
-  align-items: start !important; /* CRITICAL FIX: Align all columns to top */
-}
+/* .app-container removed in Phase 6.5 — the app shell's three-column layout
+   is now Bootstrap's container/row/col grid, owned by AppShell.vue. This rule
+   (and the five other competing .app-container definitions that used to live
+   further down this file) had drifted apart: this one declared 240px sidebars
+   while the @media (min-width: 901px) copy declared 260px and silently won on
+   every desktop viewport. */
 
 /* HIDE OLD NAVBAR */
 /* TOP HEADER BAR - OLD, REMOVED */
@@ -2419,13 +2326,9 @@ body::after {
   box-shadow: 0 5px 12px rgba(0,0,0,0.3) !important;
 }
 
-/* LEFT SIDEBAR */
-.left-sidebar {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 16px !important;
-  align-self: start !important; /* Ensure it starts at top of grid */
-}
+/* .left-sidebar removed in Phase 6.5 — pure layout (flex column / 16px gap /
+   align-self), now expressed as Bootstrap utilities directly in
+   LeftSidebar.vue: `d-flex flex-column gap-3 align-self-start`. */
 
 /* SIDEBAR SECTIONS - Enhanced with decorative borders */
 .sidebar-section {
@@ -2596,13 +2499,8 @@ body::after {
   align-self: start !important; /* Ensure it starts at top of grid */
 }
 
-/* RIGHT SIDEBAR */
-.right-sidebar {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 16px !important;
-  align-self: start !important; /* Ensure it starts at top of grid */
-}
+/* .right-sidebar removed in Phase 6.5 — same as .left-sidebar above; now
+   Bootstrap utilities in RightSidebar.vue. */
 
 /* STREAMERS WIDGET - Enhanced and expanded */
 .streamers-widget {
@@ -2616,44 +2514,22 @@ body::after {
   position: relative !important;
   flex: 1 !important;
   min-height: 220px !important;
-  max-height: 600px !important; /* Add max height */
-  overflow-y: auto !important; /* Add vertical scrolling */
-  overflow-x: hidden !important; /* Hide horizontal scroll */
+  /* Deliberately NOT scrolling and NOT clipping: the scroll area is the inner
+     `.streamers-scroll` list (see RightSidebar.vue), because this element's
+     ::before dot sits at top:-8px — outside its own box — and any overflow
+     value other than `visible` clips that dot in half. */
 }
 
-/* Custom scrollbar for streamers widget */
-.streamers-widget::-webkit-scrollbar {
-  width: 8px !important;
-}
-
-.streamers-widget::-webkit-scrollbar-track {
-  background: rgba(153, 102, 255, 0.1) !important;
-  border-radius: 10px !important;
-}
-
-.streamers-widget::-webkit-scrollbar-thumb {
-  background: var(--purple-light) !important;
-  border-radius: 10px !important;
-  transition: background 0.2s !important;
-}
-
-.streamers-widget::-webkit-scrollbar-thumb:hover {
-  background: var(--purple) !important;
-}
-
-/* Firefox scrollbar */
-.streamers-widget {
-  scrollbar-width: thin !important;
-  scrollbar-color: var(--purple-light) rgba(153, 102, 255, 0.1) !important;
-}
+/* Streamers-widget scrollbar styling removed — the widget no longer scrolls
+   (see its rule above), so these had nothing left to style. */
 
 /* LIVE indicator decoration on streamer widget */
 .streamers-widget::before {
   content: '' !important;
   position: absolute !important;
   top: -8px !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
+  left: 15px !important; /* top-left corner, matching .sidebar-section's dots */
+  z-index: 3 !important; /* above the widget's 4px border */
   width: 14px !important;
   height: 14px !important;
   background: #ff0000 !important;
@@ -2869,10 +2745,8 @@ body::after {
 
 /* RESPONSIVE - STACK ON MOBILE */
 @media (max-width: 1024px) {
-  .app-container {
-    grid-template-columns: 1fr !important;
-  }
-  
+  /* .app-container grid override removed in Phase 6.5 (now Bootstrap's grid).
+     Sidebar hiding is now AppShell.vue's `d-none d-lg-block`. */
   .left-sidebar, .right-sidebar {
     display: none !important;
   }
@@ -2937,25 +2811,28 @@ body::after {
   animation: pulse-and-float 2.5s ease-in-out infinite !important;
 }
 
+/* translateX(-50%) removed from every step: it existed only to keep this dot
+   horizontally centred, and the dot now sits in the top-LEFT corner via
+   `left: 15px`. Leaving it in would drag the dot half its own width off. */
 @keyframes pulse-and-float {
   0%, 100% { 
     opacity: 1; 
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateY(0) scale(1);
     box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 12px rgba(255,0,0,0.6);
   }
   25% {
     opacity: 0.8;
-    transform: translateX(-50%) translateY(-3px) scale(1.15);
+    transform: translateY(-3px) scale(1.15);
     box-shadow: 0 4px 8px rgba(0,0,0,0.3), 0 0 20px rgba(255,0,0,0.8);
   }
   50% { 
     opacity: 0.7; 
-    transform: translateX(-50%) translateY(0) scale(1.2);
+    transform: translateY(0) scale(1.2);
     box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 0 16px rgba(255,0,0,0.7);
   }
   75% {
     opacity: 0.85;
-    transform: translateX(-50%) translateY(-2px) scale(1.1);
+    transform: translateY(-2px) scale(1.1);
     box-shadow: 0 3px 6px rgba(0,0,0,0.25), 0 0 18px rgba(255,0,0,0.75);
   }
 }
@@ -3128,12 +3005,8 @@ body::after {
    LEADERBOARDS
    ═══════════════════════════════════════════════════════════ */
 
-.leaderboard-tabs {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
+/* .leaderboard-tabs removed in Phase 6.5 — pure layout, now expressed as
+   `d-flex flex-wrap gap-2 mb-3` directly in LeaderboardPage.vue. */
 
 .leaderboard-tab {
   flex: 1;
@@ -3353,7 +3226,6 @@ body::after {
 }
 
     
-
 /* ═══════════════════════════════════════════════════════════
    MY PROFILE EDIT PAGE
    ═══════════════════════════════════════════════════════════ */
@@ -3539,7 +3411,6 @@ body::after {
   height: 80px;
   font-size: 2.5rem;
 }
-
 
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -5104,12 +4975,9 @@ body.boss-ui-glitch header {
   50% { transform: scale(1.15); }
 }
 
-.friends-tabs {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 20px;
-  border-bottom: 2px solid var(--border);
-}
+/* .friends-tabs removed in Phase 6.5 — layout is now `d-flex flex-wrap gap-2
+   mb-3` in FriendsPage.vue. Note its `border-bottom` was already invisible in
+   the Vue app: the port renders pill-style tabs with no underline rule. */
 
 .friends-tab {
   background: transparent;
@@ -6806,12 +6674,6 @@ body.boss-ui-glitch header {
    TEAM PROFILES PAGE
    ══════════════════════════════════════════════════════════════════════════ */
 
-.team-profiles-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 24px;
-  margin-top: 30px;
-}
 
 .team-profile-card {
   background: white;
@@ -6827,12 +6689,25 @@ body.boss-ui-glitch header {
   border-color: var(--purple);
 }
 
-.team-profile-header {
+/* Renamed from .team-profile-header in Phase 6.5: the old name matched the
+   global `[class*="header"]` rule, whose !important declarations overrode the
+   padding below to `0 20px` and forced `space-between`, pushing the avatar
+   away from the name. The new name is outside that selector's reach. */
+.team-profile-banner {
   background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
   padding: 24px;
   display: flex;
   align-items: center;
   gap: 20px;
+}
+
+/* Restored in Phase 6.5: the grid track moved to Bootstrap (`row row-cols-2`),
+   but this rule also carried the panel's visual treatment, which must stay. */
+.team-profile-stats {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--purple-light);
+  border-radius: 12px;
 }
 
 .team-profile-avatar {
@@ -6878,15 +6753,6 @@ body.boss-ui-glitch header {
   margin-bottom: 20px;
 }
 
-.team-profile-stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 20px;
-  padding: 16px;
-  background: var(--purple-light);
-  border-radius: 12px;
-}
 
 .team-stat {
   text-align: center;
@@ -8283,7 +8149,8 @@ body,
 body::before,
 body::after,
 .card,
-.navbar,
+/* `.navbar` dropped from this group in Phase 6.5 — its transition is declared
+   in the consolidated .navbar rule instead. Other selectors unchanged. */
 .news-ticker,
 .sidebar-section,
 input,
@@ -8453,22 +8320,11 @@ body.night-mode .streamers-widget {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
 }
 
-/* Night mode scrollbar for streamers widget */
-body.night-mode .streamers-widget::-webkit-scrollbar-track {
-  background: rgba(102, 68, 170, 0.2) !important;
-}
+/* Night-mode scrollbar rules for the streamers widget removed alongside the
+   widget's own scrolling. */
 
-body.night-mode .streamers-widget::-webkit-scrollbar-thumb {
-  background: #6644aa !important;
-}
-
-body.night-mode .streamers-widget::-webkit-scrollbar-thumb:hover {
-  background: #7755bb !important;
-}
-
-body.night-mode .streamers-widget {
-  scrollbar-color: #6644aa rgba(102, 68, 170, 0.2) !important;
-}
+/* (Remaining night-mode scrollbar rules for the streamers widget removed —
+   the widget no longer scrolls.) */
 
 body.night-mode .streamer-item {
   background: rgba(102, 68, 170, 0.2) !important;
@@ -9594,15 +9450,8 @@ body.night-mode .btn-outline:hover {
     display: none !important;
   }
   
-  /* App Container - Stack Vertically */
-  .app-container {
-    display: flex !important;
-    flex-direction: column !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    padding: 10px !important;
-    box-sizing: border-box !important;
-  }
+  /* App Container stacking removed in Phase 6.5 — Bootstrap's row/col already
+     collapses to a single column once the sidebars are hidden at <lg. */
   
   /* Main content area - add padding for hamburger */
   #app-content {
@@ -9891,15 +9740,9 @@ body.night-mode .btn-outline:hover {
     gap: 8px !important;
   }
   
-  /* Ensure 3-column layout */
-  .app-container {
-    display: grid !important;
-    grid-template-columns: 260px 1fr 260px !important;
-    gap: 20px !important;
-    max-width: 1400px !important;
-    margin: 0 auto !important;
-    padding: 20px !important;
-  }
+  /* 3-column layout removed in Phase 6.5 — this was the rule that actually
+     won on desktop (260px sidebars), and it's now Bootstrap's grid in
+     AppShell.vue: container-xxl + row + col-auto/col. */
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -10849,7 +10692,7 @@ body.night-mode .btn-outline:hover {
 /* Force everything to fit horizontally - NO REARRANGING */
 
 /* Main navbar container - force single line */
-.navbar,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
 .navbar-consolidated,
 .navbar-inner {
   display: flex !important;
@@ -11312,7 +11155,7 @@ body[data-theme="dark"] .modal-content {
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* Override previous compression - make things BIGGER and use full width */
-.navbar,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
 .navbar-consolidated,
 .navbar-inner {
   width: 100% !important;
@@ -11619,33 +11462,6 @@ body[data-theme="dark"] .modal-content {
 }
 
 
-/* ══════════════════════════════════════════════════════════════════════════
-   SCRAPBOOK STYLES (sb- prefix)
-   ══════════════════════════════════════════════════════════════════════════ */
-.sb-section {
-  margin-top: 20px;
-  padding: 15px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-}
-
-.sb-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.sb-icon {
-  font-size: 20px;
-}
-
-.sb-title {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .sb-memories-container {
   max-height: 250px;
   overflow-y: auto;
@@ -11683,11 +11499,6 @@ body[data-theme="dark"] .modal-content {
   font-style: italic;
 }
 
-.sb-loading {
-  text-align: center;
-  padding: 20px;
-  color: rgba(255, 255, 255, 0.4);
-}
 
 /* ══════════════════════════════════════════════════════════════════════════
    COMMUNITY GOALS STYLES (com- prefix)
@@ -11821,7 +11632,7 @@ body[data-theme="dark"] .modal-content {
 /* Fix the header container - force proper alignment */
 .top-bar,
 .header,
-.navbar,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
 .navbar-consolidated,
 [class*="top-bar"],
 [class*="header"],
@@ -12071,62 +11882,6 @@ body[data-theme="dark"] .modal-content {
 }
 
 
-/* ══════════════════════════════════════════════════════════════════════════
-   PHASE 1: PROFILE COSMETICS, PET OF THE DAY, MILESTONES
-   ALL CLASSES PREFIXED WITH phase1-
-   ══════════════════════════════════════════════════════════════════════════ */
-
-/* ========== COSMETICS SECTION (Profile/Settings Page) ========== */
-.phase1-cosmetics-section {
-  margin-top: 20px;
-  padding: 20px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.phase1-cosmetics-section h3 {
-  margin: 0 0 20px 0;
-  font-size: 18px;
-  color: var(--purple, #9966ff);
-}
-
-.phase1-cosmetics-group {
-  margin-bottom: 20px;
-}
-
-.phase1-cosmetics-group label {
-  display: block;
-  margin-bottom: 10px;
-  font-weight: 600;
-  font-size: 14px;
-}
-
-.phase1-background-selector,
-.phase1-frame-selector,
-.phase1-badge-selector {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.phase1-cosmetic-option {
-  cursor: pointer;
-  padding: 10px 15px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 2px solid transparent;
-  border-radius: 8px;
-  transition: all 0.2s ease;
-  font-size: 13px;
-  min-width: 120px;
-  text-align: center;
-}
-
-.phase1-cosmetic-option:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: translateY(-2px);
-}
-
 .phase1-cosmetic-option.selected {
   background: rgba(255, 107, 53, 0.3);
   border-color: #ff6b35;
@@ -12147,20 +11902,6 @@ body[data-theme="dark"] .modal-content {
   font-size: 12px;
 }
 
-.phase1-cosmetic-icon {
-  font-size: 24px;
-  margin-bottom: 5px;
-}
-
-.phase1-cosmetic-name {
-  font-weight: 600;
-  margin-bottom: 3px;
-}
-
-.phase1-cosmetic-unlock {
-  font-size: 10px;
-  color: rgba(255, 255, 255, 0.6);
-}
 
 /* ========== PET OF THE DAY CARD (Homepage) ========== */
 .phase1-pet-of-day {
@@ -12330,103 +12071,18 @@ body[data-theme="dark"] .modal-content {
   100% { transform: rotate(360deg); }
 }
 
-/* ========== PROFILE BACKGROUNDS (Applied to profile section) ========== */
-.phase1-bg-default {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.phase1-bg-forest {
-  background: linear-gradient(135deg, #134e5e 0%, #71b280 100%);
-}
-
-.phase1-bg-castle {
-  background: linear-gradient(135deg, #3c3b3f 0%, #605c3c 100%);
-}
-
-.phase1-bg-stars {
-  background: linear-gradient(135deg, #000428 0%, #004e92 100%);
-}
-
-.phase1-bg-volcano {
-  background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%);
-}
-
-.phase1-bg-underwater {
-  background: linear-gradient(135deg, #0052d4 0%, #65c7f7 100%);
-}
-
-.phase1-bg-clouds {
-  background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
-}
-
-.phase1-bg-desert {
-  background: linear-gradient(135deg, #f7971e 0%, #ffd200 100%);
-}
-
-.phase1-bg-garden {
-  background: linear-gradient(135deg, #56ab2f 0%, #a8e063 100%);
-}
-
-.phase1-bg-legendary {
-  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
-  box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
-}
-
-/* ========== PROFILE FRAMES (Border overlays) ========== */
-.phase1-frame-none {
-  border: none !important;
-}
-
-.phase1-frame-basic {
-  border: 3px solid rgba(255, 255, 255, 0.3) !important;
-}
-
-.phase1-frame-silver {
-  border: 4px solid #c0c0c0 !important;
-  box-shadow: 0 0 10px rgba(192, 192, 192, 0.5);
-}
-
-.phase1-frame-gold {
-  border: 4px solid #ffd700 !important;
-  box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
-}
-
-.phase1-frame-rainbow {
-  border: 4px solid transparent !important;
-  background-image: linear-gradient(white, white), 
-                    linear-gradient(45deg, red, orange, yellow, green, blue, indigo, violet, red);
-  background-origin: border-box;
-  background-clip: padding-box, border-box;
-  animation: phase1-rainbow-spin 3s linear infinite;
-}
 
 @keyframes phase1-rainbow-spin {
   0% { filter: hue-rotate(0deg); }
   100% { filter: hue-rotate(360deg); }
 }
 
-.phase1-frame-fire {
-  border: 4px solid #ff4500 !important;
-  box-shadow: 0 0 20px rgba(255, 69, 0, 0.8);
-  animation: phase1-fire-glow 2s ease-in-out infinite;
-}
 
 @keyframes phase1-fire-glow {
   0%, 100% { box-shadow: 0 0 10px rgba(255, 69, 0, 0.5); }
   50% { box-shadow: 0 0 25px rgba(255, 69, 0, 1); }
 }
 
-.phase1-frame-ice {
-  border: 4px solid #00ffff !important;
-  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
-}
-
-.phase1-frame-legendary {
-  border: 5px solid #ffd700 !important;
-  box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 
-              inset 0 0 20px rgba(255, 215, 0, 0.3);
-  animation: phase1-legendary-pulse 2s ease-in-out infinite;
-}
 
 @keyframes phase1-legendary-pulse {
   0%, 100% { transform: scale(1); }
@@ -12624,7 +12280,6 @@ body[data-theme="dark"] .modal-content {
 }
 
 
-
 /* ══════════════════════════════════════════════════════════════════════════
    SKIN KEY SYSTEM - VARIANT STYLING
    ══════════════════════════════════════════════════════════════════════════ */
@@ -12817,7 +12472,7 @@ body[data-theme="dark"] .modal-content {
    FIX: IMPROVED HEADER SPACING
    ══════════════════════════════════════════════════════════════════════════ */
 
-.navbar,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
 .navbar-consolidated {
   width: 100% !important;
   padding: 8px 24px !important;
@@ -12959,7 +12614,7 @@ body[data-theme="dark"] .modal-content {
    ══════════════════════════════════════════════════════════════════════════ */
 
 /* Override previous header fixes with correct layout */
-.navbar,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
 .navbar-consolidated {
   width: 100% !important;
   max-width: 100vw !important;
@@ -14611,19 +14266,51 @@ body.modal-open {
    SINGLE-ROW NAVBAR - SIMPLE & WORKING
    ============================================ */
 
+/* ── .navbar: SINGLE consolidated definition (Phase 6.5) ──────────────────
+   This replaces NINE separate top-level `.navbar` rules that had accumulated
+   across this file (lines ~267, 8269, 10822, 11285, 11794, 12790, 12932,
+   14584 and a content-visibility one) plus their contradictory overrides.
+   The values below are the *computed effective* result of that old cascade —
+   i.e. what the browser actually rendered — not any single one of those rules,
+   so this is a pure de-duplication with no visual change.
+
+   Two things the dead rules disagreed about, worth recording: the earliest
+   rule declared `border-radius: 0 0 32px 32px` and a purple glow shadow, but
+   both were overridden downstream — the real values are 24px and the darker
+   shadow below. Anyone reading the old file top-down would have believed the
+   32px version.
+
+   Kept at this position deliberately: it must stay AFTER the `[class*="navbar"]`
+   block (~line 11794), which also matches `.navbar` by substring and would
+   otherwise win. That broad rule still (intentionally) lays out the navbar's
+   CHILDREN — .navbar-left/-center/-right — so it is not removed. */
 .navbar {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    width: 100% !important;
-    padding: 10px 24px !important;
-    background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
-    border-radius: 0 0 24px 24px !important;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.2) !important;
-    position: sticky !important;
-    top: 0 !important;
-    z-index: 100 !important;
-    box-sizing: border-box !important;
+  /* box + position */
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 16px !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  min-height: 56px !important;
+  margin: 0 !important;
+  padding: 10px 24px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
+
+  /* appearance */
+  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
+  border-bottom: 4px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 0 0 24px 24px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.5s ease !important;
+  content-visibility: visible;
 }
 
 /* LEFT SIDE */
@@ -14970,7 +14657,6 @@ body.modal-open {
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
 }
-
 
 
 /* ============================================
@@ -15445,12 +15131,6 @@ body.night-mode.theme-golden .card {
    THEME SELECTOR — Settings page grid
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.theme-selector-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 12px;
-}
 
 .theme-swatch {
   border-radius: 14px;
@@ -15965,16 +15645,7 @@ body.night-mode .btn-variant-selector {
 
 @media (max-width: 768px) {
 
-  /* ── 1. Force true single-column layout ── */
-  .app-container {
-    display: flex !important;
-    flex-direction: column !important;
-    padding: 8px !important;
-    gap: 0 !important;
-    width: 100% !important;
-    max-width: 100vw !important;
-    box-sizing: border-box !important;
-  }
+  /* ── 1. Single-column layout — now handled by Bootstrap's grid (Phase 6.5) ── */
 
   /* ── 2. Hide both sidebars completely ── */
   .left-sidebar,
@@ -16216,7 +15887,6 @@ body.night-mode .btn-variant-selector {
 body.night-mode .item-icon-img {
   filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.35));
 }
-
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -16504,103 +16174,12 @@ body.night-mode .item-icon-img {
 .gp-admin-btn:disabled { opacity: 0.4; cursor: default; }
 
 
-/* ═══════════════════════════════════════════════════════════════════════════
-   GRAND PRIX UI COMPONENTS
-   ═══════════════════════════════════════════════════════════════════════════ */
-
-.gp-registration-container, .gp-racing-container, .gp-results-container {
-  padding: 20px;
-  text-align: center;
-}
-
-.gp-status-badge {
-  display: inline-block;
-  padding: 8px 20px;
-  border-radius: 30px;
-  background: linear-gradient(135deg, #9966ff, #ff66cc);
-  color: white;
-  font-weight: bold;
-  margin-bottom: 20px;
-  font-size: 0.85rem;
-  letter-spacing: 1px;
-}
-
-.gp-prize-pool, .gp-entries-count, .gp-closing-time, .gp-racing-ends {
-  margin: 8px 0;
-  font-size: 1rem;
-  color: var(--purple-dark);
-}
-
-.gp-pet-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: 14px;
-  margin: 20px 0;
-}
-
-.gp-pet-card {
-  background: var(--white);
-  border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 10px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
 .gp-pet-card:hover, .gp-pet-card.selected {
   border-color: var(--purple);
   transform: translateY(-3px);
   box-shadow: 0 6px 20px rgba(153,102,255,0.25);
 }
 
-.gp-pet-emoji  { font-size: 2.2rem; }
-.gp-pet-name   { font-weight: 700; font-size: 0.85rem; margin: 6px 0; color: var(--purple-dark); }
-.gp-pet-level  { font-size: 0.75rem; color: var(--text-light); }
-
-.gp-training-options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin: 18px 0;
-}
-
-.gp-training-btn {
-  padding: 10px 18px;
-  border-radius: 25px;
-  border: none;
-  background: linear-gradient(135deg, var(--purple, #9966ff), var(--pink, #ff66cc));
-  color: white;
-  cursor: pointer;
-  font-size: 0.82rem;
-  font-weight: 600;
-  transition: all 0.2s;
-}
-
-.gp-training-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(153,102,255,0.35);
-}
-
-.gp-training-progress {
-  width: 100%;
-  height: 14px;
-  background: rgba(153,102,255,0.15);
-  border-radius: 20px;
-  overflow: hidden;
-  margin: 10px 0;
-}
-
-.gp-training-bar {
-  height: 100%;
-  background: linear-gradient(90deg, #4ade80, #22c55e);
-  border-radius: 20px;
-  transition: width 0.35s ease;
-}
-
-.gp-your-rank   { font-size: 2rem; font-weight: 800; color: var(--purple); margin: 18px 0 6px; }
-.gp-your-reward { font-size: 1.1rem; margin: 6px 0 16px; color: #e6a800; font-weight: 700; }
 
 /* Replay modal */
 .gp-replay-modal { max-width: 500px; padding: 20px; }
@@ -16623,18 +16202,6 @@ body.night-mode .item-icon-img {
   animation: fadeIn 0.3s ease;
 }
 
-.gp-champion-card {
-  display: inline-block;
-  border: 2px solid var(--purple);
-  border-radius: 12px;
-  padding: 14px 20px;
-  margin: 12px auto;
-  background: rgba(153,102,255,0.07);
-}
-
-.gp-champion-emoji { font-size: 2.5rem; }
-.gp-champion-name  { font-weight: 700; font-size: 0.95rem; margin: 6px 0 2px; color: var(--purple-dark); }
-.gp-champion-level { font-size: 0.78rem; color: var(--text-light); }
 
 @media (max-width: 500px) {
   .gp-pet-grid        { grid-template-columns: repeat(2, 1fr); }
@@ -16766,7 +16333,6 @@ body.night-mode .item-icon-img {
   50%       { transform: rotate(0deg) scale(0.98); }
   75%       { transform: rotate(2deg) scale(1.03); }
 }
-
 
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -18441,7 +18007,9 @@ body.night-mode .today-card-content {
   .btn-sm { min-height: 34px !important; font-size: 0.8rem !important; }
 
   /* ── JOURNAL ─────────────────────────────────────────────────────────── */
-  .journal-grid { grid-template-columns: repeat(2,1fr) !important; }
+  /* .journal-grid removed in Phase 6.5 — the fish journal is now a Bootstrap
+     `row row-cols-2 row-cols-sm-3 row-cols-md-4` in FishJournal.vue, which
+     already collapses to 2 across at this width. */
 
   /* ── BINGO MODAL ─────────────────────────────────────────────────────── */
   .bingo-grid { grid-template-columns: repeat(5,1fr) !important; gap: 3px !important; }

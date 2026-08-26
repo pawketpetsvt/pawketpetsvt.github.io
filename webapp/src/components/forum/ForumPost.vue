@@ -1,21 +1,21 @@
 <template>
-  <div class="fp-post" :class="{ original: isOriginal }">
-    <div class="fp-sidebar">
-      <div class="fp-avatar">{{ initial }}</div>
+  <div class="fp-post d-flex gap-3 mb-2 overflow-hidden rounded-3" :class="{ original: isOriginal }">
+    <div class="fp-sidebar flex-shrink-0 text-center px-2 py-3">
+      <div class="fp-avatar d-flex align-items-center justify-content-center mx-auto mb-2 rounded-circle">{{ initial }}</div>
       <div class="fp-username">{{ authorName }}</div>
-      <div class="fp-stats">Posts: {{ author ? author.forum_post_count || 0 : 0 }}</div>
+      <div class="fp-stats mt-1">Posts: {{ author ? author.forum_post_count || 0 : 0 }}</div>
     </div>
-    <div class="fp-main">
-      <div class="fp-top">
+    <div class="flex-grow-1 min-w-0 p-3">
+      <div class="fp-top d-flex flex-wrap align-items-center justify-content-between gap-2 pb-2 mb-2">
         <div class="fp-date">{{ getTimeAgo(new Date(post.created_at)) }}</div>
-        <div class="fp-actions">
-          <button v-if="isModerator && isOriginal" class="fp-action" @click="$emit('toggle-pin')">
+        <div class="d-flex flex-wrap gap-1">
+          <button v-if="isModerator && isOriginal" class="fp-action px-2 py-1 rounded-2" @click="$emit('toggle-pin')">
             {{ post.is_pinned ? '📌 Unpin' : '📌 Pin' }}
           </button>
-          <button v-if="isModerator && isOriginal" class="fp-action" @click="$emit('toggle-lock')">
+          <button v-if="isModerator && isOriginal" class="fp-action px-2 py-1 rounded-2" @click="$emit('toggle-lock')">
             {{ post.is_locked ? '🔓 Unlock' : '🔒 Lock' }}
           </button>
-          <button v-if="canDelete" class="fp-action danger" @click="$emit('delete')">🗑️ Delete</button>
+          <button v-if="canDelete" class="fp-action danger px-2 py-1 rounded-2" @click="$emit('delete')">🗑️ Delete</button>
         </div>
       </div>
       <div class="fp-body">{{ post.content || post.title }}</div>
@@ -44,14 +44,10 @@ const canDelete = computed(() =>
 </script>
 
 <style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; visuals only here.
 .fp-post {
-  display: flex;
-  gap: 14px;
   border: 1px solid var(--border);
-  border-radius: 12px;
   background: var(--card-bg, #fff);
-  margin-bottom: 10px;
-  overflow: hidden;
 
   &.original {
     border-color: var(--purple);
@@ -59,25 +55,17 @@ const canDelete = computed(() =>
 }
 
 .fp-sidebar {
-  flex-shrink: 0;
   width: 110px;
-  padding: 14px 10px;
-  text-align: center;
   background: rgba(153, 102, 255, 0.07);
 }
 
 .fp-avatar {
   width: 46px;
   height: 46px;
-  margin: 0 auto 6px;
-  border-radius: 50%;
   background: linear-gradient(135deg, var(--purple), var(--pink, #ff66cc));
   color: #fff;
   font-weight: 700;
   font-size: 1.2rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .fp-username {
@@ -90,42 +78,21 @@ const canDelete = computed(() =>
 .fp-stats {
   font-size: 0.68rem;
   color: var(--text-light);
-  margin-top: 4px;
-}
-
-.fp-main {
-  flex: 1;
-  min-width: 0;
-  padding: 14px;
 }
 
 .fp-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-  margin-bottom: 10px;
 }
+
 
 .fp-date {
   font-size: 0.72rem;
   color: var(--text-light);
 }
 
-.fp-actions {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
 .fp-action {
   border: 1px solid var(--border);
   background: transparent;
-  border-radius: 8px;
-  padding: 3px 8px;
   font-size: 0.7rem;
   cursor: pointer;
   color: var(--text-light);

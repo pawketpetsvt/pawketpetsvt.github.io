@@ -15,15 +15,25 @@
 
   <div class="pp-app-shell-wrap">
     <NavBar />
+    <!-- Second bar under the navbar, matching legacy DOM order. Authed-only:
+         the legacy stylesheet hid it for guests via `body.guest .news-ticker`,
+         and mounting it here rather than in AppShell keeps it full-bleed
+         instead of inside AppShell's centred container. -->
+    <NewsTicker v-if="AppState.user" />
     <AppShell v-if="AppState.user" />
     <GuestLayout v-else />
     <SiteFooter />
+    <!-- Fixed-position, renders nothing unless someone is live. Authed-only
+         because live status needs the viewer's linked Twitch token. -->
+    <LiveBanner v-if="AppState.user" />
   </div>
 </template>
 
 <script setup>
 import { AppState } from './AppState.js'
 import NavBar from './components/NavBar.vue'
+import NewsTicker from './components/NewsTicker.vue'
+import LiveBanner from './components/LiveBanner.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import AppShell from './layouts/AppShell.vue'
 import GuestLayout from './layouts/GuestLayout.vue'

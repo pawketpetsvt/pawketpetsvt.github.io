@@ -8,7 +8,6 @@ const ComingSoonPage = () => import('./pages/ComingSoonPage.vue')
 const stubTabs = [
   { tab: 'twitch', name: 'Twitch' },
   { tab: 'redeem', name: 'Redeem' },
-  { tab: 'battle', name: 'Battle Arena' },
   { tab: 'racing', name: 'Racing' },
   { tab: 'housing', name: 'Housing' },
   { tab: 'guild', name: 'Guild' }
@@ -42,6 +41,7 @@ const routes = [
   { path: '/stats', name: 'stats', component: () => import('./pages/StatsPage.vue'), meta: { requiresAuth: true, tabKey: 'stats' } },
   { path: '/myprofile', name: 'myprofile', component: () => import('./pages/MyProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'myprofile' } },
   { path: '/profile/:username', name: 'profile', component: () => import('./pages/ProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'profile' } },
+  { path: '/battle', name: 'battle', component: () => import('./pages/BattlePage.vue'), meta: { requiresAuth: true, tabKey: 'battle' } },
 
   // Stubbed tabs — not built this phase
   ...stubTabs.map(({ tab, name }) => ({

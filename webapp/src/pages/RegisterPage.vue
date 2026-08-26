@@ -1,13 +1,8 @@
 <template>
-  <div class="page-wrap">
-    <div class="page-hero">
-      <div class="sparkle-row">✦ ✧ ✦</div>
-      <h1>Join PawketPetsVT!</h1>
-      <p>Create your account and start your pet collection adventure ✨</p>
-    </div>
-    <div class="form-card">
-      <h2>🌟 Register</h2>
-      <p class="form-subtitle">Already have an account? <router-link to="/login">Login here!</router-link></p>
+  <AuthLanding beta-label="Join the Beta · 100% Free">
+    <div class="form-card landing-v2-card">
+      <h2 style="margin-bottom:4px;">Create Your Account</h2>
+      <p class="form-subtitle">Already a tester? <router-link to="/login">Login here!</router-link></p>
       <div class="alert alert-error" :class="{ show: error }">{{ error }}</div>
       <div class="alert alert-success" :class="{ show: success }">
         <template v-if="success">Account created! 🎉<br /><small>Now <router-link to="/login">login here</router-link>
@@ -35,8 +30,12 @@
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.88rem;line-height:1.5;">
           <input type="checkbox" v-model="termsAccepted"
             style="margin-top:3px;width:18px;height:18px;flex-shrink:0;accent-color:var(--purple);" />
-          <span>I have read and agree to the Privacy Policy. I confirm that I am 13 years of age or older, or that I
-            have
+          <!-- Legacy opened the policy in a modal cloning #section-privacy
+               (showPrivacyModal). With Privacy as a real route, a link to it
+               is the same affordance without duplicating the document. -->
+          <span>I have read and agree to the
+            <router-link to="/privacy" target="_blank" style="color:var(--purple);">Privacy Policy</router-link>.
+            I confirm that I am 13 years of age or older, or that I have
             parental consent to create this account. I understand this is a beta and game data may be reset before full
             launch.</span>
         </label>
@@ -44,14 +43,47 @@
 
       <button class="btn btn-primary btn-lg form-submit" :disabled="submitting" @click="handleRegister">{{ btnText
         }}</button>
-      <div class="form-footer">Already have an account? <router-link to="/login">Login!</router-link></div>
     </div>
-  </div>
+
+    <template #info>
+      <div class="landing-v2-tagline">
+        Your companion is already waiting.<br />
+        <strong>What will you name them?</strong>
+        <span>Choose from 8+ unique pets, each based on real members of the PawketPetsVT streaming team, and
+          growing!</span>
+      </div>
+
+      <div class="landing-v2-perks">
+        <div v-for="p in PERKS" :key="p.text" class="landing-v2-perk">
+          {{ p.icon }} <strong>{{ p.text }}</strong>
+        </div>
+      </div>
+
+      <div class="landing-v2-lore">
+        <span class="landing-v2-lore-label">// BETA TESTER NOTE //</span>
+        <p>Installation complete. Your tester profile has been initialized. A companion has been assigned to your
+          session and is ready for adoption.</p>
+        <p class="landing-v2-lore-fine">We ask that you report any anomalies during your session. Previous testers did
+          not always do so.</p>
+      </div>
+    </template>
+  </AuthLanding>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import { authService } from '../services/AuthService.js'
+import AuthLanding from '../components/AuthLanding.vue'
+
+// Copy ported verbatim from the legacy register landing (index.html:1381-1388).
+const PERKS = [
+  { icon: '🐣', text: 'First pet is always free' },
+  { icon: '📺', text: 'Earn PP by watching Twitch streams' },
+  { icon: '🔥', text: 'Daily login streak rewards + Skin Keys' },
+  { icon: '⚔️', text: 'Battle, race, explore & join guilds' },
+  { icon: '🎮', text: 'Daily minigames & bingo cards' },
+  { icon: '✨', text: '100% free, no download needed' }
+]
 
 const username = ref('')
 const email = ref('')

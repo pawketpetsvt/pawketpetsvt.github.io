@@ -1,23 +1,25 @@
 <template>
-  <div class="journal-section">
-    <button class="journal-toggle" @click="open = !open">
+  <div class="journal-section mt-gap pt-3">
+    <button class="journal-toggle d-flex align-items-center gap-2 mb-2" @click="open = !open">
       📖 Fish Journal <span class="journal-chevron">{{ open ? '▲' : '▼' }}</span>
     </button>
 
     <div v-if="open">
-      <div class="journal-summary">📖 Fish Journal: {{ discoveredCount }}/{{ totalFish }} discovered</div>
+      <div class="journal-summary mb-3">📖 Fish Journal: {{ discoveredCount }}/{{ totalFish }} discovered</div>
       <div v-for="spot in SPOTS" :key="spot">
         <div v-if="fishBySpot(spot).length" class="journal-spot-label">{{ spot }}</div>
-        <div class="journal-grid">
-          <div v-for="fish in fishBySpot(spot)" :key="fish.id" class="journal-fish-card" :class="{ caught: collection[fish.id] }">
-            <div class="fish-emoji">{{ collection[fish.id] ? fish.emoji : '❓' }}</div>
-            <div class="fish-name">{{ collection[fish.id] ? fish.name : '???' }}</div>
-            <div class="fish-rarity">{{ fish.rarity }}</div>
-            <template v-if="collection[fish.id]">
-              <div class="fish-count">×{{ collection[fish.id].count || 1 }} caught</div>
-              <div v-if="collection[fish.id].bestWeight" class="fish-best">best: {{ formatWeight(collection[fish.id].bestWeight) }}</div>
-              <button v-if="(collection[fish.id].count || 0) > 0" class="btn btn-sm btn-outline cook-btn" @click="$emit('cook-feed', fish)">🍳 Cook</button>
-            </template>
+        <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2">
+          <div v-for="fish in fishBySpot(spot)" :key="fish.id" class="col">
+            <div class="journal-fish-card h-100 text-center p-2 rounded-2" :class="{ caught: collection[fish.id] }">
+              <div class="fish-emoji">{{ collection[fish.id] ? fish.emoji : '❓' }}</div>
+              <div class="fish-name">{{ collection[fish.id] ? fish.name : '???' }}</div>
+              <div class="fish-rarity">{{ fish.rarity }}</div>
+              <template v-if="collection[fish.id]">
+                <div class="fish-count">×{{ collection[fish.id].count || 1 }} caught</div>
+                <div v-if="collection[fish.id].bestWeight" class="fish-best">best: {{ formatWeight(collection[fish.id].bestWeight) }}</div>
+                <button v-if="(collection[fish.id].count || 0) > 0" class="btn btn-sm btn-outline cook-btn mt-1" @click="$emit('cook-feed', fish)">🍳 Cook</button>
+              </template>
+            </div>
           </div>
         </div>
       </div>
@@ -47,24 +49,19 @@ function fishBySpot(spot) {
 </script>
 
 <style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; visuals only here.
 .journal-section {
-  margin-top: 20px;
   border-top: 1px solid rgba(153, 102, 255, 0.15);
-  padding-top: 16px;
 }
 
 .journal-toggle {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--purple-dark);
-  margin-bottom: 10px;
   background: none;
   border: none;
   cursor: pointer;
   padding: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
 }
 
 .journal-chevron {
@@ -75,7 +72,6 @@ function fishBySpot(spot) {
 .journal-summary {
   font-weight: 700;
   color: var(--purple-dark);
-  margin-bottom: 12px;
 }
 
 .journal-spot-label {
@@ -84,17 +80,8 @@ function fishBySpot(spot) {
   text-transform: capitalize;
 }
 
-.journal-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 8px;
-}
-
 .journal-fish-card {
-  padding: 8px;
-  border-radius: 10px;
   background: rgba(0, 0, 0, 0.04);
-  text-align: center;
   opacity: 0.45;
 
   &.caught {
@@ -130,7 +117,6 @@ function fishBySpot(spot) {
 }
 
 .cook-btn {
-  margin-top: 4px;
   font-size: 0.65rem;
   padding: 3px 6px;
 }
