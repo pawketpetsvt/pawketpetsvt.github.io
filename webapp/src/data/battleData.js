@@ -1069,10 +1069,10 @@ export const ENEMY_SPRITE_CONFIG = {
   }
 }
 
-// Ports SKILL_KEY_MAP (game.js) — maps a pet's DB name (and its streamer
-// alias) to a PET_SKILLS key. Note it intentionally accepts both `kleat` and
-// `kelta`, and both `cypurr` and `cypurractive`.
-export const SKILL_KEY_MAP = { ember:'ember', embertail:'ember', pyxie:'pyxie', pyxshuul:'pyxie', kleat:'kelta', kelta:'kelta', steve:'steve', cowbee:'steve', aria:'aria', blushimia:'blushimia', jess:'jess', gnarly:'gnarly', cypurr:'cypurr', cypurractive:'cypurr' }
+// SKILL_KEY_MAP now lives in ./petKeys.js — the companion's dialogue pools key
+// off it as well, and importing it from here dragged every skill and enemy
+// table into the main bundle. Re-exported so battle's own imports still resolve.
+export { SKILL_KEY_MAP } from './petKeys.js'
 
 // Battle-relevant slice of GAME_CONSTANTS (game.js:994-1005). The rest of
 // that grab-bag (referral/tutorial PP, pass XP) already lives in constants.js.

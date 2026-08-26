@@ -20,6 +20,7 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { minigamesService } from '../../services/MinigamesService.js'
+import { companionService } from '../../services/CompanionService.js'
 import { GUESS_PP_REWARDS } from '../../data/minigamesData.js'
 
 const onCooldown = ref(true)
@@ -60,6 +61,8 @@ async function makeGuess() {
     resultText.value = 'Correct in ' + guessAttempts.value + ' guess' + (guessAttempts.value === 1 ? '' : 'es') + '! +' + earned + ' PP! 🎯'
     resultColor.value = '#5dde7a'
     onCooldown.value = true
+    // Ports the COMPANION REACTION block on this win (game.js:8439).
+    companionService.react(['You got it! 🌟', 'Amazing guess! 🎯', "You're so smart! 💡", 'Perfect! ✨'], 500)
   } else if (guessesLeft.value === 0) {
     await minigamesService.completeGame('guess', 5, 'guess_consolation')
     hotCold.value = ''

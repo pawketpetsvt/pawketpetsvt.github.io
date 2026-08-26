@@ -445,8 +445,32 @@ for (const key of Object.keys(cue)) {
 .pp-rewards { font-weight: 700; color: var(--purple-dark); }
 
 // Lunge / recoil cues. Kept short so they can't overlap the next turn.
+// The legacy `.battle-sprite` rules were written for background SPRITESHEETS:
+// a fixed 100x100 block, `background-position: center`, and — at style.css:10046
+// — `transform: scale(1.8)` to magnify one frame of the sheet. The player side
+// still paints a background image, so those rules suit it exactly.
+//
+// The enemy side renders an EMOJI (as the live site's own initManualBattle does
+// — see the sprite-animation finding: startSpriteAnimation is a no-op there).
+// A text glyph inside a `display: block` box sits at its TOP-LEFT corner, so
+// scaling the box 1.8x about its centre threw the glyph ~40px up and ~40px left.
+// Centre the glyph and drop the spritesheet magnification; neither applies to
+// text. `!important` is required because `.battle-sprite` sets
+// `display: block !important` (style.css:3924).
+.battle-sprite.enemy-sprite {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  transform: none;
+}
+
 .pp-attack { animation: pp-lunge 0.3s ease; }
 .pp-hit { animation: pp-recoil 0.3s ease; }
+
+// The enemy stands to the RIGHT of the player, so it has to lunge left to move
+// toward its target. Same curve, mirrored.
+.battle-enemy .pp-attack { animation-name: pp-lunge-left; }
+.battle-enemy .pp-hit { animation-name: pp-recoil-right; }
 
 @keyframes pp-lunge {
   50% { transform: translateX(14px) scale(1.06); }
@@ -455,5 +479,14 @@ for (const key of Object.keys(cue)) {
 @keyframes pp-recoil {
   25% { transform: translateX(-8px); filter: brightness(2); }
   75% { transform: translateX(4px); }
+}
+
+@keyframes pp-lunge-left {
+  50% { transform: translateX(-14px) scale(1.06); }
+}
+
+@keyframes pp-recoil-right {
+  25% { transform: translateX(8px); filter: brightness(2); }
+  75% { transform: translateX(-4px); }
 }
 </style>

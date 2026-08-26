@@ -26,6 +26,10 @@
     <!-- Fixed-position, renders nothing unless someone is live. Authed-only
          because live status needs the viewer's linked Twitch token. -->
     <LiveBanner v-if="AppState.user" />
+    <!-- Also fixed-position, and renders nothing until a companion is set. It
+         sits outside AppShell so it stays pinned to the viewport corner on
+         every page rather than to the centre column. -->
+    <CompanionBuddy v-if="AppState.user" />
   </div>
 </template>
 
@@ -34,6 +38,7 @@ import { AppState } from './AppState.js'
 import NavBar from './components/NavBar.vue'
 import NewsTicker from './components/NewsTicker.vue'
 import LiveBanner from './components/LiveBanner.vue'
+import CompanionBuddy from './components/CompanionBuddy.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import AppShell from './layouts/AppShell.vue'
 import GuestLayout from './layouts/GuestLayout.vue'

@@ -104,9 +104,21 @@ onUnmounted(() => {
 }
 
 // The body scrolls, not the whole dialog, so the title and Done button stay put.
+//
+// The bleed-and-pad margin/padding pair is load-bearing, not decoration. Setting
+// `overflow-y: auto` makes the browser compute `overflow-x: visible` as `auto`
+// too, so ANY horizontal overflow here becomes a stray side-scrollbar — and a
+// Bootstrap `.row` always overflows a zero-padding parent, because its gutter is
+// implemented as negative horizontal margins. Bootstrap's own `.modal-body`
+// avoids this by carrying 1rem of padding; this one had none.
+//
+// Bleeding 8px out and padding 8px back gives rows up to `g-3` room to sit in
+// while leaving the content aligned exactly with the title and Done button.
 .pp-modal-body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  margin-inline: -8px;
+  padding-inline: 8px;
 }
 </style>

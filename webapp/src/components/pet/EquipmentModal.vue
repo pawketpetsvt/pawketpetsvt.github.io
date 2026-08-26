@@ -25,23 +25,24 @@
         Nothing spare — buy gear from the Shop's Equipment tab.
       </div>
       <div v-else class="d-flex flex-column gap-1">
+        <!-- Gear goes in the slot its own type dictates — a weapon cannot be
+             worn as armor — so there is ONE Equip button, as in legacy. -->
         <div v-for="row in available" :key="row.id" class="pp-item">
+          <div class="pp-item-icon">{{ slotOf(row) === 'weapon' ? '⚔️' : '🛡️' }}</div>
           <div class="flex-grow-1 min-w-0">
             <div class="pp-item-name">
               {{ row.equipment?.name }}
               <span class="pp-tier">T{{ row.equipment?.tier || 1 }}</span>
             </div>
             <div class="pp-item-bonus">{{ bonusText(row.equipment) }}</div>
-            <div v-if="!canEquip(row)" class="pp-locked">
-              🔒 Needs level {{ equipmentService.tierMinLevel(row.equipment?.tier || 1) }}
-            </div>
+            <div class="pp-item-slot">{{ slotOf(row) === 'weapon' ? 'Weapon' : 'Armor' }}</div>
           </div>
-          <div class="d-flex gap-1">
-            <button v-for="slot in SLOTS" :key="slot.key" class="pp-equip-btn"
-              :disabled="busy || !canEquip(row)" @click="doEquip(row, slot.key)">
-              {{ slot.icon }}
-            </button>
-          </div>
+          <button class="pp-equip-btn" :class="{ 'pp-equip-locked': !canEquip(row) }"
+            :disabled="busy || !canEquip(row)"
+            :title="canEquip(row) ? '' : `This pet needs to reach level ${minLevel(row)} to equip this item.`"
+            @click="doEquip(row)">
+            {{ canEquip(row) ? 'Equip' : `🔒 Lv.${minLevel(row)}` }}
+          </button>
         </div>
       </div>
     </template>
@@ -84,9 +85,14 @@ function bonusText(eq) {
   return parts.join(' · ') || 'No stat bonuses'
 }
 
+const slotOf = (row) => equipmentService.slotFor(row.equipment)
+
+function minLevel(row) {
+  return equipmentService.tierMinLevel((row.equipment && row.equipment.tier) || 1)
+}
+
 function canEquip(row) {
-  const tier = (row.equipment && row.equipment.tier) || 1
-  return (props.pet.level || 1) >= equipmentService.tierMinLevel(tier)
+  return (props.pet.level || 1) >= minLevel(row)
 }
 
 async function load() {
@@ -105,10 +111,10 @@ async function load() {
   }
 }
 
-async function doEquip(row, slot) {
+async function doEquip(row) {
   busy.value = true
   try {
-    await equipmentService.equip(row, slot, props.pet)
+    await equipmentService.equip(row, props.pet)
     toastService.success(`${row.equipment?.name} equipped!`)
     await load()
     emit('changed')
@@ -226,20 +232,33 @@ onMounted(load)
   color: var(--text-light);
 }
 
-.pp-locked {
-  font-size: 0.66rem;
-  color: #ff6b6b;
+.pp-item-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.pp-item-slot {
+  font-size: 0.62rem;
   font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--purple);
 }
 
 .pp-equip-btn {
-  padding: 5px 10px;
+  flex-shrink: 0;
+  padding: 5px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
   border-radius: 8px;
   border: 1px solid var(--purple);
   background: none;
   color: var(--purple);
   cursor: pointer;
+  white-space: nowrap;
 
-  &:disabled { opacity: 0.35; cursor: not-allowed; }
+  &.pp-equip-locked { border-color: #ff6b6b; color: #ff6b6b; }
+  &:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 </style>

@@ -35,6 +35,18 @@ class EquipmentService {
     return res.data || []
   }
 
+  // Which slot a piece of gear belongs in. `equipment.equipment_type` is the
+  // catalog's own column ('weapon' / 'armor') and is the single source of truth:
+  // legacy never let the player choose, it passed the item's own type straight
+  // through as the slot (`equipItem(id, item.equipment_type, petId)`).
+  //
+  // Anything not explicitly 'weapon' reads as armor, mirroring how legacy picks
+  // the item's icon (`equipment_type === 'weapon' ? '⚔️' : '🛡️'`), so a row with
+  // a missing type is treated the same way everywhere rather than two ways.
+  slotFor(equipment) {
+    return (equipment && equipment.equipment_type) === 'weapon' ? 'weapon' : 'armor'
+  }
+
   // Ports getCurrentRotationWeek() — the shop cycles A/B/C weekly, so which
   // gear is buyable depends on the week.
   currentRotationWeek() {
@@ -63,7 +75,12 @@ class EquipmentService {
     }
     const stock = res.data || []
     if (!filter || filter === 'all') return stock
-    return stock.filter(e => (e.slot || e.equipment_type || e.weight_class) === filter)
+    // Filters on `equipment_type`, matching legacy's own
+    // `item.equipment_type === currentEquipmentFilter`. An earlier
+    // `|| e.weight_class` fallback here was wrong — weight_class holds
+    // 'light'/'heavy', so it can never equal 'weapon'/'armor' and would have
+    // silently hidden any untyped row from both filters.
+    return stock.filter(e => this.slotFor(e) === filter)
   }
 
   // Ports _buyEquipmentCore(). Price is charged through `spend_pp_secure` so it
@@ -119,7 +136,12 @@ class EquipmentService {
   // target slot is cleared first. The tier/level gate is re-checked here rather
   // than trusted from the UI, matching legacy's own "even if UI was bypassed"
   // comment.
-  async equip(row, slot, pet) {
+  //
+  // The slot is DERIVED from the item, never passed in: a weapon can only go in
+  // the weapon slot. Taking it as an argument is what let a Fly Swatter be worn
+  // as armor.
+  async equip(row, pet) {
+    const slot = this.slotFor(row.equipment)
     const tier = (row.equipment && row.equipment.tier) || 1
     const minLevel = this.tierMinLevel(tier)
     if ((pet.level || 1) < minLevel) {

@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { equipmentService } from './EquipmentService.js'
 import { musicService } from './MusicService.js'
+import { companionService } from './CompanionService.js'
 import { isPiper, piperTurnAction, piperResolveAction, applyDefendPassives, tickInfluence } from './PiperBoss.js'
 import {
   ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS,
@@ -883,8 +884,34 @@ class BattleService {
       } else {
         s.rewards = { xp: 0, pp: 0, leveled: false }
       }
+
+      this.companionReaction(result === true, s)
     } catch (err) {
       console.error('[battleService.endBattle]', err)
+    }
+  }
+
+  // Ports the two COMPANION REACTION blocks in manualBattle_endBattle: the
+  // companion cheers the win, remembers how it went so it can bring it up later,
+  // and follows up on a level-up three seconds afterwards.
+  companionReaction(won, s) {
+    companionService.remember({
+      lastBattleResult: {
+        victory: won,
+        enemyName: (s.enemy && s.enemy.name) || null,
+        finalHP: s.playerHP
+      }
+    })
+    if (!won) return
+    companionService.react([
+      'That was incredible! ⚔️✨',
+      "You're so strong! 💪",
+      'Amazing battle! 🌟',
+      'We won! 🎉',
+      'Victory is ours! ⭐'
+    ])
+    if (s.rewards && s.rewards.leveled) {
+      companionService.react(["You're getting stronger! 💪⭐"], 3000)
     }
   }
 

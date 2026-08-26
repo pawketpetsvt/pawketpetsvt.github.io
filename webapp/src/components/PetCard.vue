@@ -115,9 +115,13 @@
           @click="$emit('snapshot', pet.id)">📸</button>
       </div>
 
+      <!-- Toggles rather than latching: legacy only ever set a companion, so
+           once one was chosen there was no way to dismiss it. -->
       <button class="btn-companion w-100 mt-2" :class="{ 'pp-is-companion': isCompanion }"
-        :disabled="isCompanion || settingCompanion" title="Set as your active companion" @click="makeCompanion">
-        {{ isCompanion ? '🐾 Active Companion ✓' : '🐾 Set Companion' }}
+        :disabled="settingCompanion"
+        :title="isCompanion ? 'Stop this pet following you around' : 'Set as your active companion'"
+        @click="toggleCompanion">
+        {{ isCompanion ? '🐾 Remove Companion' : '🐾 Set Companion' }}
       </button>
 
       <div class="use-item-section">
@@ -172,6 +176,7 @@ import {
 } from '../utils/petCard.js'
 import { evolutionStage } from '../utils/petSkills.js'
 import { petCosmeticsService, cosmeticsState } from '../services/PetCosmeticsService.js'
+import { companionService } from '../services/CompanionService.js'
 import PetBattleStats from './PetBattleStats.vue'
 import PetEquipment from './PetEquipment.vue'
 import PetWishes from './PetWishes.vue'
@@ -233,11 +238,16 @@ const isCompanion = computed(() => cosmeticsState.companionPetId === props.pet.i
 
 const settingCompanion = ref(false)
 
-async function makeCompanion() {
+async function toggleCompanion() {
   settingCompanion.value = true
   try {
-    await petCosmeticsService.setCompanion(props.pet.id)
-    toastService.success(`🐾 ${props.pet.nickname} is now your companion!`)
+    if (isCompanion.value) {
+      await companionService.clear()
+      toastService.info(`${props.pet.nickname} is no longer following you.`)
+    } else {
+      await companionService.set(props.pet.id)
+      toastService.success(`🐾 ${props.pet.nickname} is now your companion!`)
+    }
   } catch (err) {
     toastService.error(err.message)
   } finally {
@@ -331,6 +341,9 @@ async function handleUseItem() {
         await journalService.logDiscovery(AppState.user.id, props.pet.species.name, props.discoveries, result.reactionType, item.name)
       }
     }
+    // The companion brings this up later when you're in the Shop — legacy's
+    // `CompanionBuddy.lastFoodUsed` (game.js:3751).
+    companionService.remember({ lastFoodUsed: item.name })
     selectedInvId.value = ''
   } catch (err) {
     toastService.error('Error: ' + err.message)
@@ -431,11 +444,17 @@ async function handleUseItem() {
   font-size: 0.9rem;
 }
 
-// `.pet-personality-msg` and `.btn-snapshot` were inline-styled in the legacy
-// card and have no global rule, so they're owned here. Everything else on the
-// card (`.pet-stage`, `.pet-bio`, `.pet-variant-badge`, `.pet-title-badge`,
-// `.pet-title-select*`, `.btn-companion`, `.btn-variant-selector`) already has
-// one in style.css and is left alone.
+// `.pet-personality-msg`, `.btn-snapshot`, `.btn-companion` and
+// `.pet-variant-badge` were inline-styled in the legacy card and have NO base
+// rule in style.css, so they're owned here — the same gap `.ach-badge` had.
+// (An earlier version of this comment claimed the latter two were styled
+// globally; they are not. `.btn-companion` appears in style.css only inside two
+// media queries — an exclusion list and a mobile min-height — and
+// `.pet-variant-badge` appears nowhere at all, so the card was rendering a bare
+// browser button and an unboxed badge.)
+//
+// Genuinely global and left alone, verified rule by rule: `.pet-stage`,
+// `.pet-bio`, `.pet-title-badge`, `.pet-title-select*`, `.btn-variant-selector`.
 .pet-personality-msg {
   font-size: 0.82rem;
   color: var(--text-light);
@@ -460,9 +479,41 @@ async function handleUseItem() {
   font-weight: 800;
 }
 
+// Ports the inline styling legacy applied in makeMyPetCard (game.js:4140).
+// Width and top margin come from the `w-100 mt-2` utilities on the element.
+.btn-companion {
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--white);
+  background: linear-gradient(135deg, #9966ff 0%, #ff66cc 100%);
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s;
+
+  &:hover:not(:disabled) { transform: scale(1.02); }
+  &:disabled { opacity: 0.6; cursor: not-allowed; }
+}
+
+// The active companion's button removes rather than sets, so it reads as a
+// distinct action instead of the disabled-looking state it used to have.
 .pp-is-companion {
-  opacity: 0.75;
-  cursor: default;
+  background: var(--white);
+  border: 2px solid var(--purple);
+  color: var(--purple);
+}
+
+// Legacy set the padding/radius/font inline alongside the colors; only the
+// colors are bound in the template (they vary per variant), so the box itself
+// belongs here.
+.pet-variant-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border: 2px solid;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 // `.achievements-row` is styled globally, but `.ach-badge` itself has no base
