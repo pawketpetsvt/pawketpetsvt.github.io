@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { notificationService } from './NotificationService.js'
@@ -51,7 +52,27 @@ class StreakService {
 
     await notificationService.create(userId, 'daily_reward', '🎁 Daily Login Reward!', `Day ${streak} streak! Earned ${ppReward} PP`, 'tab:home')
 
+    // Each pet's room grants a daily happiness bonus from the furniture in it.
+    // Non-blocking, as legacy also fires it: the login reward should not wait on
+    // it, and a failure here must not cost the player their streak.
+    this.applyRoomBonuses().catch(() => {})
+
+    badgeHooks.onStreak(streak)
+    badgeHooks.onLogin()
     return { awarded: true, streak, ppReward }
+  }
+
+  // Ports furniture_applyDailyBonus()'s call site. Legacy read the pet ids from
+  // its `petState` global; here they come from the owned-pets list, loading it
+  // first if the player hasn't opened My Pets yet this session.
+  async applyRoomBonuses() {
+    const { furnitureService } = await import('./FurnitureService.js')
+    let pets = AppState.ownedPets || []
+    if (!pets.length) {
+      const { ownedPetsService } = await import('./OwnedPetsService.js')
+      pets = await ownedPetsService.getMyPets(AppState.user.id)
+    }
+    await furnitureService.applyDailyBonus((pets || []).map(p => p.id))
   }
 
   showDailyLoginReward(streak, ppReward) {

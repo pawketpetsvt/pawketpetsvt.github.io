@@ -118,6 +118,7 @@
       </h3>
       <p v-if="s.rewards && s.victory === true" class="pp-rewards">
         +{{ s.rewards.xp }} XP &nbsp;·&nbsp; +{{ s.rewards.pp }} PP
+        <span v-if="s.calendarBonus" class="pp-cal-bonus"><br />⚔️ {{ s.calendarBonus }} — 2x XP!</span>
         <span v-if="s.rewards.leveled"><br />🎉 Level {{ s.rewards.newLevel }}!</span>
       </p>
       <button class="btn btn-primary" @click="$emit('done')">Continue</button>
@@ -443,6 +444,7 @@ for (const key of Object.keys(cue)) {
 .pp-win { color: var(--green); }
 .pp-lose { color: #ff6b6b; }
 .pp-rewards { font-weight: 700; color: var(--purple-dark); }
+.pp-cal-bonus { color: #e6a800; }
 
 // Lunge / recoil cues. Kept short so they can't overlap the next turn.
 // The legacy `.battle-sprite` rules were written for background SPRITESHEETS:

@@ -35,10 +35,10 @@ const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
 
 class StreamStatusService {
   // Ports checkSidebarStreamStatus(), game.js:7638+. Checking live status
-  // requires a linked viewer's Twitch token (twitch_token on `players`) —
-  // linking itself is a later migration phase, so without a token this
-  // gracefully leaves every streamer OFFLINE, matching the original's
-  // fallback behavior exactly (no console errors, no broken UI).
+  // requires a linked viewer's Twitch token (twitch_token on `players`), which
+  // the Twitch tab now writes (Phase 9 — TwitchService.completeLink). A player
+  // who has not linked still leaves every streamer OFFLINE rather than erroring,
+  // matching the original's fallback exactly.
   async refresh() {
     if (!AppState.user) return
     try {

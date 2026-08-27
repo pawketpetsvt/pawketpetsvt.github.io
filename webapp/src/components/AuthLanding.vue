@@ -17,6 +17,12 @@
     </div>
 
     <div class="landing-v2-form">
+      <!-- Shown only when the visitor arrived through a streamer's
+           `?streamer=` link. Legacy swapped this in over the generic hero in
+           both auth sections; here one component covers both, since they share
+           this shell. -->
+      <StreamerHero v-if="streamerLandingState.member" :member="streamerLandingState.member" />
+
       <div class="landing-v2-logo">
         <img src="/images/logo.png" alt="PawketPetsVT" />
         <div>
@@ -60,6 +66,8 @@
 
 <script setup>
 import { ref, nextTick, onUnmounted } from 'vue'
+import StreamerHero from './StreamerHero.vue'
+import { streamerLandingState } from '../services/StreamerLandingService.js'
 
 defineProps({
   // "Beta v0.9.2 · 100% Free" on login, "Join the Beta · 100% Free" on register.

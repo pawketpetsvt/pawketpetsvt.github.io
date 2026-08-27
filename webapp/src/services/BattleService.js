@@ -3,6 +3,10 @@ import { supabase } from './SupabaseService.js'
 import { equipmentService } from './EquipmentService.js'
 import { musicService } from './MusicService.js'
 import { companionService } from './CompanionService.js'
+import { taskTracker } from './TaskTrackerService.js'
+import { worldStateService } from './WorldStateService.js'
+import { getCalendarBonus, todaysEvent } from '../utils/calendarBonus.js'
+import { guildPerkService } from './GuildPerkService.js'
 import { isPiper, piperTurnAction, piperResolveAction, applyDefendPassives, tickInfluence } from './PiperBoss.js'
 import {
   ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS,
@@ -48,6 +52,13 @@ export const battleState = reactive({
   victory: null,
   processing: false,
   rewards: null,
+  calendarBonus: null,
+  // Per-battle counters the badge checks read (ports s.totalDamageTaken /
+  // s.uniqueStatusesApplied / s.skillsUsedThisBattle). Arrays rather than Sets
+  // so they stay plainly reactive; both are deduped on write.
+  totalDamageTaken: 0,
+  uniqueStatusesApplied: [],
+  skillsUsedThisBattle: [],
   // transient animation cues the page reacts to
   anim: { playerAttack: 0, enemyAttack: 0, playerHit: 0, enemyHit: 0 }
 })
@@ -81,12 +92,12 @@ class BattleService {
     return null
   }
 
-  // Ports getWorldStateValueSync('corruption_level', 50). The world-state
-  // system isn't migrated, so this returns legacy's own fallback — which is
-  // what a normal player gets today. It gates Piper's Influence and scales
-  // The Echo, so both behave exactly as they currently do.
+  // Ports getWorldStateValueSync('corruption_level', 50). Now reads the real
+  // world state rather than a hardcoded fallback — which means Piper's
+  // Influence meter can actually fill (it needs Beta Integrity at 25 or below,
+  // i.e. corruption 75+) and The Echo scales as designed.
   corruptionLevel() {
-    return 50
+    return worldStateService.corruptionSync()
   }
 
   // The helper bundle the Piper module needs, so it can stay a pure module
@@ -293,6 +304,7 @@ class BattleService {
       victory: null,
       processing: false,
       rewards: null,
+      calendarBonus: null,
       usedRevive: false,
       playerDefShred: 0,
       // Piper fight state — inert for every other enemy.
@@ -859,7 +871,23 @@ class BattleService {
 
       if (result === true) {
         const enemyLevel = s.enemy.level || 1
-        const xp = Math.max(5, Math.round(enemyLevel * 8 * (s.enemy.is_boss ? 2.5 : 1)))
+        let xp = Math.max(5, Math.round(enemyLevel * 8 * (s.enemy.is_boss ? 2.5 : 1)))
+
+        // Guild XP-boost perk. Legacy applies it here, immediately before the
+        // calendar bonus (main:16210) — deferred through Phase 7 because Guild
+        // was unmigrated, live again as of Phase 9. Returns 1.0 for a player
+        // with no guild or no active perk, so this is a no-op for most fights.
+        const guildXpMult = guildPerkService.multiplier('xp_boost')
+        if (guildXpMult > 1) xp = Math.floor(xp * guildXpMult)
+
+        // Battle Tuesday: the calendar's XP bonus, applied before the level-up
+        // loop so a doubled haul can actually carry a pet through a level.
+        const calMult = getCalendarBonus('battle_xp')
+        if (calMult > 1) {
+          xp = Math.floor(xp * calMult)
+          s.calendarBonus = todaysEvent().name
+        }
+
         const pp = Math.max(1, Math.round(enemyLevel * 3 * (s.enemy.is_boss ? 3 : 1)))
 
         const petRes = await supabase.from('user_pets')
@@ -886,6 +914,14 @@ class BattleService {
       }
 
       this.companionReaction(result === true, s)
+      if (result === true) {
+        taskTracker.report('win_battle')
+        // Badges and player titles. Not awaited: the rewards screen should not
+        // wait on several count queries, and awardBattleBadges never throws.
+        import('./BattleBadges.js')
+          .then(m => m.awardBattleBadges(s))
+          .catch(e => console.error('[battleService] badge pass failed:', e))
+      }
     } catch (err) {
       console.error('[battleService.endBattle]', err)
     }
@@ -922,6 +958,7 @@ class BattleService {
     battleState.phase = 'exploring'
     battleState.victory = null
     battleState.rewards = null
+    battleState.calendarBonus = null
     battleState.narrative = []
     battleState.log = []
   }

@@ -22,6 +22,7 @@
 </template>
 
 <script setup>
+import * as badgeHooks from '../../services/BadgeHooks.js'
 import { ref, onMounted } from 'vue'
 import { minigamesService } from '../../services/MinigamesService.js'
 
@@ -64,6 +65,7 @@ async function finishRoll(flicker) {
   const total = v1 + v2
   const isDouble = v1 === v2
   rollCount.value++
+  badgeHooks.onDicePlayed({ isDoubles: isDouble, total })
 
   if (doubleOrNothingActive.value && (v1 === 1 || v2 === 1)) {
     resultText.value = '💀 Rolled a 1! Lost everything! +0 PP'

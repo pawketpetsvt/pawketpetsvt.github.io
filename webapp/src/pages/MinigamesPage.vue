@@ -22,6 +22,19 @@
       <div class="col"><ShellGame class="h-100" /></div>
       <div class="col"><TypingGame class="h-100" /></div>
     </div>
+
+    <!-- Legacy attaches an expedition panel and a Pet Racing minigame to this
+         tab via a `tabsLoaded['minigames']` monkey-patch, which is why the
+         renderer-level audit missed both. The expedition panel is the same
+         component the Battle tab uses — one system, one `expeditions` table,
+         and now one UI, rather than legacy's two divergent copies. -->
+    <div class="mt-4">
+      <ExpeditionPanel />
+    </div>
+
+    <div class="mt-4">
+      <PetRaceGame />
+    </div>
   </div>
 </template>
 
@@ -38,6 +51,8 @@ import WheelGame from '../components/minigames/WheelGame.vue'
 import WhackGame from '../components/minigames/WhackGame.vue'
 import ShellGame from '../components/minigames/ShellGame.vue'
 import TypingGame from '../components/minigames/TypingGame.vue'
+import PetRaceGame from '../components/minigames/PetRaceGame.vue'
+import ExpeditionPanel from '../components/battle/ExpeditionPanel.vue'
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 

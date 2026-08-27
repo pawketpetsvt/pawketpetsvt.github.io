@@ -68,6 +68,12 @@ export const COMPANION_MESSAGES = {
     ]
   }
 
+// DEAD DATA IN LEGACY TOO — not a porting gap. `personalityMessages` appears
+// exactly once in game.js: its own definition, under the comment
+// "// PLACEHOLDER_PERSONALITY - Add personality-specific messages". Nothing
+// reads it on the live site, so nothing reads it here. Carried over rather than
+// dropped so the table is on hand if the companion ever gains personality-aware
+// dialogue; delete it if that never happens.
 export const PERSONALITY_MESSAGES = {
     confident: ["I know we can do this!", "Piece of cake! 😎"],
     playful: ["Wheee! This is fun!", "Let's goooo! 🎉"],

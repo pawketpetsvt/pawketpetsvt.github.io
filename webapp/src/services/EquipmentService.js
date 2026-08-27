@@ -2,6 +2,8 @@ import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { evolutionStage, evolutionBonuses, skillLoadout, passiveSkills } from '../utils/petSkills.js'
 import { BATTLE_CONSTANTS } from '../data/battleData.js'
+import { worldStateService } from './WorldStateService.js'
+import { guildFurnitureService } from './GuildFurnitureService.js'
 
 // Owns equipment I/O and the battle-ready stat calculation that depends on it.
 // Ports calculatePetStats() (game.js:6309-6473) plus the equipment queries
@@ -54,15 +56,16 @@ class EquipmentService {
     return ['A', 'B', 'C'][weeks % 3]
   }
 
-  // Ports loadEquipmentShop() (game.js:24447+) — the Shop's Equipment tab,
-  // deferred out of Phase 3 because equipment had no consumer until Battle.
+  // Ports loadEquipmentShop() — the Shop's Equipment tab, deferred out of
+  // Phase 3 because equipment had no consumer until Battle.
   //
-  // Deliberately NOT applied, consistent with the same deferral already
-  // documented in ShopService: mini-season stock and world-state corruption
-  // gating, both of which belong to unmigrated systems. This returns the
-  // regular weekly rotation, which is what a player sees today with corruption
-  // at its default.
+  // The world-state corruption gate IS applied now that World State is migrated
+  // (Phase 8b): some gear only appears while the beta is stable, and some only
+  // once it is badly corrupted. Mini-season stock is still not applied — that
+  // system remains unmigrated, the same deferral ShopService documents.
   async getShopStock(filter = 'all') {
+    const corruption = await worldStateService.corruption()
+
     const res = await supabase
       .from('equipment')
       .select('*')
@@ -73,7 +76,14 @@ class EquipmentService {
       console.error('[equipmentService.getShopStock]', res.error)
       return []
     }
-    const stock = res.data || []
+    // Corruption-gated stock: an item can require a minimum corruption level,
+    // a maximum, or both. Null on either bound means "no limit that way".
+    const stock = (res.data || []).filter(item => {
+      if (item.unlock_min_corruption != null && corruption < item.unlock_min_corruption) return false
+      if (item.unlock_max_corruption != null && corruption > item.unlock_max_corruption) return false
+      return true
+    })
+
     if (!filter || filter === 'all') return stock
     // Filters on `equipment_type`, matching legacy's own
     // `item.equipment_type === currentEquipmentFilter`. An earlier
@@ -186,9 +196,8 @@ class EquipmentService {
   // base stats + evolution bonuses + per-level growth + equipment + allocated
   // stat points + cooking combat buffs.
   //
-  // Deliberately NOT ported: the guild furniture buff block. Legacy guards it
-  // with `typeof guild_getFurnitureBuffs === 'function'`, and Guild is Phase 9 —
-  // so it currently contributes nothing there either. Wire it in with Guild.
+  // Guild Hall furniture buffs ARE applied as of Phase 9 — see the block near
+  // the end of this method.
   async calculatePetStats(petId) {
     const petRes = await supabase
       .from('user_pets')
@@ -273,6 +282,22 @@ class EquipmentService {
     stats.defense += pet.bonus_defense || 0
     stats.speed += pet.bonus_speed || 0
     maxHP += pet.bonus_hp || 0
+
+    // Guild Hall furniture buffs — every pet owned by every member of the guild
+    // gets these. Deferred since Phase 7 because Guild was unmigrated; live as
+    // of the Phase 9 Guild Hall port. Returns all zeroes for a player with no
+    // guild, so this is a no-op for most pets.
+    try {
+      const guildBuffs = await guildFurnitureService.buffs()
+      stats.attack += guildBuffs.attack || 0
+      stats.defense += guildBuffs.defense || 0
+      stats.speed += guildBuffs.speed || 0
+      stats.luck += guildBuffs.luck || 0
+      stats.spirit += guildBuffs.spirit || 0
+    } catch (e) {
+      // A guild lookup failing must never block a pet from entering battle.
+      console.error('[equipment] guild furniture buffs unavailable:', e)
+    }
 
     // Combat buffs from the secret cooking recipes (Phase 3 stored these but
     // nothing consumed them until now).

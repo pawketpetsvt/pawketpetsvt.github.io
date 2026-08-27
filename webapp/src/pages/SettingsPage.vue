@@ -118,9 +118,13 @@
         </div>
       </section>
 
+      <!-- Legacy placed the admin block here, between the settings sections and
+           Invite Friends, revealed by isAdmin() from showApp(). -->
+      <AdminTools />
+
       <section class="settings-section mt-3 pt-4 text-center">
         <h3 class="settings-heading mb-2">💰 Invite Friends</h3>
-        <p class="setting-help mb-3">Earn 250 PP for each friend who adopts their first pet!</p>
+        <p class="setting-help mb-3">Earn {{ REFERRER_PP }} PP for each friend who adopts their first pet!</p>
         <button class="btn btn-primary btn-referral" @click="openReferralModal">📤 Get Referral Link</button>
       </section>
     </div>
@@ -128,11 +132,13 @@
     <div class="modal-overlay" :class="{ show: referral }">
       <div class="modal referral-modal" v-if="referral">
         <h2 class="settings-heading text-center mb-3">💰 Refer Friends!</h2>
-        <p class="setting-help text-center mb-3">Invite friends and earn <strong>250 PP</strong> for each friend who adopts their first pet!</p>
+        <!-- Reads the same constant as the Home referral card. These used to
+             disagree (250 here, 200 there) — see the note in referralData.js. -->
+        <p class="setting-help text-center mb-3">Invite friends and earn <strong>{{ REFERRER_PP }} PP</strong> for each friend who adopts their first pet!</p>
         <div class="referral-stat text-center p-3 mb-3 rounded-3">
           <div class="referral-count">{{ referral.count }}</div>
           <div class="setting-help">Friends Referred</div>
-          <div class="referral-earned mt-1">🪙 {{ referral.count * 250 }} PP Earned</div>
+          <div class="referral-earned mt-1">🪙 {{ referral.count * REFERRER_PP }} PP Earned</div>
         </div>
         <div class="fw-bold mb-2">Your Referral Link:</div>
         <input :value="referral.link" readonly class="pp-select referral-link w-100 mb-3" @click="$event.target.select()" />
@@ -150,7 +156,9 @@ import { settingsService, settingsState } from '../services/SettingsService.js'
 import { musicService, musicState } from '../services/MusicService.js'
 import { themeService } from '../services/ThemeService.js'
 import { referralService } from '../services/ReferralService.js'
+import { REFERRER_PP } from '../data/referralData.js'
 import { toastService } from '../services/ToastService.js'
+import AdminTools from '../components/admin/AdminTools.vue'
 import { THEME_CATALOG } from '../data/themeCatalog.js'
 
 // The three accessibility toggles were three near-identical markup blocks;

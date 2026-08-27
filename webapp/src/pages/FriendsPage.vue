@@ -36,7 +36,7 @@
           :profile="f"
           variant="friend"
           @view-profile="viewProfile"
-          @visit-room="visitRoomStub"
+          @visit-room="visitRoom"
           @remove="removeFriend"
         />
       </div>
@@ -96,10 +96,8 @@ function viewProfile(username) {
   router.push('/profile/' + encodeURIComponent(username))
 }
 
-// Player rooms belong to Housing, which isn't migrated yet — an honest
-// "not available yet" stub rather than a dead link.
-function visitRoomStub() {
-  toastService.info('Visiting player rooms is coming soon!')
+function visitRoom(username) {
+  router.push('/room/' + encodeURIComponent(username))
 }
 
 async function switchTab(tab) {

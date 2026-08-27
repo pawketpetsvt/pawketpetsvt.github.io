@@ -9,7 +9,7 @@
     <div v-if="loading" class="spinner"></div>
 
     <template v-else-if="profile">
-      <ProfileHeader :profile="profile" />
+      <ProfileHeader :profile="profile" own />
       <ProfileStatCards :profile="profile" :badge-count="earnedCount" />
 
       <div class="mt-3">
@@ -176,6 +176,7 @@ onMounted(load)
 </script>
 
 <style lang="scss" scoped>
+
 // Layout via Bootstrap utilities in the template; visuals only here.
 .mp-section-title {
   font-size: 1.15rem;

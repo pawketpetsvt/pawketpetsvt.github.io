@@ -1,6 +1,8 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { inventoryService } from './InventoryService.js'
 import { COOKING_RECIPES, COOKING_INGREDIENTS } from '../data/cookingData.js'
+import { taskTracker } from './TaskTrackerService.js'
 
 // Ports the Cooking system, game.js:41761-42118. Ingredient drop rolls from
 // Battle/Fishing/Expedition (COOKING_DROP_TABLES) aren't ported — those
@@ -84,7 +86,19 @@ class CookingService {
       }
     }
 
+    taskTracker.report('cook_meal')
+    // Total dishes cooked = the sum of times_cooked across the log, which is
+    // what legacy's cook_10 / cook_50 thresholds count.
+    badgeHooks.onCook({ totalCooked: await this.totalCooked(userId), recipeId: match.id })
     return { recipe: match, isNewDiscovery }
+  }
+
+  // How many dishes this player has cooked in total, summed across the log.
+  // Used only by the cooking badge thresholds.
+  async totalCooked(userId) {
+    const { data } = await supabase
+      .from('cooking_log').select('times_cooked').eq('user_id', userId)
+    return (data || []).reduce((s, r) => s + (r.times_cooked || 0), 0)
   }
 
   // Grants an ingredient outside of a purchase — used by FishingService for

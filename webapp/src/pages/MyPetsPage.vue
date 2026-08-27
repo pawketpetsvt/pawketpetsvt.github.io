@@ -26,6 +26,7 @@
           @manage-equipment="open('equipment', pet)"
           @allocate-stats="open('stats', pet)"
           @manage-variant="open('variant', pet)"
+          @manage-room="open('room', pet)"
           @snapshot="snapshotComingSoon" />
       </div>
     </div>
@@ -35,6 +36,7 @@
     <EquipmentModal v-if="modal === 'equipment'" :pet="modalPet" @close="close" @changed="refreshPets" />
     <StatPointsModal v-if="modal === 'stats'" :pet="modalPet" @close="close" />
     <VariantModal v-if="modal === 'variant'" :pet="modalPet" @close="close" />
+    <PetRoomModal v-if="modal === 'room'" :pet="modalPet" @close="close" />
   </div>
 </template>
 
@@ -54,6 +56,8 @@ import SkillLoadoutModal from '../components/pet/SkillLoadoutModal.vue'
 import EquipmentModal from '../components/pet/EquipmentModal.vue'
 import StatPointsModal from '../components/pet/StatPointsModal.vue'
 import VariantModal from '../components/pet/VariantModal.vue'
+import PetRoomModal from '../components/pet/PetRoomModal.vue'
+import { furnitureService } from '../services/FurnitureService.js'
 
 const loading = ref(true)
 const discoveries = ref({})

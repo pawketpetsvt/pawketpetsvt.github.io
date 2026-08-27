@@ -1,17 +1,14 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { AppState } from './AppState.js'
+import { streamerLandingState } from './services/StreamerLandingService.js'
 
 const ComingSoonPage = () => import('./pages/ComingSoonPage.vue')
 
 // Tabs not yet migrated get a ComingSoonPage stub with a display name —
 // same route shape as the real ones so later phases just swap the component.
-const stubTabs = [
-  { tab: 'twitch', name: 'Twitch' },
-  { tab: 'redeem', name: 'Redeem' },
-  { tab: 'racing', name: 'Racing' },
-  { tab: 'housing', name: 'Housing' },
-  { tab: 'guild', name: 'Guild' }
-]
+// Every tab now has a real page. The stub machinery stays: it costs nothing and
+// is what a new tab would use.
+const stubTabs = []
 
 const routes = [
   { path: '/', redirect: '/home' },
@@ -42,6 +39,14 @@ const routes = [
   { path: '/myprofile', name: 'myprofile', component: () => import('./pages/MyProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'myprofile' } },
   { path: '/profile/:username', name: 'profile', component: () => import('./pages/ProfilePage.vue'), meta: { requiresAuth: true, tabKey: 'profile' } },
   { path: '/battle', name: 'battle', component: () => import('./pages/BattlePage.vue'), meta: { requiresAuth: true, tabKey: 'battle' } },
+  { path: '/housing', name: 'housing', component: () => import('./pages/HousingPage.vue'), meta: { requiresAuth: true, tabKey: 'housing' } },
+  { path: '/racing', name: 'racing', component: () => import('./pages/RacingPage.vue'), meta: { requiresAuth: true, tabKey: 'racing' } },
+  { path: '/twitch', name: 'twitch', component: () => import('./pages/TwitchPage.vue'), meta: { requiresAuth: true, tabKey: 'twitch' } },
+  { path: '/redeem', name: 'redeem', component: () => import('./pages/RedeemPage.vue'), meta: { requiresAuth: true, tabKey: 'redeem' } },
+  { path: '/guild', name: 'guild', component: () => import('./pages/GuildPage.vue'), meta: { requiresAuth: true, tabKey: 'guild' } },
+  // The destination of a shared room link. Legacy generated these URLs but never
+  // registered a handler for them — see RoomVisitPage's header.
+  { path: '/room/:username', name: 'room-visit', component: () => import('./pages/RoomVisitPage.vue'), meta: { requiresAuth: true, tabKey: 'housing' } },
 
   // Stubbed tabs — not built this phase
   ...stubTabs.map(({ tab, name }) => ({
@@ -59,7 +64,15 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   if (to.meta.requiresAuth && !AppState.user) {
+    // Someone who arrived through a streamer's `?streamer=` link is a new
+    // visitor being invited, not a returning player — legacy's landing sent
+    // them straight to the register form (streamerLanding_buildHero's closing
+    // `showAuthSection('register')`), so the sign-in page is the wrong door.
+    if (streamerLandingState.member) return { name: 'register' }
     return { name: 'login' }
+  }
+  if (to.name === 'login' && !AppState.user && streamerLandingState.member) {
+    return { name: 'register' }
   }
 })
 

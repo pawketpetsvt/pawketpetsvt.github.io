@@ -18,6 +18,7 @@
 </template>
 
 <script setup>
+import * as badgeHooks from '../../services/BadgeHooks.js'
 import { ref, onMounted } from 'vue'
 import { minigamesService } from '../../services/MinigamesService.js'
 import { companionService } from '../../services/CompanionService.js'
@@ -57,6 +58,7 @@ async function makeGuess() {
   if (guess === secretNumber.value) {
     const earned = GUESS_PP_REWARDS[Math.min(guessAttempts.value - 1, 5)]
     await minigamesService.completeGame('guess', earned, 'guess_game')
+    badgeHooks.onGuessPlayed({ attempts: guessAttempts.value })
     hotCold.value = ''
     resultText.value = 'Correct in ' + guessAttempts.value + ' guess' + (guessAttempts.value === 1 ? '' : 'es') + '! +' + earned + ' PP! 🎯'
     resultColor.value = '#5dde7a'

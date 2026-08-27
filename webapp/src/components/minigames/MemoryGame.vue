@@ -29,6 +29,7 @@
 </template>
 
 <script setup>
+import * as badgeHooks from '../../services/BadgeHooks.js'
 import { ref, onMounted } from 'vue'
 import { minigamesService } from '../../services/MinigamesService.js'
 import { MEMORY_EMOJIS, MEMORY_PAIRS, MEMORY_TRIES } from '../../data/minigamesData.js'
@@ -106,6 +107,7 @@ async function resolvePair() {
 
     if (matchedPairs.value === cards.value.length / 2) {
       await minigamesService.completeGame('memory', earned.value, 'memory_match')
+      badgeHooks.onMemoryPlayed({ perfect: triesLeft.value === MEMORY_TRIES - MEMORY_PAIRS, seconds: null })
       resultText.value = 'All matched! +' + earned.value + ' PP!'
       resultColor.value = '#5dde7a'
       onCooldown.value = true
@@ -118,6 +120,7 @@ async function resolvePair() {
       locked.value = false
       if (triesLeft.value === 0 && matchedPairs.value < MEMORY_PAIRS) {
         await minigamesService.completeGame('memory', earned.value, 'memory_match')
+      badgeHooks.onMemoryPlayed({ perfect: triesLeft.value === MEMORY_TRIES - MEMORY_PAIRS, seconds: null })
         resultText.value = 'Out of tries! Earned ' + earned.value + ' PP.'
         resultColor.value = '#ff9f43'
         onCooldown.value = true

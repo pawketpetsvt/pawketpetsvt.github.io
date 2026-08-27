@@ -1,10 +1,12 @@
 import { reactive } from 'vue'
+import * as badgeHooks from './BadgeHooks.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { minigamesService } from './MinigamesService.js'
 import { toastService } from './ToastService.js'
 import { cookingService } from './CookingService.js'
+import { weatherService } from './WeatherService.js'
 import { FISH_SPOTS, FISH_BAIT, FISH_POOL, ROD_CASTS_BONUS, AUTO_FISHER_TIERS, DAILY_FISH_CHALLENGES, getWeekKey } from '../data/fishingData.js'
 import { FISHING_INGREDIENT_DROPS } from '../data/cookingData.js'
 
@@ -64,7 +66,10 @@ class FishingService {
   // Weighted-pool roll, ports fishingGetCatch(), game.js:9320-9382.
   getCatch({ spot, bait, rodLevel, power }) {
     const baitData = FISH_BAIT[bait] || FISH_BAIT.worm
-    const weather = 'clear' // no weather system migrated yet — see module comment in fishingData.js
+    // Live weather at last. Until the weather system was ported this was
+    // hardcoded to 'clear', which made all four weather-gated legendaries
+    // (ghost_fish / storm_eel / void_fish / aurora_cod) permanently uncatchable.
+    const weather = weatherService.currentId()
     const rodLvl = rodLevel || 1
     const castPower = power !== undefined ? power : 0.5
 
@@ -112,8 +117,10 @@ class FishingService {
   // Full single-cast resolution: bait cost, catch roll, collection upsert,
   // cooking-ingredient drop, quest/daily/shoal hooks. Ports the body of
   // castLine(), game.js:9384-9555, minus session-end (owned by the page,
-  // which knows the remaining-casts count) and Badges/Bingo/PassXP/
-  // ARG/scrapbook/weekly-challenge/title side effects (unmigrated systems).
+  // which knows the remaining-casts count). Badges and the angler titles ARE
+  // awarded (Phase 9.5 — see the badgeHooks call below). Still deferred, each
+  // UNBLOCKED BY its own port: Bingo, PawketPass XP, ARG/scrapbook drops and
+  // the weekly challenge counter.
   async castLine({ userId, spot, bait, rodLevel, power, collectionMap, ingredientsMap }) {
     let usedBait = bait
     let baitData = FISH_BAIT[usedBait] || FISH_BAIT.worm
@@ -164,6 +171,11 @@ class FishingService {
       shoalState.castsLeft--
       if (shoalState.castsLeft <= 0) shoalState.active = false
     }
+
+    // Badges and the angler titles. `totalCaught` is every catch across the
+    // whole collection, which is what legacy's 50/100/250 thresholds count.
+    const totalCaught = Object.values(collectionMap).reduce((s, e) => s + (e.count || 0), 0)
+    badgeHooks.onFishCaught({ totalCaught, isNew, rarity: fish.rarity, fishId: fish.id })
 
     return { fish, weightG, isNew, isNewRecord, usedBait }
   }

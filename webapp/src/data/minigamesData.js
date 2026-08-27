@@ -1,6 +1,9 @@
-// Static minigame content ported from game.js. Badge/Bingo/PassXP/Event
-// Calendar side effects on these games are deliberately not ported — those
-// systems (Badges, Bingo, PawketPass, Event Calendar) aren't migrated yet.
+// Static minigame content ported from game.js.
+//
+// The Event Calendar's Minigame Monday bonus IS applied — see
+// MinigamesService.completeGame(), which pays the multiplier as extra PP.
+// Badge, Bingo and PawketPass side effects are still not ported; those three
+// systems remain unmigrated.
 
 export const WHEEL_PRIZES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -36,5 +39,10 @@ export const WHACK_MOLE_IMAGES = ['/images/pets/ember.png', '/images/pets/pyxie.
 
 // The 6 "core" games that count toward the +50 PP daily-complete bonus.
 // Dice and Slot Machine are deliberately excluded, game.js:35198.
+//
+// REFERENCE ONLY — nothing imports this. The authoritative list lives inside
+// `claim_daily_complete_bonus_secure`, the RPC added by Phase 4's game_claims
+// migration, because a client-held list is a client-editable one. Kept here as
+// documentation of what that RPC checks; editing it changes nothing.
 export const DAILY_COMPLETE_CORE_GAMES = ['guess', 'wheel', 'whack', 'memory', 'shell', 'typing']
 export const DAILY_COMPLETE_BONUS_PP = 50

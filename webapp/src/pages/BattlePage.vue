@@ -93,6 +93,7 @@ import { AppState } from '../AppState.js'
 import { battleService, battleState } from '../services/BattleService.js'
 import { dungeonService, dungeonState } from '../services/DungeonService.js'
 import { encounterService } from '../services/EncounterService.js'
+import { secretDungeonService, secretDungeonState } from '../services/SecretDungeonService.js'
 import { playerService } from '../services/PlayerService.js'
 import { inventoryService } from '../services/InventoryService.js'
 import { toastService } from '../services/ToastService.js'
@@ -120,9 +121,11 @@ const selectedZone = ref('outskirts')
 // Non-battle exploration outcome, shown until dismissed.
 const lastEncounter = ref(null)
 
-// Secret zones stay out of the picker until the unlock system is migrated —
-// showing a permanently locked button would misrepresent them as reachable.
-const zones = computed(() => ZONE_META.filter(z => !z.secret))
+// Secret zones appear only once they have actually been discovered — a 2% roll
+// when an expedition is claimed. A locked button is deliberately not shown:
+// they are meant to be a surprise, not a visible target.
+const zones = computed(() =>
+  ZONE_META.filter(z => !z.secret || secretDungeonService.isUnlocked(z.key)))
 
 const selectedPet = computed(() => pets.value.find(p => p.id === selectedPetId.value) || null)
 
@@ -236,6 +239,8 @@ async function load() {
     if (!AppState.inventory?.length) {
       await inventoryService.getInventory(AppState.user.id)
     }
+    // Which secret zones this account has found, so the picker can show them.
+    if (!secretDungeonState.loaded) await secretDungeonService.loadUnlocks()
     const { available, all, total } = await battleService.getBattlePets(AppState.user.id)
     pets.value = available
     allPets.value = all

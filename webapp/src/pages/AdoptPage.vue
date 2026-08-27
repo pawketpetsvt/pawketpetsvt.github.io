@@ -15,7 +15,12 @@
       <div v-for="pet in AppState.petCatalog" :key="pet.id" class="col">
         <div
           class="pet-card h-100"
-          :class="{ placeholder: pet.isPlaceholder, 'already-owned': isOwned(pet.id) }"
+          :ref="el => setPetCardRef(pet, el)"
+          :class="{
+            placeholder: pet.isPlaceholder,
+            'already-owned': isOwned(pet.id),
+            'streamer-landing-highlight': highlightedPetName === pet.name
+          }"
         >
           <div class="pet-image-wrap">
             <img v-if="pet.image_file && !pet.isPlaceholder && !imgErrors[pet.id]" :src="'/images/' + pet.image_file" :alt="pet.name" @error="imgErrors[pet.id] = true" />
@@ -69,13 +74,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick } from 'vue'
 import { AppState } from '../AppState.js'
 import { petsService } from '../services/PetsService.js'
 import { playerService } from '../services/PlayerService.js'
 import { ownedPetsService } from '../services/OwnedPetsService.js'
 import { toastService } from '../services/ToastService.js'
 import PointsBanner from '../components/PointsBanner.vue'
+import { streamerLandingService } from '../services/StreamerLandingService.js'
+import { REFEREE_PP } from '../data/referralData.js'
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -85,6 +92,17 @@ const selectedPet = ref(null)
 const nickname = ref('')
 const adopting = ref(false)
 const successMessage = ref('')
+
+// Ports the streamer-landing highlight from loadAdoptTab() (main:3027): a
+// visitor who arrived through `?streamer=` gets that streamer's pet highlighted
+// and scrolled into view for four seconds.
+const highlightedPetName = ref('')
+const petCardEls = new Map()
+
+function setPetCardRef(pet, el) {
+  if (el) petCardEls.set(pet.name, el)
+  else petCardEls.delete(pet.name)
+}
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 const totalOwnedCount = computed(() => AppState.ownedPetIds.length)
@@ -114,9 +132,16 @@ async function confirmAdopt() {
   const price = effectivePrice(pet)
   const finalNickname = nickname.value.trim() || pet.name
   try {
-    await ownedPetsService.adopt(pet, finalNickname, price)
+    const { referrer } = await ownedPetsService.adopt(pet, finalNickname, price)
     closeModal()
     successMessage.value = finalNickname + ' has joined your collection! 💖'
+    // Legacy toasted this from awardReferralRewards; the referral is only
+    // credited now, on the first adoption, so this is the first chance to say so.
+    if (referrer) {
+      toastService.success(
+        '🎁 Welcome! You earned ' + REFEREE_PP + ' PP from ' + referrer + "'s referral!"
+      )
+    }
   } catch (err) {
     toastService.error('Error: ' + err.message)
   } finally {
@@ -134,6 +159,18 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+
+  const suggested = streamerLandingService.suggestedFirstPet()
+  if (!suggested) return
+  await nextTick()
+  const match = AppState.petCatalog.find(
+    p => p.name && p.name.toLowerCase() === suggested.toLowerCase()
+  )
+  if (!match) return
+  highlightedPetName.value = match.name
+  const el = petCardEls.get(match.name)
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  setTimeout(() => { highlightedPetName.value = '' }, 4000)
 })
 </script>
 

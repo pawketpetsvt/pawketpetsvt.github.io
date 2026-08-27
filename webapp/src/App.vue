@@ -30,6 +30,13 @@
          sits outside AppShell so it stays pinned to the viewport corner on
          every page rather than to the centre column. -->
     <CompanionBuddy v-if="AppState.user" />
+    <!-- Full-screen ARG blackout. Renders nothing unless something triggers it
+         (today only the THEYWENTMISSING redeem code), and lives here so any
+         later ARG surface can reach it without a DOM handle. -->
+    <SpookyOverlay />
+    <!-- Drains the badge/title unlock queue. Renders nothing until something
+         is actually unlocked. -->
+    <UnlockCelebration v-if="AppState.user" />
   </div>
 </template>
 
@@ -39,6 +46,8 @@ import NavBar from './components/NavBar.vue'
 import NewsTicker from './components/NewsTicker.vue'
 import LiveBanner from './components/LiveBanner.vue'
 import CompanionBuddy from './components/CompanionBuddy.vue'
+import SpookyOverlay from './components/SpookyOverlay.vue'
+import UnlockCelebration from './components/UnlockCelebration.vue'
 import SiteFooter from './components/SiteFooter.vue'
 import AppShell from './layouts/AppShell.vue'
 import GuestLayout from './layouts/GuestLayout.vue'

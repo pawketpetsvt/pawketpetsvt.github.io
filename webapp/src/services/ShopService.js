@@ -1,17 +1,36 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { ShopItem } from '../models/ShopItem.js'
 import { playerService } from './PlayerService.js'
 import { inventoryService } from './InventoryService.js'
 import { COOKING_INGREDIENTS, SHOP_STAPLE_INGREDIENT_IDS } from '../data/cookingData.js'
+import { guildPerkService } from './GuildPerkService.js'
 
 const SKIN_KEY_ID = '00000000-0000-0000-0000-000000000001'
 
-// Ports loadShop()'s dedupe/categorize pipeline, game.js:7151-7252. World
-// events, guild discounts, mini-season and world-state gating are all
-// out of scope (their systems aren't migrated) — every eligible item is
-// simply shown at full price.
+// Ports loadShop()'s dedupe/categorize pipeline, game.js:7151-7252.
+//
+// The guild shop-discount perk IS applied as of Phase 9 (see effectivePrice
+// below) — it was deferred here while Guild was unmigrated. Still out of scope,
+// each still unmigrated: world events, mini-season stock, and world-state
+// gating.
 class ShopService {
+  // What an item actually costs this player right now. Legacy applied the
+  // guild discount in two separate places — once for the displayed price
+  // (main:7318/7373) and again for the charged price (main:33221) — and the two
+  // could disagree if a perk expired between render and click. One function
+  // used by both means the number shown is always the number charged.
+  effectivePrice(item, qty = 1) {
+    const discount = guildPerkService.multiplier('discount')
+    const unit = discount < 1 ? Math.floor(item.price * discount) : item.price
+    return unit * qty
+  }
+
+  hasDiscount() {
+    return guildPerkService.multiplier('discount') < 1
+  }
+
   async getCatalog() {
     const res = await supabase.from('items').select('*')
       .or('is_boss_drop.is.null,is_boss_drop.eq.false')
@@ -81,10 +100,11 @@ class ShopService {
   // Ports buyItem()/buyItemMulti(), game.js:7394-7446 — spends PP via the
   // secure RPC then grants the item(s) into user_inventory.
   async buyItem(item, qty = 1) {
-    const total = item.price * qty
+    const total = this.effectivePrice(item, qty)
     const newTotal = await playerService.spendPoints(total, qty > 1 ? 'shop_buy_5x' : 'shop_purchase')
     if (newTotal === null) throw new Error('Purchase failed — not enough PP?')
     await inventoryService.grant(AppState.user.id, item.id, qty)
+    badgeHooks.onPurchase(total)
     return newTotal
   }
 
@@ -98,7 +118,7 @@ class ShopService {
       id => COOKING_INGREDIENTS[id].name.toLowerCase() === item.name.toLowerCase()
     )
     if (!ingredientId) throw new Error('Unrecognized staple: ' + item.name)
-    const total = item.price * qty
+    const total = this.effectivePrice(item, qty)
     const newTotal = await playerService.spendPoints(total, 'cooking_staple_purchase')
     if (newTotal === null) throw new Error('Purchase failed — not enough PP?')
     const existing = await supabase.from('user_ingredients').select('quantity').eq('user_id', AppState.user.id).eq('ingredient_id', ingredientId).maybeSingle()

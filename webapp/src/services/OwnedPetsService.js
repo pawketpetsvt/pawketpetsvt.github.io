@@ -1,10 +1,14 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { OwnedPet } from '../models/OwnedPet.js'
 import { playerService } from './PlayerService.js'
 import { inventoryService } from './InventoryService.js'
 import { calculateEnergyRegen, calculateHungerDecay, calculateHappinessDecay, calculateLevelUp } from '../utils/PetStatMath.js'
 import { containsProfanity } from '../utils/profanity.js'
+import { taskTracker } from './TaskTrackerService.js'
+import { referralService } from './ReferralService.js'
+import { streamerLandingService } from './StreamerLandingService.js'
 
 class OwnedPetsService {
   async getOwnedPetIds(userId) {
@@ -80,6 +84,16 @@ class OwnedPetsService {
     }
 
     AppState.ownedPetIds.push(pet.id)
+    taskTracker.report('adopt_pet')
+    badgeHooks.onAdopt()
+
+    // Legacy credited a pending `?ref=` referral right here, on first adoption
+    // (main:3205) — not at signup, so a referral only counts once the invited
+    // player actually starts playing. Returned rather than toasted so the page
+    // can welcome them; never allowed to fail the adoption itself.
+    const referrer = await referralService.processPendingReferral()
+    streamerLandingService.clearSuggestion()
+    return { referrer }
   }
 
   async feed(pet) {
@@ -93,6 +107,8 @@ class OwnedPetsService {
     const res = await supabase.from('user_pets').update(updates).eq('id', pet.id)
     if (res.error) throw new Error(res.error.message)
     Object.assign(pet, updates)
+    taskTracker.report('feed_pet')
+    if (lu.leveled) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(lu.level) }
     return lu
   }
 
@@ -107,6 +123,8 @@ class OwnedPetsService {
     const res = await supabase.from('user_pets').update(updates).eq('id', pet.id)
     if (res.error) throw new Error(res.error.message)
     Object.assign(pet, updates)
+    taskTracker.report('play_pet')
+    if (lu.leveled) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(lu.level) }
     return lu
   }
 
@@ -143,6 +161,12 @@ class OwnedPetsService {
     if (ef.leveled_up && ef.new_level) updates.level = ef.new_level
     Object.assign(pet, updates)
     inventoryService.decrementLocal(invItem)
+
+    // A Melon request can name a specific food, so the item id rides along.
+    // Legacy reports the same distinction via updateBingoProgress's itemId arg.
+    const kind = (invItem.itemType || '').toLowerCase()
+    taskTracker.report(kind === 'toy' ? 'use_toy' : 'feed_pet', 1, { itemId: invItem.id })
+    if (ef.leveled_up) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(ef.new_level) }
 
     return { reactionType: ef.reaction_type, leveledUp: !!ef.leveled_up, newLevel: ef.new_level }
   }

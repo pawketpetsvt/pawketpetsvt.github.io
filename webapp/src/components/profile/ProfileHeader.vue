@@ -17,6 +17,16 @@
       </div>
       <div class="pf-joined">{{ profile.joinedText }}</div>
     </div>
+
+    <!-- On your own profile this is the way in to editing your room; on anyone
+         else's it opens their read-only view.
+         Not a port on the public side: legacy exposed room-visiting ONLY from
+         the Friends tab's friend cards, so a profile reached any other way —
+         search, leaderboard, a notification — had no route into it. -->
+    <router-link class="pf-room-btn" :to="own ? '/housing' : `/room/${encodeURIComponent(profile.username)}`"
+      :title="own ? 'Decorate your room' : `Visit ${profile.username}'s room`">
+      {{ own ? '🏠 My Room' : '🏠 Room' }}
+    </router-link>
   </div>
 
   <div class="pf-bio">{{ profile.bio || 'No bio yet' }}</div>
@@ -27,7 +37,9 @@ import { computed } from 'vue'
 import { COSMETICS_CATALOG } from '../../data/cosmeticsData.js'
 
 const props = defineProps({
-  profile: { type: Object, required: true }
+  profile: { type: Object, required: true },
+  // True on MyProfile — the Room button then edits rather than visits.
+  own: { type: Boolean, default: false }
 })
 
 const backgroundGradient = computed(() => {
@@ -63,6 +75,49 @@ const pips = computed(() =>
   padding: 24px;
   border-radius: 16px;
   color: #fff;
+}
+
+// Top-right of the banner: `margin-left: auto` claims the leftover space and
+// `align-self: flex-start` lifts it out of the banner's vertical centring.
+//
+// The button carries its OWN dark scrim rather than tinting whatever is behind
+// it, because the banner background is a player-chosen cosmetic and the catalog
+// spans the full range — `#000428` (Starry Night) through `#fefae0` (Cozy Café)
+// and `#ffd200` (Legendary). Neither a translucent-white fill nor a translucent
+// -dark one is legible across both ends, so nothing that depends on the
+// backdrop can work here. An opaque-enough dark pill with white text does, and
+// the light border keeps it from disappearing into the dark backgrounds.
+//
+// `!important` on the colors is load-bearing: style.css:61 sets
+// `a { color: var(--purple-dark) !important }` and :62 the same for `a:hover`,
+// and an `!important` element selector beats a plain scoped class. That global
+// rule is also why this read as unreadable dark purple rather than white.
+.pf-room-btn {
+  align-self: flex-start;
+  margin-left: auto;
+  flex-shrink: 0;
+  padding: 6px 12px;
+  border: 2px solid rgba(255, 255, 255, 0.75);
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff !important;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  text-decoration: none !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  transition: background 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.62);
+    border-color: #fff;
+    color: #fff !important;
+  }
+
+  &:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 2px;
+  }
 }
 
 .pf-avatar {

@@ -219,11 +219,11 @@ export function applyDefendPassives(s, incoming, ctx) {
 // Ports manualBattle_tickInfluence(). Piper's Influence builds as the player
 // acts and can fire an out-of-nowhere event.
 //
-// Note this is gated on world-state corruption: legacy returns null unless
-// Beta Integrity (100 − corruption) has fallen to 25 or below. World state is
-// not migrated, and its default of 50 leaves integrity at 50 — so the meter is
-// dormant today, exactly as it is on the live site for a normal player. The
-// logic is here in full for when that system lands.
+// Gated on world-state corruption: nothing happens unless Beta Integrity
+// (100 − corruption) has fallen to 25 or below, i.e. corruption 75+. World
+// State is migrated now (Phase 8b), so `ctx.corruptionLevel()` reads the real
+// value and the meter genuinely fills once the world is corrupted enough —
+// which players can push directly with the Break It ritual on the Home page.
 export function tickInfluence(s, gain, ctx) {
   const betaIntegrity = 100 - ctx.corruptionLevel()
   if (betaIntegrity > 25) return null

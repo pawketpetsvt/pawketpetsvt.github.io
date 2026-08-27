@@ -354,6 +354,12 @@ export const PET_BACKSTORIES = {
 
 // Ports BASIC_VARIANTS — cosmetic skins unlocked with Skin Keys. The active
 // one persists on user_pets.current_variant.
+//
+// NOT YET IMPORTED, and that is correct: its `cost`/`name` fields exist for the
+// Skin Key shop, which is unmigrated. UNBLOCKED BY: the Skin Key port (Phase
+// 9.5). Its `cssClass` values are NOT needed — every one is exactly
+// `pet-variant-<key>`, which PetCosmeticsService.variantClass() derives, so the
+// card's variant aura already works.
 export const BASIC_VARIANTS = {
   golden: { name: 'Golden', description: 'Shimmering gold aura', cssClass: 'pet-variant-golden', icon: '✨', cost: 1 },
   shiny: { name: 'Shiny', description: 'Rainbow sparkle effect', cssClass: 'pet-variant-shiny', icon: '🌈', cost: 1 },

@@ -41,12 +41,15 @@
             <div v-if="item.effectTags.length" class="shop-effects">
               <span v-for="tag in item.effectTags" :key="tag" class="effect-tag">{{ tag }}</span>
             </div>
-            <div class="shop-item-price">🪙 {{ item.price }} PP</div>
-            <button class="btn-buy" :disabled="points < item.price || buyingId === item.id" @click="buy(item)">
-              {{ points >= item.price ? 'Buy' : 'Need ' + item.price + ' PP' }}
+            <div class="shop-item-price">
+            <span v-if="discounted" class="shop-price-was">{{ item.price }}</span>
+            🪙 {{ priceOf(item) }} PP
+          </div>
+            <button class="btn-buy" :disabled="points < priceOf(item) || buyingId === item.id" @click="buy(item)">
+              {{ points >= priceOf(item) ? 'Buy' : 'Need ' + priceOf(item) + ' PP' }}
             </button>
-            <button v-if="isBulkEligible(item)" class="btn-buy-5" :disabled="points < item.price * 5 || buyingId === item.id" @click="buy(item, 5)">
-              Buy 5x ({{ item.price * 5 }} PP)
+            <button v-if="isBulkEligible(item)" class="btn-buy-5" :disabled="points < priceOf(item) * 5 || buyingId === item.id" @click="buy(item, 5)">
+              Buy 5x ({{ priceOf(item) * 5 }} PP)
             </button>
             </div>
           </div>
@@ -61,9 +64,12 @@
           <div class="shop-item-icon"><ItemIcon :item="item" /></div>
           <div class="shop-item-name">{{ item.name }}</div>
           <div class="shop-item-desc">{{ item.description || 'Battle consumable' }}</div>
-          <div class="shop-item-price">🪙 {{ item.price }} PP</div>
-          <button class="btn-buy" :disabled="points < item.price || buyingId === item.id" @click="buy(item)">
-            {{ points >= item.price ? 'Buy' : 'Need ' + item.price + ' PP' }}
+          <div class="shop-item-price">
+            <span v-if="discounted" class="shop-price-was">{{ item.price }}</span>
+            🪙 {{ priceOf(item) }} PP
+          </div>
+          <button class="btn-buy" :disabled="points < priceOf(item) || buyingId === item.id" @click="buy(item)">
+            {{ points >= priceOf(item) ? 'Buy' : 'Need ' + priceOf(item) + ' PP' }}
           </button>
           </div>
         </div>
@@ -92,11 +98,47 @@
             ✨ {{ item.passive_effect.replace(/_/g, ' ') }} ({{ item.passive_chance }}%)
           </div>
           <div class="pp-req">Needs pet level {{ equipmentService.tierMinLevel(item.tier || 1) }}</div>
-          <div class="shop-item-price">🪙 {{ item.price }} PP</div>
-          <button class="btn-buy" :disabled="points < item.price || buyingId === item.id"
+          <div class="shop-item-price">
+            <span v-if="discounted" class="shop-price-was">{{ item.price }}</span>
+            🪙 {{ priceOf(item) }} PP
+          </div>
+          <button class="btn-buy" :disabled="points < priceOf(item) || buyingId === item.id"
             @click="buyEquipment(item)">
-            {{ points >= item.price ? 'Buy' : 'Need ' + item.price + ' PP' }}
+            {{ points >= priceOf(item) ? 'Buy' : 'Need ' + priceOf(item) + ' PP' }}
           </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Ports the Furniture shop tab (furniture_loadShop), deferred out of
+         Phase 3 because furniture had no consumer until Housing. -->
+    <template v-else-if="activeTab === 'furniture'">
+      <div class="pp-furn-note">
+        🏠 <strong>Furniture is shared</strong> — one purchase works in every pet's room, and in
+        <router-link to="/housing">your own room</router-link> too.<br />
+        ✨ Each item in a pet's room gives that pet a <strong>daily happiness boost</strong> on login.
+      </div>
+
+      <div v-if="!furniture.length" class="empty-state"><p>No furniture available yet!</p></div>
+      <div v-else class="row row-cols-2 row-cols-sm-3 row-cols-lg-4 g-3">
+        <div v-for="item in furniture" :key="item.id" class="col">
+          <div class="shop-card h-100" :class="{ 'pp-owned': owns(item) }">
+            <div class="shop-item-icon">{{ item.emoji || '🪑' }}</div>
+            <div class="shop-item-name">{{ item.name }}</div>
+            <div v-if="item.description" class="shop-item-desc">{{ item.description }}</div>
+            <div class="pp-happy">+{{ item.happiness_bonus || 0 }} happiness/day</div>
+            <div v-if="furnitureBonus(item)" class="pp-passive">{{ furnitureBonus(item) }}</div>
+            <template v-if="owns(item)">
+              <div class="pp-owned-tag">✅ Owned</div>
+            </template>
+            <template v-else>
+              <div class="shop-item-price">🪙 {{ furnitureService.priceOf(item) }} PP</div>
+              <button class="btn-buy" :disabled="points < furnitureService.priceOf(item) || buyingId === item.id"
+                @click="buyFurniture(item)">
+                {{ points >= furnitureService.priceOf(item) ? 'Buy' : 'Need ' + furnitureService.priceOf(item) + ' PP' }}
+              </button>
+            </template>
           </div>
         </div>
       </div>
@@ -125,6 +167,9 @@ import { playerService } from '../services/PlayerService.js'
 import { inventoryService } from '../services/InventoryService.js'
 import { shopService } from '../services/ShopService.js'
 import { equipmentService } from '../services/EquipmentService.js'
+import { furnitureService, furnitureState } from '../services/FurnitureService.js'
+import { taskTracker } from '../services/TaskTrackerService.js'
+import { ROOM_BONUS_LABELS } from '../data/roomData.js'
 import { toastService } from '../services/ToastService.js'
 import { isFoodFeatured, getFoodCategoryLabel } from '../utils/itemIcons.js'
 import PointsBanner from '../components/PointsBanner.vue'
@@ -143,6 +188,7 @@ const TABS = [
   { key: 'items', label: '🐾 Pet Care' },
   { key: 'consumables', label: '🧪 Consumables' },
   { key: 'equipment', label: '⚔️ Equipment' },
+  { key: 'furniture', label: '🪑 Furniture' },
   { key: 'inventory', label: '🎒 My Inventory' }
 ]
 
@@ -153,6 +199,7 @@ const consumables = ref([])
 const buyingId = ref('')
 const equipment = ref([])
 const equipFilter = ref('all')
+const furniture = ref([])
 
 // Ports filterEquipment()'s tabs. Equipment rows carry the slot under one of
 // a few column names depending on how they were seeded, so the service checks
@@ -194,9 +241,39 @@ async function buyEquipment(item) {
     buyingId.value = ''
   }
 }
+function owns(item) {
+  return furnitureService.ownsId(item.id)
+}
+
+// Furniture can carry a room bonus on top of its happiness value; the player
+// room reads those, so they're worth surfacing before you buy.
+function furnitureBonus(item) {
+  if (!item.bonus_type || !item.bonus_value) return ''
+  return (ROOM_BONUS_LABELS[item.bonus_type] || '+{v} Bonus').replace('{v}', item.bonus_value)
+}
+
+async function buyFurniture(item) {
+  buyingId.value = item.id
+  try {
+    await furnitureService.buy(item)
+    await playerService.refreshSidebarStats(AppState.user.id)
+    toastService.success('🪑 ' + item.name + ' purchased! Place it from any room.')
+  } catch (err) {
+    toastService.error(err.message)
+  } finally {
+    buyingId.value = ''
+  }
+}
+
 const loadedTabs = new Set(['items'])
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
+
+// Guild shop-discount perk. Both the price shown and the price charged come
+// from shopService.effectivePrice, so they cannot disagree — legacy computed
+// them at two separate call sites.
+const discounted = computed(() => shopService.hasDiscount())
+const priceOf = item => shopService.effectivePrice(item)
 const petCareSections = computed(() =>
   CATEGORY_CONFIG.map(c => ({ ...c, items: catalog.value[c.key] || [] })).filter(s => s.items.length)
 )
@@ -211,6 +288,10 @@ async function switchTab(tab) {
   loadedTabs.add(tab)
   if (tab === 'consumables') consumables.value = await shopService.getConsumables()
   if (tab === 'equipment') equipment.value = await equipmentService.getShopStock(equipFilter.value)
+  if (tab === 'furniture') {
+    await furnitureService.load()
+    furniture.value = furnitureState.catalog
+  }
 }
 
 async function buy(item, qty = 1) {
@@ -228,6 +309,9 @@ async function buy(item, qty = 1) {
 }
 
 onMounted(async () => {
+  // Melon's "stop by the shop, even just to browse" request is satisfied by
+  // arriving, so this fires before anything can fail.
+  taskTracker.report('visit_shop')
   await playerService.getPlayer(AppState.user.id)
   await inventoryService.getInventory(AppState.user.id)
   catalog.value = await shopService.getCatalog()
@@ -236,6 +320,14 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Shown only while a guild discount perk is running.
+.shop-price-was {
+  text-decoration: line-through;
+  color: var(--text-light);
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .pp-equip-filters {
   display: flex;
   gap: 8px;
@@ -268,6 +360,36 @@ onMounted(async () => {
 .pp-req {
   font-size: 0.7rem;
   color: var(--text-light);
+}
+
+// Ports the amber info banner furniture_loadShop() renders above its grid.
+.pp-furn-note {
+  background: rgba(255, 170, 0, 0.1);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 12px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: #b37700;
+
+  a { color: #b37700; font-weight: 700; }
+}
+
+.pp-happy {
+  font-size: 0.78rem;
+  color: #5dde7a;
+  font-weight: 600;
+}
+
+.pp-owned {
+  background: rgba(93, 222, 122, 0.06);
+}
+
+.pp-owned-tag {
+  font-size: 0.75rem;
+  color: #5dde7a;
+  font-weight: 700;
 }
 
 .shop-cat-heading {

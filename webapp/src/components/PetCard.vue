@@ -11,8 +11,8 @@
       <div v-if="props.isExploring" class="pp-exploring">🧭 Exploring</div>
       <div class="pet-avatar-wrap">
         <div class="pet-avatar">
-          <img v-if="pet.species.image_file && !imgError" :src="'/images/' + pet.species.image_file"
-            :alt="pet.nickname" @error="imgError = true" />
+          <img v-if="pet.species.image_file && !imgError" :src="'/images/' + pet.species.image_file" :alt="pet.nickname"
+            @error="imgError = true" />
           <span v-else>🐾</span>
         </div>
         <div class="mood-badge">{{ mood.emoji }}</div>
@@ -29,8 +29,8 @@
           <button class="pp-edit-btn" title="Rename pet" @click="startEditName">✏️</button>
         </div>
         <div v-else class="d-flex align-items-center justify-content-center gap-2">
-          <input ref="nameInput" v-model="nameDraft" class="pp-name-input" maxlength="30"
-            @keyup.enter="saveName" @keyup.esc="editingName = false" />
+          <input ref="nameInput" v-model="nameDraft" class="pp-name-input" maxlength="30" @keyup.enter="saveName"
+            @keyup.esc="editingName = false" />
           <button class="pp-edit-btn" :disabled="savingName" title="Save" @click="saveName">✅</button>
           <button class="pp-edit-btn" title="Cancel" @click="editingName = false">✖️</button>
         </div>
@@ -54,7 +54,7 @@
         </div>
 
         <div class="pet-bio">{{ backstory }}</div>
-        <div class="pet-card-level">Lv. {{ pet.level }} &nbsp;|&nbsp; Max: {{ pet.max_hunger }}</div>
+        <div class="pet-card-level">Lv. {{ pet.level }} &nbsp;|&nbsp; Max HP: {{ pet.max_hp }}</div>
       </div>
 
       <div v-if="pet.happiness <= 20 || pet.hunger <= 10" class="sadness-warning">😢 Your pet needs attention!</div>
@@ -62,7 +62,8 @@
       <!-- Achievement pips (getAchievements) — derived from this pet's own
            stats, unrelated to the account-wide `user_badges` system. -->
       <div v-if="achievements.length" class="achievements-row">
-        <span v-for="a in achievements" :key="a.label" class="ach-badge" :class="a.cls">{{ a.icon }} {{ a.label }}</span>
+        <span v-for="a in achievements" :key="a.label" class="ach-badge" :class="a.cls">{{ a.icon }} {{ a.label
+        }}</span>
       </div>
 
       <div class="pet-last-seen">Last interaction: {{ lastSeenText }}</div>
@@ -98,13 +99,13 @@
         <button class="btn-action btn-play" :disabled="!pet.canPlay || playing" @click="handlePlay">
           {{ pet.canPlay ? '🎾 Play' : '⚡ Tired!' }}
         </button>
-        <button class="btn-action" title="Manage skill loadout" @click="$emit('manage-skills', pet.id)">⚔️ Skills</button>
-        <!-- Room decoration belongs to the Housing tab, which is Phase 8. The
-             button is kept so the card matches the live site rather than
-             silently losing an action, and says so plainly when pressed. -->
-        <button class="btn-action" title="Decorate your pet's room" @click="roomComingSoon">🏠 Room</button>
-        <button v-if="(pet.stat_points || 0) > 0" class="btn-action pp-statpoints"
-          title="Allocate stat points" @click="$emit('allocate-stats', pet.id)">
+        <button class="btn-action" title="Manage skill loadout" @click="$emit('manage-skills', pet.id)">⚔️
+          Skills</button>
+        <!-- The PET room (pet_rooms), not the Housing tab's player room. -->
+        <button class="btn-action" title="Decorate your pet's room" @click="$emit('manage-room', pet.id)">🏠
+          Room</button>
+        <button v-if="(pet.stat_points || 0) > 0" class="btn-action pp-statpoints" title="Allocate stat points"
+          @click="$emit('allocate-stats', pet.id)">
           📊 Level Up! ({{ pet.stat_points }})
         </button>
         <button class="btn-action btn-variant-selector" title="Manage variants for this pet"
@@ -117,8 +118,7 @@
 
       <!-- Toggles rather than latching: legacy only ever set a companion, so
            once one was chosen there was no way to dismiss it. -->
-      <button class="btn-companion w-100 mt-2" :class="{ 'pp-is-companion': isCompanion }"
-        :disabled="settingCompanion"
+      <button class="btn-companion w-100 mt-2" :class="{ 'pp-is-companion': isCompanion }" :disabled="settingCompanion"
         :title="isCompanion ? 'Stop this pet following you around' : 'Set as your active companion'"
         @click="toggleCompanion">
         {{ isCompanion ? '🐾 Remove Companion' : '🐾 Set Companion' }}
@@ -191,7 +191,7 @@ const props = defineProps({
 })
 
 // Modals live on the page rather than in every card, so the card just asks.
-defineEmits(['manage-equipment', 'manage-skills', 'manage-variant', 'allocate-stats', 'snapshot'])
+defineEmits(['manage-equipment', 'manage-skills', 'manage-variant', 'manage-room', 'allocate-stats', 'snapshot'])
 
 const imgError = ref(false)
 const feeding = ref(false)
@@ -263,10 +263,6 @@ async function changeTitle(titleId) {
   } catch (err) {
     toastService.error(err.message)
   }
-}
-
-function roomComingSoon() {
-  toastService.info('Pet rooms arrive with the Housing tab — coming soon!')
 }
 
 async function startEditName() {
@@ -470,7 +466,9 @@ async function handleUseItem() {
 .btn-snapshot {
   transition: transform 0.15s;
 
-  &:hover { transform: scale(1.1); }
+  &:hover {
+    transform: scale(1.1);
+  }
 }
 
 .pp-statpoints {
@@ -492,8 +490,14 @@ async function handleUseItem() {
   cursor: pointer;
   transition: transform 0.2s;
 
-  &:hover:not(:disabled) { transform: scale(1.02); }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &:hover:not(:disabled) {
+    transform: scale(1.02);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 }
 
 // The active companion's button removes rather than sets, so it reads as a
@@ -528,10 +532,23 @@ async function handleUseItem() {
   white-space: nowrap;
   box-shadow: 0 2px 6px var(--shadow);
 
-  &.gold { background: linear-gradient(135deg, #ffb302, #ffdd55); color: #5a3d00; }
-  &.silver { background: linear-gradient(135deg, #b9c6d1, #e8eef3); color: #3d4750; }
-  &.bronze { background: linear-gradient(135deg, #c87f3d, #e8ac74); }
-  &.purple { background: linear-gradient(135deg, var(--purple), var(--pink)); }
+  &.gold {
+    background: linear-gradient(135deg, #ffb302, #ffdd55);
+    color: #5a3d00;
+  }
+
+  &.silver {
+    background: linear-gradient(135deg, #b9c6d1, #e8eef3);
+    color: #3d4750;
+  }
+
+  &.bronze {
+    background: linear-gradient(135deg, #c87f3d, #e8ac74);
+  }
+
+  &.purple {
+    background: linear-gradient(135deg, var(--purple), var(--pink));
+  }
 }
 
 // `.pet-avatar` is deliberately NOT overridden any more. The global rule makes

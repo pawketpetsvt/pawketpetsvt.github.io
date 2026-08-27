@@ -1,7 +1,11 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
-import { EXPEDITION_ZONES } from '../data/expeditionData.js'
+import { EXPEDITION_ZONES, EXPEDITION_SPEEDS } from '../data/expeditionData.js'
+import { taskTracker } from './TaskTrackerService.js'
+import { secretDungeonService } from './SecretDungeonService.js'
+import { guildPerkService } from './GuildPerkService.js'
 
 // Ports the battle-page expedition system (battleExp_*, game.js:10763-11097).
 //
@@ -12,6 +16,11 @@ import { EXPEDITION_ZONES } from '../data/expeditionData.js'
 // The Minigames tab has a second UI over this same `expeditions` table
 // (`expedition_*`, with speed options); this service is written to serve both.
 class ExpeditionService {
+  constructor() {
+    // { 'petId:zone': streakCount } — see bumpStreak().
+    this._streaks = {}
+  }
+
   zone(key) {
     return EXPEDITION_ZONES.find(z => z.key === key) || null
   }
@@ -44,17 +53,18 @@ class ExpeditionService {
   }
 
   // Ports battleExp_start(). Rewards are rolled here and written onto the row.
-  async start(pet, zoneKey) {
+  async start(pet, zoneKey, speedKey = 'normal') {
     const zone = this.zone(zoneKey)
     if (!zone) throw new Error('Unknown zone.')
     if ((pet.energy || 0) < zone.energyCost) {
       throw new Error(`${pet.nickname || 'Your pet'} needs ${zone.energyCost} energy for this expedition.`)
     }
+    const speed = EXPEDITION_SPEEDS[speedKey] || EXPEDITION_SPEEDS.normal
 
     // Higher-level pets bring back more, capped at +50%.
     const levelBonus = Math.min(1.5, 1 + (pet.level || 1) / 100)
     const rewardPP = Math.floor(
-      (zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus
+      (zone.minPP + Math.floor(Math.random() * (zone.maxPP - zone.minPP + 1))) * levelBonus * speed.ppMult
     )
 
     // A single drop, if the zone's itemChance hits. Ruins splits that roll
@@ -75,7 +85,7 @@ class ExpeditionService {
       if (dropped) droppedItems.push(dropped)
     }
 
-    const endsAt = new Date(Date.now() + zone.duration * 60000).toISOString()
+    const endsAt = new Date(Date.now() + zone.duration * speed.timeMult * 60000).toISOString()
     const res = await supabase.from('expeditions').insert({
       user_id: AppState.user.id,
       pet_id: pet.id,
@@ -111,8 +121,16 @@ class ExpeditionService {
     await supabase.from('expeditions').update({ claimed: true }).eq('id', expeditionId)
 
     const zone = this.zone(row.zone) || { xpReward: 0, label: 'the wild' }
-    const pp = row.reward_pp || 0
     const items = row.reward_items || []
+
+    // Exploration streak, then the guild reward-boost perk — the same two
+    // multipliers legacy stacks onto the stored payout at claim time
+    // (main:5176-5179). Both were deferred through Phase 7/8: streaks had no
+    // port at all, and Guild was unmigrated. Both are live as of Phase 9.
+    const streak = await this.bumpStreak(row.pet_id, row.zone)
+    const streakMult = this.streakMultiplier(row.pet_id, row.zone)
+    const perkMult = guildPerkService.multiplier('reward_boost')
+    const pp = Math.floor((row.reward_pp || 0) * streakMult * perkMult)
 
     await playerService.awardPoints(pp, 'expedition_' + row.zone)
     await this.awardPetXP(row.pet_id, zone.xpReward || 0)
@@ -124,10 +142,90 @@ class ExpeditionService {
       if (ins.error) console.error('[expeditionService.claim] item grant failed:', ins.error.message)
     }
 
-    // Deliberately not ported — each belongs to a system that isn't migrated:
-    // exploration streaks and their PP multiplier, secret-zone discovery,
-    // PawketPass XP, quest-arc progress, and the community stat counter.
-    return { pp, xp: zone.xpReward || 0, items, zone }
+    // A 2% chance the pet stumbles on one of the two hidden battle zones.
+    // Returned alongside the normal payout so the claim UI can announce it.
+    const discovery = await secretDungeonService.roll(row.zone)
+
+    // The separate streak-gated `exploration_secrets` find — unblocked by the
+    // streak port above.
+    const secret = await secretDungeonService.checkExplorationSecret(row.pet_id, row.zone, streak)
+
+    // Still not ported, each belonging to a system that isn't migrated:
+    // PawketPass XP, quest-arc progress (Personality Quests), the community
+    // stat counter. UNBLOCKED BY: the PawketPass and Personality Quests ports
+    // (Phase 9.5). The `forest_friend` title IS awarded now — see the
+    // badgeHooks.onExplorationStreak call below.
+    taskTracker.report('complete_expedition')
+    badgeHooks.onExpeditionClaim()
+    badgeHooks.onExplorationStreak(streak)
+    return { pp, xp: zone.xpReward || 0, items, zone, discovery, secret, streak, streakMult }
+  }
+
+  // ── Exploration streaks ───────────────────────────────────────────────────
+  // Ports checkExplorationStreak()/getStreakMultiplier() (game.js:8808-8871).
+  // A streak is per pet AND per zone: sending the same pet back to the same
+  // place repeatedly is what pays, not expeditions in general.
+  //
+  // Memory is the working copy, `expeditions.streak_count` the durable one, so
+  // a refresh mid-session doesn't reset progress.
+  streakMultiplier(petId, zone) {
+    const streak = this._streaks[petId + ':' + zone] || 0
+    if (streak >= 10) return 2.0
+    if (streak >= 5) return 1.5
+    if (streak >= 3) return 1.25
+    return 1.0
+  }
+
+  streakMessage(streak) {
+    if (streak >= 10) return '🔥×10 Streak! +100% rewards & guaranteed rare item!'
+    if (streak >= 5) return '🔥×5 Streak! +50% rewards!'
+    if (streak >= 3) return '🔥×3 Streak! +25% rewards!'
+    return ''
+  }
+
+  async bumpStreak(petId, zone) {
+    const key = petId + ':' + zone
+
+    if (!this._streaks[key]) {
+      try {
+        const { data: last } = await supabase
+          .from('expeditions')
+          .select('streak_count')
+          .eq('pet_id', petId)
+          .eq('zone', zone)
+          .eq('claimed', true)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (last && last.streak_count) this._streaks[key] = last.streak_count
+      } catch {
+        // `streak_count` is optional — an absent column just means streaks
+        // restart each session, which is how legacy degrades too.
+      }
+    }
+
+    this._streaks[key] = (this._streaks[key] || 0) + 1
+    const streak = this._streaks[key]
+
+    // Persisted without blocking the payout.
+    ;(async () => {
+      try {
+        const { data: recent } = await supabase
+          .from('expeditions')
+          .select('id')
+          .eq('pet_id', petId)
+          .eq('zone', zone)
+          .eq('user_id', AppState.user.id)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+        if (recent && recent.id) {
+          await supabase.from('expeditions').update({ streak_count: streak }).eq('id', recent.id)
+        }
+      } catch { /* optional column */ }
+    })()
+
+    return streak
   }
 
   // Ports addPetXP(). Levels up while the threshold is met, carrying the

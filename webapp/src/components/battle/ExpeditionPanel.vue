@@ -56,6 +56,19 @@
             </div>
           </div>
 
+          <!-- Pace. Legacy offers this only on the Minigames panel, where it
+               changes nothing at all — see the note in expeditionData.js. -->
+          <div class="pp-exp-label mt-3">Pace</div>
+          <div class="row row-cols-3 g-2">
+            <div v-for="s in speeds" :key="s.key" class="col">
+              <button class="pp-exp-speed w-100 h-100" :class="{ 'pp-selected': formSpeed === s.key }"
+                :title="s.desc" @click="formSpeed = s.key">
+                <div class="pp-exp-speed-top">{{ s.label }}</div>
+                <div class="pp-exp-speed-meta">{{ speedMeta(s) }}</div>
+              </button>
+            </div>
+          </div>
+
           <button class="btn btn-primary w-100 mt-3" :disabled="!canSend || sending" @click="send">
             {{ sending ? 'Sending…' : '🚀 Send on Expedition' }}
           </button>
@@ -83,7 +96,7 @@ import { AppState } from '../../AppState.js'
 import { expeditionService } from '../../services/ExpeditionService.js'
 import { toastService } from '../../services/ToastService.js'
 import { modalService } from '../../services/ModalService.js'
-import { EXPEDITION_ZONES } from '../../data/expeditionData.js'
+import { EXPEDITION_ZONES, EXPEDITION_SPEEDS } from '../../data/expeditionData.js'
 
 const props = defineProps({
   // Raw user_pets rows, as BattlePage already loads them.
@@ -99,6 +112,18 @@ const sending = ref(false)
 const claiming = ref(null)
 const formPetId = ref('')
 const formZone = ref('')
+const formSpeed = ref('normal')
+
+const speeds = Object.values(EXPEDITION_SPEEDS)
+
+// Shows what the pace actually does to the chosen zone, rather than restating
+// the multipliers — "15m · 70% PP" is more use than "x0.5 time".
+function speedMeta(s) {
+  const z = formZone.value ? expeditionService.zone(formZone.value) : null
+  const mins = z ? Math.round(z.duration * s.timeMult) : null
+  const pp = Math.round(s.ppMult * 100)
+  return (mins !== null ? `${mins}m · ` : '') + `${pp}% PP`
+}
 
 // Re-read every second so the countdowns tick without refetching.
 const now = ref(Date.now())
@@ -157,7 +182,7 @@ async function load() {
 async function send() {
   sending.value = true
   try {
-    const { zone } = await expeditionService.start(formPet.value, formZone.value)
+    const { zone } = await expeditionService.start(formPet.value, formZone.value, formSpeed.value)
     toastService.success(`🌲 ${formPet.value.nickname} set off for the ${zone.label}!`)
     formZone.value = ''
     await load()
@@ -176,11 +201,42 @@ async function claim(row) {
     const itemText = result.items.length
       ? result.items.map(i => `${i.icon} ${i.name}`).join(', ')
       : 'No items'
-    modalService.alert(
-      `${petName(row.pet_id)} returned!`,
-      `+${result.pp} PP · +${result.xp} XP — ${itemText}`,
-      '🎒'
-    )
+    // Legacy toasted the streak separately from the payout modal, so the
+    // milestone lands as its own moment rather than a line in a list.
+    const streakMsg = expeditionService.streakMessage(result.streak)
+    if (streakMsg) {
+      toastService.success(
+        `🌲 ${petName(row.pet_id)} is on a ${result.streak}-streak in ${zoneOf(row).label}! ${streakMsg}`
+      )
+    }
+    // A streak-gated `exploration_secrets` find. Separate from the hidden-zone
+    // discovery handled below, and announced as its own toast so the two never
+    // compete for the modal.
+    if (result.secret) {
+      toastService.success(
+        `🔍 Secret discovered: ${result.secret.name}` +
+        (result.secret.pp ? ` (+${result.secret.pp} PP)` : '')
+      )
+    }
+    // A secret-zone discovery takes over the modal — it's far rarer and more
+    // interesting than the payout, which the toast below still reports.
+    if (result.discovery) {
+      const d = result.discovery.dungeon
+      toastService.success(`+${result.pp} PP · +${result.xp} XP — ${itemText}`)
+      modalService.alert(
+        `${d.emoji} Secret Location Found!`,
+        `${petName(row.pet_id)} discovered ${d.name}. ${d.flavorText}\n\n` +
+        `${d.description}\n\n` +
+        `+${result.discovery.pp} PP — it now appears in the Battle Arena zone list!`,
+        d.emoji
+      )
+    } else {
+      modalService.alert(
+        `${petName(row.pet_id)} returned!`,
+        `+${result.pp} PP · +${result.xp} XP — ${itemText}`,
+        '🎒'
+      )
+    }
     await load()
     emit('changed')
   } catch (e) {
@@ -296,6 +352,30 @@ onUnmounted(() => clearInterval(ticker))
     border-color: var(--purple);
     background: var(--purple-light);
   }
+}
+
+.pp-exp-speed {
+  padding: 8px 6px;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  background: var(--white);
+  text-align: center;
+  cursor: pointer;
+
+  &.pp-selected {
+    border-color: var(--purple);
+    background: var(--purple-light);
+  }
+}
+
+.pp-exp-speed-top {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.pp-exp-speed-meta {
+  font-size: 0.68rem;
+  color: var(--text-light);
 }
 
 .pp-exp-zone-top {

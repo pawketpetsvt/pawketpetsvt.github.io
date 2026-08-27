@@ -4,6 +4,7 @@ import { AppState } from '../AppState.js'
 import { settingsState } from './SettingsService.js'
 import { cosmeticsState, petCosmeticsService } from './PetCosmeticsService.js'
 import { SKILL_KEY_MAP } from '../data/petKeys.js'
+import { weatherService } from './WeatherService.js'
 import {
   COMPANION_MESSAGES, PET_COMPANION_MESSAGES, SPOOKY_PHRASES,
   COMPANION_TIMING, SPOOKY_CHANCE, MEMORY_CHANCE, PET_LINE_CHANCE
@@ -26,6 +27,17 @@ export const companionState = reactive({
 // Legacy read the active `.page-section` id; the router's tabKey is the exact
 // same set of names, so the mapping is a direct lookup.
 const CONTEXT_TABS = ['shop', 'minigames', 'battle', 'adopt', 'mypets', 'home']
+
+// Ports getMemoryMessage()'s `weatherMsgs` table. Legacy keys it by
+// `weather.type || weather.id`; only `id` is ever set, so id is the key here.
+const WEATHER_LINES = {
+  sunny: ['What a beautiful day! ☀️ Perfect for exploring!', 'Sun is out! Energy feels great today! ☀️'],
+  rainy: ['Cozy inside while it rains... 🌧️', 'Rainy days are perfect for minigames! 🌧️'],
+  stormy: ['Stay safe out there! ⛈️ It is rough today...', 'The storms make battle feel extra intense! ⚡'],
+  foggy: ['Something feels... off today. 🌫️', 'I cannot see very far in this fog... 🌫️ Stay close.'],
+  snowy: ['It is so cold! 🌨️ Let us stay warm!', 'Snow day! ❄️ Perfect for napping!'],
+  windy: ['Windy days make me want to run! 💨', 'Hold on tight! 💨 It is gusty out there!']
+}
 
 class CompanionService {
   constructor() {
@@ -106,12 +118,15 @@ class CompanionService {
     return pool[Math.floor(Math.random() * pool.length)]
   }
 
-  // Ports getMemoryMessage(). The weather branch is deliberately omitted: the
-  // weather system is not migrated, so legacy's `currentWeather` is the same
-  // undefined it would be here and that branch contributes nothing either way.
+  // Ports getMemoryMessage(). The weather branch was omitted when this was
+  // written, because no weather system existed to read; now that WeatherService
+  // is live it is wired up and the companion can comment on the sky.
   memoryLine(context) {
     const msgs = []
     const streak = (AppState.player && AppState.player.login_streak) || 0
+
+    const weather = WEATHER_LINES[weatherService.currentId()]
+    if (weather) msgs.push(...weather)
 
     if (this.lastBattleResult && context !== 'shop') {
       if (this.lastBattleResult.victory) {

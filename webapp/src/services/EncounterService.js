@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { COOKING_RECIPES } from '../data/cookingData.js'
@@ -92,6 +93,7 @@ class EncounterService {
         user_id: AppState.user.id, recipe_id: recipe.id
       }])
       await playerService.awardPoints(25, 'recipe_book')
+      badgeHooks.onRecipeBookFound()
 
       return {
         kind: 'recipe',

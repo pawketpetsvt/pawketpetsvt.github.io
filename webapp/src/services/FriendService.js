@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { notificationService } from './NotificationService.js'
 import { FriendProfile } from '../models/FriendProfile.js'
@@ -152,6 +153,7 @@ class FriendService {
   // Ports the active (monkey-patched) acceptFriendRequest(), game.js:28192-28234.
   async acceptFriendRequest(friendshipId, requesterId, myUsername) {
     const { error } = await supabase.from('friendships').update({ status: 'accepted' }).eq('id', friendshipId)
+    if (!error) badgeHooks.onFriendAccepted()
     if (error) throw error
 
     await notificationService.create(requesterId, 'friend_accepted', 'Friend Request Accepted!', (myUsername || 'Someone') + ' accepted your friend request!', 'tab:friends', AppState.user.id)

@@ -2,6 +2,8 @@ import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { toastService } from './ToastService.js'
 import { DAILY_COMPLETE_BONUS_PP } from '../data/minigamesData.js'
+import { taskTracker } from './TaskTrackerService.js'
+import { getCalendarBonus, todaysEvent } from '../utils/calendarBonus.js'
 
 // Daily per-game claims are enforced server-side via claim_daily_secure
 // (see supabase/migrations/2026-08-23_game_claims.sql) — the client no
@@ -41,6 +43,21 @@ class MinigamesService {
     if (!AppState.user || !gameKey) return
     const claimed = await this._claimAndApply('claim_daily_secure', { p_game_key: gameKey, p_amount: baseReward, p_reason: reason || gameKey })
     if (claimed === null) return
+
+    taskTracker.report('complete_minigame')
+
+    // Minigame Monday: the calendar bonus is paid as EXTRA PP on top of what
+    // the game already awarded, rather than by scaling the original claim —
+    // legacy's own arrangement, and it keeps the claim RPC's amount honest.
+    const mult = getCalendarBonus('minigame_pp')
+    if (mult > 1 && baseReward > 0) {
+      const extra = Math.floor(baseReward * (mult - 1))
+      if (extra > 0) {
+        const { playerService } = await import('./PlayerService.js')
+        await playerService.awardPoints(extra, 'calendar_bonus')
+        toastService.success(`🎮 ${todaysEvent().name}! +${extra} bonus PP!`)
+      }
+    }
 
     const bonus = await this._claimAndApply(
       'claim_daily_complete_bonus_secure',

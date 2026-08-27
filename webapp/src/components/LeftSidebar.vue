@@ -34,6 +34,11 @@
 
         <button class="sidebar-nav-btn standalone" :class="{ active: AppState.tabKey === 'battle' }" @click="go('battle')">⚔️ Battle Arena</button>
         <button class="sidebar-nav-btn standalone" :class="{ active: AppState.tabKey === 'shop' }" @click="go('shop')">🛍️ Shop</button>
+        <!-- Legacy's DESKTOP sidebar had no Housing entry at all — the tab was
+             reachable only from My Profile's "View My Room" button and from the
+             separate mobile menu, where it sat as a standalone beside My Profile.
+             This sidebar serves both widths, so that mobile entry lands here. -->
+        <button class="sidebar-nav-btn standalone" :class="{ active: AppState.tabKey === 'housing' }" @click="go('housing')">🏠 My Room</button>
       </div>
     </div>
 

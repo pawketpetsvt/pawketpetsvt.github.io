@@ -30,9 +30,10 @@ export const ZONE_META = [
     blurb: '3 waves, no healing!', difficulty: '⚔️ GAUNTLET', color: '#9d4edd',
     denizens: 'Baby · Adult · KING', isDungeon: true
   },
-  // Secret zones stay hidden until discovered through exploration. The unlock
-  // system that reveals them is not migrated yet, so `secret: true` keeps them
-  // out of the picker rather than showing a permanently locked button.
+  // Secret zones stay hidden until discovered — a 2% roll when an expedition is
+  // claimed (SecretDungeonService). `secret: true` keeps them out of the picker
+  // until then; BattlePage admits any the account has unlocked. A locked button
+  // is deliberately never shown: they are meant to be a surprise, not a target.
   {
     key: 'hollow_warrens', icon: '🐇', name: 'The Hollow Warrens',
     blurb: 'Tunnels beneath the glade', difficulty: '⭐⭐⭐ HARD', color: '#22c55e',
