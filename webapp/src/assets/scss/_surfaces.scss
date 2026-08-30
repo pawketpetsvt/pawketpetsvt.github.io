@@ -1,0 +1,1068 @@
+// Shared containers: .card, .modal, .alert, .spinner, .page-wrap, .page-hero, .section-header.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+/* .page-wrap's LAYOUT moved to Bootstrap (Phase 6.5 follow-up). Every page now
+   carries `container-fluid position-relative z-1 pb-page`, which reproduces this
+   rule declaration for declaration:
+     margin: 0 auto      -> .container-fluid
+     padding: 0 20px     -> .container-fluid ($container-padding-x: 40px = 20px/side)
+     padding-bottom: 60px-> .pb-page
+     position: relative  -> .position-relative
+     z-index: 1          -> .z-1
+   The last two together are what lift page content above body::before, which is
+   a fixed full-viewport gradient at z-index 0.
+   The `max-width: 1100px` is NOT carried over because it was dead on all but
+   one page: everything else using this class is `requiresAuth` and so renders
+   inside AppShell's centre column, which tops out near 800px and can never
+   reach 1100. The exception is ForgotPasswordPage, the only `.page-wrap` page
+   on a GUEST route — it renders outside AppShell, where the cap did real work,
+   and it keeps a local `max-width: 1100px` of its own.
+
+   The CLASS is deliberately still on the markup — three non-layout rules target
+   it and would silently break if it were removed:
+     line ~7985  body.night-mode .page-wrap   (dark panel background)
+     line ~9550  @media (max-width: 900px)    (tighter padding)
+     line ~17785 @media (max-width: 768px)    (tighter padding)
+   Same treatment the sidebars got: the declarations move, the hook stays. */
+
+/* PAGE HERO */
+.page-hero { 
+  text-align: center !important; 
+  padding: 50px 20px 35px !important; 
+}
+
+.page-hero h1 { 
+  font-size: clamp(2rem, 6vw, 3.5rem) !important; 
+  color: var(--purple-dark) !important; 
+  text-shadow: 
+    3px 3px 0 var(--pink-light),
+    -1px -1px 0 rgba(255,255,255,0.8) !important;
+  margin-bottom: 16px !important;
+  letter-spacing: 1px !important;
+}
+
+.page-hero p { 
+  font-size: 1.15rem !important; 
+  color: var(--text) !important; 
+  max-width: 600px !important; 
+  margin: 0 auto !important; 
+  line-height: 1.7 !important;
+  font-weight: 500 !important;
+}
+
+.sparkle-row { 
+  font-size: 1.8rem !important; 
+  margin-bottom: 16px !important; 
+  letter-spacing: 12px !important; 
+  animation: sparkle-pulse 2.5s ease-in-out infinite !important;
+  filter: drop-shadow(0 2px 4px rgba(255,102,204,0.3)) !important;
+}
+
+/* CARDS */
+.card { 
+  background: var(--white) !important; 
+  border: 4px solid var(--border) !important; 
+  border-radius: var(--radius-xl) !important; 
+  padding: 32px !important; 
+  box-shadow: 
+    0 8px 24px rgba(153,102,255,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.8) !important;
+  transition: all 0.3s !important; 
+  position: relative !important;
+}
+
+.card:hover { 
+  transform: translateY(-6px) scale(1.02) !important; 
+  box-shadow: 
+    0 16px 40px rgba(153,102,255,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.9) !important;
+}
+
+/* ALERTS */
+.alert { 
+  padding: 14px 20px !important; 
+  border-radius: 20px !important; 
+  margin-bottom: 16px !important; 
+  border: 3px solid transparent !important;
+  display: none !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
+}
+
+.alert.show { display: block !important; }
+
+.alert-error { 
+  background: #ffe6e6 !important; 
+  color: #cc0000 !important; 
+  border-color: #ffcccc !important;
+}
+
+.alert-success { 
+  background: #e6ffe6 !important; 
+  color: #008800 !important; 
+  border-color: #ccffcc !important;
+}
+
+/* TOAST */
+.toast { 
+  position: fixed !important; 
+  bottom: 32px !important; 
+  right: 28px !important; 
+  background: linear-gradient(135deg, var(--purple), var(--pink)) !important; 
+  color: var(--white) !important; 
+  padding: 22px 36px !important;
+  max-width: 520px !important;
+  min-width: 300px !important;
+  border-radius: 22px !important; 
+  box-shadow: 0 12px 48px rgba(153,102,255,0.65) !important; 
+  z-index: 9000 !important; 
+  opacity: 0 !important; 
+  transform: translateY(20px) scale(0.95) !important; 
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1) !important; 
+  pointer-events: none !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.45rem !important;
+  line-height: 1.5 !important;
+  border: 2px solid rgba(255,255,255,0.4) !important;
+  word-wrap: break-word !important;
+}
+
+.toast.show { opacity: 1 !important; transform: translateY(0) scale(1) !important; pointer-events: all !important; }
+
+/* SPINNER */
+.spinner {
+  border: 4px solid rgba(153,102,255,0.2) !important;
+  border-top: 4px solid var(--purple) !important;
+  border-radius: 50% !important;
+  width: 50px !important;
+  height: 50px !important;
+  animation: spin 1s linear infinite !important;
+  margin: 40px auto !important;
+}
+
+/* POINTS BANNER */
+.points-banner {
+  background: linear-gradient(135deg, #ffdd00, #ff9933) !important;
+  border: 4px solid rgba(255,255,255,0.5) !important;
+  border-radius: 30px !important;
+  padding: 16px 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  margin-bottom: 30px !important;
+  box-shadow: 0 6px 20px rgba(255,153,51,0.3) !important;
+}
+
+.pb-label {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+}
+
+.pb-amount {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.5rem !important;
+  color: var(--purple-dark) !important;
+  font-weight: 700 !important;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.5) !important;
+}
+
+.pet-name {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.5rem !important;
+  color: var(--purple-dark) !important;
+  margin: 8px 0 4px !important;
+  text-shadow: 1px 1px 0 var(--pink-light) !important;
+}
+
+/* MODALS */
+.modal-overlay {
+  display: none !important;
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(60,20,100,0.6) !important;
+  backdrop-filter: blur(6px) !important;
+  z-index: 10003 !important; /* above mobile nav menu (10002) */
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.modal-overlay.show {
+  display: flex !important;
+}
+
+.modal {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 40px 36px !important;
+  max-width: 450px !important;
+  width: 90% !important;
+  text-align: center !important;
+  box-shadow: 0 20px 60px rgba(60,20,100,0.4) !important;
+  animation: modal-pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+
+.modal h2 {
+  font-size: 2rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 12px !important;
+  font-family: 'Chewy', cursive !important;
+  text-shadow: 2px 2px 0 var(--pink-light) !important;
+}
+
+.modal p {
+  color: var(--text) !important;
+  margin-bottom: 24px !important;
+  line-height: 1.7 !important;
+  font-size: 1.05rem !important;
+}
+
+/* STAT BARS */
+
+/* PET ACTIONS */
+
+
+.stat-flash.show {
+  animation: flash-appear 1.5s ease-out !important;
+}
+
+/* EMPTY STATE */
+.empty-state {
+  text-align: center !important;
+  padding: 60px 30px !important;
+  background: linear-gradient(135deg, rgba(255,255,255,0.9), rgba(255,255,255,0.7)) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.2) !important;
+}
+
+/* ========== SHOP SECTION ========== */
+.shop-tabs {
+  display: flex !important;
+  gap: 10px !important;
+  margin-bottom: 28px !important;
+  justify-content: center !important;
+}
+
+.shop-tab {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.1rem !important;
+  padding: 12px 32px !important;
+  border-radius: 30px !important;
+  background: rgba(255,255,255,0.6) !important;
+  border: 3px solid var(--border) !important;
+  color: var(--text) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-weight: 600 !important;
+}
+
+.shop-tab:hover {
+  background: rgba(255,255,255,0.9) !important;
+  transform: translateY(-2px) !important;
+}
+
+.shop-tab.active {
+  background: linear-gradient(135deg, var(--purple), var(--pink)) !important;
+  color: var(--white) !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
+}
+
+.news-date {
+  font-size: 0.85rem !important;
+  color: var(--text-light) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 8px !important;
+  background: rgba(153,102,255,0.1) !important;
+  padding: 4px 12px !important;
+  border-radius: 15px !important;
+  display: inline-block !important;
+}
+
+/* ========== TWITCH SECTION ========== */
+.section-header {
+  text-align: center !important;
+  margin: 40px 0 20px !important;
+}
+
+.section-header h2 {
+  font-family: 'Chewy', cursive !important;
+  font-size: 2rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 12px !important;
+  text-shadow: 2px 2px 0 var(--pink-light) !important;
+}
+
+.section-line {
+  width: 100px !important;
+  height: 4px !important;
+  background: linear-gradient(90deg, var(--pink), var(--purple)) !important;
+  border-radius: 4px !important;
+  margin: 0 auto !important;
+}
+
+.status-badge.claimed {
+  background: linear-gradient(135deg, var(--green), #3ab85a) !important;
+  color: var(--white) !important;
+}
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+
+.alert-error {
+  background: #fee;
+  border: 2px solid #fcc;
+  color: #c33;
+}
+
+.alert-success {
+  background: #efe;
+  border: 2px solid #cfc;
+  color: #3c3;
+}
+
+.battle-sprite.hit {
+  animation: battle-hit 0.3s ease;
+}
+
+.battle-hp-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--purple-dark);
+}
+
+.battle-hp-bar {
+  width: 100%;
+  height: 20px;
+  background: white;
+  border: 3px solid var(--purple-dark);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.battle-hp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4caf50, #8bc34a);
+  transition: width 0.5s ease, background 0.3s ease;
+}
+
+.battle-hp-fill.low {
+  background: linear-gradient(90deg, #ff9800, #ffc107);
+}
+
+.battle-hp-fill.critical {
+  background: linear-gradient(90deg, #f44336, #ff5722);
+}
+
+.battle-log-entry.defeat {
+  background: linear-gradient(90deg, rgba(156, 39, 176, 0.2), rgba(171, 71, 188, 0.2));
+  border-left: 4px solid #9c27b0;
+  font-weight: bold;
+}
+
+/* Glitchy red text for spooky dialogue */
+.glitch-text {
+  color: #ff0000;
+  font-weight: 800;
+  animation: glitch 0.3s infinite;
+  text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+}
+
+.friend-card {
+  background: var(--white);
+  border: 2.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.friend-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px var(--shadow);
+}
+
+.friend-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.friend-username {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.2rem;
+  color: var(--purple-dark);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.friend-username:hover {
+  color: var(--purple);
+}
+
+.friend-stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@media (max-width: 768px) {
+    .friend-card {
+      flex-direction: column;
+      text-align: center;
+    }
+}
+
+/* Toast Types */
+.pixel-toast-success {
+  border-color: #5dde7a;
+  background: linear-gradient(135deg, #e8f8eb, #ffffff);
+}
+
+.pixel-toast-success .pixel-toast-icon {
+  background: #5dde7a;
+  color: white;
+}
+
+.pixel-toast-error {
+  border-color: #ff6b6b;
+  background: linear-gradient(135deg, #ffe8e8, #ffffff);
+}
+
+.pixel-toast-error .pixel-toast-icon {
+  background: #ff6b6b;
+  color: white;
+}
+
+.pixel-toast-warning {
+  border-color: #ffa502;
+  background: linear-gradient(135deg, #fff5e6, #ffffff);
+}
+
+.pixel-toast-warning .pixel-toast-icon {
+  background: #ffa502;
+  color: white;
+}
+
+.pixel-toast-info {
+  border-color: var(--purple);
+  background: linear-gradient(135deg, var(--purple-light), #ffffff);
+}
+
+.pixel-toast-info .pixel-toast-icon {
+  background: var(--purple);
+  color: white;
+}
+
+/* ===== BETA BANNER ===== */
+
+
+/* ===== REFERRAL CARD ===== */
+.referral-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+  color: white;
+}
+
+.referral-stat {
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PET VARIANTS — BOLD EFFECTS + CSS PARTICLES
+   No JS particle DOM spam; uses CSS-only pseudo-element particle simulation.
+   Selectors verified against actual DOM:
+     .my-pet-card.pet-variant-X          — card
+     .my-pet-card.pet-variant-X .pet-avatar img  — pet image
+     .companion-sprite.pet-variant-X     — companion buddy sprite
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ════════════════ GHOST ════════════════ */
+.my-pet-card.pet-variant-ghost {
+  background: linear-gradient(135deg, rgba(210,210,255,0.55), rgba(230,230,255,0.42)) !important;
+  border: 2px solid rgba(180,180,255,0.85) !important;
+  box-shadow: 0 0 30px rgba(180,180,255,0.65), inset 0 0 30px rgba(200,200,255,0.2) !important;
+}
+
+.my-pet-card.pet-variant-ghost::before { content: '👻'; }
+
+.my-pet-card.pet-variant-ghost::after {
+  background: repeating-linear-gradient(
+    60deg,
+    rgba(200,200,255,0.08) 0px, rgba(200,200,255,0.08) 1px,
+    transparent 1px, transparent 12px
+  );
+  animation: ghostMist 6s linear infinite;
+}
+
+.my-pet-card.pet-variant-ghost .pet-avatar img {
+  filter: brightness(1.08) contrast(0.9) blur(0.7px);
+  opacity: 0.76;
+}
+
+.companion-sprite.pet-variant-ghost {
+  filter: drop-shadow(0 0 12px rgba(200,200,255,0.9)) brightness(1.08) blur(0.5px);
+  opacity: 0.78;
+}
+
+/* ════════════════ SHADOW ════════════════ */
+.my-pet-card.pet-variant-shadow {
+  background: linear-gradient(135deg, rgba(10,5,25,0.72), rgba(45,25,70,0.6)) !important;
+  border: 2px solid rgba(130,90,180,0.85) !important;
+  box-shadow: 0 0 35px rgba(0,0,0,0.85), 0 0 15px rgba(90,60,140,0.6), inset 0 0 25px rgba(0,0,0,0.5) !important;
+}
+
+.my-pet-card.pet-variant-shadow::before { content: '🌙'; }
+
+.my-pet-card.pet-variant-shadow::after {
+  background: radial-gradient(ellipse at 50% 100%, rgba(80,50,120,0.35) 0%, transparent 70%);
+  animation: shadowAura 3s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-shadow .pet-avatar img {
+  filter: brightness(0.62) contrast(1.35) saturate(0.65) drop-shadow(0 0 10px rgba(0,0,0,1));
+}
+
+.companion-sprite.pet-variant-shadow {
+  filter: brightness(0.62) contrast(1.35) drop-shadow(0 0 14px rgba(0,0,0,1));
+}
+
+/* ════════════════ FIRE ════════════════ */
+.my-pet-card.pet-variant-fire {
+  background: linear-gradient(160deg, rgba(255,50,0,0.48), rgba(255,130,0,0.35), rgba(255,200,50,0.2)) !important;
+  border: 2px solid rgba(255,80,10,0.9) !important;
+  box-shadow: 0 0 32px rgba(255,80,0,0.7), 0 0 10px rgba(255,160,30,0.5), inset 0 0 20px rgba(255,100,0,0.18) !important;
+  animation: fireCardGlow 1.4s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-fire::before { content: '🔥'; }
+
+.my-pet-card.pet-variant-fire::after {
+  background: repeating-conic-gradient(rgba(255,120,0,0.06) 0%, transparent 25%);
+  animation: fireShimmer 2s linear infinite;
+}
+
+.my-pet-card.pet-variant-fire .pet-avatar img {
+  filter: brightness(1.22) saturate(1.55) hue-rotate(-10deg) drop-shadow(0 0 6px rgba(255,80,0,0.7));
+}
+
+.companion-sprite.pet-variant-fire {
+  filter: drop-shadow(0 0 16px #ff4500) brightness(1.22) saturate(1.55);
+  animation: fireCardGlow 1.4s ease-in-out infinite;
+}
+
+/* ════════════════ ICE ════════════════ */
+.my-pet-card.pet-variant-ice {
+  background: linear-gradient(135deg, rgba(60,200,255,0.45), rgba(160,235,255,0.32), rgba(200,245,255,0.25)) !important;
+  border: 2px solid rgba(80,210,255,0.9) !important;
+  box-shadow: 0 0 30px rgba(60,200,255,0.65), 0 0 10px rgba(180,240,255,0.4), inset 0 0 20px rgba(140,220,255,0.15) !important;
+}
+
+.my-pet-card.pet-variant-ice::before { content: '❄️'; animation: iceSpinBadge 4s linear infinite; }
+
+.my-pet-card.pet-variant-ice::after {
+  background: linear-gradient(180deg, rgba(200,240,255,0.12) 0%, transparent 60%);
+  animation: iceFrost 4s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-ice .pet-avatar img {
+  filter: brightness(1.18) saturate(0.78) hue-rotate(190deg) drop-shadow(0 0 8px rgba(80,210,255,0.8));
+}
+
+.companion-sprite.pet-variant-ice {
+  filter: drop-shadow(0 0 14px #00cfff) brightness(1.18) hue-rotate(190deg);
+}
+
+/* ════════════════ GOLDEN ════════════════ */
+.my-pet-card.pet-variant-golden {
+  background: linear-gradient(135deg, rgba(255,215,0,0.5), rgba(255,180,0,0.38), rgba(255,140,0,0.22)) !important;
+  border: 2px solid rgba(255,215,0,0.95) !important;
+  box-shadow: 0 0 36px rgba(255,215,0,0.75), 0 0 14px rgba(255,170,0,0.55), inset 0 0 24px rgba(255,215,0,0.22) !important;
+  animation: goldPulse 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-golden::before { content: '👑'; animation: crownBob 2.5s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-golden::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,200,0.18) 50%, transparent 100%);
+  animation: goldShine 2.5s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-golden .pet-avatar img {
+  filter: sepia(0.65) saturate(2) brightness(1.22) drop-shadow(0 0 8px rgba(255,215,0,0.9));
+}
+
+.companion-sprite.pet-variant-golden {
+  filter: drop-shadow(0 0 16px gold) sepia(0.65) saturate(2) brightness(1.22);
+  animation: goldPulse 2s ease-in-out infinite;
+}
+
+/* ════════════════ SHINY ════════════════ */
+.my-pet-card.pet-variant-shiny {
+  background: linear-gradient(135deg, rgba(255,80,160,0.35), rgba(255,160,60,0.25), rgba(60,220,120,0.25), rgba(80,150,255,0.3)) !important;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
+  box-shadow: 0 0 28px rgba(255,120,200,0.55), 0 0 10px rgba(120,200,255,0.4) !important;
+  animation: shinyBorderAnim 3s linear infinite;
+}
+
+.my-pet-card.pet-variant-shiny::before { content: '✨'; animation: sparkleSpin 1.5s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-shiny::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  animation: rainbowShine 2s linear infinite;
+}
+
+.my-pet-card.pet-variant-shiny .pet-avatar img { animation: rainbowCycle 3s linear infinite; }
+
+.companion-sprite.pet-variant-shiny { animation: rainbowCycle 3s linear infinite; }
+
+/* ════════════════ COSMIC ════════════════ */
+.my-pet-card.pet-variant-cosmic {
+  background: radial-gradient(ellipse at 30% 35%, rgba(130,60,210,0.55), rgba(50,20,100,0.48)) !important;
+  border: 2px solid rgba(160,110,255,0.9) !important;
+  box-shadow: 0 0 36px rgba(120,60,210,0.7), 0 0 14px rgba(160,110,255,0.5), inset 0 0 30px rgba(80,30,160,0.3) !important;
+  animation: cosmicPulse 3s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-cosmic::before { content: '🌌'; animation: cosmicBadge 8s linear infinite; }
+
+.my-pet-card.pet-variant-cosmic::after {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px),
+                    radial-gradient(circle, rgba(255,255,255,0.6) 1px, transparent 1px);
+  background-size: 25px 25px, 50px 50px;
+  background-position: 0 0, 12px 12px;
+  animation: starField 8s linear infinite;
+  opacity: 0.4;
+}
+
+.my-pet-card.pet-variant-cosmic .pet-avatar img {
+  filter: brightness(1.14) saturate(1.3) drop-shadow(0 0 8px rgba(160,110,255,0.8));
+  animation: cosmicImgFloat 3s ease-in-out infinite;
+}
+
+.companion-sprite.pet-variant-cosmic {
+  filter: drop-shadow(0 0 16px #9966ff) brightness(1.14) saturate(1.3);
+  animation: cosmicPulse 3s ease-in-out infinite;
+}
+
+/* ════════════════ RAINBOW ════════════════ */
+.my-pet-card.pet-variant-rainbow {
+  background: linear-gradient(135deg, rgba(255,60,60,0.3), rgba(255,200,60,0.25), rgba(60,220,120,0.25), rgba(60,150,255,0.3), rgba(180,60,255,0.28)) !important;
+  border: 2px solid rgba(255,130,200,0.8) !important;
+  box-shadow: 0 0 28px rgba(200,100,255,0.55) !important;
+  animation: rainbowCardAnim 4s linear infinite;
+}
+
+.my-pet-card.pet-variant-rainbow::before { content: '🌈'; }
+
+.my-pet-card.pet-variant-rainbow .pet-avatar img { animation: rainbowCycle 6s linear infinite; }
+
+.companion-sprite.pet-variant-rainbow { animation: rainbowCycle 6s linear infinite; }
+
+/* ════════════════ CRYSTAL ════════════════ */
+.my-pet-card.pet-variant-crystal {
+  background: linear-gradient(135deg, rgba(255,80,200,0.42), rgba(200,80,255,0.32), rgba(255,120,220,0.22)) !important;
+  border: 2px solid rgba(255,100,200,0.9) !important;
+  box-shadow: 0 0 32px rgba(255,80,200,0.65), 0 0 12px rgba(220,100,255,0.5), inset 0 0 20px rgba(255,100,200,0.2) !important;
+  animation: crystalGlow 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-crystal::before { content: '💎'; animation: diamondSpin 3s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-crystal::after {
+  background: linear-gradient(60deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  animation: crystalShine 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-crystal .pet-avatar img {
+  filter: brightness(1.18) saturate(1.3) drop-shadow(0 0 8px rgba(255,80,200,0.9));
+  animation: crystalImgPulse 2s ease-in-out infinite;
+}
+
+.companion-sprite.pet-variant-crystal {
+  filter: drop-shadow(0 0 16px #ff69b4) brightness(1.18) saturate(1.3);
+  animation: crystalGlow 2s ease-in-out infinite;
+}
+
+/* ════════════════ ELECTRIC ════════════════ */
+.my-pet-card.pet-variant-electric {
+  background: linear-gradient(135deg, rgba(255,255,0,0.42), rgba(255,230,0,0.3), rgba(200,255,100,0.2)) !important;
+  border: 2px dashed rgba(255,230,0,0.95) !important;
+  box-shadow: 0 0 32px rgba(255,230,0,0.75), 0 0 12px rgba(200,255,0,0.5) !important;
+  animation: electricSurge 0.8s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-electric::before { content: '⚡'; animation: boltZap 0.8s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-electric::after {
+  background: linear-gradient(45deg, transparent 30%, rgba(255,255,100,0.15) 50%, transparent 70%);
+  animation: electricScan 0.8s linear infinite;
+}
+
+.my-pet-card.pet-variant-electric .pet-avatar img {
+  filter: brightness(1.28) saturate(1.55) contrast(1.15) drop-shadow(0 0 8px rgba(255,230,0,1));
+}
+
+.companion-sprite.pet-variant-electric {
+  filter: drop-shadow(0 0 16px yellow) brightness(1.28) saturate(1.55) contrast(1.15);
+  animation: electricSurge 0.8s ease-in-out infinite;
+}
+
+/* ════════════════ NATURE ════════════════ */
+.my-pet-card.pet-variant-nature {
+  background: linear-gradient(135deg, rgba(30,200,60,0.42), rgba(80,220,90,0.3), rgba(140,230,120,0.22)) !important;
+  border: 2px solid rgba(50,210,60,0.88) !important;
+  box-shadow: 0 0 28px rgba(50,200,60,0.6), 0 0 10px rgba(100,230,80,0.4) !important;
+}
+
+.my-pet-card.pet-variant-nature::before { content: '🌿'; animation: leafSway 4s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-nature::after {
+  background-image: radial-gradient(circle, rgba(80,220,80,0.15) 2px, transparent 2px);
+  background-size: 18px 18px;
+  animation: leafPattern 5s linear infinite;
+  opacity: 0.7;
+}
+
+.my-pet-card.pet-variant-nature .pet-avatar img {
+  filter: brightness(1.12) saturate(1.28) hue-rotate(12deg) drop-shadow(0 0 6px rgba(50,200,60,0.7));
+}
+
+.companion-sprite.pet-variant-nature {
+  filter: drop-shadow(0 0 14px #32cd32) brightness(1.12) saturate(1.28) hue-rotate(12deg);
+}
+
+/* ── Text legibility on all variant cards ── */
+.my-pet-card[class*="pet-variant-"] .pet-nickname,
+.my-pet-card[class*="pet-variant-"] .stat-label,
+.my-pet-card[class*="pet-variant-"] .stat-value,
+.my-pet-card[class*="pet-variant-"] .pet-level {
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.pet-title-selector-container {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+    /* Adjust Page Content */
+    .page-wrap {
+      max-width: 100% !important;
+      padding: 20px 10px !important;
+      box-sizing: border-box !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Pet cards */
+    .pet-card,
+    .shop-card {
+      width: 100% !important;
+      max-width: 100% !important;
+      box-sizing: border-box !important;
+    }
+}
+
+  /* Disable hover transforms on mobile - iOS fires hover on first tap,
+     moving the element before click lands, causing missed first-tap */
+  .my-pet-card:hover,
+  .pet-card:hover,
+  .shop-card:hover,
+  .battle-pet-card:hover,
+  .cooking-ingredient-card:hover {
+    transform: none !important;
+    box-shadow: 0 8px 24px rgba(153,102,255,0.25) !important;
+  }
+
+  /* Ensure card tap targets are easy to hit */
+  .my-pet-card,
+  .pet-card,
+  .battle-pet-card {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+@media (max-width: 480px) {
+    .page-hero h1 {
+      font-size: 1.8rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .pet-card,
+    .shop-card {
+      padding: 16px !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NIGHTMODE & BINGO GRID FIXES
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* Modal content readability */
+.modal-content,
+.modal-body,
+.popup-content {
+  background: white !important;
+  color: #333 !important;
+}
+
+@media (min-width: 769px) {
+    /* Username and points - no wrapping */
+    .username,
+    .pp-counter,
+    .profile-level {
+      flex-shrink: 0 !important;
+      white-space: nowrap !important;
+    }
+}
+
+@media (min-width: 769px) {
+    /* Beta tag - keep in left */
+    .beta,
+    [class*="beta"] {
+      flex-shrink: 0 !important;
+    }
+}
+
+@media (min-width: 769px) {
+    /* Logo - keep in left */
+    .logo,
+    [class*="logo"] {
+      flex-shrink: 0 !important;
+      margin-right: 10px !important;
+    }
+}
+
+@media print {
+    .modal-overlay {
+      display: none !important;
+    }
+}
+
+/* ============================================
+   MY PETS PAGE - CLEAN CARD LAYOUT
+   Matches the class names used in makeMyPetCard()
+   ============================================ */
+
+
+/* Variant/title badge wrappers */
+.pet-variant-badge-wrap,
+.pet-title-display-wrap {
+    text-align: center !important;
+    margin: 4px 0 !important;
+}
+
+.event-status-text {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: white;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+    .event-status-text { display: none; }
+}
+
+/* Frame styles applied to profile-avatar via JS */
+.frame-classic  { border-color: #9966ff !important; }
+
+.frame-silver   { border-color: #c0c0c0 !important; box-shadow: 0 0 10px #c0c0c0 !important; }
+
+.frame-gold     { border-color: #ffd700 !important; box-shadow: 0 0 15px #ffd700 !important; }
+
+.frame-fire     { border-color: #ff4500 !important; box-shadow: 0 0 20px #ff4500 !important;
+                  animation: frame-fire-flicker 1.5s ease-in-out infinite; }
+
+.frame-ice      { border-color: #00d2ff !important; box-shadow: 0 0 16px #00d2ff !important; }
+
+.frame-rainbow  { animation: frame-rainbow 3s linear infinite !important; }
+
+.frame-legendary{ border-color: #ffd700 !important; box-shadow: 0 0 30px #ffd700 !important;
+                  animation: frame-legendary-pulse 2s ease-in-out infinite; }
+
+.frame-void     { border-color: #8b00ff !important; box-shadow: 0 0 20px #8b00ff !important;
+                  animation: frame-void-pulse 2s ease-in-out infinite; }
+
+.frame-glitch   { border-color: #ff00ff !important; animation: frame-glitch 0.4s linear infinite; }
+
+/* Desktop: hamburger hidden — covers all selector variants */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NEW FREE PROFILE FRAMES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.frame-dashed    { border: 3px dashed #9966ff !important; }
+
+.frame-dotted    { border: 3px dotted #9966ff !important; }
+
+.frame-double    { border: 4px double #9966ff !important; }
+
+.frame-soft      { border: 4px solid #ff99cc !important; border-radius: 20px !important; }
+
+.frame-glow-free { border: 3px solid #9966ff !important; box-shadow: 0 0 12px rgba(153,102,255,0.6) !important; animation: frame-glow-pulse 2.5s ease-in-out infinite; }
+
+.frame-paw       { border: 3px solid #ff9966 !important; box-shadow: inset 0 0 0 2px #ff9966 !important; }
+
+.frame-crown     { border-color: #ffd700 !important; box-shadow: 0 0 18px #ffd700, 0 -4px 0 #ffd700 !important; animation: frame-legendary-pulse 2s ease-in-out infinite; }
+
+.frame-sparkle-earned { border: 3px solid #ffd700 !important; box-shadow: 0 0 8px #ffd700, 0 0 20px rgba(255,215,0,0.4) !important; animation: frame-legendary-pulse 2s ease-in-out infinite; }
+
+.shop-card:hover .item-icon-img { transform: scale(1.08); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GUILD DUNGEON BATTLE SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+.guild-battle-log-entry.heal      { color: #4ade80; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   GRAND PRIX ADMIN PANEL
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* Equipment shop layout is now defined once, near .equipment-grid above —
+   the two duplicate !important patch blocks that used to be here (one
+   using auto-fill, one forcing repeat(2,1fr), both also fighting over
+   .equipment-shop-columns which no longer exists in the markup) have been
+   removed since they were the actual cause of the "1 item per row" bug. */
+
+
+/* The Twitch reward slide-in notification (.twitch-reward-notification and its
+   .reward-notif-* children) was removed with showTwitchRewardNotification in
+   Phase 9 — TwitchService reports worker rewards through the normal toast
+   queue instead of a second, parallel notification style. */
+
+
+/* ── Spooky PP glitch wobble ──────────────────────────────────────────────── */
+.spooky-wobble {
+  display: inline-block;
+  animation: spookyWobble 0.4s ease-in-out infinite;
+}
+
+.landing-v2-tagline { font-family:'Chewy',cursive; font-size:1.5rem; color:var(--purple-dark); line-height:1.25; margin-bottom:8px; }
+
+.landing-v2-lore { background:rgba(0,0,0,0.04); border-left:3px solid rgba(153,102,255,0.4); border-radius:0 8px 8px 0; padding:10px 14px; margin-bottom:14px; font-size:0.78rem; color:var(--text-light); line-height:1.6; }
+
+@media (max-width: 768px) {
+    .page-wrap    { padding: 8px !important; }
+}
+
+@media (max-width: 768px) {
+    .page-hero    { padding: 20px 12px !important; }
+}
+
+@media (max-width: 768px) {
+    .page-hero h1 { font-size: 1.5rem !important; }
+}
+
+@media (max-width: 768px) {
+    .pet-name { font-size: 0.95rem !important; }
+}
+
+@media (max-width: 768px) {
+    /* ── RACING ──────────────────────────────────────────────────────────── */
+    .shop-tabs { flex-wrap: wrap !important; gap: 4px !important; }
+}
+
+@media (max-width: 768px) {
+    .shop-tab  { flex: 1 1 auto !important; font-size: 0.78rem !important; padding: 7px 4px !important; }
+}
+
+@media (max-width: 768px) {
+    /* ── FRIENDS ─────────────────────────────────────────────────────────── */
+    .friend-card { flex-direction: column !important; align-items: flex-start !important; }
+}
+
+@media (max-width: 768px) {
+    .modal { max-width: 95vw !important; padding: 16px !important; }
+}
+
+@media (max-width: 400px) {
+    .shop-tab { font-size: 0.72rem !important; padding: 6px 3px !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RECOVERED FROM index.html's INLINE <style> BLOCK (Phase 10)
+   ═══════════════════════════════════════════════════════════════════════════
+   These rules lived in an inline <style> in the legacy index.html, NOT in this
+   file — which is why earlier phases, grepping only the global stylesheet, recorded several
+   of them as "has no rule anywhere" and designed around their absence.
+   Phase 6.9 concluded the .landing-v2* CSS "already existed and is left globally
+   owned"; nine of those classes were only ever defined in that inline block, so
+   the AuthLanding front door has been partly unstyled in the Vue app ever since.
+   Phase 6.8 reached the same wrong conclusion about .event-announcement.
+
+   The inline block sat AFTER the <link> to this stylesheet, so appending at the
+   end reproduces its original position in the cascade exactly.
+
+   Cutover deletes that index.html, so everything still referenced had to move.
+   Only rules the Vue app actually uses are carried — the block's other contents
+   (.settings-modal-*, .toggle-switch, the v1 .landing-*, .friend-*, the
+   duplicate .weather-*) are either already defined above or referenced nowhere.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── News ticker: live world-event announcement pill ───────────────────────── */
+
+
+.landing-v2-card {
+  margin: 0 !important;
+  box-shadow: 0 4px 24px rgba(153,102,255,0.12) !important;
+}
+
+.landing-v2-lore-label {
+  display: block;
+  font-family: 'Courier New', monospace;
+  font-size: 0.7rem;
+  color: var(--purple);
+  font-weight: bold;
+  margin-bottom: 8px;
+  letter-spacing: 0.5px;
+}
+
+.landing-v2-lore-fine {
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 0.74rem;
+}

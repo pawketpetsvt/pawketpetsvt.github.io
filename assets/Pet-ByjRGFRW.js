@@ -1,0 +1,1 @@
+class t{constructor(e={}){this.id=e.id||"",this.name=e.name||"",this.description=e.description||"",this.image_file=e.image_file||"",this.price=e.price||0,this.vtuber_name=e.vtuber_name||"",this.twitch_url=e.twitch_url||"",this.created_at=e.created_at||null}get isPlaceholder(){return this.name==="???"}}export{t as P};

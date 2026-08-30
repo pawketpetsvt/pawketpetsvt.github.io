@@ -1,0 +1,30 @@
+{
+  "workbench.colorCustomizations": {
+    "activityBar.activeBackground": "#402ed0",
+    "activityBar.background": "#402ed0",
+    "activityBar.foreground": "#e7e7e7",
+    "activityBar.inactiveForeground": "#e7e7e799",
+    "activityBarBadge.background": "#34100c",
+    "activityBarBadge.foreground": "#e7e7e7",
+    "activityBarTop.activeBackground": "#402ed0",
+    "activityBarTop.background": "#402ed0",
+    "activityBarTop.foreground": "#e7e7e7",
+    "activityBarTop.inactiveForeground": "#e7e7e799",
+    "commandCenter.border": "#e7e7e799",
+    "commandCenter.foreground": "#e7e7e7",
+    "sash.hoverBorder": "#402ed0",
+    "statusBar.background": "#3325a6",
+    "statusBar.debuggingBackground": "#3325a6",
+    "statusBar.debuggingForeground": "#e7e7e7",
+    "statusBar.foreground": "#e7e7e7",
+    "statusBarItem.hoverBackground": "#402ed0",
+    "statusBarItem.remoteBackground": "#d1402e",
+    "statusBarItem.remoteForeground": "#e7e7e7",
+    "titleBar.activeBackground": "#3325a6",
+    "titleBar.activeForeground": "#e7e7e7",
+    "titleBar.inactiveBackground": "#3325a699",
+    "titleBar.inactiveForeground": "#e7e7e799"
+  },
+  "peacock.color": "#3325a6",
+  "postman.settings.dotenv-detection-notification-visibility": false
+}

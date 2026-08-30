@@ -1,0 +1,164 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// Bootstrap — grid + utilities ONLY (Phase 6.5)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// This deliberately does NOT import the full Bootstrap bundle. Pawket Pets has
+// its own established visual identity in the global stylesheet, and the goal of
+// this phase is a maintainability refactor with the look preserved exactly —
+// so we take Bootstrap's layout engine and utility classes, and nothing that
+// restyles existing markup.
+//
+// Excluded on purpose, each for a concrete reason:
+//   • reboot      — restyles base elements (body font/bg, heading sizes, list
+//                   and paragraph margins). the global stylesheet already owns all of that.
+//   • buttons     — the game defines its own .btn/.btn-primary/.btn-outline/
+//                   .btn-sm/.btn-danger/.btn-success (23 rules in the global stylesheet);
+//                   Bootstrap's would fight them for the same class names.
+//   • forms, type, tables, and every component (card/modal/dropdown/nav/...)
+//                 — same collision risk (.card, .modal, .nav-tabs, .spinner-*
+//                   and friends all already exist in the global stylesheet), and none are
+//                   needed for a grid/utility refactor.
+//
+// What we DO get: container/container-fluid, row, col-*, offset-*, g-* gutters,
+// and the full utilities API (d-*, flex-*, justify-*, align-*, gap-*, m-*/p-*,
+// text-*, w-*/h-*, position-*, border-*, rounded-*, etc).
+//
+// Load order note (see main.js): this is imported AFTER the global stylesheet. Bootstrap 5
+// generates utilities with !important by default ($enable-important-utilities),
+// and the global stylesheet is itself saturated with !important — so equal-specificity
+// ties are broken by source order, and loading later is what lets an applied
+// utility class actually take effect. Grid classes (.row/.col-*) are NOT
+// !important, so any legacy rule still using !important on a converted element
+// must be deleted from the global stylesheet in the same change — the same strangler-fig
+// discipline used for game.js throughout this migration.
+
+// ── Required Bootstrap core ────────────────────────────────────────────────
+@import "bootstrap/scss/functions";
+
+// Map the game's palette (the global stylesheet :root) onto Bootstrap's theme colors so
+// utilities like .text-primary / .bg-secondary / .border-info speak Pawket
+// Pets' language instead of Bootstrap's default blues. Set before `variables`
+// so Bootstrap's own !default assignments pick these up.
+$primary:   #9966ff; // --purple
+$secondary: #ff66cc; // --pink
+$success:   #5dde7a; // the green used throughout components
+$info:      #00ddff; // --cyan
+$warning:   #ff9933; // --orange
+$danger:    #ff4d4d; // no --red token exists; this is the value components use
+$light:     #fff5e6; // --cream
+$dark:      #2d1b4e; // --text
+
+// Match the game's existing spacing/layout metrics so converted markup keeps
+// its exact geometry rather than drifting to Bootstrap's defaults:
+//   • 20px column gutters  — legacy `.app-container` used `gap: 20px`
+//   • 20px container inset — legacy `.app-container` and `.page-wrap` both used
+//     `padding: 0 20px`. NOTE the doubling: Bootstrap containers set
+//     `--bs-gutter-x: $container-padding-x` and then apply HALF of it to each
+//     side (`padding-x: calc(var(--bs-gutter-x) * .5)`), so 40px here is what
+//     emits the 20px-per-side inset the design actually uses. This previously
+//     read `20px`, which emitted 10px per side — harmless only because the one
+//     container in the app (AppShell) overrode it with a `p-gap` utility.
+//   • 1400px max width     — legacy `max-width: 1400px`, and Bootstrap's
+//     xxl breakpoint is itself 1400px, so `.container-xxl` reproduces the
+//     legacy behavior precisely: fluid below 1400px, capped and centered above.
+$grid-gutter-width: 20px;
+$container-padding-x: 40px;
+
+// Bootstrap's default radius scale (4 / 6 / 8 / 16 / 32px) does not line up
+// with this site's, which is built on 8 / 10 / 12 / 16 / 20px plus the
+// --radius-lg/xl tokens. Left at the defaults, `rounded-3` renders 8px where
+// the design calls for 12px, visibly flattening every converted card. Remapped
+// here so the `rounded-*` utilities emit the game's own curve values.
+$border-radius-sm: 8px;
+$border-radius: 10px;
+$border-radius-lg: 12px; // rounded-3 — the most common small-card radius
+$border-radius-xl: 14px; // rounded-4 — the most common large-card radius
+$border-radius-xxl: 20px; // rounded-5 — matches the --radius token
+$container-max-widths: (
+  sm: 540px,
+  md: 720px,
+  lg: 960px,
+  xl: 1140px,
+  xxl: 1400px
+);
+
+@import "bootstrap/scss/variables";
+@import "bootstrap/scss/variables-dark";
+@import "bootstrap/scss/maps";
+@import "bootstrap/scss/mixins";
+
+// The site's own spacing rhythm is 20px (its containers, card padding and grid
+// gaps all use it), which falls between Bootstrap's `3` (16px) and `4` (24px).
+// Adding it as a real spacer token means converted markup can stay pixel-exact
+// with plain utilities (`p-gap`, `mt-gap`, `gap-gap`…) instead of one-off CSS.
+// Named rather than numbered so they can never be confused with Bootstrap's
+// responsive infix (a token called "sm" would make `g-sm-2` ambiguous).
+// Two groups, deliberately distinguishable by name:
+//
+//   SEMANTIC — the site's structural rhythm, used for containers and grids.
+//   LITERAL (px*) — the fine ramp the components actually draw on. Measured
+//   rather than guessed: across every scoped block, the most-used spacing
+//   values are 8px (135), 10px (130), 12px (101), 6px (94), 4px (88) and
+//   14px (71). Bootstrap's own scale supplies 4/8/16/24/48 and the semantic
+//   tokens supply 12/20/28/60 — leaving 2, 6, 10 and 14 with no utility at
+//   all, which is why ~330 spacing declarations had to stay hand-written.
+//
+// The px* names carry their value so they need no lookup, and cannot be
+// confused either with Bootstrap's numeric scale (where `mb-5` is 48px, so a
+// token literally named "10" would read as larger than it is) or with a
+// responsive infix (`mb-px10` vs `mb-md-2`).
+$custom-spacers: (
+  "tight": 12px, // theme swatches
+  "gap": 20px, // the site's base rhythm — old `.app-container` gap/padding
+  "wide": 28px, // minigame card grid
+  "page": 60px, // the trailing gutter every page carries (old `.page-wrap`)
+
+  "px2": 2px,
+  "px6": 6px,
+  "px10": 10px,
+  "px14": 14px
+);
+
+$spacers: map-merge($spacers, $custom-spacers);
+
+// `$gutters` must be merged SEPARATELY. Bootstrap declares `$gutters: $spacers
+// !default` inside _variables.scss, so it captured the ORIGINAL spacer map
+// before the merge above — meaning `g-*` row gutters are generated from that
+// stale copy and a class like `.g-wide` silently never exists. A row carrying
+// only a non-existent gutter class falls back to `--bs-gutter-y: 0`, so its
+// rows sit flush against each other with no vertical spacing at all.
+$gutters: map-merge($gutters, $custom-spacers);
+
+@import "bootstrap/scss/utilities";
+
+// Bootstrap ships no `min-width` utility, but flex children need `min-width: 0`
+// constantly — without it a flex item refuses to shrink below its content, so
+// long usernames/titles/descriptions stretch their row instead of wrapping or
+// ellipsising. This was being redeclared as a local rule in half a dozen
+// components; registering it through the utilities API instead generates it
+// with the same `!important` and load position as every other utility, so it
+// wins the same ties they do.
+$utilities: map-merge(
+  $utilities,
+  (
+    "min-width": (
+      property: min-width,
+      class: min-w,
+      values: (0: 0)
+    )
+  )
+);
+
+// ── Layout + utilities only ────────────────────────────────────────────────
+// `root` is REQUIRED even though this is a utilities-only build: many Bootstrap
+// utilities emit `var(--bs-…)` references rather than literal values (notably
+// every `rounded-*` and `rounded-pill`, which resolve through
+// `--bs-border-radius-*`). Without it those declarations reference undefined
+// custom properties and are dropped entirely — which silently squared off every
+// converted card and pill. `_root.scss` only emits custom properties on :root;
+// it contains no element rules, so it can't restyle existing markup.
+@import "bootstrap/scss/root";
+@import "bootstrap/scss/containers";
+@import "bootstrap/scss/grid";
+@import "bootstrap/scss/helpers";
+@import "bootstrap/scss/utilities/api";

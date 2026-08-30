@@ -1,0 +1,52 @@
+// The app's global stylesheet — the design system and everything genuinely
+// shared between components.
+//
+// This replaces the root style.css, which reached 18,816 lines before Phase 11
+// and was the single worst file in the project to work in. Where a rule ended
+// up was decided mechanically, not by eye:
+//
+//   * used by exactly ONE component  -> that component's <style scoped> block
+//   * used by TWO OR MORE            -> one of the partials below
+//   * used by NOTHING                -> deleted (roughly 6,500 lines of it)
+//
+// Import ORDER IS LOAD-BEARING and matches the order this content had in
+// the global stylesheet. Much of it is `!important` on both sides of a conflict, and two
+// !important declarations of equal specificity are decided by source order —
+// so tokens must precede the rules that read them, and the state themes must
+// come after the surfaces they restyle.
+//
+// Bootstrap is NOT imported here. It is imported directly in main.js
+// immediately after this file, because its utilities are `!important` and must
+// win those same ties. See the header comment in bootstrap.scss.
+
+@import 'tokens';      // :root custom properties — must be first
+@import 'base';        // element reset, body, headings, links
+@import 'buttons';     // the game's own .btn system
+@import 'forms';       // inputs, selects, .form-card, .form-group
+@import 'surfaces';    // .card, .modal, .alert, .spinner, .page-hero
+@import 'shell';       // navbar / sidebars / mobile drawer chrome
+@import 'minigames';   // the shared minigame shell
+@import 'states';      // body.night-mode, themes, weather, accessibility
+@import 'animations';  // keyframes used by more than one component
+
+// ── App-level utilities ─────────────────────────────────────────────────────
+// Small helpers with no natural home in the partials above.
+
+.hint {
+  color: var(--text-light);
+  font-weight: 400;
+}
+
+// Custom paw cursor, ported from cursor-trail.js (a plain CSS cursor swap
+// despite the filename — no actual trail/particles). Expressed as static CSS
+// here instead of a JS-injected <style> tag, since Vue has no need for the
+// injection pattern the original used.
+$paw-cursor-svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E";
+
+*, *::before, *::after {
+  cursor: url("#{$paw-cursor-svg}") 4 2, auto !important;
+}
+
+a, button, [role="button"], .btn, input[type="submit"], label[for], select, .sidebar-nav-btn, .clickable {
+  cursor: url("#{$paw-cursor-svg}") 4 2, pointer !important;
+}

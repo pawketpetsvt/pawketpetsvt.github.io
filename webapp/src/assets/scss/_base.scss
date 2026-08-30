@@ -1,0 +1,155 @@
+// Element-level base styles: the reset, body, headings, links, scrollbars. No classes.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Fredoka', 'Bubblegum Sans', cursive !important;
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+  background-attachment: fixed !important;
+  color: var(--text) !important;
+  min-height: 100vh;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  will-change: transform;
+  contain: strict;
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(255,102,204,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(153,102,255,0.15) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255,221,0,0.08) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+h1, h2, h3, h4 { 
+  font-family: 'Chewy', 'Bubblegum Sans', cursive !important; 
+  line-height: 1.3 !important; 
+  letter-spacing: 0.5px !important;
+}
+
+a { color: var(--purple-dark) !important; text-decoration: none !important; transition: all 0.2s !important; font-weight: 600 !important; }
+
+a:hover { color: var(--pink) !important; }
+
+/* CUSTOM PAW CURSOR */
+body {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="16" r="4" fill="%239966ff"/><circle cx="7" cy="9" r="2.5" fill="%239966ff"/><circle cx="12" cy="7" r="2.5" fill="%239966ff"/><circle cx="17" cy="9" r="2.5" fill="%239966ff"/><circle cx="9" cy="13" r="2" fill="%239966ff"/><circle cx="15" cy="13" r="2" fill="%239966ff"/></svg>'), auto !important;
+}
+
+/* FLOATING SPARKLES BACKGROUND */
+body::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  will-change: transform;
+  contain: strict;
+  z-index: 0;
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(255,255,255,0.8) 0%, transparent 2%),
+    radial-gradient(circle at 90% 80%, rgba(255,255,255,0.6) 0%, transparent 2%),
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.7) 0%, transparent 2%),
+    radial-gradient(circle at 80% 30%, rgba(255,255,255,0.5) 0%, transparent 2%),
+    radial-gradient(circle at 20% 70%, rgba(255,255,255,0.6) 0%, transparent 2%);
+  background-size: 200px 200px, 300px 300px, 250px 250px, 180px 180px, 220px 220px;
+  background-position: 0 0, 40px 60px, 130px 270px, 70px 100px, 150px 30px;
+  animation: sparkle-float 8s linear infinite;
+  opacity: 0.4;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   CURSOR UPGRADES - Bigger Paw + Glitter Trail
+   ═══════════════════════════════════════════════════════════════════════ */
+ 
+/* Bigger paw cursor (32x32 instead of default 16x16) */
+body, button, a, input, textarea, select {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="20" r="8" fill="%23FF69B4"/><circle cx="10" cy="12" r="4" fill="%23FF69B4"/><circle cx="22" cy="12" r="4" fill="%23FF69B4"/><circle cx="8" cy="18" r="3" fill="%23FF69B4"/><circle cx="24" cy="18" r="3" fill="%23FF69B4"/></svg>'), auto;
+}
+
+@media (max-width: 900px) {
+    /* CRITICAL: Prevent horizontal scroll */
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100vw !important;
+    }
+}
+
+@media (max-width: 900px) {
+    * {
+      max-width: 100% !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Inputs - touch-friendly */
+    input, textarea, select {
+      font-size: 16px !important; /* Prevent iOS zoom */
+      min-height: 44px !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Tables */
+    table {
+      width: 100% !important;
+      display: block !important;
+      overflow-x: auto !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Mobile notifications */
+    body > div[style*="position:fixed"][style*="top:80px"] {
+      right: 10px !important;
+      left: 10px !important;
+      max-width: calc(100% - 20px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+}
+
+@media (max-width: 768px) {
+    canvas {
+      max-width: 100% !important;
+    }
+}
+
+@media (max-width: 768px) {
+    input[type="text"], input[type="email"], input[type="password"] { font-size:16px !important; }
+}
+
+@media (max-width: 768px) {
+    /* ── FORMS / INPUTS ──────────────────────────────────────────────────── */
+    input[type="text"], input[type="email"], input[type="password"], textarea, select {
+      font-size: 16px !important; /* prevents iOS zoom on focus */
+      padding: 10px 12px !important;
+    }
+}
+
+/* ── Mobile tap optimization: eliminates 300ms click delay ── */
+a, button, [onclick], [role="button"], label, select, summary {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

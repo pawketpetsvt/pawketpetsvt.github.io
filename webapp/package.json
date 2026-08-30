@@ -1,0 +1,23 @@
+{
+  "name": "pawketpets-webapp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node publish-root.mjs",
+    "build:only": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.41.1",
+    "bootstrap": "^5.3.8",
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "sass": "^1.103.1",
+    "vite": "^5.2.0"
+  }
+}

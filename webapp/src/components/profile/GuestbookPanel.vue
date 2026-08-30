@@ -1,0 +1,190 @@
+<template>
+  <div class="mt-4">
+    <h2 class="gb-title mb-3">📖 Guestbook</h2>
+
+    <div v-if="canPost" class="mb-3">
+      <textarea
+        v-model="draft"
+        class="gb-input px-3 py-2 rounded-3 w-100"
+        rows="3"
+        :maxlength="GUESTBOOK_MAX_LENGTH"
+        placeholder="Leave a nice message..."
+      ></textarea>
+      <div class="d-flex align-items-center justify-content-between mt-1">
+        <span class="gb-count">{{ draft.length }} / {{ GUESTBOOK_MAX_LENGTH }}</span>
+        <button class="btn btn-primary btn-sm" :disabled="posting || !draft.trim()" @click="post">Post Message</button>
+      </div>
+    </div>
+
+    <div v-if="loading" class="spinner"></div>
+
+    <template v-else>
+      <div v-if="!entries.length" class="gb-empty text-center p-4">
+        <div class="gb-empty-icon mb-2">📖</div>
+        <p>No messages yet!</p>
+        <p class="gb-empty-sub mt-1">Be the first to leave a message!</p>
+      </div>
+
+      <div v-for="e in entries" :key="e.id" class="gb-entry px-3 py-2 mb-2 rounded-3">
+        <div class="d-flex align-items-center justify-content-between gap-2">
+          <div class="d-flex align-items-center gap-2 min-w-0">
+            <div class="gb-author-avatar d-flex align-items-center justify-content-center flex-shrink-0 rounded-circle">
+              {{ e.authorName.charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <div class="gb-author-name" @click="$emit('view-profile', e.authorName)">{{ e.authorName }}</div>
+              <div class="gb-timestamp">{{ getTimeAgo(new Date(e.createdAt)) }}</div>
+            </div>
+          </div>
+          <button v-if="e.canDelete" class="btn btn-outline btn-sm btn-danger" @click="remove(e)">Delete</button>
+        </div>
+        <div class="gb-message mt-2">{{ e.message }}</div>
+      </div>
+
+      <button v-if="hasMore" class="btn btn-outline w-100 mt-2 py-2" :disabled="loadingMore" @click="loadMore">
+        {{ loadingMore ? 'Loading...' : '⬇️ Load More' }}
+      </button>
+    </template>
+  </div>
+</template>
+
+<script setup>
+import { ref, watch, onMounted } from 'vue'
+import { guestbookService, GUESTBOOK_PAGE_SIZE, GUESTBOOK_MAX_LENGTH } from '../../services/GuestbookService.js'
+import { toastService } from '../../services/ToastService.js'
+import { getTimeAgo } from '../../utils/timeAgo.js'
+
+const props = defineProps({
+  profileUserId: { type: String, required: true },
+  canPost: { type: Boolean, default: false }
+})
+defineEmits(['view-profile'])
+
+const entries = ref([])
+const draft = ref('')
+const loading = ref(true)
+const loadingMore = ref(false)
+const posting = ref(false)
+const hasMore = ref(false)
+let offset = 0
+
+async function load() {
+  loading.value = true
+  offset = 0
+  try {
+    const page = await guestbookService.loadEntries(props.profileUserId, 0)
+    entries.value = page
+    hasMore.value = page.length >= GUESTBOOK_PAGE_SIZE
+  } catch (err) {
+    toastService.error('Error loading messages.')
+  }
+  loading.value = false
+}
+
+async function loadMore() {
+  loadingMore.value = true
+  offset += GUESTBOOK_PAGE_SIZE
+  try {
+    const page = await guestbookService.loadEntries(props.profileUserId, offset)
+    entries.value = entries.value.concat(page)
+    hasMore.value = page.length >= GUESTBOOK_PAGE_SIZE
+  } catch (err) {
+    toastService.error('Error loading more messages.')
+  }
+  loadingMore.value = false
+}
+
+async function post() {
+  posting.value = true
+  try {
+    await guestbookService.post(props.profileUserId, draft.value)
+    draft.value = ''
+    toastService.success('Message posted! 💖')
+    await load()
+  } catch (err) {
+    toastService.error(err.message)
+  }
+  posting.value = false
+}
+
+async function remove(entry) {
+  if (!window.confirm('Delete this message?')) return
+  try {
+    await guestbookService.remove(entry.id)
+    entries.value = entries.value.filter(e => e.id !== entry.id)
+    toastService.success('Message deleted')
+  } catch (err) {
+    toastService.error(err.message)
+  }
+}
+
+watch(() => props.profileUserId, load)
+onMounted(load)
+</script>
+
+<style lang="scss" scoped>
+// Layout via Bootstrap utilities in the template; visuals only here.
+.gb-title {
+  font-size: 1.15rem;
+  color: var(--purple-dark);
+}
+
+.gb-input {
+  border: 1px solid var(--border);
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.gb-count {
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
+
+.gb-entry {
+  border: 1px solid var(--border);
+  background: var(--card-bg, #fff);
+}
+
+.gb-author-avatar {
+  width: 34px;
+  height: 34px;
+  background: linear-gradient(135deg, var(--purple), var(--pink, #ff66cc));
+  color: #fff;
+  font-weight: 700;
+}
+
+.gb-author-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--purple-dark);
+  cursor: pointer;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.gb-timestamp {
+  font-size: 0.7rem;
+  color: var(--text-light);
+}
+
+.gb-message {
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.gb-empty {
+  color: var(--text-light);
+}
+
+.gb-empty-icon {
+  font-size: 2.6rem;
+}
+
+.gb-empty-sub {
+  font-size: 0.85rem;
+}
+</style>

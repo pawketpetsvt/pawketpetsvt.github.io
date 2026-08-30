@@ -1,0 +1,184 @@
+// The game's own .btn system. Bootstrap's buttons are deliberately NOT imported (see bootstrap.scss) because these own the same class names.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+/* BUTTONS */
+.btn { 
+  display: inline-block !important; 
+  font-family: 'Chewy', cursive !important; 
+  font-size: 1.05rem !important; 
+  padding: 12px 28px !important; 
+  border-radius: 30px !important; 
+  border: 3px solid transparent !important;
+  cursor: pointer !important; 
+  transition: all 0.2s !important; 
+  text-align: center !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+.btn:hover { 
+  transform: translateY(-4px) scale(1.05) !important; 
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3) !important; 
+}
+
+.btn-primary { 
+  background: linear-gradient(135deg, #ff66cc, #9966ff) !important; 
+  color: var(--white) !important;
+  border-color: rgba(255,255,255,0.4) !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+}
+
+.btn-secondary { 
+  background: linear-gradient(135deg, var(--yellow), var(--orange)) !important; 
+  color: var(--text) !important;
+  border-color: rgba(255,255,255,0.6) !important;
+}
+
+.btn-outline { 
+  background: rgba(255,255,255,0.8) !important; 
+  color: var(--purple-dark) !important; 
+  border: 3px solid var(--purple) !important;
+}
+
+.btn-outline:hover { 
+  background: var(--purple-light) !important; 
+  color: var(--purple-dark) !important;
+}
+
+.btn-lg { font-size: 1.25rem !important; padding: 16px 36px !important; }
+
+.btn-sm { font-size: 0.9rem !important; padding: 8px 20px !important; }
+
+a, button, .nav-tab, .btn, input[type="range"], .quicklink-card, .shop-card, .pet-card, .sidebar-nav-btn, .streamer-item {
+  cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="16" r="4" fill="%23ff66cc"/><circle cx="7" cy="9" r="2.5" fill="%23ff66cc"/><circle cx="12" cy="7" r="2.5" fill="%23ff66cc"/><circle cx="17" cy="9" r="2.5" fill="%23ff66cc"/><circle cx="9" cy="13" r="2" fill="%23ff66cc"/><circle cx="15" cy="13" r="2" fill="%23ff66cc"/></svg>'), pointer !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PROFILE ACTION BUTTONS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.btn-success {
+  background: linear-gradient(135deg, var(--green), #4caf50);
+  color: white;
+  border: none;
+}
+
+.btn-success:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(93, 222, 122, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ff6b6b, #ff5252);
+  color: white;
+  border-color: #ff5252;
+}
+
+.btn-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(255, 107, 107, 0.4);
+}
+
+/* Smooth transitions for theme changes */
+body,
+body::before,
+body::after,
+.card,
+/* `.navbar` dropped from this group in Phase 6.5 — its transition is declared
+   in the consolidated .navbar rule instead. Other selectors unchanged. */
+.news-ticker,
+.sidebar-section,
+input,
+textarea,
+select,
+.btn,
+a {
+  transition: all 0.5s ease !important;
+}
+
+@media (max-width: 900px) {
+    /* Buttons - touch-friendly (excludes compact btn-action pet cards) */
+    button:not(.btn-action):not(.btn-feed):not(.btn-play):not(.btn-companion):not(.nav-group-header):not(.cooking-tab-btn),
+    .btn:not(.btn-action):not(.btn-sm), a.btn:not(.btn-sm) {
+      min-height: 44px !important;
+      padding: 12px 16px !important;
+    }
+}
+
+@media (max-width: 900px) {
+    button, .btn, a.btn, input, select {
+      font-size: 16px !important; /* Prevent iOS zoom on all form elements */
+    }
+}
+
+@media (max-width: 900px) {
+    /* Touch-action on all interactive elements kills 300ms tap delay */
+    button, .btn, a, [onclick], [role="button"] {
+      touch-action: manipulation !important;
+      -webkit-tap-highlight-color: transparent !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TOP BAR SPACING & SIZING FIX - USE DEAD SPACE + BIGGER TEXT
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Override previous compression - make things BIGGER and use full width */
+
+
+/* `.navbar-logo img` (max-height 32) removed — folded into the single
+   consolidated rule near the top of this file. That cap is what would have
+   silently held the logo down even after the width/height were raised. */
+
+
+/* ========== RESPONSIVE - HIDE NON-ESSENTIAL ITEMS ========== */
+
+/* Tablet size - hide beta text if cramped */
+
+
+
+
+/* ========== ENSURE TOUCH TARGETS ARE ADEQUATE ========== */
+.pass-button,
+.bingo-button,
+.btn-nav-action,
+.notification-bell,
+.music-btn-inline {
+  min-width: 44px !important;  /* Minimum touch target */
+  min-height: 36px !important;
+  cursor: pointer !important;
+}
+
+@media (max-width: 768px) {
+    .pet-actions .btn { flex: 1 1 40% !important; font-size: 0.8rem !important; }
+}
+
+@media (max-width: 768px) {
+    /* ── BUTTONS — minimum tap targets ──────────────────────────────────── */
+    .btn { min-height: 40px !important; }
+}
+
+@media (max-width: 768px) {
+    .btn-sm { min-height: 34px !important; font-size: 0.8rem !important; }
+}
+
+@media (max-width: 991.98px) {
+    :has(> button),
+    :has(> .btn) {
+      flex-wrap: wrap;
+    }
+}
+
+@media (max-width: 991.98px) {
+    button,
+    .btn,
+    input[type="submit"] {
+      flex-basis: auto !important;
+      flex-shrink: 0 !important;
+    }
+}
