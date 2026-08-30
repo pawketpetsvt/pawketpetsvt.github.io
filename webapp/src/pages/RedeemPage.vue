@@ -137,7 +137,147 @@ onMounted(loadHistory)
 </script>
 
 <style lang="scss" scoped>
-// The success panel and the history list have NO rules anywhere in style.css —
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.redeem-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 40px 36px !important;
+  max-width: 550px !important;
+  margin: 30px auto !important;
+  box-shadow: 0 10px 30px rgba(153,102,255,0.25) !important;
+  text-align: center !important;
+}
+.redeem-icon {
+  font-size: 4rem !important;
+  margin-bottom: 16px !important;
+  animation: float 3s ease-in-out infinite !important;
+}
+.redeem-card h2 {
+  font-family: 'Chewy', cursive !important;
+  font-size: 2.2rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 12px !important;
+  text-shadow: 2px 2px 0 var(--pink-light) !important;
+}
+.redeem-card p {
+  font-size: 1rem !important;
+  color: var(--text) !important;
+  line-height: 1.7 !important;
+  margin-bottom: 24px !important;
+  font-weight: 500 !important;
+}
+.redeem-input-row {
+  display: flex !important;
+  gap: 12px !important;
+  margin-bottom: 20px !important;
+}
+.redeem-input {
+  flex: 1 !important;
+  padding: 16px 20px !important;
+  border: 4px solid var(--border) !important;
+  border-radius: 25px !important;
+  font-family: 'Fredoka', cursive !important;
+  font-size: 1.1rem !important;
+  text-align: center !important;
+  background: var(--white) !important;
+  color: var(--text) !important;
+  text-transform: uppercase !important;
+  font-weight: 700 !important;
+  letter-spacing: 2px !important;
+  transition: all 0.2s !important;
+}
+.redeem-input:focus {
+  outline: none !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 0 0 4px rgba(153,102,255,0.2) !important;
+  transform: scale(1.02) !important;
+}
+.redeem-input::placeholder {
+  color: var(--text-light) !important;
+  opacity: 0.6 !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+}
+.redeem-lore-btn {
+  display: inline-block;
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #1a1a1a 0%, #2d0d0d 100%);
+  color: #ff3838;
+  border: 2px solid #ff3838;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 20px rgba(255, 56, 56, 0.3), inset 0 0 10px rgba(255, 56, 56, 0.1);
+  position: relative;
+  overflow: hidden;
+  animation: glitch-pulse 3s infinite;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 1px;
+}
+.redeem-lore-btn:hover {
+  background: linear-gradient(135deg, #2d0d0d 0%, #1a1a1a 100%);
+  border-color: #ff0000;
+  color: #fff;
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.6), inset 0 0 20px rgba(255, 0, 0, 0.2);
+  transform: translateY(-2px);
+  animation: glitch-shake 0.5s infinite;
+}
+.redeem-lore-btn::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  right: -2px;
+  bottom: -2px;
+  background: linear-gradient(45deg, transparent, rgba(255, 56, 56, 0.3), transparent);
+  animation: glitch-sweep 4s infinite;
+  pointer-events: none;
+}
+
+@keyframes glitch-pulse {
+  0%, 100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 0.9;
+    filter: brightness(1.1);
+  }
+  85% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+  87% {
+    opacity: 0.7;
+    filter: brightness(0.8);
+  }
+  89% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+@keyframes glitch-shake {
+  0%, 100% { transform: translateY(-2px) translateX(0); }
+  25% { transform: translateY(-2px) translateX(-2px); }
+  75% { transform: translateY(-2px) translateX(2px); }
+}
+
+@keyframes glitch-sweep {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(200%) rotate(45deg); }
+}
+
+// The success panel and the history list have NO rules anywhere in the global stylesheet —
 // `.redeem-success-panel`, `.redeem-history`, `.redeem-history-item`, `.rhi-*`
 // and `.redeem-empty` are all referenced by the legacy markup and defined by
 // nothing, so on the live site they render as unstyled text. Owned here, in the

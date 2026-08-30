@@ -39,7 +39,7 @@ const subtitle = computed(() =>
 
 <style lang="scss" scoped>
 // Legacy built this modal from an inline-styled HTML string; no `.pp-history`
-// rule exists in style.css, so the component owns it. Colours carried over.
+// rule exists in the global stylesheet, so the component owns it. Colours carried over.
 .pph-empty {
   color: var(--text-light);
 }

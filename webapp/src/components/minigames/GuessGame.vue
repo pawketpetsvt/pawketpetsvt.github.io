@@ -89,7 +89,38 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-// The field already has `text-align: center` from the root style.css; the
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.guess-input {
+  width: 120px !important;
+  height: 60px !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 2rem !important;
+  text-align: center !important;
+  border: 4px solid var(--border) !important;
+  border-radius: 20px !important;
+  background: var(--white) !important;
+  color: var(--purple-dark) !important;
+  transition: all 0.2s !important;
+}
+.guess-input:focus {
+  outline: none !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 0 0 4px rgba(153,102,255,0.2) !important;
+  transform: scale(1.05) !important;
+}
+.attempts-left {
+  margin-top: 14px !important;
+  font-size: 0.95rem !important;
+  color: var(--text-light) !important;
+  font-weight: 700 !important;
+}
+#guess-hotcold { font-size: 1.1rem; font-weight: 700; text-align: center; margin: 4px 0; min-height: 1.4em; transition: color 0.3s; }
+
+// The field already has `text-align: center` from the global stylesheet; the
 // value only *looked* off-centre because the number-input spinner arrows
 // occupy the right edge of the control, so the usable text box is narrower
 // than the visible box. Removing the spinners centres both the value and the

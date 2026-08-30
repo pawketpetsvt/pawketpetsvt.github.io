@@ -5,7 +5,7 @@
        Discord CTA and lore panel — was missing until now.
 
        No scoped block: every `.landing-v2*` and `.ss-lightbox*` class is fully
-       owned by the root style.css, including the 3-column grid and its mobile
+       owned by the global stylesheet, including the 3-column grid and its mobile
        breakpoint. Per the Phase 6.5 rule, a component doesn't restyle what a
        global rule already owns. -->
   <div class="landing-v2">
@@ -103,3 +103,117 @@ function onKey(e) {
 
 onUnmounted(() => window.removeEventListener('keydown', onKey))
 </script>
+
+<style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.landing-v2 {
+  display: grid;
+  grid-template-columns: minmax(280px, 38%) minmax(340px, 420px) 1fr;
+  min-height: calc(100vh - 56px);
+  width: 100%;
+  align-items: start;
+  gap: 0;
+}
+.landing-v2-screenshots {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border-right: 1px solid rgba(153,102,255,0.15);
+}
+.landing-v2-screenshots img {
+  width: 100%;
+  border-radius: 12px;
+  border: 2px solid rgba(153,102,255,0.3);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  display: block;
+  object-fit: cover;
+  object-position: top;
+  cursor: zoom-in;
+  height: 230px;
+}
+.landing-v2-ss-label {
+  font-family: 'Chewy', cursive;
+  font-size: 1.4rem;
+  color: var(--purple-dark);
+  text-align: center;
+  margin-top: 4px;
+}
+.landing-v2-form {
+  padding: 24px 28px;
+  border-right: 1px solid rgba(153,102,255,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.landing-v2-info { padding: 24px 12px 24px 28px; }
+.ss-lightbox-overlay { position:fixed; inset:0; z-index:999999; background:rgba(0,0,0,0.88); display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.2s; cursor:zoom-out; }
+.ss-lightbox-overlay.open { opacity:1; }
+.ss-lightbox-img { max-width:92vw; max-height:90vh; border-radius:12px; box-shadow:0 8px 60px rgba(0,0,0,0.6); transform:scale(0.95); transition:transform 0.2s; }
+.ss-lightbox-overlay.open .ss-lightbox-img { transform:scale(1); }
+.ss-lightbox-close { position:fixed; top:20px; right:24px; width:44px; height:44px; border-radius:50%; background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4); color:#fff; font-size:1.4rem; cursor:pointer; display:flex; align-items:center; justify-content:center; z-index:1000000; }
+.btn-discord {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #5865F2;
+  color: #fff !important;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-decoration: none !important;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s;
+  box-shadow: 0 4px 14px rgba(88,101,242,0.4);
+}
+.btn-discord:hover {
+  background: #4752c4;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(88,101,242,0.5);
+}
+.landing-v2-logo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+.landing-v2-logo img {
+  width: 56px;
+  height: 56px;
+  filter: drop-shadow(0 3px 8px rgba(153,102,255,0.4));
+  animation: float 3s ease-in-out infinite;
+}
+.landing-v2-title {
+  font-family: 'Chewy', cursive;
+  font-size: 1.9rem;
+  color: var(--purple-dark);
+  text-shadow: 2px 2px 0 var(--pink-light);
+  line-height: 1;
+}
+.landing-v2-title span { color: var(--pink); }
+.landing-v2-beta {
+  font-size: 0.72rem;
+  color: var(--text-light);
+  margin-top: 3px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.landing-v2-discord {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+  font-size: 0.88rem;
+  padding: 10px 20px;
+}
+@media (max-width: 768px) {
+  .landing-v2 { grid-template-columns:1fr !important; }
+  .landing-v2-screenshots { border-right:none; border-bottom:1px solid rgba(153,102,255,0.15); }
+}
+</style>

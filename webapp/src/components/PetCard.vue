@@ -3,7 +3,7 @@
     <!-- Header banner: the habitat gradient runs to every edge of the card, and
          the avatar straddles the boundary into the body below via
          `.pet-avatar-wrap { margin-bottom: -50px }` + `.pet-card-body`'s 65px
-         top padding — the live site's layout, all of it already in style.css.
+         top padding — the live site's layout, all of it already in the global stylesheet.
          The per-pet gradient is passed as a custom property because the global
          `.pet-habitat` sets `background` with `!important`, which a plain
          inline style would lose to. -->
@@ -242,7 +242,7 @@ const personalityMessage = computed(() =>
 )
 
 const variant = computed(() => petCosmeticsService.variantData(props.pet.current_variant))
-// Paints the card's variant aura — style.css carries a full set of
+// Paints the card's variant aura — the global stylesheet carries a full set of
 // `.my-pet-card.pet-variant-*` treatments (glow, corner glyph, image filter).
 const variantClass = computed(() => petCosmeticsService.variantClass(props.pet.current_variant))
 const activeTitle = computed(() => petCosmeticsService.titleById(props.pet.active_pet_title_id))
@@ -364,14 +364,421 @@ async function handleUseItem() {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.my-pet-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.25) !important;
+  transition: all 0.3s !important;
+  position: relative !important;
+}
+.my-pet-card:hover {
+  transform: translateY(-8px) scale(1.02) !important;
+  box-shadow: 0 16px 40px rgba(153,102,255,0.35) !important;
+}
+.pet-habitat {
+  position: relative !important;
+  height: 180px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 20px !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  border-bottom: 4px solid rgba(255,255,255,0.4) !important;
+}
+.pet-avatar-wrap {
+  position: relative !important;
+  z-index: 2 !important;
+  margin-bottom: -50px !important;
+}
+.pet-avatar {
+  width: 120px !important;
+  height: 120px !important;
+  border-radius: 50% !important;
+  border: 5px solid var(--white) !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 4rem !important;
+  overflow: hidden !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.4) !important;
+  position: relative !important;
+}
+.pet-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+.mood-badge {
+  position: absolute !important;
+  bottom: -5px !important;
+  right: -5px !important;
+  width: 45px !important;
+  height: 45px !important;
+  border-radius: 50% !important;
+  background: var(--white) !important;
+  border: 3px solid var(--purple) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.8rem !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important;
+}
+.pet-card-body {
+  padding: 65px 16px 20px !important;
+  position: relative !important;
+}
+.pet-card-nickname {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.8rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 6px !important;
+  text-shadow: 2px 2px 0 var(--pink-light) !important;
+}
+.pet-card-species {
+  font-size: 0.95rem !important;
+  color: var(--text-light) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  margin-bottom: 4px !important;
+}
+.pet-card-level {
+  font-size: 0.85rem !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  background: rgba(153,102,255,0.1) !important;
+  padding: 4px 12px !important;
+  border-radius: 15px !important;
+  display: inline-block !important;
+}
+.pet-last-seen {
+  text-align: center !important;
+  font-size: 0.8rem !important;
+  color: var(--text-light) !important;
+  margin-bottom: 12px !important;
+  font-weight: 500 !important;
+}
+.achievements-row {
+  display: flex !important;
+  gap: 6px !important;
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+  margin-bottom: 12px !important;
+}
+.sadness-warning {
+  background: linear-gradient(135deg, #ffe6e6, #ffcccc) !important;
+  border: 3px solid #ff6b6b !important;
+  border-radius: 20px !important;
+  padding: 10px 16px !important;
+  text-align: center !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 0.95rem !important;
+  color: #cc0000 !important;
+  margin-bottom: 12px !important;
+  font-weight: 600 !important;
+  animation: pulse-warning 2s ease-in-out infinite !important;
+}
+.btn-action {
+  flex: 1 1 auto !important;
+  min-width: 72px !important;
+  touch-action: manipulation !important;
+  -webkit-tap-highlight-color: transparent !important;
+  max-width: calc(50% - 4px) !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 0.88rem !important;
+  padding: 8px 10px !important;
+  border-radius: 25px !important;
+  border: 3px solid transparent !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15) !important;
+  white-space: nowrap !important;
+  text-align: center !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+.btn-action:hover:not(:disabled) {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.25) !important;
+}
+.btn-action:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+}
+.btn-feed {
+  background: linear-gradient(135deg, #ff9966, #ff6699) !important;
+  color: var(--white) !important;
+  border-color: rgba(255,255,255,0.4) !important;
+}
+.btn-play {
+  background: linear-gradient(135deg, #66ff99, #33ccaa) !important;
+  color: var(--white) !important;
+  border-color: rgba(255,255,255,0.4) !important;
+}
+.use-item-section {
+  margin-top: 16px !important;
+  padding-top: 16px !important;
+  border-top: 2px solid rgba(153,102,255,0.2) !important;
+}
+.use-item-label {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 10px !important;
+  font-weight: 600 !important;
+}
+.item-select {
+  flex: 1 !important;
+  padding: 10px 14px !important;
+  border: 3px solid var(--border) !important;
+  border-radius: 20px !important;
+  font-family: 'Fredoka', cursive !important;
+  font-size: 0.9rem !important;
+  background: rgba(255,255,255,0.9) !important;
+  color: var(--text) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+}
+.item-select:focus {
+  outline: none !important;
+  border-color: var(--purple) !important;
+  box-shadow: 0 0 0 3px rgba(153,102,255,0.2) !important;
+}
+.btn-use-item {
+  font-family: 'Chewy', cursive !important;
+  font-size: 0.95rem !important;
+  padding: 10px 24px !important;
+  border-radius: 25px !important;
+  background: linear-gradient(135deg, var(--yellow), var(--orange)) !important;
+  color: var(--text) !important;
+  border: 3px solid rgba(255,255,255,0.5) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-weight: 600 !important;
+  box-shadow: 0 3px 8px rgba(0,0,0,0.15) !important;
+}
+.btn-use-item:hover:not(:disabled) {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 5px 12px rgba(0,0,0,0.25) !important;
+}
+.btn-use-item:disabled {
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+  background: linear-gradient(135deg, #cccccc, #999999) !important;
+}
+.item-effect-preview {
+  font-size: 0.85rem !important;
+  color: var(--text-light) !important;
+  margin-top: 6px !important;
+  font-weight: 500 !important;
+  font-style: italic !important;
+}
+.stat-flash {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  background: rgba(255,255,255,0.98) !important;
+  border: 3px solid var(--purple) !important;
+  border-radius: 25px !important;
+  padding: 16px 28px !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--purple-dark) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: 10 !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
+  text-align: center !important;
+  font-weight: 600 !important;
+}
+.pet-title-select {
+  padding: 10px 15px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--white);
+  color: var(--text);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.pet-title-select:hover {
+  border-color: var(--primary);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+}
+.pet-title-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+.pet-title-badge {
+  display: inline-block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-top: 4px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+.pet-title-selector {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--border);
+}
+.pet-title-selector label {
+  display: block;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.my-pet-card[class*="pet-variant-"] {
+  overflow: visible !important;
+  position: relative !important;
+}
+.my-pet-card[class*="pet-variant-"]::before {
+  content: '✦';
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  font-size: 2rem;
+  pointer-events: none;
+  z-index: 200;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
+  animation: badgeHover 2.5s ease-in-out infinite;
+}
+.my-pet-card[class*="pet-variant-"]::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: inherit;
+}
+.pet-title-select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: var(--white);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.pet-title-select:hover { border-color: var(--purple); }
+.pet-title-select:focus {
+  outline: none;
+  border-color: var(--purple);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+.pet-title-select option[disabled] {
+  color: var(--text-light);
+  font-style: italic;
+}
+.pet-title-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pet-title-selector label {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.pet-title-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 15px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  background: rgba(99, 102, 241, 0.1);
+  margin-top: 8px;
+  text-align: center;
+}
+body.night-mode .sadness-warning {
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.25), rgba(255, 82, 82, 0.25)) !important;
+  border: 3px solid #ff6b6b !important;
+  color: #ffcccc !important;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3) !important;
+}
+.pet-stage {
+  text-align: center !important;
+  font-size: 0.85rem !important;
+  color: var(--text-light) !important;
+  margin: 0 0 6px !important;
+  white-space: normal !important;
+}
+.pet-bio {
+  font-size: 0.85rem !important;
+  color: var(--text-light) !important;
+  text-align: center !important;
+  font-style: italic !important;
+  line-height: 1.4 !important;
+  padding: 0 8px !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+  margin: 0 0 6px !important;
+  display: -webkit-box !important;
+  -webkit-line-clamp: 3 !important;
+  -webkit-box-orient: vertical !important;
+  overflow: hidden !important;
+}
+.my-pet-card { overflow: visible !important; }
+.pet-card-body {
+  overflow: visible !important;
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+.btn-variant-selector {
+  width: 100%;
+  padding: 8px 10px;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-variant-selector:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+body.night-mode .btn-variant-selector { background: linear-gradient(135deg, #6d28d9, #4f46e5) !important; }
+.my-pet-card[class*="pet-variant-"] { overflow: visible !important; }
+@media (max-width: 768px) {
+  .btn-action, .btn-companion, .btn-variant-selector { min-height: 40px !important; }
+  .pet-actions { flex-wrap: wrap !important; gap: 6px !important; }
+}
+
+@keyframes pulse-warning {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.02); }
+}
+
+@keyframes badgeHover {
+  0%,100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-6px) scale(1.15); }
+}
+
 // `.my-pet-card`, `.pet-habitat`, `.pet-avatar-wrap`, `.pet-avatar` and
-// `.pet-card-body` are all fully owned by the root style.css — including the
+// `.pet-card-body` are all fully owned by the global stylesheet — including the
 // 180px banner, the avatar's -50px overhang and the body's 65px top padding
 // that clears it. The card carries no padding of its own so the banner reaches
 // every edge; the body supplies the padding instead.
 // The card's own stacking is `d-flex flex-column` in the template.
 
-// The card is `overflow: visible` (style.css:14651 overrides the earlier
+// The card is `overflow: visible` (legacy style.css:14651 overrides the earlier
 // `hidden`), so the banner has to round its own top corners or it would square
 // off the card's.
 //
@@ -440,9 +847,9 @@ async function handleUseItem() {
 
 // `.pet-personality-msg`, `.btn-snapshot`, `.btn-companion` and
 // `.pet-variant-badge` were inline-styled in the legacy card and have NO base
-// rule in style.css, so they're owned here — the same gap `.ach-badge` had.
+// rule in the global stylesheet, so they're owned here — the same gap `.ach-badge` had.
 // (An earlier version of this comment claimed the latter two were styled
-// globally; they are not. `.btn-companion` appears in style.css only inside two
+// globally; they are not. `.btn-companion` appears in the global stylesheet only inside two
 // media queries — an exclusion list and a mobile min-height — and
 // `.pet-variant-badge` appears nowhere at all, so the card was rendering a bare
 // browser button and an unboxed badge.)
@@ -513,7 +920,7 @@ async function handleUseItem() {
 }
 
 // `.achievements-row` is styled globally, but `.ach-badge` itself has no base
-// rule anywhere (style.css defines only an `.ach-badge.trained` variant that
+// rule anywhere (the global stylesheet defines only an `.ach-badge.trained` variant that
 // nothing produces), so the pips would render as bare text. Owned here.
 .ach-badge {
   font-family: 'Chewy', cursive;
@@ -561,7 +968,7 @@ async function handleUseItem() {
   font-family: 'Fredoka One', cursive;
   font-size: 1.3rem;
   color: var(--purple-dark);
-  // Wraps rather than truncating: the root style.css overrides this to 1.8rem
+  // Wraps rather than truncating: the global stylesheet overrides this to 1.8rem
   // !important, at which point a long name would otherwise be ellipsised away
   // instead of using the full width of the (now centred) card.
   max-width: 100%;
@@ -606,7 +1013,7 @@ async function handleUseItem() {
 }
 
 // `.stat-bars` and `.pet-actions` rules used to live here and were BOTH dead —
-// the global copies in style.css carried `!important`, which outranks a scoped
+// the global copies in the global stylesheet carried `!important`, which outranks a scoped
 // rule's higher specificity. Their real values now sit on the elements as
 // utilities and the global rules are deleted.
 
@@ -657,7 +1064,7 @@ async function handleUseItem() {
   color: var(--text-light);
 }
 
-// The global `.item-select` (style.css:1137) owns this control's padding,
+// The global `.item-select` (legacy style.css:1137) owns this control's padding,
 // border, radius, font and background, all with `!important`, so those are
 // left to it. Only the native dropdown button is replaced here.
 //
@@ -691,7 +1098,7 @@ async function handleUseItem() {
 // ways. Two were deliberate design drift, one was a latent bug:
 //   • 2px border            -> 3px, as `.item-select` uses
 //   • `var(--radius-md)`    -> 20px. **--radius-md is never defined anywhere in
-//     style.css**, so that declaration was dropped by the browser and the
+//     the global stylesheet**, so that declaration was dropped by the browser and the
 //     control rendered with square corners — on the live site too. Same class
 //     of bug as the undefined `--bs-border-radius-*` found in Phase 6.5.
 //   • focus ring `rgba(99,102,241,0.1)` -> `rgba(153,102,255,0.2)`; the former

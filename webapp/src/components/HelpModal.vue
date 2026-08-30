@@ -87,7 +87,7 @@ const SECTIONS = [
 
 <style lang="scss" scoped>
 // Legacy wrote this modal as one inline-styled HTML string; there is no
-// `.help-*` rule in style.css, so the component owns its styling.
+// `.help-*` rule in the global stylesheet, so the component owns its styling.
 .qg-heading {
   font-weight: 700;
   color: var(--purple-dark);

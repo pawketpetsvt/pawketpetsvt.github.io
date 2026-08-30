@@ -169,6 +169,62 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.whack-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+.whack-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin: 20px 0;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.whack-hole {
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, #8b6f47, #654321);
+  border-radius: 50% 50% 0 0;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  border: 3px solid var(--purple-dark);
+}
+.mole {
+  position: absolute;
+  bottom: -60px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2.5rem;
+  transition: bottom 0.2s ease-out;
+  user-select: none;
+  pointer-events: none;
+}
+.mole.active { bottom: 10px; }
+.mole.hit { animation: mole-hit 0.3s ease-out; }
+.mole img {
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.mole.golden { background: linear-gradient(135deg, #ffd700, #ff9900) !important; box-shadow: 0 0 12px #ffd70088 !important; }
+#whack-combo-flash { font-size: 0.78rem; font-weight: 700; color: #ff9f43; text-align: center; min-height: 1.2em; opacity: 0; transition: opacity 0.2s; }
+
+@keyframes mole-hit {
+  0% { transform: translateX(-50%) scale(1) rotate(0deg); }
+  50% { transform: translateX(-50%) scale(1.3) rotate(15deg); }
+  100% { transform: translateX(-50%) scale(0.8) rotate(-15deg); opacity: 0; }
+}
+
 #whack-combo-flash {
   font-size: 0.78rem;
   font-weight: 700;

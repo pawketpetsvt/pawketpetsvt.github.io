@@ -1,0 +1,28 @@
+// Design tokens — the :root custom properties every other file and every component reads.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+:root {
+  --pink:        #ff66cc;
+  --pink-light:  #ffb3e6;
+  --pink-dark:   #cc0099;
+  --purple:      #9966ff;
+  --purple-light:#ccaaff;
+  --purple-dark: #6633cc;
+  --yellow:      #ffdd00;
+  --cyan:        #00ddff;
+  --green:       #66ff99;
+  --orange:      #ff9933;
+  --blue:        #3366ff;
+  --white:       #ffffff;
+  --cream:       #fff5e6;
+  --text:        #2d1b4e;
+  --text-light:  #7a5faa;
+  --border:      #cc99ff;
+  --shadow:      rgba(153,102,255,0.3);
+  --radius:      20px;
+  --radius-lg:   32px;
+  --radius-xl:   40px;
+}

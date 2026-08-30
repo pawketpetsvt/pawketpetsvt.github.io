@@ -50,6 +50,19 @@ async function handleSubmit() {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.form-footer {
+  text-align: center !important;
+  margin-top: 20px !important;
+  color: var(--text-light) !important;
+  font-size: 0.95rem !important;
+  font-weight: 500 !important;
+}
+
 // This is the ONE `.page-wrap` page that is not `requiresAuth`, so it renders
 // in GuestLayout rather than inside AppShell's centre column. Everywhere else
 // the old `max-width: 1100px` was dead (the column tops out near 800px), but

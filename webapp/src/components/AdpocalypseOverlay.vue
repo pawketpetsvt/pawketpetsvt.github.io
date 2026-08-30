@@ -42,7 +42,7 @@ function act(popup) {
 <style lang="scss" scoped>
 // NOT A PORT — these rules do not exist. `.adpoc-popup` and every one of its
 // children are referenced by legacy's generated markup and defined NOWHERE:
-// zero matches in style.css and zero in index.html, on `main` as well as here.
+// zero matches in the global stylesheet and zero in index.html, on `main` as well as here.
 // Since `position` is never set either, the inline `top`/`right` legacy applies
 // does nothing, so on the live site an Ad-pocalypse popup renders as unstyled
 // text dumped into the page flow. Same "class referenced, rule missing" family

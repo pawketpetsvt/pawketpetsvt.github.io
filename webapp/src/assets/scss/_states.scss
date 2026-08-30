@@ -1,0 +1,989 @@
+// Body-state themes: night mode, the seasonal themes, weather, the accessibility toggles and the ARG glitch states.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UI FRAGMENTATION - ALL UI elements drift and fragment during boss battles
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Target EVERY sidebar, panel, and UI element - make them ALL move! */
+body.boss-ui-glitch nav,
+body.boss-ui-glitch aside,
+body.boss-ui-glitch .sidebar,
+body.boss-ui-glitch .panel,
+body.boss-ui-glitch .left-sidebar,
+body.boss-ui-glitch .right-sidebar,
+body.boss-ui-glitch [class*="sidebar"],
+body.boss-ui-glitch [class*="panel"],
+body.boss-ui-glitch header:not(.battle-header) {
+  animation: ui-drift-chaos 10s ease-in-out infinite;
+  animation-delay: calc(var(--drift-delay, 0) * 1s);
+}
+
+/* Different drift patterns for variety */
+body.boss-ui-glitch nav:nth-of-type(1),
+body.boss-ui-glitch .sidebar:nth-of-type(1),
+body.boss-ui-glitch aside:first-child {
+  animation: ui-drift-left 8s ease-in-out infinite;
+}
+
+body.boss-ui-glitch nav:nth-of-type(2),
+body.boss-ui-glitch aside:nth-of-type(2),
+body.boss-ui-glitch [class*="right"] {
+  animation: ui-drift-right 9s ease-in-out infinite;
+}
+
+body.boss-ui-glitch .panel:nth-child(odd),
+body.boss-ui-glitch aside:nth-of-type(3) {
+  animation: ui-drift-diagonal 11s ease-in-out infinite;
+}
+
+body.boss-ui-glitch header {
+  animation: ui-drift-header 7s ease-in-out infinite;
+}
+
+/* Mobile Responsive */
+/* ═══════════════════════════════════════════════════════════════════════
+   PHASE 2C: NIGHT MODE THEME
+   Darker, cozy theme that activates 6 PM - 6 AM local time
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* Night Mode CSS Variables - Override day colors */
+body.night-mode {
+  /* Darker background gradient */
+  background: linear-gradient(180deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%) !important;
+  
+  /* Night color palette */
+  --pink:        #ff66cc;
+  --pink-light:  #ff99dd;
+  --pink-dark:   #cc0099;
+  --purple:      #9966ff;
+  --purple-light:#b399ff;
+  --purple-dark: #7744dd;
+  --yellow:      #ffd700;
+  --cyan:        #00ddff;
+  --green:       #66ff99;
+  --orange:      #ff9933;
+  --blue:        #5577ff;
+  --white:       #f5f5f5;
+  --cream:       #2a2440; /* Darker cards */
+  --text:        #e8d5ff; /* Light purple text */
+  --text-light:  #b399dd; /* Lighter purple for secondary text */
+  --border:      #6644aa; /* Darker borders */
+  --shadow:      rgba(0,0,0,0.5); /* Deeper shadows */
+}
+
+/* Night Mode Background Overlay - Darker ambient glow */
+body.night-mode::before {
+  background-image: 
+    radial-gradient(circle at 20% 30%, rgba(153,102,255,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 80% 70%, rgba(102,51,204,0.2) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(255,102,204,0.1) 0%, transparent 50%);
+}
+
+/* Add subtle stars effect at night */
+body.night-mode::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(2px 2px at 20% 30%, white, transparent),
+    radial-gradient(2px 2px at 60% 70%, white, transparent),
+    radial-gradient(1px 1px at 50% 50%, white, transparent),
+    radial-gradient(1px 1px at 80% 10%, white, transparent),
+    radial-gradient(2px 2px at 90% 60%, white, transparent),
+    radial-gradient(1px 1px at 33% 50%, white, transparent),
+    radial-gradient(1px 1px at 77% 88%, white, transparent);
+  background-repeat: repeat;
+  background-size: 200px 200px, 300px 300px, 250px 250px, 400px 400px, 350px 350px, 280px 280px, 380px 380px;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+  animation: twinkle 3s ease-in-out infinite;
+}
+
+/* Cards and containers - darker but still distinct */
+body.night-mode .card,
+body.night-mode .form-card,
+body.night-mode .stat-card,
+body.night-mode .pet-card,
+body.night-mode .battle-card,
+body.night-mode .news-post,
+body.night-mode .activity-feed-box,
+body.night-mode .sidebar-section,
+body.night-mode .page-section,
+body.night-mode .page-wrap,
+body.night-mode .page-hero,
+body.night-mode .welcome-section,
+body.night-mode .info-card,
+body.night-mode .melons-section,
+body.night-mode .referral-section,
+body.night-mode .news-section,
+body.night-mode .streamers-section,
+body.night-mode .team-section,
+body.night-mode .did-you-know,
+body.night-mode .tip-box,
+body.night-mode .content-card,
+body.night-mode .modal-content {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border-color: #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Ensure text remains readable */
+body.night-mode h1,
+body.night-mode h2,
+body.night-mode h3,
+body.night-mode h4,
+body.night-mode h5,
+body.night-mode h6 {
+  color: #e8d5ff !important;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+body.night-mode p,
+body.night-mode span,
+body.night-mode div,
+body.night-mode label {
+  color: #e8d5ff !important;
+}
+
+/* Secondary/muted text */
+body.night-mode .text-light,
+body.night-mode .stat-label,
+body.night-mode .form-subtitle {
+  color: #b399dd !important;
+}
+
+/* Links - brighter at night for visibility */
+body.night-mode a {
+  color: #bb99ff !important;
+}
+
+body.night-mode a:hover {
+  color: #ff99dd !important;
+}
+
+/* Buttons - maintain visibility and contrast */
+body.night-mode .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #ff66cc) !important;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.4) !important;
+}
+
+body.night-mode .btn-outline {
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.2) !important;
+}
+
+/* Navigation bar - darker but distinct */
+body.night-mode .navbar {
+  background: linear-gradient(135deg, #2a1a4a, #4a2a6a, #2a4a6a) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Sidebar - darker background */
+body.night-mode .left-sidebar,
+body.night-mode .right-sidebar {
+  background: rgba(26, 10, 46, 0.7) !important;
+}
+
+/* Input fields - dark but readable */
+body.night-mode input,
+body.night-mode textarea,
+body.night-mode select {
+  background: rgba(42, 36, 64, 0.8) !important;
+  border-color: #6644aa !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode input::placeholder,
+body.night-mode textarea::placeholder {
+  color: #8866aa !important;
+}
+
+body.night-mode input:focus,
+body.night-mode textarea:focus,
+body.night-mode select:focus {
+  border-color: #9966ff !important;
+  box-shadow: 0 0 0 3px rgba(153, 102, 255, 0.2) !important;
+}
+
+/* Modals and overlays */
+body.night-mode .modal,
+body.night-mode .modal-overlay {
+  background: rgba(10, 5, 20, 0.95) !important;
+}
+
+body.night-mode .modal {
+  border-color: #6644aa !important;
+}
+
+/* Toast notifications */
+body.night-mode .toast {
+  background: rgba(42, 36, 64, 0.98) !important;
+  border-color: #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+/* Tables - readable in dark mode */
+body.night-mode table {
+  background: rgba(42, 36, 64, 0.8) !important;
+}
+
+body.night-mode th {
+  background: rgba(102, 68, 170, 0.4) !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode td {
+  border-color: #6644aa !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode tr:hover {
+  background: rgba(153, 102, 255, 0.1) !important;
+}
+
+/* Additional Night Mode Fixes for Bright Sections */
+
+/* Welcome/Hero sections with gradient backgrounds */
+body.night-mode .page-hero,
+body.night-mode .welcome-section {
+  background: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* Any sections with white/cream backgrounds */
+body.night-mode [style*="background: #fff"],
+body.night-mode [style*="background: white"],
+body.night-mode [style*="background: #ffffff"],
+body.night-mode [style*="background-color: #fff"],
+body.night-mode [style*="background-color: white"] {
+  background: rgba(42, 36, 64, 0.95) !important;
+}
+
+/* Ensure any remaining white backgrounds are darkened */
+body.night-mode div[class*="section"],
+body.night-mode div[class*="card"],
+body.night-mode div[class*="panel"],
+body.night-mode div[class*="box"] {
+  background-color: rgba(42, 36, 64, 0.9) !important;
+}
+
+/* Keep buttons and interactive elements readable */
+body.night-mode .btn,
+body.night-mode button {
+  color: #e8d5ff !important;
+}
+
+body.night-mode .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #ff66cc) !important;
+  color: #ffffff !important;
+}
+
+/* Images should maintain visibility */
+body.night-mode img {
+  opacity: 0.95;
+}
+
+/* Links remain visible */
+body.night-mode a {
+  color: #bb99ff !important;
+}
+
+body.night-mode a:hover {
+  color: #ff99dd !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   NIGHT MODE FIX - CORRECT CLASS NAMES FROM INDEX.HTML
+   ═══════════════════════════════════════════════════════════════════════ */
+
+
+/* Referral Card */
+body.night-mode .referral-card {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Night-mode scrollbar rules for the streamers widget removed alongside the
+   widget's own scrolling. */
+
+
+body.night-mode .sidebar-title {
+  color: #e8d5ff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   WEATHER SYSTEM - ENHANCED VISUAL EFFECTS
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* SUNNY - Warm glow + soft light rays, clearly distinct from Clear */
+body.weather-sunny::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(circle at 50% 0%, rgba(255,200,100,0.22) 0%, transparent 55%);
+  animation: sunGlow 4s ease-in-out infinite;
+}
+
+body.weather-sunny::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9997;
+  background:
+    conic-gradient(from 200deg at 50% -10%,
+      transparent 0deg, rgba(255,225,150,0.12) 8deg, transparent 16deg,
+      transparent 30deg, rgba(255,225,150,0.10) 38deg, transparent 46deg,
+      transparent 60deg, rgba(255,225,150,0.12) 68deg, transparent 76deg,
+      transparent 90deg, rgba(255,225,150,0.10) 98deg, transparent 106deg,
+      transparent 120deg, rgba(255,225,150,0.12) 128deg, transparent 136deg,
+      transparent 150deg, rgba(255,225,150,0.10) 158deg, transparent 166deg,
+      transparent 180deg
+    );
+  animation: sunRays 12s linear infinite;
+  opacity: 0.8;
+}
+
+/* RAINY - Individual falling raindrop particles, varying sizes & speed */
+body.weather-rainy::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background-image:
+    radial-gradient(ellipse 1.5px 5px at 8%  0%,  rgba(140,190,255,0.65), transparent),
+    radial-gradient(ellipse 1px   4px at 22% 0%,  rgba(140,190,255,0.55), transparent),
+    radial-gradient(ellipse 2px   7px at 37% 0%,  rgba(140,190,255,0.70), transparent),
+    radial-gradient(ellipse 1px   4px at 51% 0%,  rgba(140,190,255,0.50), transparent),
+    radial-gradient(ellipse 1.5px 6px at 64% 0%,  rgba(140,190,255,0.60), transparent),
+    radial-gradient(ellipse 1px   4px at 78% 0%,  rgba(140,190,255,0.55), transparent),
+    radial-gradient(ellipse 2px   7px at 91% 0%,  rgba(140,190,255,0.65), transparent);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: rainFall1 0.9s linear infinite;
+}
+
+body.weather-rainy::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9997;
+  background-image:
+    radial-gradient(ellipse 1px   4px at 5%  0%,  rgba(160,205,255,0.5), transparent),
+    radial-gradient(ellipse 1.5px 6px at 18% 0%,  rgba(160,205,255,0.6), transparent),
+    radial-gradient(ellipse 1px   3px at 29% 0%,  rgba(160,205,255,0.45),transparent),
+    radial-gradient(ellipse 2px   8px at 44% 0%,  rgba(160,205,255,0.65),transparent),
+    radial-gradient(ellipse 1px   4px at 58% 0%,  rgba(160,205,255,0.5), transparent),
+    radial-gradient(ellipse 1.5px 5px at 71% 0%,  rgba(160,205,255,0.55),transparent),
+    radial-gradient(ellipse 1px   4px at 84% 0%,  rgba(160,205,255,0.5), transparent),
+    radial-gradient(ellipse 2px   7px at 96% 0%,  rgba(160,205,255,0.6), transparent);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: rainFall2 1.3s linear infinite;
+  animation-delay: 0.4s;
+}
+
+/* FOGGY - Thick drifting mist */
+body.weather-foggy::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  /* Soft radial blobs only — no rectangle effect */
+  background:
+    radial-gradient(ellipse 60% 40% at 20% 30%, rgba(200,210,220,0.18) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 35% at 80% 70%, rgba(180,190,200,0.15) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(190,200,215,0.12) 0%, transparent 70%);
+  animation: fogDrift 12s ease-in-out infinite;
+}
+
+body.weather-foggy::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9997;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(190,200,210,0.28) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 60%, rgba(170,180,190,0.22) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 85%, rgba(200,210,220,0.30) 0%, transparent 50%);
+  animation: fogPulse 10s ease-in-out infinite;
+}
+
+/* WINDY - Leaves drifting across screen */
+body.weather-windy::before {
+  content: '🍃';
+  position: fixed;
+  top: 20%;
+  left: -60px;
+  width: auto;
+  font-size: 22px;
+  pointer-events: none;
+  z-index: 9999;
+  white-space: nowrap;
+  letter-spacing: normal;
+  opacity: 0.8;
+  animation: windLeaves 8s linear infinite;
+}
+
+body.weather-starry::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9997;
+  background-image:
+    radial-gradient(1px 1px at 25% 45%, #fff, transparent),
+    radial-gradient(1px 1px at 41% 75%, #ffd700, transparent),
+    radial-gradient(1px 1px at 55% 25%, #fff, transparent),
+    radial-gradient(1px 1px at 68% 55%, #fff, transparent),
+    radial-gradient(1px 1px at 81% 15%, #ffd700, transparent),
+    radial-gradient(1px 1px at 10% 60%, #fff, transparent),
+    radial-gradient(1px 1px at 90% 40%, #fff, transparent),
+    radial-gradient(1px 1px at 35% 10%, #ffd700, transparent),
+    radial-gradient(1px 1px at 60% 95%, #fff, transparent),
+    radial-gradient(1px 1px at 75% 70%, #fff, transparent);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  animation: starTwinkleSlow 5s ease-in-out infinite;
+  animation-delay: 1.2s;
+}
+
+/* CURSED - Purple fog + softened scanlines + JS-injected glitch rects */
+body.weather-cursed::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9998;
+  background: linear-gradient(
+    135deg,
+    rgba(138,43,226,0.22) 0%, rgba(75,0,130,0.16) 30%,
+    rgba(138,43,226,0.22) 60%, rgba(75,0,130,0.16) 100%
+  );
+  animation: cursedFogDrift 6s ease-in-out infinite;
+}
+
+body.weather-cursed::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 4px,
+    rgba(255,0,255,0.04) 4px, rgba(255,0,255,0.04) 6px
+  );
+  animation: cursedScanline 16s linear infinite;
+}
+
+/* Night Mode Adjustments */
+body.night-mode .weather-widget {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border-color: #6644aa !important;
+}
+
+body.night-mode .weather-name {
+  color: #e8d5ff !important;
+}
+
+body.night-mode .weather-desc {
+  color: #b399dd !important;
+}
+
+/* Responsive */
+
+/* ═══════════════════════════════════════════════════════════
+   EQUIPMENT ROTATION SYSTEM - CSS Styles
+   Add this to your the global stylesheet file
+   ═══════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════
+   NIGHT MODE - MANAGE BUTTON & EQUIPMENT MODAL
+   ═══════════════════════════════════════════════════════════ */
+
+/* Manage Button Night Mode */
+body.night-mode .btn-sm {
+  background: rgba(153, 102, 255, 0.3) !important;
+  color: #e8d5ff !important;
+  border: 1px solid #9966ff !important;
+}
+
+body.night-mode .btn-sm:hover {
+  background: rgba(153, 102, 255, 0.5) !important;
+  color: #ffffff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NIGHT MODE - PROFILE/LOGOUT BUTTONS & WARNINGS
+   ═══════════════════════════════════════════════════════════ */
+
+
+/* View All Team Members Button - Better Contrast */
+body.night-mode .btn-outline {
+  background: rgba(153, 102, 255, 0.15) !important;
+  border: 3px solid #9966ff !important;
+  color: #e8d5ff !important;
+  font-weight: 600 !important;
+}
+
+body.night-mode .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.3) !important;
+  border-color: #b589ff !important;
+  color: #ffffff !important;
+}
+
+/* Mobile Responsive */
+
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+}
+
+/* ============================================
+   NIGHT MODE — Modal & Button Legibility Fix
+   ============================================ */
+
+
+/* General buttons in night mode (not navbar/music) */
+body.night-mode .btn:not(.btn-primary):not(.btn-nav-action) {
+  background: #3a3a4e !important;
+  color: #e8d5ff !important;
+  border: 2px solid #9966ff !important;
+}
+
+body.night-mode .btn-primary {
+  background: linear-gradient(135deg, #9966ff, #b589ff) !important;
+  color: #1e1e2e !important;
+  border: none !important;
+  font-weight: bold !important;
+}
+
+body.night-mode .btn-outline {
+  background: transparent !important;
+  border: 2px solid #9966ff !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .btn-outline:hover {
+  background: rgba(153, 102, 255, 0.2) !important;
+}
+
+body.night-mode .centered-modal-close,
+body.night-mode .modal-close {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #e8d5ff !important;
+}
+
+body.night-mode .centered-modal-close:hover,
+body.night-mode .modal-close:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEASONAL UI THEMES — CSS variable overrides per theme class
+   Applied to <body> as: body.theme-autumn, body.theme-winter, etc.
+   Night mode still works on top of themes (night-mode overrides theme-bg).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── DEFAULT (Classic Purple) — already defined by :root, listed here for reference ── */
+/* --purple: #9966ff; --pink: #ff66cc; --bg-gradient: etc. */
+
+/* ── COZY AUTUMN ── */
+body.theme-autumn {
+  --purple: #c0672a;
+  --pink: #e8a030;
+  --border: #d4844a;
+  background: linear-gradient(180deg, #fff4e6 0%, #ffe0b3 100%) !important;
+}
+
+body.theme-autumn .navbar {
+  background: linear-gradient(135deg, #c0672a 0%, #e8a030 100%) !important;
+}
+
+body.theme-autumn .btn-primary,
+body.theme-autumn .btn-action.btn-feed {
+  background: linear-gradient(135deg, #c0672a 0%, #e8a030 100%) !important;
+}
+
+body.theme-autumn .card,
+body.theme-autumn .sidebar-section {
+  border-color: #d4844a !important;
+}
+
+/* Floating leaf particles */
+body.theme-autumn::before {
+  content: '🍂 🍁 🍂 🍁 🍂 🍁';
+  position: fixed;
+  top: -40px;
+  left: 0;
+  width: 100%;
+  font-size: 1.4rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: autumn-leaves 12s linear infinite;
+  white-space: nowrap;
+  letter-spacing: 60px;
+  opacity: 0.5;
+}
+
+/* ── WINTER AURORA ── */
+body.theme-winter {
+  --purple: #00b4db;
+  --pink: #3a7bd5;
+  --border: #7ecef4;
+  background: linear-gradient(180deg, #e0f4ff 0%, #c0e8ff 100%) !important;
+}
+
+body.theme-winter .navbar {
+  background: linear-gradient(135deg, #005f99 0%, #00b4db 100%) !important;
+}
+
+body.theme-winter .btn-primary,
+body.theme-winter .btn-action.btn-feed {
+  background: linear-gradient(135deg, #005f99 0%, #00b4db 100%) !important;
+}
+
+body.theme-winter .card,
+body.theme-winter .sidebar-section {
+  border-color: #7ecef4 !important;
+}
+
+/* Gentle snow */
+body.theme-winter::before {
+  content: '❄ ❅ ❆ ❄ ❅ ❆ ❄';
+  position: fixed;
+  top: -40px;
+  left: -20px;
+  width: 120%;
+  font-size: 1.1rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: winter-snow 10s linear infinite;
+  white-space: nowrap;
+  letter-spacing: 50px;
+  opacity: 0.6;
+}
+
+/* Aurora glow on navbar */
+body.theme-winter .navbar::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, #00ffcc, #3a7bd5, #00ffcc);
+  background-size: 200% 100%;
+  animation: aurora-slide 4s linear infinite;
+}
+
+/* ── SPOOKY HALLOWEEN ── */
+body.theme-halloween {
+  --purple: #ff6b35;
+  --pink: #c0392b;
+  --border: #ff6b35;
+  background: linear-gradient(180deg, #1a0a00 0%, #2d1b00 100%) !important;
+  color: #ffcc88 !important;
+}
+
+body.theme-halloween .navbar {
+  background: linear-gradient(135deg, #1a0500 0%, #5c1a00 100%) !important;
+}
+
+body.theme-halloween .btn-primary,
+body.theme-halloween .btn-action.btn-feed {
+  background: linear-gradient(135deg, #c0392b 0%, #ff6b35 100%) !important;
+}
+
+body.theme-halloween .card,
+body.theme-halloween .sidebar-section {
+  background: rgba(30, 10, 0, 0.95) !important;
+  border-color: #ff6b35 !important;
+  color: #ffcc88 !important;
+}
+
+body.theme-halloween h1,
+body.theme-halloween h2,
+body.theme-halloween h3 {
+  color: #ff6b35 !important;
+}
+
+/* Glitch flicker effect */
+body.theme-halloween .navbar {
+  animation: spooky-flicker 8s ease-in-out infinite;
+}
+
+/* Floating 👻 */
+body.theme-halloween::before {
+  content: '👻   🕷   🦇   🎃   🕸   🦇   👻';
+  position: fixed;
+  top: -50px;
+  left: 0;
+  width: 100%;
+  font-size: 1.3rem;
+  pointer-events: none;
+  z-index: 0;
+  animation: halloween-float 15s linear infinite;
+  white-space: nowrap;
+  letter-spacing: 40px;
+  opacity: 0.4;
+}
+
+/* ── GOLDEN AGE ── */
+body.theme-golden {
+  --purple: #b8860b;
+  --pink: #daa520;
+  --border: #ffd700;
+  background: linear-gradient(180deg, #fffde7 0%, #fff8c0 100%) !important;
+}
+
+body.theme-golden .navbar {
+  background: linear-gradient(135deg, #8b6914 0%, #daa520 100%) !important;
+}
+
+body.theme-golden .btn-primary,
+body.theme-golden .btn-action.btn-feed {
+  background: linear-gradient(135deg, #b8860b 0%, #ffd700 100%) !important;
+  color: #3d2b00 !important;
+}
+
+body.theme-golden .card,
+body.theme-golden .sidebar-section {
+  border-color: #ffd700 !important;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.3) !important;
+}
+
+/* Gold shimmer on navbar */
+body.theme-golden .navbar::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  animation: gold-shimmer 3s linear infinite;
+  pointer-events: none;
+}
+
+/* ── NIGHT MODE OVERRIDE — night mode wins over theme colors for bg/cards ── */
+body.night-mode.theme-autumn,
+body.night-mode.theme-winter,
+body.night-mode.theme-halloween,
+body.night-mode.theme-golden {
+  background: linear-gradient(180deg, #1e1e2e 0%, #2d2d3e 100%) !important;
+}
+
+body.night-mode.theme-autumn .card,
+body.night-mode.theme-winter .card,
+body.night-mode.theme-golden .card {
+  background: rgba(42, 36, 64, 0.95) !important;
+  color: #e8d5ff !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGGED-OUT STATE — Login box centers without sidebars
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   NIGHT MODE — Additional legibility fixes
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+body.night-mode .battle-log-entry.defeat        { background: rgba(156,39,176,0.12) !important;  border-left: 4px solid #9c27b0 !important; }
+
+body.night-mode .pixel-toast-success {
+  border-color: #4ade80 !important;
+  background: linear-gradient(135deg,#1a3a2a,#0a2a1a) !important;
+}
+
+body.night-mode .pixel-toast-success .pixel-toast-icon { background:#4ade80 !important; color:#1a1a2e !important; }
+
+body.night-mode .pixel-toast-error {
+  border-color: #ff6b6b !important;
+  background: linear-gradient(135deg,#3a1a1a,#2a0a0a) !important;
+}
+
+body.night-mode .pixel-toast-error .pixel-toast-icon { background:#ff6b6b !important; color:#1a1a2e !important; }
+
+body.night-mode .pixel-toast-warning {
+  border-color: #ffa502 !important;
+  background: linear-gradient(135deg,#3a2a0a,#2a1a00) !important;
+}
+
+body.night-mode .pixel-toast-warning .pixel-toast-icon { background:#ffa502 !important; color:#1a1a2e !important; }
+
+body.night-mode .pixel-toast-info {
+  border-color: #9966ff !important;
+  background: linear-gradient(135deg,#2a2a3a,#1a1a2e) !important;
+}
+
+body.night-mode .pixel-toast-info .pixel-toast-icon { background:#9966ff !important; color:white !important; }
+
+/* Subtle form card border uses streamer accent when on a landing page */
+body.streamer-landing-active .form-card {
+  border-color: var(--streamer-accent, var(--purple));
+  box-shadow: 0 4px 24px color-mix(in srgb, var(--streamer-accent, var(--purple)) 20%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════
+   CRITICAL GUEST RULES — site will not load without these
+   Matches the guest-hide <style> block in index.html
+══════════════════════════════════════════════════════════ */
+
+
+/* Guest always day-mode background */
+body.guest {
+  background: linear-gradient(180deg, #ffddee 0%, #e6ccff 50%, #ccddff 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* Guest navbar bright */
+body.guest .navbar,
+body.guest.night-mode .navbar {
+  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.4) !important;
+}
+
+/* Keep left/right sidebars hidden on guest (guest-hide does this too, belt+suspenders) */
+body.guest .left-sidebar,
+body.guest .right-sidebar {
+  display: none !important;
+}
+
+/* ── BOSS FIGHT: BATTLE AREA PROTECTED ZONE ─────────────────────────────── */
+/* Header, nav, sidebars drift. Battle controls NEVER move. */
+body.boss-ui-glitch #battle-screen,
+body.boss-ui-glitch #section-battle,
+body.boss-ui-glitch .battle-container,
+body.boss-ui-glitch #manual-battle-actions,
+body.boss-ui-glitch #battle-narrative-box,
+body.boss-ui-glitch #battle-zone-banner,
+body.boss-ui-glitch #piper-influence-container,
+body.boss-ui-glitch #piper-melody-counter,
+body.boss-ui-glitch .battle-side,
+body.boss-ui-glitch .battle-hp-container,
+body.boss-ui-glitch .battle-hp-bar,
+body.boss-ui-glitch #battle-skill-row,
+body.boss-ui-glitch #battle-action-grid,
+body.boss-ui-glitch #player-status-row,
+body.boss-ui-glitch #enemy-status-row,
+body.boss-ui-glitch #battle-log-container,
+body.boss-ui-glitch #battle-controls-legacy {
+  animation: none !important;
+  transform: none !important;
+}
+
+/* ── Hide right sidebar during manual battle ─────────────────────────────── */
+body.in-manual-battle .right-sidebar {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Empty state cards should use dark bg in night mode */
+body.night-mode .empty-state {
+  background: rgba(153, 102, 255, 0.06) !important;
+  border-color: rgba(153, 102, 255, 0.2) !important;
+  color: var(--text-light) !important;
+}
+
+/* Form inputs general dark mode fix */
+body.night-mode input:not([type="range"]),
+body.night-mode textarea,
+body.night-mode select {
+  background: rgba(255,255,255,0.06) !important;
+  color: var(--text) !important;
+  border-color: rgba(153,102,255,0.3) !important;
+}
+
+body.night-mode input::placeholder,
+body.night-mode textarea::placeholder {
+  color: rgba(232, 213, 255, 0.4) !important;
+}
+
+/* Page sections with hard white backgrounds */
+body.night-mode .page-section > .page-wrap > .card,
+body.night-mode .card {
+  background: var(--card-bg) !important;
+  border-color: var(--border) !important;
+}
+
+/* ── ACCESSIBILITY MODES ─────────────────────────────────────────────────── */
+
+/* Reduced Motion — disables animations, transitions, floating effects */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* High Contrast — stronger borders and text */
+body.high-contrast {
+  --border: #000 !important;
+  --text: #000 !important;
+  --text-light: #222 !important;
+  --card-bg: #fff !important;
+}
+
+body.high-contrast.night-mode {
+  --border: #fff !important;
+  --text: #fff !important;
+  --text-light: #ddd !important;
+  --card-bg: #000 !important;
+}
+
+body.high-contrast .btn,
+body.high-contrast button {
+  border-width: 3px !important;
+}
+
+/* Large Text — bumps base font up by ~25% */
+body.large-text {
+  font-size: 18px !important;
+}
+
+body.large-text .btn { font-size: 1.05rem !important; }
+
+body.large-text input, body.large-text select, body.large-text textarea {
+  font-size: 18px !important;
+}
+
+/* ── Tutorial: the two rules that style elements OUTSIDE the overlay component.
+      The tab highlight lands on a LeftSidebar button and the arrow is appended
+      to <body>, so neither can be reached by TutorialOverlay's scoped styles.
+      Everything else the tutorial draws lives in that component. ─────────── */
+
+
+/* ── Install screen: hide the site chrome while the setup sequence is running.
+      InstallScreen.vue adds `installing` to <body>. Legacy's version of this
+      rule also listed .left-sidebar, .right-sidebar and #auth-gate; none of
+      those render for a signed-out visitor in the Vue app, so only the navbar,
+      the ticker and the toast host need suppressing. ──────────────────────── */
+body.installing .navbar,
+body.installing .news-ticker,
+body.installing .toast,
+body.installing .toast-container,
+body.installing #site-footer,
+body.installing .site-footer { display: none !important; }

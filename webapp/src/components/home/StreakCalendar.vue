@@ -1,7 +1,7 @@
 <template>
   <!-- Ports calendar_displayWidget() + calendar_showFullModal(): a seven-dot
        streak strip that opens the full 30-day reward track. All `.calendar-*`
-       classes are owned by style.css. -->
+       classes are owned by the global stylesheet. -->
   <div v-if="loaded">
     <button class="calendar-widget sc-widget w-100" @click="open = true">
       <div class="calendar-header">
@@ -95,6 +95,158 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+@media (max-width: 900px) {
+  .modal-content {
+    width: 95% !important;
+    max-width: 95vw !important;
+    margin: 10px !important;
+    box-sizing: border-box !important;
+  }
+}
+.night-mode .modal-content, body[data-theme="dark"] .modal-content {
+  background: #2a2a3a !important;
+  color: #ffffff !important;
+}
+.modal-content h1, .modal-content h2, .modal-content h3, .modal-content h4 { color: inherit !important; }
+.calendar-widget {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.calendar-widget:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  transform: translateY(-2px);
+}
+.calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.calendar-title {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fbbf24;
+}
+.calendar-next {
+  font-size: 14px;
+  color: #cbd5e1;
+}
+.calendar-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+.dot.completed {
+  background: #4ade80;
+  color: white;
+  box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+}
+.calendar-modal {
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.calendar-streak-display {
+  text-align: center;
+  font-size: 20px;
+  margin-bottom: 25px;
+  padding: 15px;
+  background: rgba(251, 191, 36, 0.1);
+  border-radius: 12px;
+  color: #fbbf24;
+}
+.calendar-streak-display strong { font-size: 24px; }
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 15px;
+  padding: 20px 0;
+}
+.calendar-day {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+.calendar-day:hover { background: rgba(255, 255, 255, 0.08); }
+.calendar-day.completed {
+  background: rgba(74, 222, 128, 0.1);
+  border-color: #4ade80;
+}
+.calendar-day.current {
+  background: rgba(251, 191, 36, 0.15);
+  border-color: #fbbf24;
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+}
+.calendar-day.milestone {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(251, 191, 36, 0.1) 100%);
+  border: 2px solid #f59e0b;
+}
+.day-number {
+  font-weight: bold;
+  font-size: 14px;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+.day-reward { margin: 10px 0; }
+.reward-pp {
+  font-size: 16px;
+  font-weight: bold;
+  color: #fbbf24;
+}
+.reward-keys {
+  font-size: 14px;
+  color: #60a5fa;
+  margin-top: 4px;
+}
+.reward-milestone {
+  font-size: 12px;
+  color: #f59e0b;
+  margin-top: 8px;
+  padding: 4px 8px;
+  background: rgba(245, 158, 11, 0.2);
+  border-radius: 6px;
+}
+.day-status {
+  font-size: 12px;
+  margin-top: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+.calendar-day.completed .day-status {
+  background: rgba(74, 222, 128, 0.2);
+  color: #4ade80;
+}
+.current-day {
+  background: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+  font-weight: bold;
+}
+@media (max-width: 768px) {
+  .calendar-dots {
+    overflow-x: auto;
+    justify-content: flex-start;
+    padding-bottom: 8px;
+  }
+  .calendar-grid {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+}
+
 // `.calendar-widget` is a <button> here rather than legacy's clickable div, so
 // the browser's button chrome has to go.
 // `.calendar-widget` is a <button> here rather than legacy's clickable div, so

@@ -174,6 +174,187 @@ const MEMBERS = [
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.contact-modal { max-width: 500px; }
+.contact-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 20px 0;
+}
+.contact-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  text-decoration: none;
+  color: white;
+  transition: all 0.2s;
+}
+.contact-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+.contact-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+}
+.contact-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.contact-text strong { font-size: 1.1rem; }
+.contact-text span {
+  font-size: 0.9rem;
+  opacity: 0.9;
+}
+.social-icon { font-size: 1.1rem; }
+.team-profile-card {
+  background: white;
+  border: 3px solid var(--purple-light);
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.3s;
+}
+.team-profile-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(176, 106, 255, 0.2);
+  border-color: var(--purple);
+}
+.team-profile-banner {
+  background: linear-gradient(135deg, var(--purple) 0%, var(--pink) 100%);
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.team-profile-stats {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--purple-light);
+  border-radius: 12px;
+}
+.team-profile-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: 4px solid white;
+  overflow: hidden;
+  background: white;
+  flex-shrink: 0;
+}
+.team-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.team-profile-info { flex: 1; }
+.team-profile-name {
+  color: white;
+  font-size: 1.8rem;
+  margin: 0 0 8px 0;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+}
+.team-profile-role {
+  color: rgba(255,255,255,0.95);
+  font-size: 1rem;
+  font-weight: bold;
+}
+.team-profile-body { padding: 24px; }
+.team-profile-bio {
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+.team-stat { text-align: center; }
+.team-stat-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-light);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.team-stat-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--purple-dark);
+}
+.team-profile-socials {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.team-social-btn {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-weight: bold;
+  text-decoration: none;
+  transition: all 0.2s;
+  color: white;
+}
+.team-social-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+.team-social-btn.twitch { background: linear-gradient(135deg, #9146ff 0%, #772ce8 100%); }
+.team-social-btn.twitter { background: linear-gradient(135deg, #1DA1F2 0%, #0d8bd9 100%); }
+.team-social-btn.bluesky { background: linear-gradient(135deg, #0085ff 0%, #0066cc 100%); }
+.team-social-btn.tiktok { background: linear-gradient(135deg, #25f4ee 0%, #fe2c55 100%); }
+.team-social-btn.instagram { background: linear-gradient(135deg, #f58529 0%, #dd2a7b 50%, #8134af 100%); }
+.team-social-btn.youtube {
+  background: #FF0000;
+  color: white !important;
+}
+.social-icon { font-size: 1.2rem; }
+.team-join-card {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(176, 106, 255, 0.1) 100%);
+  border: 3px dashed var(--purple-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.team-join-card:hover {
+  border-color: var(--purple);
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(176, 106, 255, 0.2) 100%);
+}
+.team-join-content {
+  text-align: center;
+  padding: 40px;
+}
+.team-join-content h3 {
+  color: var(--purple-dark);
+  margin: 0 0 12px 0;
+}
+.team-join-content p {
+  color: var(--text-light);
+  margin-bottom: 20px;
+}
+@media (max-width: 768px) {
+  .team-profile-socials { flex-direction: column; }
+  .team-social-btn { width: 100%; }
+}
+
 // Was an inline style attribute on the sparkle div.
 .team-join-sparkle {
   font-size: 4rem;

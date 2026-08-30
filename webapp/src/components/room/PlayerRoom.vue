@@ -3,7 +3,7 @@
        and the read-only view another player sees, exactly as legacy's single
        renderer did via its `readOnly` flag.
 
-       All of `.player-room-*` and `.room-*` are owned by style.css, so this
+       All of `.player-room-*` and `.room-*` are owned by the global stylesheet, so this
        carries no styling of its own — only the per-theme colors, which legacy
        also set inline because they vary with the chosen theme. -->
   <div class="player-room-wrap">
@@ -207,7 +207,170 @@ async function pickTheme(key) {
 </script>
 
 <style lang="scss" scoped>
-// Everything structural is in style.css. What lives here is what legacy set
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.player-room-wrap {
+  max-width: 560px;
+  margin: 0 auto;
+}
+.room-theme-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+}
+.player-room-visual {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4/3;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  min-height: 240px;
+}
+.room-floor-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-top: 2px dashed;
+  opacity: 0.3;
+  z-index: 1;
+}
+.room-zone-label {
+  position: absolute;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 2px;
+  opacity: 0.3;
+  z-index: 1;
+}
+.room-zone-wall { top: 8px;  left: 10px; }
+.room-zone-floor { bottom: 8px; left: 10px; }
+.room-pet-sprite {
+  position: absolute;
+  text-align: center;
+  z-index: 3;
+  transform: translateX(-50%);
+}
+.room-slot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  cursor: pointer;
+}
+.room-slot-empty {
+  width: 72px;
+  height: 72px;
+  border: 2.5px dashed rgba(0,0,0,0.18);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.15);
+  transition: all 0.15s;
+}
+.room-slot:hover .room-slot-empty {
+  border-color: rgba(153,102,255,0.5);
+  background: rgba(153,102,255,0.1);
+}
+.room-item-placed {
+  width: 72px;
+  min-height: 72px;
+  background: rgba(255,255,255,0.85);
+  border: 2.5px solid;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  transition: transform 0.15s;
+}
+.room-slot:hover .room-item-placed { transform: scale(1.06); }
+.room-item-name {
+  font-size: 0.5rem;
+  font-weight: 700;
+  text-align: center;
+  color: #333;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.room-item-bonus {
+  font-size: 0.45rem;
+  color: var(--purple);
+  text-align: center;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.room-item-remove {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  background: #ff6b6b;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.room-slot:hover .room-item-remove { opacity: 1; }
+.room-bonuses-panel {
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+}
+.room-bonus-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(153,102,255,0.08);
+}
+.room-bonus-row:last-child { border-bottom: none; }
+.room-bonus-value {
+  font-size: 0.72rem;
+  color: #27ae60;
+  font-weight: 700;
+}
+.room-vibe {
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin-bottom: 12px;
+}
+.room-picker {
+  background: var(--white);
+  border: 2px solid var(--purple);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-top: 10px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+// Everything structural is in the global stylesheet. What lives here is what legacy set
 // inline on each element, since it varies per theme or per item.
 .rm-theme-label {
   font-size: 0.8rem;

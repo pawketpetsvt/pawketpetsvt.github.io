@@ -198,7 +198,82 @@ onMounted(() => {
 </script>
 
 <style lang="scss" scoped>
-// style.css owns .guild-party-panel, .guild-party-member, .guild-member-hp-*,
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.guild-party-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guild-party-member {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: rgba(153,102,255,0.06);
+  border-radius: 10px;
+  border: 1px solid rgba(153,102,255,0.15);
+}
+.guild-member-hp-bar {
+  width: 100%;
+  height: 8px;
+  background: rgba(0,0,0,0.15);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 3px 0;
+}
+.guild-member-hp-fill {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.4s ease;
+}
+.guild-enemies-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+}
+.guild-enemy-card {
+  background: rgba(255,107,107,0.08);
+  border: 1px solid rgba(255,107,107,0.25);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.guild-enemy-hp-bar {
+  width: 100%;
+  height: 6px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 6px 0 4px;
+}
+.guild-enemy-hp-fill {
+  height: 100%;
+  background: #ff6b6b;
+  border-radius: 20px;
+  transition: width 0.4s ease;
+}
+.guild-battle-log {
+  max-height: 140px;
+  overflow-y: auto;
+  background: rgba(0,0,0,0.08);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+.guild-battle-log-entry { padding: 2px 0; border-bottom: 1px solid rgba(153,102,255,0.06); }
+.guild-battle-log-entry.critical { color: #ffd700; font-weight: 700; }
+.guild-battle-log-entry.death { color: #ff6b6b; }
+.guild-battle-log-entry.enemy-atk { color: #fb923c; }
+@media (max-width: 500px) {
+  .guild-enemies-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+// the global stylesheet owns .guild-party-panel, .guild-party-member, .guild-member-hp-*,
 // .guild-enemies-grid, .guild-enemy-card, .guild-enemy-hp-*, .guild-battle-log
 // and .guild-battle-log-entry. Everything below is what legacy set inline.
 .gdb-header {

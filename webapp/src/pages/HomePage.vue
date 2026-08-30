@@ -63,8 +63,48 @@ import AboutPawket from '../components/home/AboutPawket.vue'
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.welcome-panel {
+  background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85)) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 50px 40px !important;
+  text-align: center !important;
+  margin-bottom: 40px !important;
+  box-shadow: 0 10px 30px rgba(153,102,255,0.25) !important;
+}
+.logo-hero {
+  width: 120px !important;
+  height: 120px !important;
+  margin-bottom: 20px !important;
+  filter: drop-shadow(0 4px 8px rgba(153,102,255,0.3)) !important;
+  animation: float 3s ease-in-out infinite !important;
+}
+.welcome-panel h1 {
+  font-size: 2.5rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 16px !important;
+  text-shadow: 3px 3px 0 var(--pink-light) !important;
+}
+.welcome-panel p {
+  font-size: 1.2rem !important;
+  color: var(--text) !important;
+  line-height: 1.7 !important;
+  max-width: 600px !important;
+  margin: 0 auto 24px !important;
+}
+body.night-mode .welcome-panel {
+  background: rgba(42, 36, 64, 0.95) !important;
+  border: 3px solid #6644aa !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6) !important;
+}
+
 // Legacy built this whole panel from inline styles; `.welcome-panel` itself is
-// the only part style.css owns. Layout and spacing are Bootstrap's now — what
+// the only part the global stylesheet owns. Layout and spacing are Bootstrap's now — what
 // remains is the logo's fixed size and two type treatments.
 .hp-logo {
   width: 36px;
@@ -79,7 +119,7 @@ import AboutPawket from '../components/home/AboutPawket.vue'
 }
 
 // The CTAs are router-links rather than buttons, so they need the anchor
-// underline removed — style.css's `.btn` assumes a real <button>.
+// underline removed — the global stylesheet's `.btn` assumes a real <button>.
 .hp-cta-btn {
   text-decoration: none;
 }

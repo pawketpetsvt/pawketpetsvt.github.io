@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { soundService } from './SoundService.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { BASIC_VARIANTS } from '../data/petCardData.js'
@@ -101,6 +102,9 @@ class SkinKeyService {
     else skinKeyState.keys = Math.max(0, skinKeyState.keys - cost)
 
     ;(skinKeyState.unlocked[petId] = skinKeyState.unlocked[petId] || []).push(variantId)
+    // Ports showVariantUnlockNotification()'s playChiptune('variant') — the
+    // sparkly high sequence, distinct from a badge's.
+    soundService.chiptune('variant')
     return BASIC_VARIANTS[variantId]
   }
 

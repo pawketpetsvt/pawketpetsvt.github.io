@@ -37,7 +37,7 @@
             {{ effectivePrice(pet) === 0 ? '✨ FREE' : '🪙 ' + pet.price + ' PP' }}
           </span>
           <!-- `.btn` is required alongside `.btn-owned` / `.btn-locked`: those
-               two have NO base rule anywhere in style.css (only an
+               two have NO base rule anywhere in the global stylesheet (only an
                `.equipment-card`-scoped one and two night-mode overrides), so on
                their own they rendered as raw HTML buttons. -->
           <button v-if="pet.isPlaceholder" class="btn btn-locked" disabled>🔒 Coming Soon</button>
@@ -76,14 +76,17 @@
       </div>
     </div>
 
-    <div class="modal-overlay" :class="{ show: successMessage }" @click.self="successMessage = ''">
+    <!-- Every dismissal path goes through dismissSuccess() so the tutorial's
+         "adopt a pet to continue" gate is released exactly once, whichever way
+         the player closes this. -->
+    <div class="modal-overlay" :class="{ show: successMessage }" @click.self="dismissSuccess">
       <div class="modal" v-if="successMessage">
         <div class="modal-celebrate mb-tight">🎉</div>
         <h2>Welcome home!</h2>
         <p>{{ successMessage }}</p>
         <div class="d-flex justify-content-center align-items-stretch gap-tight">
-          <button class="btn btn-outline" @click="successMessage = ''">Adopt More</button>
-          <router-link to="/mypets" class="btn btn-primary">💖 My Pets</router-link>
+          <button class="btn btn-outline" @click="dismissSuccess">Adopt More</button>
+          <router-link to="/mypets" class="btn btn-primary" @click="dismissSuccess">💖 My Pets</router-link>
         </div>
       </div>
     </div>
@@ -100,6 +103,7 @@ import { toastService } from '../services/ToastService.js'
 import PointsBanner from '../components/PointsBanner.vue'
 import { streamerLandingService } from '../services/StreamerLandingService.js'
 import { REFEREE_PP } from '../data/referralData.js'
+import { tutorialService } from '../services/TutorialService.js'
 
 const loading = ref(true)
 const loadError = ref(false)
@@ -140,6 +144,14 @@ function openAdoptModal(pet) {
 
 function closeModal() {
   selectedPet.value = null
+}
+
+// The tutorial's `adoption` step blocks on a real adoption. Legacy polled every
+// 150ms for this modal to disappear (with a 10s safety net); telling the service
+// directly at the point of dismissal replaces the poll.
+function dismissSuccess() {
+  successMessage.value = ''
+  tutorialService.onPetAdopted()
 }
 
 async function confirmAdopt() {
@@ -192,6 +204,145 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.pet-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 24px 20px !important;
+  text-align: center !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.25) !important;
+  transition: all 0.3s !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+.pet-card:hover {
+  transform: translateY(-8px) scale(1.02) !important;
+  box-shadow: 0 16px 40px rgba(153,102,255,0.35) !important;
+}
+.pet-card.placeholder {
+  background: linear-gradient(135deg, #f0e8ff, #ffe8f5) !important;
+  border-style: dashed !important;
+  opacity: 0.7 !important;
+}
+.pet-card.already-owned {
+  border-color: var(--green) !important;
+  background: linear-gradient(135deg, #f0fff4, #e8fff0) !important;
+}
+.pet-image-wrap {
+  width: 140px !important;
+  height: 140px !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  border: 4px solid var(--purple-light) !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin: 0 auto !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.3) !important;
+}
+.pet-image-wrap img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+.pet-image-placeholder {
+  font-size: 4rem !important;
+  line-height: 1 !important;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)) !important;
+}
+.pet-vtuber {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: var(--text-light) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+  background: rgba(153,102,255,0.1) !important;
+  padding: 4px 12px !important;
+  border-radius: 15px !important;
+}
+.pet-description {
+  font-size: 0.95rem !important;
+  color: var(--text) !important;
+  line-height: 1.6 !important;
+  flex: 1 !important;
+  font-weight: 500 !important;
+}
+.pet-price {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.1rem !important;
+  color: var(--purple-dark) !important;
+  background: var(--purple-light) !important;
+  padding: 6px 18px !important;
+  border-radius: 25px !important;
+  border: 2px solid var(--purple) !important;
+  font-weight: 600 !important;
+}
+.pet-price.free {
+  color: var(--white) !important;
+  background: linear-gradient(135deg, var(--green), #3ab85a) !important;
+  border-color: var(--green) !important;
+  box-shadow: 0 4px 12px rgba(93,222,122,0.3) !important;
+}
+.modal-image {
+  max-width: 100%;
+  max-height: 250px;
+  margin: 0 auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 12px;
+}
+.modal-image img {
+  max-width: 100%;
+  max-height: 250px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+body.night-mode .pet-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 24px rgba(153, 102, 255, 0.4) !important;
+}
+body.night-mode .btn-owned {
+  background: linear-gradient(135deg,#2d6a4f,#1b4d3e) !important;
+  color: #a8e6cf !important;
+  border: 2px solid #40916c !important;
+  font-weight: bold !important;
+}
+body.night-mode .btn-owned:hover { background: linear-gradient(135deg,#40916c,#2d6a4f) !important; }
+.pet-card.streamer-landing-highlight {
+  outline: 3px solid var(--purple);
+  outline-offset: 3px;
+  box-shadow: 0 0 20px rgba(153,102,255,0.5);
+  animation: streamer-pet-pulse 0.8s ease-in-out 3;
+}
+body.night-mode .pet-card {
+  background: var(--card-bg) !important;
+  border-color: var(--border) !important;
+}
+@media (max-width: 768px) {
+  .pet-card { padding: 14px 10px !important; }
+  .pet-image-wrap img { width: 80px !important; height: 80px !important; }
+  .pet-price { font-size: 0.85rem !important; }
+  .btn-adopt { font-size: 0.85rem !important; padding: 8px 10px !important; }
+}
+
+@keyframes streamer-pet-pulse {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.03); }
+}
+
 .load-error {
   color: var(--text-light);
 }
@@ -200,7 +351,7 @@ onMounted(async () => {
   font-size: 4rem;
 }
 
-// The nickname field had no class and no rule — style.css defines nothing for
+// The nickname field had no class and no rule — the global stylesheet defines nothing for
 // `.modal-nickname-group` or a bare `input` inside `.modal`, so it rendered as
 // the browser's default box. Matched to the game's other inputs: Fredoka,
 // pill-ish radius, purple border, and a clear focus ring.
@@ -238,7 +389,7 @@ onMounted(async () => {
   }
 }
 
-// `.btn-owned` and `.btn-locked` have NO base rule in style.css — only
+// `.btn-owned` and `.btn-locked` have NO base rule in the global stylesheet — only
 // `.equipment-card .btn-owned` (a different surface) and two night-mode
 // overrides. They are paired with `.btn` in the markup for shape, and these
 // give them the greyed-out resting state that says "not available", rather
@@ -256,7 +407,7 @@ onMounted(async () => {
   opacity: 0.85;
 }
 
-// Matching the cursor convention style.css already uses for these two names on
+// Matching the cursor convention the global stylesheet already uses for these two names on
 // equipment cards: owned is a finished state, locked is a refusal.
 .btn-owned { cursor: default !important; }
 .btn-locked { cursor: not-allowed !important; }

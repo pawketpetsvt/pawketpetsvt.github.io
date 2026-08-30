@@ -203,6 +203,54 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.fishing-pond {
+  background: linear-gradient(180deg, #87CEEB 0%, #4682B4 100%);
+  border-radius: 12px;
+  height: 200px;
+  position: relative;
+  margin: 20px 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pond-text {
+  font-size: 1.2rem;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+.fishing-line {
+  position: absolute;
+  top: -50px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 3px;
+  height: 250px;
+  background: var(--purple-dark);
+  animation: cast-line 1.5s ease-out forwards;
+}
+.fishing-hook {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 2rem;
+}
+@media (max-width: 768px) {
+  #fishing-pond { height: 160px !important; }
+  #fishing-btn { font-size: 1rem !important; padding: 14px !important; min-height: 52px !important; }
+}
+
+@keyframes cast-line {
+  0% { top: -50px; }
+  100% { top: 20px; }
+}
+
 .fishing-pond {
   min-height: 90px;
 }

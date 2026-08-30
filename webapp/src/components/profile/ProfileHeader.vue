@@ -67,7 +67,7 @@ const pips = computed(() =>
 </script>
 
 <style lang="scss" scoped>
-// Deliberately NOT named `.pf-header`: the global style.css has
+// Deliberately NOT named `.pf-header`: the global stylesheet has
 // `[class*="header"] { justify-content: space-between !important }` plus
 // `[class*="header"] > * { display: inline-flex !important }` (style.css:
 // 11827-11850), which any class containing the substring "header" inherits.
@@ -90,7 +90,7 @@ const pips = computed(() =>
 // backdrop can work here. An opaque-enough dark pill with white text does, and
 // the light border keeps it from disappearing into the dark backgrounds.
 //
-// `!important` on the colors is load-bearing: style.css:61 sets
+// `!important` on the colors is load-bearing: legacy style.css:61 sets
 // `a { color: var(--purple-dark) !important }` and :62 the same for `a:hover`,
 // and an `!important` element selector beats a plain scoped class. That global
 // rule is also why this read as unreadable dark purple rather than white.

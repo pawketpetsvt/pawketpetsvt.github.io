@@ -180,7 +180,7 @@ onMounted(load)
 
 <style lang="scss" scoped>
 // Legacy built this entire modal from inline styles inside an HTML string —
-// there is no `.calendar-*` rule anywhere in style.css — so the component owns
+// there is no `.calendar-*` rule anywhere in the global stylesheet — so the component owns
 // all of it. Values carried over unchanged.
 .fc-loading {
   color: var(--text-light);

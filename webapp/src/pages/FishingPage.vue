@@ -218,6 +218,25 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.fishing-spot-btn, .fishing-bait-btn {
+  padding: 5px 10px; border-radius: 20px; border: 2px solid var(--border);
+  background: var(--white); cursor: pointer; font-size: 0.75rem;
+  transition: all 0.15s; font-family: inherit;
+}
+.fishing-spot-btn.active, .fishing-bait-btn.active {
+  border-color: var(--purple); background: rgba(153,102,255,0.1);
+  color: var(--purple-dark); font-weight: 700;
+}
+.fishing-spot-btn:hover, .fishing-bait-btn:hover { border-color: var(--purple); }
+@media (max-width: 768px) {
+  .fishing-result { font-size: 1rem !important; }
+}
+
 // Layout via Bootstrap utilities in the template; the max-widths (which
 // utilities can't express) and the visual treatments stay here.
 // `.fishing-card`'s old `grid-column: 1 / -1` was dropped: its parent has not

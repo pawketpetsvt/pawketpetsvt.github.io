@@ -145,7 +145,7 @@ class WeatherService {
     }
   }
 
-  // Only the body class is applied. style.css already carries every
+  // Only the body class is applied. the global stylesheet already carries every
   // `body.weather-*` rule — they survived the Phase 6.75 CSS cut precisely
   // because they are applied dynamically rather than written in the markup.
   apply() {

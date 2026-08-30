@@ -197,7 +197,7 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-// Grand Prix has no dedicated CSS in style.css — legacy built the whole panel
+// Grand Prix has no dedicated CSS in the global stylesheet — legacy built the whole panel
 // from inline styles. Layout and spacing are Bootstrap's now; what remains is
 // the colour treatment, the bar's drawn thickness and the transitions.
 .gp-title {

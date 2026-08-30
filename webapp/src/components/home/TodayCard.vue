@@ -1,6 +1,6 @@
 <template>
   <!-- Ports todayCard_render() — "Today in PawketPets", the Home page's status
-       board. All `.today-card*` classes are owned by style.css.
+       board. All `.today-card*` classes are owned by the global stylesheet.
 
        Both of legacy's previously-absent sections are live as of Phase 9.5:
        the mini-season banner and the featured community goal. Legacy renders
@@ -44,7 +44,7 @@
 
     <!-- Mini-season banner. `.today-card-season` is legacy's own rule for
          exactly this row — a gradient pill — and had been sitting unused in
-         style.css the whole time the system was unmigrated. -->
+         the global stylesheet the whole time the system was unmigrated. -->
     <div v-if="seasons.length" class="mt-2">
       <div v-for="s in seasons" :key="s.season_key" class="today-card-season">
         {{ s.icon || '🎪' }} <strong>{{ s.name || s.season_key }}</strong>
@@ -71,12 +71,19 @@
       <div class="today-card-worldstate">
         🖥️ Beta Integrity: {{ integrity }}%. {{ integrityDesc }}
         <button class="tc-integrity-info p-0 ps-1" title="What is this?" @click="explainIntegrity">❓</button>
+        <!-- The once-per-day limit is enforced by `perform_corruption_ritual`
+             (`user_corruption_ritual.last_ritual_date`) but was stated nowhere,
+             so a second attempt just returned an error the player had no way to
+             anticipate.
+
+             This note sits OUTSIDE `.today-card-ritual-buttons` deliberately.
+             That element is `display: flex` (legacy style.css:5724), so as a child the
+             note became a third flex item and took a share of the row — leaving
+             each button about a third of the width, at which point their labels
+             broke into a vertical stack. It is a caption for the row, not an
+             item in it. -->
+        <div class="tc-ritual-note mb-1">Each ritual shifts integrity by 1% · once per day</div>
         <div class="today-card-ritual-buttons">
-          <!-- The once-per-day limit is enforced by `perform_corruption_ritual`
-               (`user_corruption_ritual.last_ritual_date`) but was stated
-               nowhere, so a second attempt just returned an error the player
-               had no way to anticipate. -->
-          <div class="tc-ritual-note mb-1">Each ritual shifts integrity by 1% · once per day</div>
           <button class="today-card-ritual-btn purify" :disabled="ritualBusy"
             title="Spend 100 PP to raise Beta Integrity by ~1%" @click="ritual('purify')">
             🛠️ Debug (+1% · 100 PP)
@@ -193,8 +200,89 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.today-card {
+  background: linear-gradient(135deg, #f3ecff, #ffffff);
+  border: 3px solid #9966ff;
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  margin: 20px 0;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.2);
+}
+.today-card-title {
+  font-family: 'Fredoka One', cursive;
+  font-size: 1.15rem;
+  color: #7a3fd6;
+  margin-bottom: 10px;
+}
+.today-card-weather, .today-card-stats, .today-card-live {
+  font-size: 0.92rem;
+  color: var(--text);
+  padding: 6px 0;
+}
+.today-card-season {
+  font-size: 0.92rem;
+  color: var(--text);
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, rgba(255, 102, 204, 0.12), rgba(153, 102, 255, 0.12));
+  border: 1px solid rgba(153, 102, 255, 0.3);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.today-card-season:hover { transform: scale(1.01); }
+.today-card-worldstate {
+  font-size: 0.88rem;
+  font-style: italic;
+  color: #b899ff;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: rgba(153, 102, 255, 0.06);
+  border-left: 3px solid #9966ff;
+  border-radius: 8px;
+}
+.today-card-ritual-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  font-style: normal;
+}
+.today-card-ritual-btn {
+  flex: 1;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s ease;
+}
+.today-card-ritual-btn:hover { transform: scale(1.03); }
+.today-card-ritual-btn.purify {
+  background: linear-gradient(135deg, #ffe89e, #fff6d9);
+  color: #8a6d00;
+}
+.today-card-ritual-btn.corrupt {
+  background: linear-gradient(135deg, #4a3466, #6b4a8e);
+  color: #f0e0ff;
+}
+.today-card-icon { font-size: 1.1rem; }
+.today-card-live {
+  color: #e0245e;
+  font-weight: 600;
+}
+body.night-mode .today-card { background: rgba(255,255,255,0.04) !important; }
+@media (max-width: 768px) {
+  .today-card { padding: 12px !important; }
+}
+
 // The season banner and featured-goal rows are new to this card in the Vue app;
-// style.css has no rule for either, so they are defined here.
+// the global stylesheet has no rule for either, so they are defined here.
 
 .tc-goal { background: rgba(153, 102, 255, 0.06); }
 
@@ -213,7 +301,7 @@ onMounted(async () => {
 .tc-goal-meta { font-size: 0.72rem; color: var(--text-light); }
 
 // `.today-card-worldstate`, `.today-card-ritual-buttons` and
-// `.today-card-ritual-btn` are owned by style.css. The tooltip button and the
+// `.today-card-ritual-btn` are owned by the global stylesheet. The tooltip button and the
 // ritual note have no rule anywhere — legacy styled the note inline and gave
 // `.beta-integrity-tooltip` no definition at all — so they live here.
 .tc-integrity-info {

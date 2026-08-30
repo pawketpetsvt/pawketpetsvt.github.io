@@ -56,7 +56,7 @@ const subtitle = computed(() => 'Beta testing records · partial recovery')
 
 <style lang="scss" scoped>
 // Legacy built this modal from an inline-styled HTML string; the only related
-// rule in style.css is `.archive-widget-pulse`, which belongs to the home
+// rule in the global stylesheet is `.archive-widget-pulse`, which belongs to the home
 // widget rather than to this panel.
 .ar-bar-row {
   font-size: 0.78rem;

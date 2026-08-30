@@ -146,6 +146,102 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.leaderboard-tab {
+  flex: 1;
+  min-width: 150px;
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.leaderboard-tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--purple);
+  transform: translateY(-2px);
+}
+.leaderboard-tab.active {
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  border-color: var(--pink);
+  color: white;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.4);
+}
+.leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  transition: all 0.3s ease;
+}
+.leaderboard-item:hover {
+  border-color: var(--purple);
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.2);
+}
+.leaderboard-rank {
+  font-size: 1.5rem;
+  font-weight: 700;
+  min-width: 50px;
+  text-align: center;
+  color: var(--text-light);
+}
+.leaderboard-rank.top1 {
+  color: #FFD700;
+  font-size: 2rem;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+}
+.leaderboard-rank.top2 {
+  color: #C0C0C0;
+  font-size: 1.8rem;
+  text-shadow: 0 0 10px rgba(192, 192, 192, 0.5);
+}
+.leaderboard-rank.top3 {
+  color: #CD7F32;
+  font-size: 1.6rem;
+  text-shadow: 0 0 10px rgba(205, 127, 50, 0.5);
+}
+.leaderboard-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), var(--pink));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+.leaderboard-username {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.leaderboard-stats {
+  font-size: 0.9rem;
+  color: var(--text-light);
+}
+.leaderboard-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--yellow);
+  white-space: nowrap;
+}
+.leaderboard-item { cursor: pointer; }
+.leaderboard-item:active { transform: translateX(4px) scale(0.98); }
+
 // Layout is Bootstrap utilities in the template throughout this file; these
 // rules carry only what utilities can't express — the game's colors, the
 // active-tab treatment, and the fixed avatar/rank sizing.

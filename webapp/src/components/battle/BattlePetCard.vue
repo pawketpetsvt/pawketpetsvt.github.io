@@ -1,7 +1,7 @@
 <template>
   <!-- Ports the card built inline by loadBattlePets() (game.js:11255-11400).
        `battle-pet-card` and its `-name`/`-level`/`-stats`/`battle-pet-stat*`
-       children are all styled by the root style.css, so this component only
+       children are all styled by the global stylesheet, so this component only
        supplies markup plus the energy bar, which legacy wrote inline. -->
   <div class="battle-pet-card" :class="{ selected }" @click="$emit('select', pet.id)">
     <div class="pp-portrait">
@@ -80,6 +80,75 @@ const energyColor = computed(() =>
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.battle-pet-card {
+  background: white;
+  border: 3px solid var(--purple-light);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.battle-pet-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 6px 20px rgba(176, 106, 255, 0.2);
+  border-color: var(--purple);
+}
+.battle-pet-card.selected {
+  border-color: var(--purple);
+  background: linear-gradient(135deg, rgba(176, 106, 255, 0.1), rgba(255, 107, 157, 0.1));
+  border-width: 4px;
+}
+.battle-pet-card img {
+  width: 80px;
+  height: 80px;
+  object-fit: contain;
+}
+.battle-pet-card-name {
+  font-weight: bold;
+  color: var(--purple-dark);
+  margin-top: 8px;
+  font-size: 1rem;
+}
+.battle-pet-card-level {
+  color: var(--text-light);
+  font-size: 0.85rem;
+  margin-top: 4px;
+}
+.battle-pet-card-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--purple-light);
+  font-size: 0.75rem;
+}
+.battle-pet-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.battle-pet-stat-label {
+  color: var(--text-light);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.5px;
+}
+.battle-pet-stat-value {
+  font-weight: bold;
+  color: var(--purple);
+  font-size: 0.9rem;
+}
+@media (max-width: 768px) {
+  .battle-pet-card { padding: 10px 6px !important; font-size: 0.85rem !important; }
+}
+
 .pp-portrait {
   width: 72px;
   height: 72px;

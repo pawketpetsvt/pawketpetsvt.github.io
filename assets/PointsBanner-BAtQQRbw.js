@@ -1,0 +1,1 @@
+import{_ as n,o,c as a,a as t,t as r}from"./index-4xlo0NDG.js";const p={class:"points-banner"},c={class:"pb-amount"},i={__name:"PointsBanner",props:{points:{type:Number,required:!0}},setup(e){return(_,s)=>(o(),a("div",p,[s[0]||(s[0]=t("span",{class:"pb-label"},"🪙 Your PawketPoints",-1)),t("span",c,r(e.points)+" PP",1)]))}},d=n(i,[["__scopeId","data-v-2ed22655"]]);export{d as P};

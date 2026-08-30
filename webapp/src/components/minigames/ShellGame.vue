@@ -148,6 +148,23 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.shell-stats {
+  text-align: center;
+  margin-bottom: 20px;
+  font-size: 1.1rem;
+}
+.shell.shuffle { animation: shell-shuffle 0.4s ease-in-out; }
+
+@keyframes shell-shuffle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-20px); }
+}
+
 .shell-row-wrap {
   position: relative;
   height: 84px;

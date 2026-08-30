@@ -36,7 +36,7 @@ const pct = computed(() => questService.percent(props.petId))
 </script>
 
 <style lang="scss" scoped>
-// Legacy built this widget inline; there is no `.quest-*` rule in style.css.
+// Legacy built this widget inline; there is no `.quest-*` rule in the global stylesheet.
 .pq-widget {
   background: linear-gradient(135deg, rgba(255, 215, 0, 0.08), rgba(153, 102, 255, 0.06));
   border: 1px solid rgba(255, 215, 0, 0.25);

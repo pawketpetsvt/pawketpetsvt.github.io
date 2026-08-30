@@ -157,7 +157,7 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 // `.game-card`, `.game-title`, `.game-desc` and `.game-reward` are the shared
-// minigame classes owned by style.css; everything below is this game's own.
+// minigame classes owned by the global stylesheet; everything below is this game's own.
 .pr-block { margin-bottom: 12px; }
 
 .pr-label {

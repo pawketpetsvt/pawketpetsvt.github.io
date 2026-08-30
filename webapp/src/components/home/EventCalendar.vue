@@ -1,6 +1,6 @@
 <template>
   <!-- Ports renderEventCalendar() — the "This Week" strip. Every class here
-       (`.event-calendar-widget`, `.event-cal-*`) is owned by style.css; only
+       (`.event-calendar-widget`, `.event-cal-*`) is owned by the global stylesheet; only
        the per-day accent colours live inline, as they do in legacy, because
        they come from the data. -->
   <div class="event-calendar-widget">
@@ -53,6 +53,33 @@ function announce(d) {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.event-calendar-widget { padding: 2px 0 4px; }
+.event-cal-header { font-weight: 700; font-size: 0.78rem; color: var(--purple-dark); margin-bottom: 8px; }
+.event-cal-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-bottom: 8px; }
+.event-cal-day {
+  text-align: center; padding: 4px 2px; border-radius: 6px;
+  border: 1px solid var(--border); cursor: default;
+  transition: transform 0.15s;
+}
+.event-cal-day:hover { transform: scale(1.08); z-index: 2; position: relative; }
+.event-cal-today {
+  background: rgba(153,102,255,0.12);
+  border-color: var(--purple);
+  box-shadow: 0 0 0 2px rgba(153,102,255,0.3);
+}
+.event-cal-day-label { font-size: 0.55rem; color: var(--text-light); margin-bottom: 2px; }
+.event-cal-day-icon { font-size: 1rem; line-height: 1; }
+.event-cal-today-banner {
+  display: flex; align-items: center; gap: 10px;
+  border: 2px solid; border-radius: 10px;
+  padding: 8px 10px;
+}
+
 // `.event-cal-day` is a <button> here rather than legacy's clickable <div>, so
 // it needs the browser's button chrome removed to look identical.
 .event-cal-day {

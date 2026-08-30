@@ -3,39 +3,39 @@
 // ═══════════════════════════════════════════════════════════════════════════
 //
 // This deliberately does NOT import the full Bootstrap bundle. Pawket Pets has
-// its own established visual identity in the root style.css, and the goal of
+// its own established visual identity in the global stylesheet, and the goal of
 // this phase is a maintainability refactor with the look preserved exactly —
 // so we take Bootstrap's layout engine and utility classes, and nothing that
 // restyles existing markup.
 //
 // Excluded on purpose, each for a concrete reason:
 //   • reboot      — restyles base elements (body font/bg, heading sizes, list
-//                   and paragraph margins). style.css already owns all of that.
+//                   and paragraph margins). the global stylesheet already owns all of that.
 //   • buttons     — the game defines its own .btn/.btn-primary/.btn-outline/
-//                   .btn-sm/.btn-danger/.btn-success (23 rules in style.css);
+//                   .btn-sm/.btn-danger/.btn-success (23 rules in the global stylesheet);
 //                   Bootstrap's would fight them for the same class names.
 //   • forms, type, tables, and every component (card/modal/dropdown/nav/...)
 //                 — same collision risk (.card, .modal, .nav-tabs, .spinner-*
-//                   and friends all already exist in style.css), and none are
+//                   and friends all already exist in the global stylesheet), and none are
 //                   needed for a grid/utility refactor.
 //
 // What we DO get: container/container-fluid, row, col-*, offset-*, g-* gutters,
 // and the full utilities API (d-*, flex-*, justify-*, align-*, gap-*, m-*/p-*,
 // text-*, w-*/h-*, position-*, border-*, rounded-*, etc).
 //
-// Load order note (see main.js): this is imported AFTER style.css. Bootstrap 5
+// Load order note (see main.js): this is imported AFTER the global stylesheet. Bootstrap 5
 // generates utilities with !important by default ($enable-important-utilities),
-// and style.css is itself saturated with !important — so equal-specificity
+// and the global stylesheet is itself saturated with !important — so equal-specificity
 // ties are broken by source order, and loading later is what lets an applied
 // utility class actually take effect. Grid classes (.row/.col-*) are NOT
 // !important, so any legacy rule still using !important on a converted element
-// must be deleted from style.css in the same change — the same strangler-fig
+// must be deleted from the global stylesheet in the same change — the same strangler-fig
 // discipline used for game.js throughout this migration.
 
 // ── Required Bootstrap core ────────────────────────────────────────────────
 @import "bootstrap/scss/functions";
 
-// Map the game's palette (style.css :root) onto Bootstrap's theme colors so
+// Map the game's palette (the global stylesheet :root) onto Bootstrap's theme colors so
 // utilities like .text-primary / .bg-secondary / .border-info speak Pawket
 // Pets' language instead of Bootstrap's default blues. Set before `variables`
 // so Bootstrap's own !default assignments pick these up.

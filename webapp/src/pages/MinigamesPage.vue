@@ -63,7 +63,7 @@ onMounted(() => {
 
 <style lang="scss" scoped>
 // The game cards are laid out by `.game-card` (flex column) in the root
-// style.css, so every element below the description inherits its height —
+// the global stylesheet, so every element below the description inherits its height —
 // meaning a 2-line blurb and a 3-line blurb pushed the reward badge and the
 // game area to different heights across a row. Reserving the tallest case
 // (3 lines at 0.95rem/1.6) lines the badges and play areas up with each other.

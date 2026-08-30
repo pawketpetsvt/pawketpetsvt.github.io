@@ -1,12 +1,88 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+  <meta name="google-site-verification" content="PNDqKN38mIuTzp6-ZSfQpOxNB7cyucgDPtgeEQhvjQ4" />
   <meta charset="UTF-8" />
+
+  <!-- Carried over from the legacy index.html head verbatim except for
+       `script-src`. Legacy served hand-written classic scripts; this build
+       serves a hashed ES module from the same origin, so 'self' covers it and
+       'unsafe-eval' is no longer needed by the app itself. Everything else is
+       unchanged: the Supabase project, Twitch's OAuth and API hosts, and
+       Google Analytics all still need to be reachable, and `https:` in
+       default-src is what lets the bundled CSS pull Google Fonts. -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' 'unsafe-inline' https: data: blob:; connect-src 'self' https://hqzugbxutgefjilgmxqu.supabase.co https://*.supabase.co https://id.twitch.tv https://api.twitch.tv https://www.googletagmanager.com https://www.google-analytics.com data: blob:;">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PawketPetsVT (Vue POC)</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="/images/icons/pawketpoint.png">
+
+  <!-- Chewy / Fredoka / Bubblegum Sans, the three faces every page paints with.
+       These used to arrive via an `@import url(...)` at the top of style.css,
+       which cannot begin downloading until the stylesheet itself has parsed —
+       the round trip those preconnects existed to soften. Requesting the
+       stylesheet directly here removes the serialisation instead of hiding it,
+       and the preconnects now warm a request that starts immediately. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chewy&family=Fredoka:wght@400;500;600;700&family=Bubblegum+Sans&display=swap">
+
+  <!-- SEO Meta Tags -->
+  <title>PawketPetsVT - Adopt Your Favorite VTuber's Digital Pet!</title>
+  <meta name="description"
+    content="Adopt digital pets of your favorite VTubers! Play minigames, battle friends, earn rewards by chatting in Embertail & Pyxshuul's Twitch streams. Free virtual pet game with live Twitch integration.">
+  <meta name="keywords"
+    content="virtual pet game, vtuber game, twitch game, pet simulator, online pet game, embertail, pyxshuul, pawketpets, digital pets, browser game, free game">
+  <meta name="author" content="PawketPetsVT">
+  <meta name="robots" content="index, follow">
+
+  <!-- Canonical and every absolute URL below point at pawketpets.net, NOT
+       pawketpetsvt.github.io as the legacy head did. CNAME makes .net the
+       served host and GitHub 301s the github.io address to it, so the old
+       tags named a URL that redirects — which asks crawlers to canonicalise
+       to a host that immediately sends them somewhere else, and leaves social
+       scrapers that don't follow redirects unable to fetch the preview image. -->
+  <link rel="canonical" href="https://pawketpets.net/">
+
+  <!-- Open Graph / Facebook / Discord -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pawketpets.net/">
+  <meta property="og:title" content="PawketPetsVT - Adopt Your Favorite VTuber's Pet!">
+  <meta property="og:description"
+    content="Free virtual pet game! Adopt Embertail or Pyxshuul, play minigames, battle friends, and earn rewards chatting in Twitch streams.">
+  <meta property="og:image" content="https://pawketpets.net/images/social-preview.png">
+  <meta property="og:site_name" content="PawketPetsVT">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://pawketpets.net/">
+  <meta name="twitter:title" content="PawketPetsVT - VTuber Virtual Pet Game">
+  <meta name="twitter:description"
+    content="Adopt Embertail & Pyxshuul! Earn rewards chatting in streams, battle friends, play minigames. Free!">
+  <meta name="twitter:image" content="https://pawketpets.net/images/twitter-card.png">
+
+  <!-- Theme Color -->
+  <meta name="theme-color" content="#b06aff">
+
+  <!-- Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-0BZB5MHSLQ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', 'G-0BZB5MHSLQ');
+  </script>
 </head>
+
+<!-- Legacy opened its body tag as `class="three-column-layout"`. That class has
+     zero rules in style.css and zero references in the app; it is residue from
+     an older markup revision, so it is not carried over. -->
+
 <body>
   <div id="app"></div>
   <script type="module" src="/src/main.js"></script>
 </body>
+
 </html>

@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Host is pawketpets.net (see CNAME). Listing the pawketpetsvt.github.io URLs
+  instead would point crawlers at a 301 rather than the canonical page.
+
+  Only static, crawlable pages belong here. The game is a hash-routed SPA, so
+  its individual tabs have no separately crawlable URLs, and secret.html is
+  deliberately left out — being found rather than indexed is the point of it.
+
+  The two SEO landing pages that used to be listed here, items/golden-spoon.html
+  and zones/deepwoods.html, were removed from the project entirely: they were
+  early leftovers, reachable from nothing in either the current app or the
+  original site.
+-->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://pawketpetsvt.github.io/</loc>
+    <loc>https://pawketpets.net/</loc>
     <priority>1.0</priority>
-  </url>
-  <url>
-    <loc>https://pawketpetsvt.github.io/pets/embertail.html</loc>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://pawketpetsvt.github.io/items/golden-spoon.html</loc>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://pawketpetsvt.github.io/zones/deepwoods.html</loc>
-    <priority>0.8</priority>
   </url>
 </urlset>

@@ -94,6 +94,37 @@ async function handleLogin() {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.landing-v2-feature { display:flex; align-items:flex-start; gap:10px; padding:8px 0; border-bottom:1px solid rgba(153,102,255,0.08); }
+.landing-v2-feature:last-child { border-bottom:none; }
+.landing-v2-feature-icon { font-size:1.3rem; flex-shrink:0; margin-top:2px; }
+.landing-v2-features {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.landing-v2-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.landing-v2-badges span {
+  background: linear-gradient(135deg,rgba(153,102,255,0.1),rgba(255,102,204,0.07));
+  border: 1px solid rgba(153,102,255,0.25);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--purple-dark);
+}
+@media (max-width: 640px) {
+  .landing-v2-features { grid-template-columns: 1fr; }
+}
+
 // LoginPage has no styling of its own — the auth pages sit outside AppShell
-// and are covered by the `.form-card` / `.landing-v2-*` rules in style.css.
+// and are covered by the `.form-card` / `.landing-v2-*` rules in the global stylesheet.
 </style>

@@ -7,7 +7,7 @@
     </div>
     <PointsBanner :points="points" />
 
-    <!-- No layout utilities here on purpose: style.css already owns
+    <!-- No layout utilities here on purpose: the global stylesheet already owns
          `.shop-tabs` entirely (flex, 10px gap, centered, 28px margin). Adding
          utilities would silently override those values rather than preserve
          them — only convert what the component itself styles. -->
@@ -323,6 +323,172 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.shop-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 24px 20px !important;
+  text-align: center !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.25) !important;
+  transition: all 0.3s !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+.shop-card:hover {
+  transform: translateY(-8px) scale(1.02) !important;
+  box-shadow: 0 16px 40px rgba(153,102,255,0.35) !important;
+}
+.shop-item-icon {
+  width: 100px !important;
+  height: 100px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  border: 4px solid var(--purple) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 3.5rem !important;
+  margin: 0 auto 8px !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.3) !important;
+  overflow: hidden !important;
+}
+.shop-item-icon img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+.shop-item-name {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.4rem !important;
+  color: var(--purple-dark) !important;
+  font-weight: 600 !important;
+  margin-top: 4px !important;
+  text-shadow: 1px 1px 0 var(--pink-light) !important;
+}
+.shop-item-desc {
+  font-size: 0.9rem !important;
+  color: var(--text) !important;
+  line-height: 1.6 !important;
+  flex: 1 !important;
+  font-weight: 500 !important;
+  min-height: 40px !important;
+}
+.shop-effects {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+  justify-content: center !important;
+  margin: 8px 0 !important;
+}
+.effect-tag {
+  background: linear-gradient(135deg, var(--green), #3ab85a) !important;
+  color: var(--white) !important;
+  font-size: 0.75rem !important;
+  padding: 4px 10px !important;
+  border-radius: 15px !important;
+  border: 2px solid rgba(255,255,255,0.5) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 2px 6px rgba(93,222,122,0.3) !important;
+  font-family: 'Fredoka', cursive !important;
+}
+.shop-item-price {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--purple-dark) !important;
+  background: var(--purple-light) !important;
+  padding: 8px 20px !important;
+  border-radius: 25px !important;
+  border: 2px solid var(--purple) !important;
+  font-weight: 600 !important;
+  margin: 4px 0 !important;
+}
+.btn-buy {
+  width: 100% !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.05rem !important;
+  padding: 12px 24px !important;
+  border-radius: 30px !important;
+  background: linear-gradient(135deg, var(--yellow), var(--orange)) !important;
+  color: var(--text) !important;
+  border: 3px solid rgba(255,255,255,0.5) !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(255,153,51,0.3) !important;
+}
+.btn-buy:hover:not(:disabled) {
+  transform: translateY(-3px) !important;
+  box-shadow: 0 6px 16px rgba(255,153,51,0.4) !important;
+}
+.btn-buy:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  background: #ccc !important;
+  color: #888 !important;
+}
+.inv-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 20px !important;
+  text-align: center !important;
+  box-shadow: 0 6px 20px rgba(153,102,255,0.2) !important;
+  transition: all 0.3s !important;
+}
+.inv-card:hover {
+  transform: translateY(-6px) !important;
+  box-shadow: 0 12px 30px rgba(153,102,255,0.3) !important;
+}
+.inv-item-icon {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 50% !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  border: 3px solid var(--purple) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 3rem !important;
+  margin: 0 auto 10px !important;
+  box-shadow: 0 4px 12px rgba(153,102,255,0.25) !important;
+}
+.inv-item-name {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--purple-dark) !important;
+  font-weight: 600 !important;
+  margin-bottom: 6px !important;
+}
+.inv-item-qty {
+  font-size: 0.95rem !important;
+  color: var(--text-light) !important;
+  font-weight: 700 !important;
+  background: rgba(153,102,255,0.1) !important;
+  padding: 4px 12px !important;
+  border-radius: 15px !important;
+  display: inline-block !important;
+  margin-top: 6px !important;
+}
+.shop-item-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  min-height: 52px;
+}
+@media (max-width: 768px) {
+  .shop-item-name { font-size: 0.85rem !important; }
+  .shop-item-price { font-size: 0.8rem !important; }
+  .btn-buy { font-size: 0.78rem !important; padding: 7px !important; }
+}
+
 // Shown only while a guild discount perk is running.
 .shop-price-was {
   text-decoration: line-through;

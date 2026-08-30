@@ -1,6 +1,6 @@
 // Shared styling for the three admin surfaces (polls, reports, Grand Prix).
 // Legacy built each of these from inline styles inside a template string, and
-// there is no `.admin-*` rule in style.css that covers them, so the styling is
+// there is no `.admin-*` rule in the global stylesheet that covers them, so the styling is
 // owned here — imported into each admin component's scoped block rather than
 // copied three times.
 

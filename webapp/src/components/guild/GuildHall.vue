@@ -209,7 +209,54 @@ onMounted(load)
 </script>
 
 <style lang="scss" scoped>
-// style.css owns .guild-furniture-grid and .guild-furniture-slot (+ .filled /
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.guild-furniture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.guild-furniture-slot {
+  border-radius: 14px;
+  padding: 10px 6px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 90px;
+  justify-content: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.guild-furniture-slot.filled {
+  background: linear-gradient(135deg, rgba(153,102,255,0.12), rgba(255,102,204,0.08));
+  border: 2px solid rgba(153,102,255,0.35);
+  cursor: default;
+}
+.guild-furniture-slot.filled:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(153,102,255,0.25);
+}
+.guild-furniture-slot.empty {
+  background: rgba(255,255,255,0.03);
+  border: 2px dashed rgba(153,102,255,0.2);
+}
+@media (max-width: 768px) {
+  .guild-furniture-grid {
+    grid-template-columns: repeat(auto-fill, minmax(75px, 1fr));
+    gap: 8px;
+  }
+  .guild-furniture-slot {
+    min-height: 80px;
+    padding: 8px 4px;
+  }
+}
+
+// the global stylesheet owns .guild-furniture-grid and .guild-furniture-slot (+ .filled /
 // .empty). The rest was inline in legacy's template string.
 .gh-title {
   color: var(--purple);

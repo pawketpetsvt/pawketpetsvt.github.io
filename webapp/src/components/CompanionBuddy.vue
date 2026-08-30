@@ -3,7 +3,7 @@
        companion floats in the bottom-right corner of every page, drifting up and
        down, speaking every so often, and reacting when you pat it.
 
-       Every class here is owned by the root style.css (`#companion-buddy`,
+       Every class here is owned by the global stylesheet (`#companion-buddy`,
        `.companion-sprite`, `.companion-bubble`, `.companion-message`, the
        `.pet-variant-*` particle effects, and the `companionFloat` /
        `companionPatFloat` keyframes), so this component carries almost no
@@ -96,9 +96,98 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.companion-sprite {
+  position: relative;
+  transition: filter 0.4s ease, opacity 0.4s ease;
+}
+#companion-buddy {
+  position: fixed !important;
+  bottom: 20px !important;
+  right: 20px !important;
+  z-index: 1500;
+  pointer-events: none;
+}
+#companion-buddy .companion-sprite {
+  pointer-events: all !important;
+  cursor: pointer !important;
+}
+.companion-sprite {
+  width: 80px;
+  height: 80px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.2));
+  animation: companionFloat 3s ease-in-out infinite;
+}
+.companion-bubble {
+  position: absolute;
+  bottom: 90px;
+  right: 0;
+  min-width: 200px;
+  max-width: 280px;
+  background: white;
+  border: 3px solid var(--purple);
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px rgba(153, 102, 255, 0.3);
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+  transition: all 0.3s ease;
+  pointer-events: auto;
+}
+.companion-bubble.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+.companion-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -12px;
+  right: 30px;
+  width: 0;
+  height: 0;
+  border-left: 12px solid transparent;
+  border-right: 12px solid transparent;
+  border-top: 12px solid var(--purple);
+}
+.companion-message {
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+#companion-buddy {
+  position: fixed !important; /* override any later position:relative that breaks fixed */
+  bottom: 20px !important;
+  right: 20px !important;
+  left: auto !important;
+  z-index: 1500;
+  pointer-events: none;
+}
+.companion-sprite { position: relative; /* needed so variant particles anchor to the sprite, not the page */ }
+@media (max-width: 768px) {
+  #companion-buddy { display: none !important; }
+  #companion-buddy {
+    bottom: 50px !important; /* above the stats bar */
+    right: 6px !important;
+  }
+  .companion-sprite { width: 60px !important; height: 60px !important; }
+  .companion-bubble { max-width: 160px !important; font-size: 0.72rem !important; }
+}
+
+@keyframes companionFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
 // The pat floater. Legacy built this as an inline cssText blob on a
 // body-appended div; the keyframes it animates (`companionPatFloat`) are already
-// in style.css and are reused as-is.
+// in the global stylesheet and are reused as-is.
 // Positioned inline from the click coordinates, so `position: fixed` stays with
 // the offsets it belongs to rather than moving to a utility.
 .pp-pat-float {

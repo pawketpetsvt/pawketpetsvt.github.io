@@ -247,6 +247,172 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.cooking-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: color 0.2s, border-color 0.2s;
+  border-radius: 0;
+  margin-bottom: -2px;
+}
+.cooking-tab-btn.active, .cooking-tab-btn:hover {
+  color: var(--purple);
+  border-bottom-color: var(--purple);
+}
+.cooking-ingredient-card {
+  background: var(--card-bg);
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 8px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  user-select: none;
+  position: relative;
+}
+.cooking-ingredient-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--purple-light);
+  box-shadow: 0 4px 12px rgba(153,102,255,0.18);
+}
+.cooking-ingredient-card.out-of-stock {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+}
+.cooking-ingredient-card .ing-emoji {
+  font-size: 1.6rem;
+  display: block;
+  margin-bottom: 3px;
+}
+.cooking-ingredient-card .ing-name {
+  font-size: 0.62rem;
+  color: var(--text-light);
+  line-height: 1.2;
+  display: block;
+}
+.cooking-ingredient-card .ing-count {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--purple);
+}
+.cooking-slot {
+  background: rgba(153,102,255,0.06);
+  border: 2px dashed var(--border);
+  border-radius: 12px;
+  height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  font-size: 1.4rem;
+  gap: 2px;
+  position: relative;
+}
+.cooking-slot:hover {
+  border-color: var(--purple-light);
+  background: rgba(153,102,255,0.1);
+}
+.cooking-slot.filled {
+  border-style: solid;
+  border-color: var(--purple-light);
+  background: rgba(153,102,255,0.1);
+}
+.cook-slot-label {
+  font-size: 1.5rem;
+  color: var(--text-light);
+  opacity: 0.4;
+}
+.cook-slot-ing-name {
+  font-size: 0.58rem;
+  color: var(--purple-dark);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 4px;
+}
+.cooking-recipe-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cooking-recipe-card .recipe-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+.cooking-recipe-card .recipe-info {
+  flex: 1;
+  min-width: 0;
+}
+.cooking-recipe-card .recipe-name {
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--purple-dark);
+}
+.cooking-recipe-card .recipe-ingredients {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+.cooking-recipe-card .recipe-effect {
+  font-size: 0.75rem;
+  color: #5dde7a;
+  margin-top: 3px;
+}
+.cooking-discovery-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(153,102,255,0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  pointer-events: none;
+  animation: discovery-flash 2.2s ease forwards;
+}
+.cooking-discovery-box {
+  background: linear-gradient(135deg, #1a1a2e, #2a1a4a);
+  border: 3px solid var(--purple);
+  border-radius: 20px;
+  padding: 28px 36px;
+  text-align: center;
+  box-shadow: 0 8px 40px rgba(153,102,255,0.5);
+}
+.cooking-all-ing-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(153,102,255,0.08);
+  font-size: 0.82rem;
+}
+
+@keyframes discovery-flash {
+  0%   { opacity: 0; transform: scale(0.6); }
+  30%  { opacity: 1; transform: scale(1.08); }
+  70%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.0); }
+}
+
 // Layout comes from Bootstrap utilities in the template; the underline that
 // defines this tab strip visually stays here.
 .cooking-subtabs {

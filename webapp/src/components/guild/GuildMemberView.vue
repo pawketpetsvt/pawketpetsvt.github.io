@@ -298,7 +298,7 @@ onMounted(loadPets)
 }
 
 // As with the browser, legacy built all of this inline — no `.guild-*` rules
-// exist in style.css, so everything is owned here.
+// exist in the global stylesheet, so everything is owned here.
 // `margin-inline: auto` is what centres this in the page column. Without it a
 // max-width block sits hard against the left edge and leaves all the slack on
 // the right — which is how this rendered from the day it was written.

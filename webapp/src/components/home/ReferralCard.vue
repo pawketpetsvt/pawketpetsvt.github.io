@@ -1,6 +1,6 @@
 <template>
   <!-- Ports the `.referral-card` block and loadReferralData()'s milestone
-       panel. All `.referral-*` classes are owned by style.css; the milestone
+       panel. All `.referral-*` classes are owned by the global stylesheet; the milestone
        rows were built from inline styles in legacy and are owned here. -->
   <div v-if="data" class="referral-card">
     <div class="referral-header">
@@ -102,8 +102,118 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.referral-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.referral-icon { font-size: 2rem; }
+.referral-header h3 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: white;
+}
+.referral-description {
+  color: rgba(255, 255, 255, 0.9);
+  margin-bottom: 20px;
+  line-height: 1.5;
+}
+.referral-rewards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.referral-reward {
+  background: rgba(255, 255, 255, 0.15);
+  padding: 12px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  backdrop-filter: blur(10px);
+}
+.referral-reward-icon { font-size: 1.5rem; }
+.referral-reward-text {
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.referral-reward-text strong {
+  display: block;
+  margin-bottom: 2px;
+}
+.referral-link-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.referral-link-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-family: monospace;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.referral-link-input:focus {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.25);
+}
+.referral-copy-btn {
+  padding: 12px 24px;
+  background: rgba(255, 255, 255, 0.25);
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.referral-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+.referral-copy-btn:active { transform: translateY(0); }
+.referral-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+.referral-stat-label {
+  display: block;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 4px;
+}
+.referral-stat-value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: bold;
+  color: white;
+}
+body.night-mode .referral-header, body.night-mode .referral-description, body.night-mode .referral-reward-text { color: #e8d5ff !important; }
+@media (max-width: 768px) {
+  .referral-rewards { grid-template-columns: 1fr; }
+  .referral-link-container { flex-direction: column; }
+}
+
 // `.referral-card` is a dark blue→purple gradient with `color: white`
-// (style.css:5953), and every class style.css owns inside it uses white or
+// (legacy style.css:5953), and every class the global stylesheet owns inside it uses white or
 // rgba-white accordingly. Legacy's milestone panel was built from inline styles
 // written against the PAGE background — `var(--purple-dark)` headings,
 // `var(--text-light)` sub-text, `#aaa` for completed rows — none of which is

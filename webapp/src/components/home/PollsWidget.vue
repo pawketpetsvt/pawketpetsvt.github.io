@@ -75,8 +75,60 @@ onMounted(() => pollService.load())
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.polls-widget {
+  background: var(--cream, #fff9ff);
+  border: 2px solid var(--border, #cc99ff);
+  border-radius: 16px;
+  padding: 16px;
+}
+.polls-widget-header {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--purple, #9966ff);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.polls-badge {
+  background: var(--purple, #9966ff);
+  color: white;
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 0.8rem;
+}
+.poll-widget-item {
+  border-top: 1px solid var(--border, #cc99ff);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.poll-widget-item:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+.poll-widget-question { font-weight: 600; font-size: 0.9rem; margin-bottom: 4px; }
+.poll-widget-timer { font-size: 0.78rem; color: var(--text-light, #888); margin-bottom: 8px; }
+.poll-option {
+  padding: 8px 12px;
+  border: 1.5px solid var(--border, #cc99ff);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: 0.85rem;
+}
+.poll-option:hover { background: rgba(153,102,255,0.08); border-color: var(--purple, #9966ff); }
+.poll-option-chosen { background: rgba(153,102,255,0.12); border-color: var(--purple, #9966ff); font-weight: 600; }
+.poll-option-label { margin-bottom: 4px; }
+body.night-mode .polls-widget { background: rgba(42,36,64,0.9); border-color: #6644aa; }
+body.night-mode .poll-option { border-color: #6644aa; }
+body.night-mode .poll-option:hover { background: rgba(153,102,255,0.15); }
+body.night-mode .poll-widget-question, body.night-mode .poll-option-label { color: #e8d5ff; }
+
 // `.polls-widget`, `.polls-widget-header`, `.polls-badge` and `.poll-option`
-// are owned by style.css. `.poll-widget-item`, `.poll-widget-question` and
+// are owned by the global stylesheet. `.poll-widget-item`, `.poll-widget-question` and
 // `.poll-widget-timer` have no rule anywhere — legacy relied on `.poll-option`
 // alone and left the rest unstyled — so they live here, as do the result bars.
 // The only structural rule left: an adjacent-sibling divider, which Bootstrap

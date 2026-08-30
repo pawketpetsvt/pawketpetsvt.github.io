@@ -117,7 +117,7 @@ async function page(dir) {
 
 <style lang="scss" scoped>
 // Legacy built this whole view from inline styles inside a template string —
-// there is no `.guild-*` rule anywhere in style.css to inherit from, so the
+// there is no `.guild-*` rule anywhere in the global stylesheet to inherit from, so the
 // component owns all of it.
 .gd-invites {
   background: rgba(153, 102, 255, 0.08);

@@ -109,6 +109,48 @@ onUnmounted(() => clearInterval(timer))
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.typing-stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+.typing-target {
+  background: var(--card-bg);
+  border: 2px dashed var(--purple);
+  border-radius: 12px;
+  padding: 20px;
+  margin: 20px 0;
+  font-size: 1.8rem;
+  font-weight: bold;
+  text-align: center;
+  color: var(--purple-dark);
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.typing-input {
+  width: 100%;
+  padding: 15px;
+  font-size: 1.2rem;
+  border: 2px solid var(--purple);
+  border-radius: 12px;
+  margin-bottom: 15px;
+  text-align: center;
+  font-family: 'Fredoka', cursive;
+}
+.typing-input:focus {
+  outline: none;
+  border-color: var(--pink);
+  box-shadow: 0 0 0 3px rgba(255, 102, 204, 0.2);
+}
+
 .new-best-badge {
   color: #ffd700;
 }

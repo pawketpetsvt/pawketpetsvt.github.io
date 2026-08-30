@@ -57,7 +57,7 @@ async function claim(goal) {
 </script>
 
 <style lang="scss" scoped>
-// style.css carries `.com-*` rules for legacy's markup, but they are keyed to a
+// the global stylesheet carries `.com-*` rules for legacy's markup, but they are keyed to a
 // per-goal class (`.com-progress-<goal_key>`) that only its string-built HTML
 // produced. This owns its own styling rather than reviving that scheme.
 .cg-panel {

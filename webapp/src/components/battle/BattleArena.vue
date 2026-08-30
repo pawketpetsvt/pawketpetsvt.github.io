@@ -205,7 +205,7 @@ const melodyIn = computed(() => 3 - ((s.piperMelody || 0) % 3))
 
 // Legacy applied `boss-ui-glitch` to <body> directly from inside the combat
 // logic. The service now just stamps a timestamp and the component owns the
-// DOM — style.css already carries the `body.boss-ui-glitch` rules.
+// DOM — the global stylesheet already carries the `body.boss-ui-glitch` rules.
 watch(() => s.piperGlitch, (t) => {
   if (!t) return
   document.body.classList.add('boss-ui-glitch')
@@ -249,8 +249,145 @@ for (const key of Object.keys(cue)) {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.battle-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 40px 20px;
+  background: linear-gradient(180deg, #87ceeb 0%, #98d98e 100%);
+  border-radius: 16px;
+  position: relative;
+  min-height: 300px;
+}
+.battle-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.battle-sprite-container {
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.battle-sprite {
+  image-rendering: auto;
+  width: 100px;
+  height: 100px;
+  /* background-size now set dynamically via JavaScript */
+  background-repeat: no-repeat !important;  /* CRITICAL: Prevent tiling */
+  background-size: contain !important;
+  background-position: center !important;
+  overflow: visible !important;  /* CRITICAL: Hide frames outside viewport */
+  display: block !important;  /* CRITICAL: Proper block display */
+  transition: transform 0.1s ease;
+}
+.battle-sprite.player-sprite { font-size: 4rem; }
+.battle-sprite.enemy-sprite { /* animation now handled by JavaScript */ }
+.battle-vs {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--purple);
+  text-shadow: 2px 2px 0 white;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.battle-name {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: var(--purple-dark);
+  text-shadow: 1px 1px 0 white;
+}
+.battle-hp-container { width: 200px; }
+.battle-sprite.enemy-sprite {
+  overflow: hidden !important;
+  background-repeat: no-repeat !important;
+  image-rendering: crisp-edges !important;
+  image-rendering: pixelated !important;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+.battle-sprite-container {
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 80px;
+  min-height: 80px;
+}
+.battle-sprite {
+  image-rendering: crisp-edges !important;
+  image-rendering: pixelated !important;
+  image-rendering: -moz-crisp-edges !important;
+  background-repeat: no-repeat !important;
+}
+.battle-sprite.enemy-sprite {
+  overflow: hidden !important;
+  background-repeat: no-repeat !important;
+  position: relative !important;
+}
+.battle-sprite-container {
+  overflow: hidden !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 80px !important;
+  min-height: 80px !important;
+  background: transparent !important;
+}
+.battle-sprite-container, .battle-side, .battle-container { background: transparent !important; }
+.battle-sprite-container {
+  width: 120px !important;
+  height: 120px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: visible !important;
+}
+.battle-sprite.enemy-sprite {
+  transform: scale(1.8);
+  transform-origin: center;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+}
+@media (max-width: 900px) {
+  .battle-container {
+    flex-direction: column !important;
+    gap: 20px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .battle-side {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+  .battle-vs { order: 2 !important; }
+  .battle-player { order: 1 !important; }
+  .battle-enemy { order: 3 !important; }
+}
+@media (max-width: 768px) {
+  .battle-container {
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+  .battle-sprite { width: 80px !important; height: 80px !important; }
+  .battle-sprite-container { width: 90px !important; height: 90px !important; }
+  .battle-hp-container { width: 100% !important; }
+}
+
 // `.battle-container`, `.battle-side`, `.battle-sprite`, `.battle-hp-*`,
-// `.battle-name` and `.battle-vs` are all owned by the root style.css and are
+// `.battle-name` and `.battle-vs` are all owned by the global stylesheet and are
 // left alone. Only what the legacy markup styled inline lives here.
 .pp-zone-banner {
   border-radius: var(--radius);
@@ -427,7 +564,7 @@ for (const key of Object.keys(cue)) {
 
 // Lunge / recoil cues. Kept short so they can't overlap the next turn.
 // The legacy `.battle-sprite` rules were written for background SPRITESHEETS:
-// a fixed 100x100 block, `background-position: center`, and — at style.css:10046
+// a fixed 100x100 block, `background-position: center`, and — at legacy style.css:10046
 // — `transform: scale(1.8)` to magnify one frame of the sheet. The player side
 // still paints a background image, so those rules suit it exactly.
 //
@@ -437,7 +574,7 @@ for (const key of Object.keys(cue)) {
 // scaling the box 1.8x about its centre threw the glyph ~40px up and ~40px left.
 // Centre the glyph and drop the spritesheet magnification; neither applies to
 // text. `!important` is required because `.battle-sprite` sets
-// `display: block !important` (style.css:3924).
+// `display: block !important` (legacy style.css:3924).
 .battle-sprite.enemy-sprite {
   display: flex !important;
   align-items: center;

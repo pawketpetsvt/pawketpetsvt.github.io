@@ -138,6 +138,78 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.memory-stats {
+  display: flex !important;
+  justify-content: space-around !important;
+  margin-bottom: 20px !important;
+  padding: 12px !important;
+  background: rgba(255,255,255,0.6) !important;
+  border-radius: 20px !important;
+  border: 2px solid rgba(153,102,255,0.2) !important;
+  font-size: 0.95rem !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+}
+.memory-stats strong {
+  color: var(--purple-dark) !important;
+  font-family: 'Chewy', cursive !important;
+}
+.memory-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 12px !important;
+  margin: 20px 0 !important;
+  max-width: 400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.memory-card {
+  aspect-ratio: 1 !important;
+  background: linear-gradient(135deg, var(--purple-light), var(--pink-light)) !important;
+  border: 3px solid var(--purple) !important;
+  border-radius: 16px !important;
+  font-size: 2rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.3s !important;
+  box-shadow: 0 4px 12px rgba(153,102,255,0.25) !important;
+}
+.memory-card:hover:not(.flipped):not(.matched) {
+  transform: scale(1.05) !important;
+  box-shadow: 0 6px 16px rgba(153,102,255,0.35) !important;
+}
+.memory-card.flipped {
+  background: var(--white) !important;
+  transform: rotateY(180deg) !important;
+}
+.memory-card.matched {
+  background: linear-gradient(135deg, var(--green), #3ab85a) !important;
+  border-color: var(--green) !important;
+  cursor: default !important;
+  animation: match-pulse 0.5s ease !important;
+}
+body.night-mode .memory-stats {
+  background: rgba(42,36,64,0.95) !important;
+  border: 2px solid #9966ff !important;
+  color: #e8d5ff !important;
+}
+body.night-mode .memory-stats strong { color: #ffcc66 !important; }
+body.night-mode .memory-grid .memory-card { background: linear-gradient(135deg,#4a3a6a,#3a2a5a) !important; border: 3px solid #9966ff !important; }
+body.night-mode .memory-grid .memory-card.flipped { background: #e8d5ff !important; color: #4a3a6a !important; }
+body.night-mode .memory-grid .memory-card.matched { background: linear-gradient(135deg,#2d6a4f,#1b4d3e) !important; border-color: #4ade80 !important; }
+
+@keyframes match-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+}
+
 .game-card-wide {
   grid-column: 1 / -1;
 }

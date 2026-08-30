@@ -109,6 +109,18 @@ function doubleOrNothing() {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.dice-wrap {
+  display: flex !important;
+  gap: 20px !important;
+  justify-content: center !important;
+  margin: 20px 0 !important;
+}
+
 .die.rolling {
   animation: dice-shake 0.1s linear infinite;
 }
@@ -120,7 +132,7 @@ function doubleOrNothing() {
 
 // The row's layout is now Bootstrap utilities in the template (`d-flex gap-2
 // mt-2`), which also supply the display:flex that overrides the global
-// #dice-don-btns display:none default — Bootstrap loads after style.css and
+// #dice-don-btns display:none default — Bootstrap loads after the global stylesheet and
 // its utilities are !important, so the class alone is enough.
 
 .don-btn {

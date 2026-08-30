@@ -68,3 +68,23 @@ function formatDate(post) {
 
 onMounted(() => switchTab('announcements'))
 </script>
+
+<style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.news-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 28px 32px !important;
+  box-shadow: 0 8px 24px rgba(153,102,255,0.25) !important;
+  transition: all 0.3s !important;
+}
+.news-card:hover {
+  transform: translateY(-6px) !important;
+  box-shadow: 0 14px 35px rgba(153,102,255,0.35) !important;
+}
+</style>

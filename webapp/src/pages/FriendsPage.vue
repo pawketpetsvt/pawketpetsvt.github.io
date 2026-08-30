@@ -158,6 +158,33 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.friends-tab {
+  background: transparent;
+  border: none;
+  padding: 12px 20px;
+  font-family: 'Fredoka One', cursive;
+  font-size: 0.95rem;
+  color: var(--text-light);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+  bottom: -2px;
+}
+.friends-tab:hover {
+  color: var(--purple);
+  background: rgba(176, 106, 255, 0.05);
+}
+.friends-tab.active {
+  color: var(--purple-dark);
+  border-bottom-color: var(--purple);
+}
+
 // Layout via Bootstrap utilities in the template; visuals only here.
 .friends-tab {
   border: 1px solid var(--border);

@@ -79,6 +79,7 @@
 <script setup>
 import { ref, computed, nextTick, onUnmounted } from 'vue'
 import { dungeonState, dungeonService } from '../../services/DungeonService.js'
+import { soundService } from '../../services/SoundService.js'
 
 defineEmits(['exit'])
 
@@ -129,7 +130,11 @@ async function runWave() {
       await dungeonService.resolveWave(result)
       return
     }
-    shownLog.value.push(result.log[i++])
+    const entry = result.log[i++]
+    shownLog.value.push(entry)
+    // The Starter Dungeon replays its log a line at a time, so the hit sounds
+    // belong to the PLAYBACK rather than to the simulation that produced it.
+    soundService.logEntry(entry, !!(currentEnemy.value && currentEnemy.value.is_boss))
     await nextTick()
     if (logEl.value) logEl.value.scrollTop = logEl.value.scrollHeight
   }, 420)
@@ -152,6 +157,79 @@ onUnmounted(() => { if (playbackTimer) clearInterval(playbackTimer) })
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.battle-log-container {
+  margin-top: 20px;
+  background: white;
+  border: 3px solid var(--purple-light);
+  border-radius: 12px;
+  padding: 20px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.battle-log {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.battle-log-entry {
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--purple-dark);
+  animation: slide-in 0.3s ease;
+}
+.battle-log-entry.victory {
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.3), rgba(255, 193, 7, 0.3));
+  border-left: 4px solid #ffd700;
+  font-weight: bold;
+}
+.battle-log-container {
+  max-height: 280px;
+  min-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+.battle-log {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.battle-log-entry {
+  padding: 8px 12px;
+  margin: 4px 0;
+  border-radius: 6px;
+  line-height: 1.4;
+}
+body.night-mode .battle-log-container {
+  background: #2a2a3a !important;
+  border: 2px solid #9966ff !important;
+}
+body.night-mode .battle-log-entry {
+  background: rgba(42,36,64,0.9) !important;
+  color: #e8d5ff !important;
+}
+body.night-mode .battle-log-entry.victory { background: rgba(251,191,36,0.12) !important;  border-left: 4px solid #fbbf24 !important; }
+body.night-mode .battle-log-entry { color: var(--text) !important; }
+@media (max-width: 768px) {
+  .battle-log-container { max-height: 120px !important; }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .pp-wave {
   flex: 1;
   max-width: 160px;

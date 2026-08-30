@@ -144,7 +144,199 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
-// style.css owns .twitch-card, .reward-card, .token-box, .btn-twitch,
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.team-page-link {
+  display: block !important;
+  text-align: center !important;
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--white) !important;
+  background: linear-gradient(135deg, #9146ff, #772ce8) !important;
+  padding: 16px 32px !important;
+  border-radius: 30px !important;
+  margin: 20px auto !important;
+  max-width: 400px !important;
+  border: 3px solid rgba(255,255,255,0.3) !important;
+  box-shadow: 0 6px 20px rgba(145,70,255,0.4) !important;
+  transition: all 0.3s !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+}
+.team-page-link:hover {
+  transform: translateY(-4px) scale(1.03) !important;
+  box-shadow: 0 10px 30px rgba(145,70,255,0.5) !important;
+  color: var(--white) !important;
+}
+.twitch-card {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 32px 28px !important;
+  max-width: 600px !important;
+  margin: 30px auto !important;
+  box-shadow: 0 10px 30px rgba(153,102,255,0.25) !important;
+  text-align: center !important;
+}
+.twitch-card h2 {
+  font-family: 'Chewy', cursive !important;
+  font-size: 2rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 12px !important;
+  text-shadow: 2px 2px 0 var(--pink-light) !important;
+}
+.twitch-card p {
+  font-size: 1.05rem !important;
+  color: var(--text) !important;
+  line-height: 1.6 !important;
+  margin-bottom: 20px !important;
+  font-weight: 500 !important;
+}
+.btn-twitch {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  padding: 16px 40px !important;
+  border-radius: 35px !important;
+  background: linear-gradient(135deg, #9146ff, #772ce8) !important;
+  color: var(--white) !important;
+  border: 3px solid rgba(255,255,255,0.3) !important;
+  cursor: pointer !important;
+  transition: all 0.3s !important;
+  font-weight: 600 !important;
+  box-shadow: 0 6px 20px rgba(145,70,255,0.4) !important;
+}
+.btn-twitch:hover {
+  transform: translateY(-4px) scale(1.05) !important;
+  box-shadow: 0 10px 30px rgba(145,70,255,0.5) !important;
+}
+.linked-panel {
+  background: rgba(145,70,255,0.08) !important;
+  border-radius: var(--radius) !important;
+  padding: 24px !important;
+  margin-bottom: 16px !important;
+  border: 2px solid rgba(145,70,255,0.2) !important;
+}
+.linked-panel h3 {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.5rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 10px !important;
+}
+.reward-list {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 16px 0 !important;
+  text-align: left !important;
+  max-width: 400px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.reward-list li {
+  padding: 8px 0 !important;
+  font-size: 0.95rem !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+.status-badge {
+  font-size: 0.75rem !important;
+  padding: 4px 10px !important;
+  border-radius: 15px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  font-family: 'Fredoka', cursive !important;
+}
+.token-box {
+  background: rgba(255,221,0,0.15) !important;
+  border: 3px solid var(--yellow) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 24px !important;
+  margin-bottom: 24px !important;
+  max-width: 600px !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+.token-box h3 {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.5rem !important;
+  color: var(--purple-dark) !important;
+  margin-bottom: 10px !important;
+}
+.token-textarea {
+  width: 100% !important;
+  min-height: 120px !important;
+  padding: 14px !important;
+  border: 3px solid var(--border) !important;
+  border-radius: 20px !important;
+  font-family: 'Courier New', monospace !important;
+  font-size: 0.85rem !important;
+  background: var(--white) !important;
+  color: var(--text) !important;
+  resize: vertical !important;
+}
+.reward-icon {
+  font-size: 40px;
+  margin: 15px 0;
+}
+.twitch-rewards-section {
+  background: var(--white);
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 20px 0;
+}
+.reward-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.reward-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px;
+  background: rgba(153,102,255,0.07);
+  border-radius: 12px;
+  border-left: 4px solid var(--purple);
+}
+.reward-icon { font-size: 1.8rem; flex-shrink: 0; }
+.reward-title {
+  font-weight: 700;
+  color: var(--purple-dark);
+  font-size: 0.88rem;
+  margin-bottom: 3px;
+}
+.reward-desc {
+  font-size: 0.78rem;
+  color: var(--text-light);
+  line-height: 1.4;
+  margin-bottom: 3px;
+}
+.reward-cooldown {
+  font-size: 0.7rem;
+  color: #ffaa00;
+  font-weight: 600;
+}
+.twitch-tip {
+  background: rgba(255,215,0,0.08);
+  border: 1px solid rgba(255,215,0,0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--text-light);
+  line-height: 1.5;
+  margin-top: 8px;
+}
+@media (max-width: 500px) {
+  .reward-cards { grid-template-columns: 1fr; }
+}
+
+// the global stylesheet owns .twitch-card, .reward-card, .token-box, .btn-twitch,
 // .linked-panel, .reward-list and .status-badge. What it does NOT define is
 // .status-done / .status-pending (the badge variants), and the whole stats
 // panel, which legacy built from inline styles in the markup.

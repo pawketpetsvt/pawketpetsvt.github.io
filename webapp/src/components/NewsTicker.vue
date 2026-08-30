@@ -1,6 +1,6 @@
 <template>
   <!-- `news-ticker` is kept as a class hook: `body.night-mode .news-ticker` in
-       the root style.css recolours the bar, and the global night-mode
+       the global stylesheet recolours the bar, and the global night-mode
        transition group lists it too. Only the base appearance moved here. -->
   <div class="news-ticker position-relative overflow-hidden">
     <!-- The `:key` bump replaces the element on every rotation, which restarts
@@ -61,12 +61,25 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-// Ported from style.css:108-127. The `!important` flags there existed to win
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+body.night-mode .news-ticker {
+  background: linear-gradient(90deg, #4a2a6a, #6a4a8a, #4a6a8a) !important;
+  border-bottom: 3px solid rgba(153, 102, 255, 0.5) !important;
+}
+.event-announcement { background:linear-gradient(135deg,#ff4444 0%,#cc0000 100%);color:#fff;font-weight:bold;padding:2px 12px;border-radius:6px;margin-right:8px;box-shadow:0 2px 8px rgba(255,68,68,0.4);animation:eventPulse 2s ease-in-out infinite }
+
+@keyframes eventPulse{0%,100%{box-shadow:0 2px 8px rgba(255,68,68,0.4)}50%{box-shadow:0 2px 12px rgba(255,68,68,0.7)}}
+
+// Ported from legacy style.css:108-127. The `!important` flags there existed to win
 // against other global rules; nothing competes for these selectors inside a
 // scoped component, so they are dropped. `body.night-mode .news-ticker` still
 // carries `!important` globally and so still overrides the background below.
 // The navbar's bottom corners are rounded (`border-radius: 0 0 24px 24px`,
-// style.css:14315), so the two corner wedges are transparent — and with the
+// legacy style.css:14315), so the two corner wedges are transparent — and with the
 // ticker starting flush below the navbar's box, what showed through there was
 // the page background, not the ticker.
 //
@@ -104,7 +117,7 @@ $navbar-radius: 24px;
   100% { transform: translateX(-100%); }
 }
 
-// Matches the legacy `.glitch-text` treatment (style.css:4171-4176), scoped
+// Matches the legacy `.glitch-text` treatment (legacy style.css:4171-4176), scoped
 // here so the ticker keeps it even after that global rule's other users go.
 .glitch-text {
   color: #ff0000;

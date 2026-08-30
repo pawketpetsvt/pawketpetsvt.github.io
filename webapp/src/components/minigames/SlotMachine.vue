@@ -115,6 +115,71 @@ async function resolveSpin(final) {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.slot-bet-selector {
+  margin-bottom: 20px;
+  text-align: center;
+}
+.bet-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.bet-btn {
+  padding: 10px 20px;
+  border: 2px solid var(--purple-light);
+  background: white;
+  color: var(--purple);
+  font-weight: bold;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.bet-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(176, 106, 255, 0.3);
+}
+.bet-btn.active {
+  background: var(--purple);
+  color: white;
+  border-color: var(--purple);
+  box-shadow: 0 4px 12px rgba(176, 106, 255, 0.4);
+}
+.slot-machine {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  padding: 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  margin: 20px 0;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+}
+.slot-reel {
+  width: 80px;
+  height: 80px;
+  background: white;
+  border: 4px solid #FFD700;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: transform 0.1s;
+}
+.slot-reel.spinning { animation: reel-spin 0.1s infinite; }
+
+@keyframes reel-spin {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
 .bet-label {
   font-weight: bold;
   color: var(--purple);

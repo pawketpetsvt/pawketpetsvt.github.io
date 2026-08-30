@@ -7,7 +7,7 @@
     </div>
 
     <!-- Reuses `.shop-tabs`/`.shop-tab`, as the legacy racing tab does. That
-         class is owned entirely by style.css, so no layout utilities are added
+         class is owned entirely by the global stylesheet, so no layout utilities are added
          to it — see the note in ShopPage. -->
     <div class="shop-tabs">
       <button

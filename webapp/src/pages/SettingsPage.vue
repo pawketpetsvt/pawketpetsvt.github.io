@@ -61,7 +61,7 @@
       <div class="setting-row border-0 pb-0">
         <div class="setting-label"><strong>🎓 Tutorial</strong></div>
         <div class="setting-help mb-3">Replay Melon's guide. No extra PP awarded on replay.</div>
-        <button class="btn btn-outline btn-tutorial" @click="toastService.info('Tutorial replay isn\'t available in this version yet.')">🍈 Replay Tutorial</button>
+        <button class="btn btn-outline btn-tutorial" @click="tutorialService.replay(router)">🍈 Replay Tutorial</button>
       </div>
 
       <section class="settings-section mt-3 pt-4">
@@ -151,6 +151,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { settingsService, settingsState } from '../services/SettingsService.js'
 import { musicService, musicState } from '../services/MusicService.js'
@@ -160,6 +161,10 @@ import { REFERRER_PP } from '../data/referralData.js'
 import { toastService } from '../services/ToastService.js'
 import AdminTools from '../components/admin/AdminTools.vue'
 import { THEME_CATALOG } from '../data/themeCatalog.js'
+// The replay path pays no PP — see TutorialService.rewardFor().
+import { tutorialService } from '../services/TutorialService.js'
+
+const router = useRouter()
 
 // The three accessibility toggles were three near-identical markup blocks;
 // driving them from data keeps them in lockstep.
@@ -221,11 +226,55 @@ onMounted(async () => {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.theme-swatch {
+  border-radius: 14px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: all 0.2s;
+  position: relative;
+}
+.theme-swatch:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,0.15); }
+.theme-swatch.active { border-color: #ffd700 !important; box-shadow: 0 0 0 3px rgba(255,215,0,0.4); }
+.theme-swatch.locked { cursor: not-allowed; opacity: 0.7; }
+.theme-swatch-preview {
+  height: 60px;
+  width: 100%;
+}
+.theme-swatch-label {
+  background: rgba(0,0,0,0.5);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  padding: 5px 4px;
+}
+.theme-swatch-lock {
+  position: absolute;
+  top: 6px; right: 6px;
+  font-size: 0.9rem;
+  background: rgba(0,0,0,0.6);
+  border-radius: 50%;
+  padding: 2px 4px;
+}
+.theme-swatch-hint {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  text-align: center;
+  padding: 3px 4px 5px;
+  background: rgba(0,0,0,0.4);
+}
+
 // Layout comes from Bootstrap utilities in the template. What lives here is
 // the theming Bootstrap can't provide: the site's own toggle switch and range
 // slider, which replace the raw browser controls this page was rendering.
 // (The legacy `.toggle-switch`/`.toggle-slider` styling never made it into the
-// root style.css — only its night-mode overrides did — so these controls had
+// the global stylesheet — only its night-mode overrides did — so these controls had
 // been unstyled since the shell was ported.)
 .settings-col {
   max-width: 560px;

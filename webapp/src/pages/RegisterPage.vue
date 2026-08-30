@@ -150,6 +150,14 @@ async function handleRegister() {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.landing-v2-perks { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.landing-v2-perk { background:rgba(153,102,255,0.1); border:1px solid rgba(153,102,255,0.2); border-radius:20px; padding:4px 12px; font-size:0.75rem; color:var(--purple-dark); font-weight:600; }
+
 // RegisterPage has no styling of its own — the auth pages sit outside AppShell
-// and are covered by the `.form-card` / `.landing-v2-*` rules in style.css.
+// and are covered by the `.form-card` / `.landing-v2-*` rules in the global stylesheet.
 </style>

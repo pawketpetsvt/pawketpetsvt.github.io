@@ -1,0 +1,737 @@
+// Persistent app chrome shared by NavBar, MobileNav, LeftSidebar and RightSidebar — none of them owns these alone.
+//
+// Split out of the global stylesheet in Phase 11. Rules keep their original
+// relative order, because equal-specificity ties in this stylesheet are
+// decided by source order and reshuffling them would change what renders.
+
+/* Responsive adjustments for consolidated navbar */
+
+
+
+.nav-tab { 
+  background: rgba(255,255,255,0.15) !important; 
+  border: 2px solid rgba(255,255,255,0.3) !important;
+  color: var(--white) !important; 
+  font-family: 'Chewy', cursive !important; 
+  font-size: 0.95rem !important; 
+  padding: 8px 16px !important; 
+  border-radius: 25px !important; 
+  cursor: pointer !important; 
+  transition: all 0.2s !important; 
+  white-space: nowrap !important; 
+  flex-shrink: 0 !important;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.2) !important;
+}
+
+.nav-tab:hover { 
+  background: rgba(255,255,255,0.3) !important; 
+  color: var(--yellow) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+}
+
+.nav-tab.active { 
+  background: var(--yellow) !important; 
+  color: var(--purple-dark) !important;
+  border-color: var(--yellow) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 4px 12px rgba(255,221,0,0.4) !important;
+}
+
+/* 3-COLUMN LAYOUT CONTAINER */
+/* .app-container removed in Phase 6.5 — the app shell's three-column layout
+   is now Bootstrap's container/row/col grid, owned by AppShell.vue. This rule
+   (and the five other competing .app-container definitions that used to live
+   further down this file) had drifted apart: this one declared 240px sidebars
+   while the @media (min-width: 901px) copy declared 260px and silently won on
+   every desktop viewport. */
+
+/* HIDE OLD NAVBAR */
+
+
+/* .left-sidebar removed in Phase 6.5 — pure layout (flex column / 16px gap /
+   align-self), now expressed as Bootstrap utilities directly in
+   LeftSidebar.vue: `d-flex flex-column gap-3 align-self-start`. */
+
+/* SIDEBAR SECTIONS - Enhanced with decorative borders */
+.sidebar-section {
+  background: var(--white) !important;
+  border: 4px solid var(--border) !important;
+  border-radius: var(--radius-xl) !important;
+  padding: 20px 16px !important;
+  box-shadow: 
+    0 0 0 2px var(--purple),
+    0 6px 20px rgba(153,102,255,0.25) !important;
+  position: relative !important;
+}
+
+/* Decorative corner dots */
+.sidebar-section::before {
+  content: '' !important;
+  position: absolute !important;
+  top: -6px !important;
+  right: 15px !important;
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--pink) !important;
+  border-radius: 50% !important;
+  border: 2px solid var(--white) !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+}
+
+.sidebar-section::after {
+  content: '' !important;
+  position: absolute !important;
+  bottom: -6px !important;
+  left: 15px !important;
+  width: 10px !important;
+  height: 10px !important;
+  background: var(--cyan) !important;
+  border-radius: 50% !important;
+  border: 2px solid var(--white) !important;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2) !important;
+}
+
+.sidebar-title {
+  font-family: 'Chewy', cursive !important;
+  font-size: 1.2rem !important;
+  color: var(--purple-dark) !important;
+  text-align: center !important;
+  margin-bottom: 14px !important;
+  text-shadow: 
+    2px 2px 0 var(--pink-light),
+    -1px -1px 0 rgba(255,255,255,0.8) !important;
+}
+
+.sidebar-nav-links {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px !important;
+}
+
+@media (max-width: 1024px) {
+    /* .app-container grid override removed in Phase 6.5 (now Bootstrap's grid).
+       Sidebar hiding is now AppShell.vue's `d-none d-lg-block`. */
+    .left-sidebar, .right-sidebar {
+      display: none !important;
+    }
+}
+
+/* Make sidebar corner dots float and twinkle */
+.sidebar-section::before {
+  animation: float-and-twinkle 3s ease-in-out infinite !important;
+}
+
+.sidebar-section::after {
+  animation: float-and-twinkle-delayed 3.5s ease-in-out infinite !important;
+}
+
+/* Responsive */
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE RESPONSIVENESS - Hamburger Menu & Layout
+   ══════════════════════════════════════════════════════════════════════════ */
+
+
+/* Mobile Navigation Menu - Hidden by default */
+.mobile-nav-menu {
+  position: fixed;
+  top: 0;
+  left: -320px;
+  width: 300px;
+  height: 100vh;
+  height: 100dvh; /* dynamic viewport height for mobile browsers */
+  background: #1a1a2e;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.7);
+  z-index: 10002; /* above all modals and overlays */
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  transition: left 0.28s ease;
+  padding: 20px 16px;
+  box-sizing: border-box;
+  display: block !important; /* never let parent rules hide this */
+}
+
+.mobile-nav-menu.open {
+  left: 0;
+}
+
+.mobile-menu-close {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  margin-bottom: 20px;
+  background: #ff6b35;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.mobile-menu-close:hover {
+  background: #ff5722;
+}
+
+.mobile-nav-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 10001; /* just below the menu */
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.mobile-nav-overlay.show {
+  display: block;
+  opacity: 1;
+}
+
+@media (max-width: 900px) {
+    /* HIDE ALL DESKTOP NAVIGATION */
+    .navbar,
+    .nav-tabs,
+    .tabs,
+    .top-nav,
+    .desktop-nav,
+    .left-sidebar > .sidebar-section .sidebar-nav-links {
+      display: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Hide the DESKTOP left sidebar navigation buttons */
+    .left-sidebar > .sidebar-section:first-of-type + .sidebar-section {
+      display: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* App Container stacking removed in Phase 6.5 — Bootstrap's row/col already
+       collapses to a single column once the sidebars are hidden at <lg. */
+    
+    
+    /* Left Sidebar - Compact header with stats only */
+    .left-sidebar {
+      position: static !important;
+      width: 100% !important;
+      height: auto !important;
+      padding: 10px !important;
+      margin: 0 !important;
+      order: 1;
+      display: flex !important;
+      flex-direction: row !important;
+      flex-wrap: wrap !important;
+      gap: 10px !important;
+      box-sizing: border-box !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Make sidebar sections horizontal on mobile */
+    .left-sidebar .sidebar-section {
+      flex: 1 !important;
+      min-width: 120px !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Right Sidebar - Hidden on smaller screens */
+    .right-sidebar {
+      display: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Mobile Nav Menu Sidebar Buttons */
+    .mobile-nav-menu .sidebar-nav-btn,
+    .mobile-nav-menu .nav-group-header {
+      display: block !important;
+      width: 100% !important;
+      padding: 14px 16px !important;
+      margin-bottom: 2px !important;
+      font-size: 1rem !important;
+      text-align: left !important;
+      border-radius: 8px !important;
+      min-height: 48px !important; /* Touch target */
+      box-sizing: border-box !important;
+      background: rgba(255,255,255,0.07) !important;
+      color: #e8d5ff !important; /* Light purple — visible on dark bg */
+      border: none !important;
+      border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+      transition: background 0.2s ease !important;
+      cursor: pointer !important;
+      font-weight: 600 !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .mobile-nav-menu .sidebar-nav-btn:hover,
+    .mobile-nav-menu .nav-group-header:hover {
+      background: rgba(153,102,255,0.2) !important;
+      transform: none !important;
+      color: #fff !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Mobile nav child buttons (inside groups) */
+    .mobile-nav-menu .sidebar-nav-btn.child {
+      font-size: 0.9rem !important;
+      padding: 10px 10px 10px 24px !important;
+      background: rgba(255,255,255,0.04) !important;
+      color: #c4a0ff !important;
+      border-radius: 6px !important;
+    }
+}
+
+@media (max-width: 900px) {
+    /* Mobile standalone buttons */
+    .mobile-nav-menu .sidebar-nav-btn.standalone {
+      font-size: 1rem !important;
+      color: #e8d5ff !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .mobile-nav-menu .sidebar-nav-btn.active {
+      background: rgba(255, 107, 53, 0.2) !important;
+      color: #ff6b35 !important;
+      border-left: 4px solid #ff6b35 !important;
+      box-shadow: none !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .mobile-nav-menu {
+      width: 260px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .left-sidebar .sidebar-section {
+      min-width: 100% !important;
+    }
+}
+
+@media (min-width: 901px) {
+    /* Mobile menu: always block, position controls visibility */
+    /* (display:none removed - left:-320px hides it; .open moves it to left:0) */
+    
+    /* Desktop left sidebar - FULLY VISIBLE */
+    .left-sidebar {
+      display: block !important;
+    }
+}
+
+@media (min-width: 901px) {
+    .left-sidebar .sidebar-section {
+      display: block !important;
+    }
+}
+
+@media (min-width: 901px) {
+    .left-sidebar .sidebar-section .sidebar-nav-links {
+      display: flex !important;
+      flex-direction: column !important;
+      gap: 8px !important;
+    }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HEADER VERTICAL ALIGNMENT FIX - SIMPLE CSS ONLY
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Fix the header container - force proper alignment */
+.top-bar,
+.header,
+/* .navbar dropped here in Phase 6.5 — see consolidated .navbar rule. */
+.navbar-consolidated,
+[class*="top-bar"],
+[class*="header"],
+[class*="navbar"] {
+  display: flex !important;
+  align-items: center !important;  /* Vertical center - KEY FIX */
+  justify-content: space-between !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  overflow: visible !important;
+  min-height: 56px !important;
+  padding: 0 20px !important;
+}
+
+/* Fix ALL children to be vertically centered */
+.top-bar > *,
+.header > *,
+.navbar > *,
+[class*="top-bar"] > *,
+[class*="header"] > *,
+[class*="navbar"] > * {
+  display: inline-flex !important;
+  align-items: center !important;
+  vertical-align: middle !important;
+  margin: 0 4px !important;
+}
+
+/* Fix buttons and clickable items */
+.top-bar button,
+.header button,
+.navbar button,
+[class*="top-bar"] button,
+[class*="header"] button,
+[class*="navbar"] button {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: auto !important;
+  min-height: 32px !important;
+  padding: 6px 12px !important;
+  margin: 0 4px !important;
+}
+
+/* Fix any overflowing text */
+.username,
+.pp-counter,
+#nav-user,
+#nav-points,
+.pass-button,
+.bingo-button {
+  white-space: nowrap !important;
+  overflow: visible !important;
+  display: inline-flex !important;
+  align-items: center !important;
+}
+
+@media (max-width: 768px) {
+    /* ========== ADJUST HEADER FOR HAMBURGER (MOBILE ONLY) ========== */
+    
+    
+    /* ========== HIDE DESKTOP NAV (MOBILE ONLY) ========== */
+    
+    .desktop-nav,
+    .tab-btn:not(.mobile-menu-item) {
+      display: none !important;
+    }
+}
+
+@media (min-width: 769px) {
+    /* Main header container - flexbox with space-between */
+    .top-bar,
+    .header,
+    .navbar-consolidated,
+    [class*="top-bar"],
+    [class*="header-main"] {
+      display: flex !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      width: 100% !important;
+      padding: 0 20px !important;
+      gap: 20px !important;
+    }
+}
+
+/* ============================================
+   SINGLE-ROW NAVBAR - SIMPLE & WORKING
+   ============================================ */
+
+/* ── .navbar: SINGLE consolidated definition (Phase 6.5) ──────────────────
+   This replaces NINE separate top-level `.navbar` rules that had accumulated
+   across this file (lines ~267, 8269, 10822, 11285, 11794, 12790, 12932,
+   14584 and a content-visibility one) plus their contradictory overrides.
+   The values below are the *computed effective* result of that old cascade —
+   i.e. what the browser actually rendered — not any single one of those rules,
+   so this is a pure de-duplication with no visual change.
+
+   Two things the dead rules disagreed about, worth recording: the earliest
+   rule declared `border-radius: 0 0 32px 32px` and a purple glow shadow, but
+   both were overridden downstream — the real values are 24px and the darker
+   shadow below. Anyone reading the old file top-down would have believed the
+   32px version.
+
+   Kept at this position deliberately: it must stay AFTER the `[class*="navbar"]`
+   block (~line 11794), which also matches `.navbar` by substring and would
+   otherwise win. That broad rule still (intentionally) lays out the navbar's
+   CHILDREN — .navbar-left/-center/-right — so it is not removed. */
+.navbar {
+  /* box + position */
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 16px !important;
+  width: 100% !important;
+  max-width: 100vw !important;
+  /* VERTICAL padding stays zero: the logo's own transparent margin supplies the
+     breathing room. logo.png carries 23px of clear space above the artwork and
+     33px below on its 300px canvas, so at 64px rendered that is about 5px above
+     and 7px below. The 64px logo is the tallest item in the bar, so it — not
+     padding — sets the height, and the ~30px controls sit centred with roughly
+     17px of clearance either side.
+     HORIZONTAL padding is 20px so the first and last controls are inset from
+     the viewport edge. It lives here rather than on `.navbar-logo`, which used
+     to carry its own 8px: with `justify-content: space-between` above 1430px
+     only the bar's own padding insets BOTH ends, and a padded logo would have
+     double-inset the left while leaving the right flush.
+     `min-height` stays only as a floor; at 64px it never binds. */
+  min-height: 56px !important;
+  margin: 0 !important;
+  padding: 0 20px !important;
+  box-sizing: border-box !important;
+  overflow: visible !important;
+  white-space: nowrap !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
+
+  /* appearance */
+  background: linear-gradient(135deg, #9966ff, #ff66cc, #00ddff) !important;
+  border-bottom: 4px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 0 0 24px 24px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+  transition: all 0.5s ease !important;
+  content-visibility: visible;
+}
+
+@media (max-width: 900px) {
+      .navbar {
+          /* padding removed — the bar runs padding-free at every width for now. */
+          gap: 12px !important;
+      }
+}
+
+@media (max-width: 768px) {
+    /* ── 1. Single-column layout — now handled by Bootstrap's grid (Phase 6.5) ── */
+  
+    /* ── 2. Hide both sidebars completely ── */
+    .left-sidebar,
+    .right-sidebar {
+      display: none !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* ── 5. Navbar adjustments ── */
+    /* Mobile keeps the logo at its previous 32px. It only set `height` before,
+       which worked because a separate top-level rule happened to supply
+       `width: 32px`; that rule is gone now, so the width is stated here or the
+       logo would render 64 wide by 32 tall. Mobile sizing is otherwise untouched
+       — the navbar's mobile layout is its own piece of work. */
+  
+    /* ── 6. Mobile nav menu: scrollable, branded ── */
+    .mobile-nav-menu {
+      padding: 16px !important;
+      width: 280px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .mobile-nav-menu .sidebar-nav-links {
+      max-height: 60vh !important;
+      overflow-y: auto !important;
+      -webkit-overflow-scrolling: touch !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .mobile-nav-menu .sidebar-nav-btn {
+      min-height: 44px !important;
+      font-size: 0.95rem !important;
+      padding: 10px 14px !important;
+      width: 100% !important;
+      text-align: left !important;
+      border-radius: 10px !important;
+      margin-bottom: 4px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .left-sidebar, .right-sidebar { display:none !important; }
+}
+
+/* Ensure fixed/sticky elements aren't affected */
+.navbar, #companion-buddy, .modal-overlay, .pixel-toast,
+.ss-lightbox-overlay, #install-screen {
+  content-visibility: visible;
+}
+
+/* Mobile Nav Menu — strip sidebar-section card styling so buttons are visible on dark bg */
+.mobile-nav-menu .sidebar-section {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+.mobile-nav-menu .sidebar-section::before,
+.mobile-nav-menu .sidebar-section::after {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE DRAWERS — SITE THEME (Phase 10)
+   ═══════════════════════════════════════════════════════════════════════════
+   `.mobile-nav-menu` and `.mobile-menu-close` above are legacy's, and they are
+   the one surface in the app that never got the site's look: a flat #1a1a2e
+   navy panel with a #ff6b35 safety-orange button, against a game that is cream,
+   purple and pink everywhere else.
+
+   These rules restyle both drawers to the same language as the rest of the
+   site — the panel borders and radius of `.sidebar-section`, the row treatment
+   of `.sidebar-nav-btn`, and `.btn-primary`'s pink→purple gradient on the close
+   button — without touching the geometry or the slide-in transition, which are
+   correct as they are.
+
+   Global rather than scoped because BOTH drawers need them while being rendered
+   by two different components (MobileNav and NavBar), and the row styles are
+   needed by a third (NotificationBell renders itself as a drawer row). A scoped
+   copy in each would emit the same rules three times under three different
+   data-v attributes.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mobile-nav-menu {
+  /* Very slightly purple rather than plain white: the left drawer holds the
+     sidebar's white `.sidebar-section` cards, which would otherwise vanish into
+     their own background. */
+  background: linear-gradient(160deg, #f6efff, var(--cream)) !important;
+  border-right: 4px solid var(--border) !important;
+  box-shadow: 6px 0 28px rgba(153, 102, 255, 0.35) !important;
+  padding: 16px 14px !important;
+}
+
+.mobile-nav-overlay {
+  background: rgba(45, 27, 78, 0.55) !important;
+  backdrop-filter: blur(2px);
+}
+
+.mobile-menu-close {
+  background: linear-gradient(135deg, var(--pink), var(--purple)) !important;
+  border: 2px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 20px !important;
+  color: var(--white) !important;
+  font-family: 'Fredoka', cursive !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  padding: 12px !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+.mobile-menu-close:hover {
+  background: linear-gradient(135deg, var(--purple), var(--pink)) !important;
+}
+
+/* ── Rows in the right-hand drawer ───────────────────────────────────────── */
+/* Deliberately the same treatment as `.sidebar-nav-btn` (2405 above), so the
+   two drawers read as one component even though they list different things. */
+.nc-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  background: rgba(153, 102, 255, 0.22);
+  border: 2px solid rgba(153, 102, 255, 0.4);
+  font-family: 'Fredoka', cursive;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--purple-dark);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.nc-item:hover {
+  background: rgba(153, 102, 255, 0.32);
+  border-color: var(--purple-light);
+}
+
+/* The label is the ONLY flexible part of a row. It used to be selected as
+   `.nc-item span`, which also caught the count badge and let it grow to fill
+   the row — pushing the label into an ellipsis while the badge sat half empty. */
+.nc-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Sized to its contents and nothing more. */
+.nc-count {
+  flex: 0 0 auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--yellow), var(--orange));
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* ── Music controls inside the drawer ────────────────────────────────────── */
+
+
+/* ── Drawer nav buttons: light-panel treatment ────────────────────────────── */
+/* The `@media (max-width: 900px)` block at 9529 styles these for legacy's dark
+   #1a1a2e drawer — `background: rgba(255,255,255,0.07)` and `color: #e8d5ff`,
+   i.e. near-transparent white on faint lilac. Against the cream panel above,
+   that is an invisible button with unreadable text.
+
+   These restore the base `.sidebar-nav-btn` look (2411) so the drawer's menu
+   matches the sidebar it IS. Same (0,2,0) specificity as the rules they
+   replace, winning on source order — which is why they must stay at the end of
+   this file.
+
+   Not wrapped in a media query on purpose: above 900px legacy's overrides stop
+   applying and the base rule already gives this exact result, so these are
+   simply re-stating it for the range where it was overridden. */
+.mobile-nav-menu .sidebar-nav-btn,
+.mobile-nav-menu .nav-group-header {
+  background: rgba(153, 102, 255, 0.22) !important;
+  color: var(--purple-dark) !important;
+  border: 2px solid rgba(153, 102, 255, 0.4) !important;
+  border-bottom: 2px solid rgba(153, 102, 255, 0.4) !important;
+  border-radius: 16px !important;
+  font-family: 'Fredoka', cursive !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+}
+
+.mobile-nav-menu .sidebar-nav-btn:hover,
+.mobile-nav-menu .nav-group-header:hover {
+  background: rgba(153, 102, 255, 0.34) !important;
+  border-color: var(--purple-light) !important;
+  color: var(--purple-dark) !important;
+}
+
+.mobile-nav-menu .sidebar-nav-btn.child {
+  background: rgba(153, 102, 255, 0.12) !important;
+  color: var(--text) !important;
+}
+
+.mobile-nav-menu .sidebar-nav-btn.child:hover {
+  background: rgba(153, 102, 255, 0.24) !important;
+  color: var(--purple-dark) !important;
+}
+
+/* Legacy marked the current page with safety orange, the one colour the site
+   never uses. The active row now reads like `.btn-primary`. */
+.mobile-nav-menu .sidebar-nav-btn.active {
+  background: linear-gradient(135deg, var(--pink), var(--purple)) !important;
+  color: var(--white) !important;
+  border: 2px solid rgba(255, 255, 255, 0.4) !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2) !important;
+}

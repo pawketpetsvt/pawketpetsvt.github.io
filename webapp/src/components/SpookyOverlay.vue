@@ -14,7 +14,7 @@ import { spookyState } from '../services/SpookyEffectService.js'
 // NOT scoped: the desaturation and text-corruption classes are applied to
 // <body> and to arbitrary elements across the page by SpookyEffectService, so
 // scoping them would stop them matching. Every selector is prefixed `pp-spooky`
-// or `pp-text-corrupt`, neither of which exists anywhere in style.css.
+// or `pp-text-corrupt`, neither of which exists anywhere in the global stylesheet.
 //
 // Legacy injected all of this as a <style> element at trigger time and removed
 // it afterwards; here it just lives in the stylesheet and costs nothing while

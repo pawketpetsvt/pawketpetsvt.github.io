@@ -93,7 +93,19 @@ async function saveNote(mem) {
 </script>
 
 <style lang="scss" scoped>
-// style.css has no `.scrapbook-*` or `.sb-*` rule that belongs to this panel —
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.sb-empty {
+  text-align: center;
+  padding: 20px;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+}
+
+// the global stylesheet has no `.scrapbook-*` or `.sb-*` rule that belongs to this panel —
 // the `.sb-*` names it does carry were removed in the Phase 6.75 orphan sweep —
 // so the component owns all of it.
 .sb-empty {

@@ -5,6 +5,7 @@ import { supabase } from './SupabaseService.js'
 import { equipmentService } from './EquipmentService.js'
 import { inventoryService } from './InventoryService.js'
 import { musicService } from './MusicService.js'
+import { soundService } from './SoundService.js'
 import { toastService } from './ToastService.js'
 import { companionService } from './CompanionService.js'
 import { taskTracker } from './TaskTrackerService.js'
@@ -346,6 +347,10 @@ class BattleService {
     // Piper gets his own theme; other bosses share the boss track.
     const isPiper = !!e.is_boss && (e.name || '').includes('Piper')
     musicService.playBattleTrack(isPiper ? 'piper' : e.is_boss ? 'boss' : 'normal')
+    // Warm the three most-used hit sounds so the opening exchange isn't silent
+    // while they fetch. Starting a battle is a real user gesture, which is what
+    // browsers require before audio may play at all.
+    soundService.preloadBattle()
 
     return battleState
   }
@@ -484,6 +489,8 @@ class BattleService {
       const isCorrupted = s.enemy.specialVariant === 'corrupted' || !!s.enemy.is_boss
       const dmg = Math.max(1, Math.round(roll.damage * this.damageMultiplier(isCorrupted)))
       s.enemyHP = Math.max(0, s.enemyHP - dmg)
+      // Light / normal / crit, off the same roll that decided the damage.
+      soundService.hit('player', roll.variance, roll.isCrit)
 
       let line = `${roll.isCrit ? '⚡ CRITICAL! ' : ''}${s.player.name} attacks for ${dmg} damage!`
       const procs = this.applyAttackPassives(dmg)
@@ -507,6 +514,9 @@ class BattleService {
       s.skillUseCount++
       tickInfluence(s, 5, this.bossContext())
       this.cue('playerAttack')
+      // Skills always use the normal hit sound — they have no damage roll of
+      // their own to derive a tier from. Legacy does the same.
+      soundService.play('playerNormal')
       if (!s.skillsUsedThisBattle.includes(skill.id)) s.skillsUsedThisBattle.push(skill.id)
       // Feeds the 'Use battle skills 20 times' weekly challenge.
       taskTracker.report('use_skill')
@@ -765,6 +775,10 @@ class BattleService {
     s.playerHP = Math.max(0, s.playerHP - defend.finalDmg)
     s.totalDamageTaken += defend.finalDmg
     this.cue('playerHit')
+    // A boss gets Piper's flute instead of the ordinary enemy hit, and bypasses
+    // the rate limit so it is never the sound that gets dropped.
+    const isBoss = !!(enemy.is_boss || (enemy.name || '').includes('Piper'))
+    soundService.hit(isBoss ? 'boss' : 'enemy', roll.variance, roll.isCrit)
 
     let line = `${roll.isCrit ? '⚡ ' : ''}${enemy.name} attacks for ${defend.finalDmg} damage!`
     if (defend.lines.length) line += ' ' + defend.lines.join(' ')

@@ -37,6 +37,10 @@
     <!-- Drains the badge/title unlock queue. Renders nothing until something
          is actually unlocked. -->
     <UnlockCelebration v-if="AppState.user" />
+    <!-- The first-visit "PAWKET.EXE" setup sequence. Renders nothing once the
+         visitor has seen it (one localStorage key), and sits at App level
+         because it covers the whole page before anyone has signed in. -->
+    <InstallScreen />
   </div>
 </template>
 
@@ -49,12 +53,19 @@ import CompanionBuddy from './components/CompanionBuddy.vue'
 import SpookyOverlay from './components/SpookyOverlay.vue'
 import UnlockCelebration from './components/UnlockCelebration.vue'
 import SiteFooter from './components/SiteFooter.vue'
+import InstallScreen from './components/InstallScreen.vue'
 import AppShell from './layouts/AppShell.vue'
 import GuestLayout from './layouts/GuestLayout.vue'
 </script>
 
 <style lang="scss">
-@import './assets/scss/globals.scss';
+// globals.scss is imported from main.js, not here. It used to be pulled in
+// through this block, which emits BEFORE main.js's own CSS imports — a detail
+// that mattered when the design system was the global stylesheet and Bootstrap had
+// to load after it. Now that globals IS the design system, main.js imports it
+// and bootstrap.scss back to back, so the order they need is stated in one
+// place instead of depending on where a component happens to sit in the graph.
+// Importing it here as well would emit the whole design system twice.
 
 .pp-app-shell-wrap {
   min-height: 100vh;

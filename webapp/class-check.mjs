@@ -10,9 +10,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-// The global stylesheet PLUS the app's own shared SCSS (admin.scss, globals)
-// — a class defined in a shared partial is not a gap either.
-let css = fs.readFileSync('../style.css', 'utf8')
+// Every global stylesheet the app loads. Since Phase 11 that is the nine
+// partials under src/assets/scss plus admin.scss and bootstrap.scss — the root
+// style.css this used to read first no longer exists.
+let css = ''
 for (const f of fs.readdirSync('src/assets/scss')) {
   css += '\n' + fs.readFileSync('src/assets/scss/' + f, 'utf8')
 }
@@ -45,14 +46,27 @@ for (const f of files) {
   }
   // Quoted class names inside :class bindings — object keys and ternary arms.
   // Only well-formed class tokens; a binding EXPRESSION is not a class.
+  //
+  // A quoted string preceded by a comparison is a VALUE, not a class:
+  // `:class="{ active: adminTab === 'recent' }"` binds `active`, and `recent`
+  // is what it is compared against. Without this the checker reports every such
+  // comparand as an unstyled class.
   for (const m of tpl.matchAll(/:class="([^"]*)"/g)) {
-    for (const q of m[1].matchAll(/'([a-z][a-z0-9-]*)'/g)) classes.add(q[1])
+    for (const q of m[1].matchAll(/(.{0,3})'([a-z][a-z0-9-]*)'/g)) {
+      if (/[=!]\s*$/.test(q[1])) continue
+      classes.add(q[2])
+    }
   }
+
+  // `.foo` must not be satisfied by a rule for `.foo-bar`. A raw substring test
+  // makes deleting a LONGER rule look like it broke a SHORTER class, which is
+  // both a false positive and an actively misleading one.
+  const hasRule = (src, c) => new RegExp('\\.' + c.replace(/[-[\]{}()*+?.,\\^$|#]/g, '\\$&') + '(?![\\w-])').test(src)
 
   for (const c of classes) {
     if (FRAMEWORK.test(c)) continue
-    if (css.includes('.' + c)) continue
-    if (style.includes('.' + c)) continue
+    if (hasRule(css, c)) continue
+    if (hasRule(style, c)) continue
     missing.push(`${f} -> .${c}`)
   }
 }

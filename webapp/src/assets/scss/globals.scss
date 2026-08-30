@@ -1,22 +1,36 @@
-// The design-system base (CSS custom properties, fonts, buttons, forms, layout
-// primitives) is loaded separately in main.js as a plain CSS import — Sass
-// deliberately does not inline .css-extension @imports, so chaining them
-// through here would just get left as a broken literal @import in the
-// compiled output. This file holds only genuine Sass/SCSS content.
-
-// Bootstrap's grid + utilities are NOT imported here — this file is pulled in
-// through App.vue's <style> block, which Vite emits BEFORE main.js's
-// style.css import, so anything added here would lose every !important tie to
-// style.css. Bootstrap is imported directly in main.js instead, immediately
-// after style.css. See the header comment in bootstrap.scss.
-
-// Global utility classes needed by more than one page/component in this app.
-// Anything used by only a single component lives in that component's own
-// <style lang="scss" scoped> block instead.
+// The app's global stylesheet — the design system and everything genuinely
+// shared between components.
 //
-// .pets-grid is deliberately NOT defined here — the root style.css (imported
-// in main.js) already defines it, and duplicating it here would just be two
-// competing sources of truth for the same class.
+// This replaces the root style.css, which reached 18,816 lines before Phase 11
+// and was the single worst file in the project to work in. Where a rule ended
+// up was decided mechanically, not by eye:
+//
+//   * used by exactly ONE component  -> that component's <style scoped> block
+//   * used by TWO OR MORE            -> one of the partials below
+//   * used by NOTHING                -> deleted (roughly 6,500 lines of it)
+//
+// Import ORDER IS LOAD-BEARING and matches the order this content had in
+// the global stylesheet. Much of it is `!important` on both sides of a conflict, and two
+// !important declarations of equal specificity are decided by source order —
+// so tokens must precede the rules that read them, and the state themes must
+// come after the surfaces they restyle.
+//
+// Bootstrap is NOT imported here. It is imported directly in main.js
+// immediately after this file, because its utilities are `!important` and must
+// win those same ties. See the header comment in bootstrap.scss.
+
+@import 'tokens';      // :root custom properties — must be first
+@import 'base';        // element reset, body, headings, links
+@import 'buttons';     // the game's own .btn system
+@import 'forms';       // inputs, selects, .form-card, .form-group
+@import 'surfaces';    // .card, .modal, .alert, .spinner, .page-hero
+@import 'shell';       // navbar / sidebars / mobile drawer chrome
+@import 'minigames';   // the shared minigame shell
+@import 'states';      // body.night-mode, themes, weather, accessibility
+@import 'animations';  // keyframes used by more than one component
+
+// ── App-level utilities ─────────────────────────────────────────────────────
+// Small helpers with no natural home in the partials above.
 
 .hint {
   color: var(--text-light);
@@ -24,9 +38,9 @@
 }
 
 // Custom paw cursor, ported from cursor-trail.js (a plain CSS cursor swap
-// despite the filename — no actual trail/particles). Expressed as static
-// CSS here instead of a JS-injected <style> tag, since Vue has no need for
-// the injection pattern the original used.
+// despite the filename — no actual trail/particles). Expressed as static CSS
+// here instead of a JS-injected <style> tag, since Vue has no need for the
+// injection pattern the original used.
 $paw-cursor-svg: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E";
 
 *, *::before, *::after {

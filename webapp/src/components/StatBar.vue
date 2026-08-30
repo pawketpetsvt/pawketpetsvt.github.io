@@ -24,7 +24,7 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
 <style lang="scss" scoped>
 // These classes are deliberately component-owned (`sb-*`) rather than the
 // shared `.stat-row` / `.stat-bar-wrap` names this component used to carry.
-// Those names collide with the sidebar's own stat rows in the root style.css,
+// Those names collide with the sidebar's own stat rows in the global stylesheet,
 // which layers several competing `!important` rules over them — including a
 // top-level `.stat-bar-wrap, .xp-bar-wrap { width: auto !important }` that can
 // collapse the track to zero width. The values below reproduce the appearance

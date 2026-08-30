@@ -21,10 +21,13 @@ import { weatherService } from './services/WeatherService.js'
 import { worldEventService } from './services/WorldEventService.js'
 import { ppHistoryService } from './services/PPHistoryService.js'
 import { vTooltip } from './directives/tooltip.js'
-import '../../style.css'
-// Must come after style.css — Bootstrap's utilities are !important, style.css
-// is saturated with !important, and equal-specificity ties break by source
-// order. See the header comment in bootstrap.scss.
+// The design system, formerly the 18,816-line root style.css (Phase 11). It is
+// now nine themed partials under assets/scss/; anything used by a single
+// component moved into that component's own <style scoped> block.
+import './assets/scss/globals.scss'
+// Must come after globals — Bootstrap's utilities are !important, the design
+// system is saturated with !important, and equal-specificity ties break by
+// source order. See the header comment in bootstrap.scss.
 import './assets/scss/bootstrap.scss'
 
 authService.subscribeToAuthChanges(() => {

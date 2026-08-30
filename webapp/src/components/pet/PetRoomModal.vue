@@ -117,7 +117,7 @@ onMounted(load)
 
 <style lang="scss" scoped>
 // This modal was built entirely from inline styles in legacy — none of its
-// classes exist in style.css — so all of it is owned here.
+// classes exist in the global stylesheet — so all of it is owned here.
 .pr-desc {
   background: rgba(153, 102, 255, 0.06);
   font-size: 0.85rem;

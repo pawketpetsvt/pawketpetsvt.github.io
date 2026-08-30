@@ -37,7 +37,7 @@ import { toastService } from '../../services/ToastService.js'
 
 // Ports gift_showInboxModal() / gift_loadInbox() / gift_accept() / gift_decline().
 //
-// Every `.gift-inbox-*` class already exists in style.css, so this owns only the
+// Every `.gift-inbox-*` class already exists in the global stylesheet, so this owns only the
 // empty state (which legacy wrote inline).
 defineEmits(['close'])
 
@@ -76,6 +76,32 @@ async function decline(gift) {
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.gift-inbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px;
+  border: 2px solid var(--border, #cc99ff);
+  border-radius: 14px;
+  margin-bottom: 12px;
+  background: var(--cream, #fff9ff);
+}
+.gift-inbox-icon { font-size: 2rem; flex-shrink: 0; }
+.gift-inbox-body { flex: 1; }
+.gift-inbox-from { font-size: 0.9rem; margin-bottom: 4px; }
+.gift-inbox-msg { font-style: italic; color: var(--text-light, #888); font-size: 0.85rem; margin-bottom: 4px; }
+.gift-inbox-meta { font-size: 0.75rem; color: var(--text-light, #888); }
+.gift-inbox-actions { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+body.night-mode .gift-inbox-item {
+  background: rgba(42,36,64,0.9);
+  border-color: #6644aa;
+}
+
 .gi-empty {
   padding: 30px;
   color: var(--text-light);

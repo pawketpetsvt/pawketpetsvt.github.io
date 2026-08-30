@@ -7,6 +7,13 @@ import { settingsState } from './SettingsService.js'
 // re-redeemable (legacy skips the already-claimed check for it) so a player can
 // replay the effect, and it is hidden entirely from players who opted out of
 // spooky content.
+//
+// `lore_page` on the promo_codes row is what makes the root `secret.html`
+// reachable — RedeemPage renders it as the "Something feels... off" link. The
+// URL lives in the DATABASE, so NOTHING in this repo names it, and a
+// repo-wide search makes secret.html look like an orphan. It is not. Check
+// `select code, lore_page from promo_codes where lore_page is not null`
+// before ever treating that file as dead.
 export const LORE_CODE = 'THEYWENTMISSING'
 
 // Ports redeemCode() / loadRedeemHistory(), game.js:4505-4680.

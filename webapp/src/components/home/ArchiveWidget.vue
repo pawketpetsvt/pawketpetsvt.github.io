@@ -33,7 +33,7 @@ const open = ref(false)
 
 <style lang="scss" scoped>
 // Legacy styles this entirely inline; only the `archive-pulse` keyframes exist
-// in style.css, and the dot below uses them.
+// in the global stylesheet, and the dot below uses them.
 .aw-card {
   cursor: pointer;
   background: linear-gradient(135deg, rgba(30, 0, 60, 0.92), rgba(80, 0, 80, 0.85));
@@ -64,7 +64,7 @@ const open = ref(false)
   height: 10px;
   background: #ff66cc;
   box-shadow: 0 0 8px #ff66cc;
-  // `archive-pulse` IS defined in style.css, unlike several other keyframe sets
+  // `archive-pulse` IS defined in the global stylesheet, unlike several other keyframe sets
   // this migration has had to write. Left global deliberately: redeclaring it in
   // this scoped block would make Vue rename it and shadow the real one.
   animation: archive-pulse 2s ease-in-out infinite;

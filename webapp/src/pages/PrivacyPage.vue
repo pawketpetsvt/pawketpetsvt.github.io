@@ -106,6 +106,41 @@ const router = useRouter()
 </script>
 
 <style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.legal-doc {
+  line-height: 1.75;
+  color: var(--text);
+}
+.legal-doc h2 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--purple-dark);
+  margin: 28px 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid rgba(153,102,255,0.15);
+}
+.legal-doc h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 16px 0 6px;
+  color: var(--text);
+}
+.legal-doc h2:first-child { margin-top: 0; }
+.legal-doc p { margin: 0 0 12px; color: var(--text); }
+.legal-doc ul {
+  margin: 8px 0 14px 20px;
+  padding: 0;
+}
+.legal-doc li { margin-bottom: 6px; }
+.legal-doc strong { color: var(--text); }
+.legal-doc a { color: var(--purple); }
+body.night-mode .legal-doc, body.night-mode .legal-doc p, body.night-mode .legal-doc li { color: var(--text) !important; }
+body.night-mode .legal-doc h2 { color: #c4a0ff !important; border-color: rgba(153,102,255,0.2) !important; }
+
 // Layout is Bootstrap's (`container-fluid` + spacing/flex utilities). What
 // stays here is what the utility scale cannot express: a legal document's
 // reading measure and inset, and the colour/border treatment.

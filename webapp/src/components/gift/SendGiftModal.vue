@@ -108,7 +108,7 @@ async function send() {
 
 <style lang="scss" scoped>
 // Legacy built this form from an inline-styled HTML string; there is no
-// `.gift-send-*` rule in style.css, so the component owns it. The gift INBOX
+// `.gift-send-*` rule in the global stylesheet, so the component owns it. The gift INBOX
 // classes do exist globally and are reused by GiftInboxModal.
 .gm-label {
   font-weight: 600;

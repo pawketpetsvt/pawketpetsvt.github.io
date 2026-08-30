@@ -1,7 +1,7 @@
 <template>
   <!-- Ports showPetVariantModal(). Variants are cosmetic skins that paint the
        card with an aura, a corner glyph and an image filter (all defined as
-       `.my-pet-card.pet-variant-*` rules in style.css).
+       `.my-pet-card.pet-variant-*` rules in the global stylesheet).
 
        Unlock state comes from the Skin Key system (SkinKeyService), migrated in
        Phase 9.5. A locked variant that can be bought with keys shows its price

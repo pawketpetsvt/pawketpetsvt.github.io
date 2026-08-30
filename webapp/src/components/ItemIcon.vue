@@ -27,3 +27,22 @@ const emoji = computed(() => {
   return itemTypeEmoji(props.item.itemType)
 })
 </script>
+
+<style lang="scss" scoped>
+// Moved out of the root style.css (Phase 11 — style.css elimination).
+// These rules are used by this component and nothing else, so they belong with
+// it rather than in a shared 18,000-line file. Kept as authored except for SCSS
+// nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
+// exactly was converted in the template instead.
+.item-icon-img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  filter: drop-shadow(1px 2px 3px rgba(0,0,0,0.12));
+  transition: transform 0.2s ease;
+  display: block;
+}
+body.night-mode .item-icon-img { filter: drop-shadow(1px 2px 4px rgba(0,0,0,0.35)); }
+</style>
