@@ -251,6 +251,11 @@
     }
 }
 
+/* LAYOUT ONLY. Every colour declaration these rules used to carry has been
+   removed — they were written for a DARK drawer (`color: #e8d5ff`, "light
+   purple, visible on dark bg") and the drawer is a light panel now. The
+   authoritative colours are at the end of this file; these were fighting them
+   and, being more specific, winning. See the note on `.standalone` below. */
 @media (max-width: 900px) {
     /* Mobile Nav Menu Sidebar Buttons */
     .mobile-nav-menu .sidebar-nav-btn,
@@ -261,13 +266,8 @@
       margin-bottom: 2px !important;
       font-size: 1rem !important;
       text-align: left !important;
-      border-radius: 8px !important;
       min-height: 48px !important; /* Touch target */
       box-sizing: border-box !important;
-      background: rgba(255,255,255,0.07) !important;
-      color: #e8d5ff !important; /* Light purple — visible on dark bg */
-      border: none !important;
-      border-bottom: 1px solid rgba(255,255,255,0.08) !important;
       transition: background 0.2s ease !important;
       cursor: pointer !important;
       font-weight: 600 !important;
@@ -277,9 +277,7 @@
 @media (max-width: 900px) {
     .mobile-nav-menu .sidebar-nav-btn:hover,
     .mobile-nav-menu .nav-group-header:hover {
-      background: rgba(153,102,255,0.2) !important;
       transform: none !important;
-      color: #fff !important;
     }
 }
 
@@ -288,25 +286,23 @@
     .mobile-nav-menu .sidebar-nav-btn.child {
       font-size: 0.9rem !important;
       padding: 10px 10px 10px 24px !important;
-      background: rgba(255,255,255,0.04) !important;
-      color: #c4a0ff !important;
-      border-radius: 6px !important;
     }
 }
 
+/* This one is why Home and the other standalone entries were unreadable on a
+   phone. It set `color: #e8d5ff` — near-white lavender for the old dark drawer
+   — and at (0,3,0) it beat the light-panel rule at the end of this file, which
+   is only (0,3,0)'s inferior (0,2,0). Specificity, not source order, so moving
+   the override later would not have helped. Colour dropped; the size stays. */
 @media (max-width: 900px) {
     /* Mobile standalone buttons */
     .mobile-nav-menu .sidebar-nav-btn.standalone {
       font-size: 1rem !important;
-      color: #e8d5ff !important;
     }
 }
 
 @media (max-width: 900px) {
     .mobile-nav-menu .sidebar-nav-btn.active {
-      background: rgba(255, 107, 53, 0.2) !important;
-      color: #ff6b35 !important;
-      border-left: 4px solid #ff6b35 !important;
       box-shadow: none !important;
     }
 }

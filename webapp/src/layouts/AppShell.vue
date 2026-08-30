@@ -109,42 +109,26 @@ onMounted(async () => {
 // it rather than in a shared 18,000-line file. Kept as authored except for SCSS
 // nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
 // exactly was converted in the template instead.
+// `.center-content` is a Bootstrap `.col`. Bootstrap already gives it its width
+// (flex: 1 0 0%) and its share of the row gutter, so the only rules it needs
+// here are the non-layout ones.
+//
+// It used to carry a stack of mobile overrides forcing `width: 100vw` — ported
+// verbatim in Phase 11 from the pre-Bootstrap layout, where `.center-content`
+// was a child of the `.app-container` CSS grid and breaking out to the viewport
+// width was how it escaped that grid. Under container/row/col that is actively
+// wrong: 100vw ignores the container's 20px side padding AND the row's negative
+// gutter margins, so the column renders WIDER than its parent and overflows —
+// which is why every page's content sat pinned to the left with dead space
+// beside it on a phone. The accompanying `padding: 0` also stripped the gutter
+// the cards need to clear the screen edge.
+//
+// Also removed: `body.logged-out` and `body.guest` variants. Neither class is
+// ever applied anywhere in the app, and AppShell only renders when a user is
+// signed in, so a guest never reaches these rules in the first place.
 .center-content {
-  min-height: 600px !important;
-  position: relative !important;
-  align-self: start !important; /* Ensure it starts at top of grid */
-}
-body.logged-out .center-content {
-  max-width: 600px;
-  margin: 0 auto;
-}
-body.guest .center-content {
-  display: block !important;
-  visibility: visible !important;
-  max-width: 100vw !important;
-  width: 100vw !important;
-  padding: 0 !important;
-  margin: 0 !important;
-}
-@media (max-width: 900px) {
-  .center-content {
-    width: 100% !important;
-    max-width: 100vw !important;
-    margin: 0 !important;
-    padding: 10px !important;
-    order: 2;
-    box-sizing: border-box !important;
-  }
-}
-@media (max-width: 768px) {
-  .center-content {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0 !important;
-    padding: 0 !important;
-    box-sizing: border-box !important;
-  }
-  .center-content { width:100vw !important; max-width:100vw !important; padding:0 !important; }
+  min-height: 600px;
+  position: relative;
 }
 
 // The only piece Bootstrap's grid can't express directly: the sidebars are a

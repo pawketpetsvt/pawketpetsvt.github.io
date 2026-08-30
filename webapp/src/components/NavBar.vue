@@ -120,8 +120,8 @@
 
         <nav class="mobile-nav-menu mobile-chrome-menu" :class="{ open: AppState.mobileChromeOpen }"
           aria-label="Account menu">
-          <button class="mobile-menu-close" aria-label="Close menu"
-            @click="AppState.mobileChromeOpen = false">✕ Close</button>
+          <button class="mobile-menu-close" aria-label="Close menu" @click="AppState.mobileChromeOpen = false">✕
+            Close</button>
 
           <div class="d-flex flex-column gap-2">
             <!-- Rendered HERE rather than in the navbar below 992px (and vice
@@ -347,8 +347,8 @@ onUnmounted(() => {
 // nesting of `&:hover`-style variants; anything a Bootstrap utility expresses
 // exactly was converted in the template instead.
 .music-btn {
-  background: rgba(255,255,255,0.25) !important;
-  border: 2px solid rgba(255,255,255,0.5) !important;
+  background: rgba(255, 255, 255, 0.25) !important;
+  border: 2px solid rgba(255, 255, 255, 0.5) !important;
   color: var(--white) !important;
   font-size: 1rem !important;
   width: 32px !important;
@@ -360,14 +360,21 @@ onUnmounted(() => {
   justify-content: center !important;
   transition: all 0.2s !important;
   flex-shrink: 0 !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15) !important;
 }
+
 .music-btn:hover {
-  background: rgba(255,255,255,0.4) !important;
+  background: rgba(255, 255, 255, 0.4) !important;
   transform: scale(1.1) !important;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.2) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2) !important;
 }
-.music-volume { width: 80px !important; accent-color: var(--yellow) !important; cursor: pointer !important; }
+
+.music-volume {
+  width: 80px !important;
+  accent-color: var(--yellow) !important;
+  cursor: pointer !important;
+}
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
@@ -376,6 +383,7 @@ onUnmounted(() => {
   flex-wrap: wrap !important;
   padding: 0 10px !important;
 }
+
 .navbar-logo {
   font-family: 'Chewy', cursive !important;
   font-size: 1.4rem !important;
@@ -386,17 +394,25 @@ onUnmounted(() => {
   text-decoration: none !important;
   flex-shrink: 0 !important;
   cursor: pointer !important;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3) !important;
   transition: transform 0.2s !important;
 }
-.navbar-logo:hover { transform: scale(1.05) !important; }
+
+.navbar-logo:hover {
+  transform: scale(1.05) !important;
+}
+
 .navbar-logo img {
   width: 64px !important;
   height: 64px !important;
   object-fit: contain !important;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2)) !important;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2)) !important;
 }
-.navbar-logo span { color: var(--yellow) !important; }
+
+.navbar-logo span {
+  color: var(--yellow) !important;
+}
+
 .btn-nav-action {
   background: var(--yellow) !important;
   color: var(--purple-dark) !important;
@@ -404,35 +420,41 @@ onUnmounted(() => {
   font-size: 1.05rem !important;
   padding: 10px 24px !important;
   border-radius: 30px !important;
-  border: 3px solid rgba(255,255,255,0.6) !important;
+  border: 3px solid rgba(255, 255, 255, 0.6) !important;
   cursor: pointer !important;
   transition: all 0.2s !important;
   font-weight: 700 !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25) !important;
 }
+
 .btn-nav-action:hover {
   background: var(--white) !important;
   transform: translateY(-2px) !important;
-  box-shadow: 0 5px 12px rgba(0,0,0,0.25) !important;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, 0.25) !important;
 }
+
 body.night-mode .btn-nav-action {
   background: linear-gradient(135deg, #ffd700, #ffaa00) !important;
   color: #1a0a2e !important;
   border: 3px solid rgba(255, 215, 0, 0.6) !important;
   box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3) !important;
 }
+
 body.night-mode .btn-nav-action:hover {
   background: linear-gradient(135deg, #ffed4e, #ffd700) !important;
   color: #0f0619 !important;
   box-shadow: 0 6px 16px rgba(255, 215, 0, 0.5) !important;
 }
+
 .hamburger-menu-btn {
-  display: none !important; /* Hidden on desktop — shown only inside @media (max-width: 768px) */
-  position: static;         /* Sits in navbar-left flow on mobile; Phase 1 overrides as needed */
+  display: none !important;
+  /* Hidden on desktop — shown only inside @media (max-width: 768px) */
+  position: static;
+  /* Sits in navbar-left flow on mobile; Phase 1 overrides as needed */
   z-index: 1001;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255, 255, 255, 0.15);
   color: white;
-  border: 1px solid rgba(255,255,255,0.3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;
   width: 40px;
   height: 40px;
@@ -446,17 +468,23 @@ body.night-mode .btn-nav-action:hover {
   margin-right: 8px;
   transition: transform 0.2s ease;
 }
+
 .hamburger-menu-btn:hover {
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(255, 107, 53, 0.5);
 }
-.hamburger-menu-btn:active { transform: scale(0.95); }
+
+.hamburger-menu-btn:active {
+  transform: scale(0.95);
+}
+
 .navbar-left {
   display: flex;
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
 }
+
 .navbar-right {
   display: flex;
   align-items: center;
@@ -464,11 +492,13 @@ body.night-mode .btn-nav-action:hover {
   margin-left: auto;
   flex-shrink: 0;
 }
+
 .navbar-logo {
   font-size: 16px !important;
   flex-shrink: 0 !important;
   /* padding removed — the bar's own 20px side padding does this job now. */
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
@@ -476,18 +506,22 @@ body.night-mode .btn-nav-action:hover {
   flex-shrink: 1 !important;
   min-width: 0 !important;
 }
-.navbar-left, .navbar-right {
+
+.navbar-left,
+.navbar-right {
   display: flex !important;
   align-items: center !important;
   gap: 6px !important;
   flex-wrap: nowrap !important;
 }
+
 .btn-nav-action {
   padding: 4px 8px !important;
   font-size: 11px !important;
   white-space: nowrap !important;
   min-width: auto !important;
 }
+
 .navbar-logo {
   font-size: 18px !important;
   font-weight: bold !important;
@@ -496,12 +530,14 @@ body.night-mode .btn-nav-action:hover {
   padding rules (the other declared 6px) and is why the logo sat inset from
   the bar's edge. The 20px on `.navbar` replaces it. */
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
   gap: 12px !important;
   flex-shrink: 1 !important;
 }
+
 .btn-nav-action {
   padding: 6px 12px !important;
   font-size: 13px !important;
@@ -509,15 +545,18 @@ body.night-mode .btn-nav-action:hover {
   min-height: 36px !important;
   font-weight: 600 !important;
 }
+
 .beta-badge {
   display: inline !important;
   margin-right: 5px !important;
 }
+
 .navbar-logo {
   gap: 15px !important;
   display: flex !important;
   align-items: center !important;
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
@@ -526,19 +565,23 @@ body.night-mode .btn-nav-action:hover {
   min-width: 0 !important;
   overflow-x: auto !important;
 }
+
 .navbar-center button {
   white-space: nowrap !important;
   flex-shrink: 0 !important;
 }
+
 .skin-key-count {
   font-size: 18px;
   font-weight: 700;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
+
 .navbar-logo {
   margin-right: 0 !important;
   flex-shrink: 0 !important;
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
@@ -546,19 +589,26 @@ body.night-mode .btn-nav-action:hover {
   flex-shrink: 1 !important;
   justify-content: center !important;
 }
-.navbar-center > *, .navbar-left > * { margin: 0 4px !important; }
+
+.navbar-center>*,
+.navbar-left>* {
+  margin: 0 4px !important;
+}
+
 .navbar-left {
   display: flex !important;
   align-items: center !important;
   gap: 16px !important;
   flex-shrink: 0 !important;
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
   gap: 12px !important;
   flex-shrink: 0 !important;
 }
+
 .navbar-right {
   display: flex !important;
   align-items: center !important;
@@ -566,6 +616,7 @@ body.night-mode .btn-nav-action:hover {
   flex-shrink: 0 !important;
   margin-left: auto !important;
 }
+
 .navbar-logo {
   font-size: 1.2rem !important;
   display: flex !important;
@@ -574,6 +625,7 @@ body.night-mode .btn-nav-action:hover {
   cursor: pointer !important;
   flex-shrink: 0 !important;
 }
+
 .beta-badge {
   background: rgba(0, 0, 0, 0.35) !important;
   color: #ffcc00 !important;
@@ -586,11 +638,13 @@ body.night-mode .btn-nav-action:hover {
   white-space: nowrap !important;
   cursor: help !important;
 }
+
 .beta-badge:hover {
   background: rgba(0, 0, 0, 0.6) !important;
   transform: scale(1.02);
   border-color: rgba(255, 204, 0, 0.8) !important;
 }
+
 .btn-nav-action {
   padding: 6px 14px !important;
   font-size: 13px !important;
@@ -598,26 +652,33 @@ body.night-mode .btn-nav-action:hover {
   white-space: nowrap !important;
   cursor: pointer !important;
 }
+
 .navbar-left {
   display: flex !important;
   align-items: center !important;
   gap: 16px !important;
 }
+
 .navbar-center {
   display: flex !important;
   align-items: center !important;
   gap: 12px !important;
 }
+
 .navbar-right {
   display: flex !important;
   align-items: center !important;
   gap: 16px !important;
   margin-left: auto !important;
 }
-.navbar-left > *, .navbar-center > *, .navbar-right > * {
+
+.navbar-left>*,
+.navbar-center>*,
+.navbar-right>* {
   flex-shrink: 0 !important;
   white-space: nowrap !important;
 }
+
 .navbar-logo {
   display: flex !important;
   align-items: center !important;
@@ -626,18 +687,20 @@ body.night-mode .btn-nav-action:hover {
   font-size: 1.2rem !important;
   color: white !important;
   cursor: pointer !important;
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.3) !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
+
 .beta-badge {
-  background: rgba(0,0,0,0.3) !important;
+  background: rgba(0, 0, 0, 0.3) !important;
   color: #ffcc00 !important;
   padding: 6px 12px !important;
   border-radius: 20px !important;
   font-size: 11px !important;
   font-weight: bold !important;
 }
+
 .btn-nav-action {
-  background: rgba(255,255,255,0.2) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
   border: none !important;
   color: white !important;
   padding: 8px 16px !important;
@@ -647,17 +710,20 @@ body.night-mode .btn-nav-action:hover {
   font-weight: bold !important;
   transition: all 0.2s !important;
 }
+
 .btn-nav-action:hover {
-  background: rgba(255,255,255,0.35) !important;
+  background: rgba(255, 255, 255, 0.35) !important;
   transform: translateY(-2px) !important;
 }
+
 .music-controls {
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
 }
+
 .music-btn {
-  background: rgba(255,255,255,0.2) !important;
+  background: rgba(255, 255, 255, 0.2) !important;
   border: none !important;
   color: white !important;
   width: 32px !important;
@@ -670,21 +736,25 @@ body.night-mode .btn-nav-action:hover {
   justify-content: center !important;
   transition: all 0.2s !important;
 }
+
 .music-btn:hover {
-  background: rgba(255,255,255,0.35) !important;
+  background: rgba(255, 255, 255, 0.35) !important;
   transform: scale(1.05) !important;
 }
+
 .music-volume {
   width: 80px !important;
   height: 4px !important;
   accent-color: #ffdd00 !important;
   cursor: pointer !important;
 }
+
 .navbar-left {
   display: flex;
   align-items: center;
   gap: 6px;
 }
+
 .mobile-chrome-menu {
   left: auto !important;
   right: -320px !important;
@@ -693,35 +763,48 @@ body.night-mode .btn-nav-action:hover {
   border-left: 4px solid var(--border) !important;
   box-shadow: -6px 0 28px rgba(153, 102, 255, 0.35) !important;
 }
+
 .mobile-chrome-menu.open {
   left: auto !important;
   right: 0 !important;
 }
+
 .nc-count-plain {
   background: rgba(153, 102, 255, 0.25);
   color: var(--purple-dark);
 }
-.nc-static { cursor: default; }
+
+.nc-static {
+  cursor: default;
+}
+
 .nc-static:hover {
   background: rgba(153, 102, 255, 0.22);
   border-color: rgba(153, 102, 255, 0.4);
 }
+
 .nc-logout {
   color: #c2410c;
   background: rgba(255, 153, 51, 0.18);
   border-color: rgba(255, 153, 51, 0.45);
 }
+
 .nc-logout:hover {
   background: rgba(255, 153, 51, 0.3);
   border-color: var(--orange);
 }
-.nc-divider { border-top: 2px solid rgba(153, 102, 255, 0.25); }
+
+.nc-divider {
+  border-top: 2px solid rgba(153, 102, 255, 0.25);
+}
+
 .nc-music-label {
   font-family: 'Fredoka', cursive;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--purple-dark);
 }
+
 .nc-music-controls {
   display: flex;
   align-items: center;
@@ -729,6 +812,7 @@ body.night-mode .btn-nav-action:hover {
   gap: 10px;
   width: 100%;
 }
+
 .nc-music-controls .music-btn {
   width: 40px !important;
   height: 40px !important;
@@ -739,7 +823,11 @@ body.night-mode .btn-nav-action:hover {
   font-size: 1rem !important;
   flex: 0 0 auto !important;
 }
-.nc-music-controls .music-btn:hover { background: rgba(153, 102, 255, 0.35) !important; }
+
+.nc-music-controls .music-btn:hover {
+  background: rgba(153, 102, 255, 0.35) !important;
+}
+
 .nc-music-controls .music-volume {
   display: block !important;
   width: auto !important;
@@ -747,6 +835,7 @@ body.night-mode .btn-nav-action:hover {
   height: 6px !important;
   accent-color: var(--purple) !important;
 }
+
 @media (max-width: 992px) {
   .navbar-center {
     grid-column: 1 / -1 !important;
@@ -754,14 +843,33 @@ body.night-mode .btn-nav-action:hover {
     padding: 8px 0 !important;
   }
 }
+
 @media (max-width: 900px) {
-  .hamburger-menu-btn { display: block !important; }
-  .navbar-center { display: none !important; }
-  .beta-badge { display: none !important; }
-  .music-volume { display: none !important; }
-  .btn-nav-action span { display: none !important; }
-  .btn-nav-action { padding: 8px 12px !important; }
+  .hamburger-menu-btn {
+    display: block !important;
+  }
+
+  .navbar-center {
+    display: none !important;
+  }
+
+  .beta-badge {
+    display: none !important;
+  }
+
+  .music-volume {
+    display: none !important;
+  }
+
+  .btn-nav-action span {
+    display: none !important;
+  }
+
+  .btn-nav-action {
+    padding: 8px 12px !important;
+  }
 }
+
 @media (max-width: 480px) {
   .hamburger-menu-btn {
     width: 38px !important;
@@ -769,13 +877,24 @@ body.night-mode .btn-nav-action:hover {
     font-size: 1.6rem !important;
   }
 }
+
 @media (min-width: 901px) {
-  .hamburger-menu-btn { display: none !important; }
+  .hamburger-menu-btn {
+    display: none !important;
+  }
 }
+
 @media (max-width: 600px) {
-  .navbar-center { display: none !important;  /* Hide entire beta section */ }
-  .music-controls { display: none !important; }
+  .navbar-center {
+    display: none !important;
+    /* Hide entire beta section */
+  }
+
+  .music-controls {
+    display: none !important;
+  }
 }
+
 @media (min-width: 769px) {
   .navbar-left {
     display: flex !important;
@@ -783,6 +902,7 @@ body.night-mode .btn-nav-action:hover {
     gap: 15px !important;
     flex-shrink: 0 !important;
   }
+
   .navbar-center {
     display: flex !important;
     align-items: center !important;
@@ -791,19 +911,23 @@ body.night-mode .btn-nav-action:hover {
     flex-grow: 0 !important;
     justify-content: center !important;
   }
+
   .navbar-right {
     display: flex !important;
     align-items: center !important;
     gap: 12px !important;
     flex-shrink: 0 !important;
-    margin-left: auto !important; /* Push to right edge */
+    margin-left: auto !important;
+    /* Push to right edge */
   }
+
   .navbar-left {
     display: flex !important;
     align-items: center !important;
     gap: 16px !important;
     order: 1 !important;
   }
+
   .navbar-center {
     display: flex !important;
     align-items: center !important;
@@ -811,6 +935,7 @@ body.night-mode .btn-nav-action:hover {
     order: 2 !important;
     margin-left: auto !important;
   }
+
   .navbar-right {
     display: flex !important;
     align-items: center !important;
@@ -818,17 +943,24 @@ body.night-mode .btn-nav-action:hover {
     order: 3 !important;
     margin-left: 0 !important;
   }
-  .hamburger-menu-btn, #hamburger-menu-btn, [id*="hamburger"] { display: none !important; }
+
+  .hamburger-menu-btn,
+  #hamburger-menu-btn,
+  [id*="hamburger"] {
+    display: none !important;
+  }
 }
+
 @media (max-width: 768px) {
   .hamburger-menu-btn {
     display: flex !important;
-    position: static !important;   /* no longer fixed — lives in navbar */
+    position: static !important;
+    /* no longer fixed — lives in navbar */
     width: 40px !important;
     height: 40px !important;
     font-size: 22px !important;
-    background: rgba(255,255,255,0.15) !important;
-    border: 1px solid rgba(255,255,255,0.3) !important;
+    background: rgba(255, 255, 255, 0.15) !important;
+    border: 1px solid rgba(255, 255, 255, 0.3) !important;
     border-radius: 8px !important;
     color: white !important;
     box-shadow: none !important;
@@ -837,12 +969,31 @@ body.night-mode .btn-nav-action:hover {
     align-items: center !important;
     justify-content: center !important;
   }
-  .navbar-logo span { display: none !important;  /* hide "PawketPets" text, keep logo img */ }
-  .beta-badge { display: none !important; }
-  .music-controls { display: none !important; }
-  .hamburger-menu-btn { display:flex !important; }
-  .navbar-right { gap: 4px !important; }
-  .music-controls { display: none !important; }
+
+  .navbar-logo span {
+    display: none !important;
+    /* hide "PawketPets" text, keep logo img */
+  }
+
+  .beta-badge {
+    display: none !important;
+  }
+
+  .music-controls {
+    display: none !important;
+  }
+
+  .hamburger-menu-btn {
+    display: flex !important;
+  }
+
+  .navbar-right {
+    gap: 4px !important;
+  }
+
+  .music-controls {
+    display: none !important;
+  }
 }
 
 // The navbar's own chrome. the global stylesheet still owns `.navbar`, `.navbar-right` and
@@ -900,7 +1051,7 @@ body.night-mode .btn-nav-action:hover {
 .nav-skin-keys,
 .nav-round-btn {
   font-family: inherit !important;
-  font-size: 0.85rem !important;
+  font-size: 1rem !important;
   font-weight: 600 !important;
   white-space: nowrap !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2) !important;
