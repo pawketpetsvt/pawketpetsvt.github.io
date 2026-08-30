@@ -106,6 +106,12 @@
 .sidebar-nav-links {
   display: flex !important;
   flex-direction: column !important;
+  /* Stated explicitly because `:has(> button)` in _buttons.scss sets
+     `flex-wrap: wrap` on every element with a direct button child below 992px,
+     and this list's direct children ARE buttons. On a column container that
+     wraps into columns, not lines — see the note on that rule. The nav is one
+     continuous vertical list at every width, so it must never wrap. */
+  flex-wrap: nowrap !important;
   gap: 8px !important;
 }
 
@@ -530,13 +536,14 @@
     }
 }
 
-@media (max-width: 768px) {
-    .mobile-nav-menu .sidebar-nav-links {
-      max-height: 60vh !important;
-      overflow-y: auto !important;
-      -webkit-overflow-scrolling: touch !important;
-    }
-}
+/* The `max-height: 60vh; overflow-y: auto` that used to sit here has been
+   removed. `.mobile-nav-menu` is already `height: 100dvh` with `overflow-y:
+   auto`, so the drawer scrolls as ONE surface; a second scroll region nested
+   inside it meant the menu could only ever show 60vh of itself, with the
+   branding, Your Stats and the streamer panels stranded below a scrollbar most
+   players never noticed. It was also the height that gave the wrapping bug
+   described in _buttons.scss something to wrap against. Every nav entry is now
+   in one uninterrupted vertical list however many groups are expanded. */
 
 @media (max-width: 768px) {
     .mobile-nav-menu .sidebar-nav-btn {

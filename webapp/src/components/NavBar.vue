@@ -1240,7 +1240,7 @@ body.night-mode .btn-nav-action:hover {
   // The two readouts are the only flexible items in the row, so they are what
   // must give when a username is long — the logo and both toggles are fixed.
   .nav-readout {
-    font-size: 0.78rem !important;
+    font-size: 1rem !important;
     min-width: 0 !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;

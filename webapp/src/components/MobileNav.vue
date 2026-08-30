@@ -92,6 +92,12 @@ onUnmounted(() => {
   // ("compact header with stats only"), which inside a 280px drawer squeezes
   // the branding, Menu and Your Stats into columns beside each other.
   flex-direction: column !important;
+  // The other half of that strip layout, and the one this rule originally
+  // missed. `flex-wrap: wrap` is harmless on a row and destructive on a
+  // column, where it wraps into COLUMNS — so leaving it set while flipping the
+  // direction to `column` left a container primed to split itself in two the
+  // moment anything bounded its height.
+  flex-wrap: nowrap !important;
   width: 100% !important;
   align-self: stretch !important;
 }

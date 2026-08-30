@@ -167,9 +167,25 @@ a {
     .btn-sm { min-height: 34px !important; font-size: 0.8rem !important; }
 }
 
+/* Button ROWS wrap instead of overflowing on a narrow screen. The selector is
+   legacy's and matches ANY element with a direct button child — which is right
+   for a row and wrong for a column, because `flex-wrap: wrap` on a
+   column-direction container splits it into COLUMNS rather than lines.
+
+   That is what broke the mobile nav drawer: `.sidebar-nav-links` is a column
+   flex container whose direct children are the nav <button>s, and it carried a
+   `max-height: 60vh`. Once a dropdown group expanded past that height, the
+   overflow wrapped into a second column and Battle / Shop / My Room could only
+   be reached by scrolling the list sideways.
+
+   Column containers are now excluded. `[class*="flex-column"]` covers
+   Bootstrap's `flex-column` plus its responsive and `-reverse` variants, which
+   is how every column container in the app declares itself except
+   `.sidebar-nav-links` — that one states `flex-wrap: nowrap !important` on its
+   own rule in _shell.scss, which outranks this either way. */
 @media (max-width: 991.98px) {
-    :has(> button),
-    :has(> .btn) {
+    :has(> button):not([class*="flex-column"]),
+    :has(> .btn):not([class*="flex-column"]) {
       flex-wrap: wrap;
     }
 }

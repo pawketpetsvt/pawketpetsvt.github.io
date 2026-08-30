@@ -7,11 +7,7 @@
          the single-run scroll animation. Legacy achieved the same restart by
          cloning the node and re-attaching its listener (game.js:13436-13445);
          letting Vue swap the element is the same effect without the clone. -->
-    <span
-      :key="tickerState.tick"
-      class="news-ticker-inner"
-      @animationend="advance"
-    >
+    <span :key="tickerState.tick" class="news-ticker-inner" @animationend="advance">
       <template v-if="tickerState.eventAnnouncement">
         <span class="event-announcement">{{ tickerState.eventAnnouncement }}</span>
         <span> | </span>
@@ -27,7 +23,8 @@ import { onMounted, onUnmounted } from 'vue'
 import { newsTickerService, tickerState } from '../services/NewsTickerService.js'
 
 // Shortest time a headline stays up. Normally irrelevant — the scroll runs 40s,
-// so `animationend` is always well past this. It matters under the accessibility
+// or 20s below the phone breakpoint, so `animationend` is always well past this
+// either way. It matters under the accessibility
 // "reduced motion" setting, where `body.reduced-motion *` forces
 // `animation-duration: 0.01ms`: the animation still completes and still fires
 // `animationend`, just immediately, which would spin the rotation as fast as the
@@ -70,9 +67,29 @@ body.night-mode .news-ticker {
   background: linear-gradient(90deg, #4a2a6a, #6a4a8a, #4a6a8a) !important;
   border-bottom: 3px solid rgba(153, 102, 255, 0.5) !important;
 }
-.event-announcement { background:linear-gradient(135deg,#ff4444 0%,#cc0000 100%);color:#fff;font-weight:bold;padding:2px 12px;border-radius:6px;margin-right:8px;box-shadow:0 2px 8px rgba(255,68,68,0.4);animation:eventPulse 2s ease-in-out infinite }
 
-@keyframes eventPulse{0%,100%{box-shadow:0 2px 8px rgba(255,68,68,0.4)}50%{box-shadow:0 2px 12px rgba(255,68,68,0.7)}}
+.event-announcement {
+  background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+  color: #fff;
+  font-weight: bold;
+  padding: 2px 12px;
+  border-radius: 6px;
+  margin-right: 8px;
+  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.4);
+  animation: eventPulse 2s ease-in-out infinite
+}
+
+@keyframes eventPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 2px 8px rgba(255, 68, 68, 0.4)
+  }
+
+  50% {
+    box-shadow: 0 2px 12px rgba(255, 68, 68, 0.7)
+  }
+}
 
 // Ported from legacy style.css:108-127. The `!important` flags there existed to win
 // against other global rules; nothing competes for these selectors inside a
@@ -108,13 +125,40 @@ $navbar-radius: 24px;
   // looping animation would never fire it.
   animation: ticker 40s linear 1;
   padding-left: 100%;
-  font-weight: 600;
+  font-weight: 400;
   text-shadow: 1px 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+// The headline travels this element's OWN width — `padding-left: 100%` (one
+// container width) plus the text — and it does so in a fixed 40s. That makes
+// the pixel speed proportional to the viewport: roughly 50px/s across a 1400px
+// desktop, but only ~25px/s on a 390px phone. Same duration, half the distance,
+// so the same headline visibly crawls on mobile.
+//
+// Halving the duration below the phone breakpoint puts the phone rate back at
+// about the desktop one. It is a step change rather than a true constant speed:
+// right at 768px this reads brisk (~68px/s), and only a JS-measured duration
+// could hold the rate exactly flat across every width. Not worth a resize
+// listener for a decorative bar.
+//
+// Deliberately overriding only `animation-duration`, not the `animation`
+// shorthand, so the name/timing/count above stay the single source of truth.
+// No `!important`: `body.reduced-motion *` sets `animation-duration: 0.01ms
+// !important`, and that must keep winning here.
+@media (max-width: 768px) {
+  .news-ticker-inner {
+    animation-duration: 20s;
+  }
+}
+
 @keyframes ticker {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-100%); }
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
 }
 
 // Matches the legacy `.glitch-text` treatment (legacy style.css:4171-4176), scoped
@@ -127,10 +171,25 @@ $navbar-radius: 24px;
 }
 
 @keyframes ticker-glitch {
-  0%   { text-shadow: 2px 0 #ff0000, -2px 0 #00ff00; transform: translateX(0); }
-  25%  { text-shadow: -2px 0 #ff0000, 2px 0 #00ff00; transform: translateX(2px); }
-  50%  { text-shadow: 2px 0 #00ff00, -2px 0 #ff0000; transform: translateX(-2px); }
-  100% { text-shadow: 2px 0 #ff0000, -2px 0 #00ff00; transform: translateX(0); }
+  0% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
+
+  25% {
+    text-shadow: -2px 0 #ff0000, 2px 0 #00ff00;
+    transform: translateX(2px);
+  }
+
+  50% {
+    text-shadow: 2px 0 #00ff00, -2px 0 #ff0000;
+    transform: translateX(-2px);
+  }
+
+  100% {
+    text-shadow: 2px 0 #ff0000, -2px 0 #00ff00;
+    transform: translateX(0);
+  }
 }
 
 // `.event-announcement` has no rule anywhere in the legacy stylesheet — the

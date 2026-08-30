@@ -1,1 +1,0 @@
-import{L as r,O as e}from"./index-DFZsez3j.js";import{P as o}from"./Pet-ByjRGFRW.js";class s{async getCatalog(){const t=await r.from("pets").select("*").order("created_at",{ascending:!0});if(t.error||!t.data)throw e.petCatalog=[],new Error("Could not load pets.");return e.petCatalog=t.data.map(a=>new o(a)),e.petCatalog}}const l=new s;export{l as p};

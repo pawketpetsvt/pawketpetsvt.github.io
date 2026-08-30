@@ -90,8 +90,25 @@ body, button, a, input, textarea, select {
     }
 }
 
+/* This was `* { max-width: 100% !important }` — a legacy sledgehammer against
+   horizontal overflow, from before the layout used Bootstrap's grid.
+   It is incompatible with that grid. A `.row` is REQUIRED to be wider than its
+   parent by one gutter (it carries negative side margins, which the columns'
+   padding then gives back), and capping it at 100% stops the right side
+   expanding while the negative LEFT margin still shifts it left. The result is
+   a row that loses its full gutter width, on one side only.
+   That happened at both nesting levels on every page: the outer `.row.g-3`
+   lost 16px and the inner `.row.g-wide` lost 28px, so page content sat 28px
+   from the left edge and 72px from the right — the "stuck to the left" bug.
+   Narrowed to the elements a max-width cap is actually FOR: media and other
+   intrinsically-sized content that can exceed its box. Layout boxes must never
+   be capped. Bootstrap's reboot normally supplies `img { max-width: 100% }`,
+   but this build deliberately excludes reboot (see bootstrap.scss), so without
+   this rule nothing else would hold images in.
+   Page-level overflow is still handled, by `html, body { overflow-x: hidden }`
+   directly above — which is the correct mechanism for it. */
 @media (max-width: 900px) {
-    * {
+    img, video, canvas, iframe, embed, object, table, pre {
       max-width: 100% !important;
     }
 }
