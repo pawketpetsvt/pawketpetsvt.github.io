@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">🏆 ✦ 🏆</div>
       <h1>Leaderboard</h1>
@@ -196,7 +196,6 @@ onMounted(async () => {
   color: #fff;
   font-weight: 700;
 }
-
 
 .leaderboard-username {
   font-weight: 700;

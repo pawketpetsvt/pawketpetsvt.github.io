@@ -4,16 +4,17 @@
        equipment-adjusted ones via updatePetStatsDisplay(); here the adjusted
        values simply arrive when calculatePetStats resolves, so the numbers
        never disagree with themselves mid-render. -->
-  <div class="pet-battle-stats">
-    <div class="battle-stat-mini pp-help" v-tooltip="TIPS.hp">
+  <div class="pet-battle-stats d-flex justify-content-around flex-wrap gap-2 p-tight my-px10 rounded-3">
+    <div class="battle-stat-mini pp-help text-center" v-tooltip="TIPS.hp">
       <div class="pp-stat-label">HP</div>
       <div class="pp-stat-value">{{ currentHP }}/{{ maxHP }}</div>
-      <div class="pp-hp-track">
-        <div class="pp-hp-fill" :style="{ width: hpPct + '%', background: hpColor }"></div>
+      <div class="pp-hp-track mt-1 overflow-hidden">
+        <div class="pp-hp-fill h-100" :style="{ width: hpPct + '%', background: hpColor }"></div>
       </div>
     </div>
 
-    <div v-for="stat in shownStats" :key="stat.key" class="battle-stat-mini pp-help" v-tooltip="TIPS[stat.key]">
+    <div v-for="stat in shownStats" :key="stat.key" class="battle-stat-mini pp-help text-center"
+      v-tooltip="TIPS[stat.key]">
       <div class="pp-stat-label">{{ stat.label }}</div>
       <div class="pp-stat-value" :style="stat.color ? { color: stat.color } : null">{{ stat.value }}</div>
     </div>
@@ -90,18 +91,9 @@ watch(() => props.pet.id, load)
 // `.pet-battle-stats` and `.battle-stat-mini` were inline-styled in the legacy
 // card, so the component owns the whole look.
 .pet-battle-stats {
-  display: flex;
-  justify-content: space-around;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px;
-  margin: 10px 0;
   background: rgba(176, 106, 255, 0.1);
   border: 2px solid var(--purple-light);
-  border-radius: 12px;
 }
-
-.battle-stat-mini { text-align: center; }
 
 .pp-help { cursor: help; }
 
@@ -117,17 +109,16 @@ watch(() => props.pet.id, load)
   font-size: 1.1rem;
 }
 
+// A drawn mini-bar: 60x4 with a 2px radius, none of which is on the utility
+// scale (the radius scale starts at 8px).
 .pp-hp-track {
   width: 60px;
   height: 4px;
   background: #e0e0e0;
   border-radius: 2px;
-  margin-top: 4px;
-  overflow: hidden;
 }
 
 .pp-hp-fill {
-  height: 100%;
   transition: width 0.3s;
 }
 </style>

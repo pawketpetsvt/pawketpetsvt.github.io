@@ -5,19 +5,19 @@
        cache is cold, then re-renders the whole tab. The pets live in AppState
        here, so the page loads them once and this just reads them. -->
   <div>
-    <p v-if="!pets.length" class="rps-empty">
+    <p v-if="!pets.length" class="rps-empty text-center">
       No pets yet — <router-link to="/adopt">adopt one</router-link> to start racing!
     </p>
 
-    <div v-else class="rps-row">
+    <div v-else class="d-flex flex-wrap gap-px10 mb-3">
       <button
         v-for="pet in pets"
         :key="pet.id"
-        class="rps-pet"
+        class="rps-pet d-inline-flex align-items-center gap-px6 px-px14 py-2 rounded-3"
         :class="{ 'rps-selected': pet.id === modelValue }"
         @click="$emit('update:modelValue', pet.id)"
       >
-        <img v-if="imageFor(pet)" :src="imageFor(pet)" alt="" class="rps-avatar" @error="hide" />
+        <img v-if="imageFor(pet)" :src="imageFor(pet)" alt="" class="rps-avatar rounded-circle" @error="hide" />
         {{ pet.nickname || (pet.species && pet.species.name) || 'Pet' }}
       </button>
     </div>
@@ -47,25 +47,11 @@ function hide(e) { e.target.style.display = 'none' }
 </script>
 
 <style lang="scss" scoped>
-.rps-empty {
-  text-align: center;
-  color: var(--text-light);
-}
-
-.rps-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
+// Layout and spacing are Bootstrap's; only the chip's visual treatment remains.
+.rps-empty { color: var(--text-light); }
 
 .rps-pet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
   border: 2.5px solid var(--border);
-  border-radius: 12px;
   background: var(--white);
   font-family: Fredoka, sans-serif;
   font-size: 0.88rem;
@@ -80,10 +66,10 @@ function hide(e) { e.target.style.display = 'none' }
   }
 }
 
+// A fixed avatar size, not a spacing step — `rounded-circle` supplies the shape.
 .rps-avatar {
   width: 24px;
   height: 24px;
-  border-radius: 50%;
   object-fit: cover;
 }
 </style>

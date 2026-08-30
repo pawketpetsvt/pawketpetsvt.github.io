@@ -10,12 +10,12 @@
 
     <div v-for="poll in polls" :key="poll.id" class="poll-widget-item">
       <div class="poll-widget-question">{{ poll.question }}</div>
-      <div class="poll-widget-timer">⏰ {{ timeLeft(poll.ends_at) }}</div>
+      <div class="poll-widget-timer mb-2">⏰ {{ timeLeft(poll.ends_at) }}</div>
 
       <button
         v-for="(opt, idx) in (poll.options || [])"
         :key="idx"
-        class="poll-option pw-option"
+        class="poll-option pw-option d-block w-100 text-start"
         :class="{ 'poll-option-chosen': isChosen(poll, idx) }"
         :disabled="voted(poll) || busy"
         @click="cast(poll.id, idx)"
@@ -24,15 +24,15 @@
           {{ opt.icon || '' }} {{ opt.text }}
           <template v-if="isChosen(poll, idx)"> ✓ Your vote</template>
         </div>
-        <div v-if="voted(poll)" class="pw-bar">
-          <div class="pw-bar-fill" :style="{ width: pollService.percent(poll, idx) + '%' }"></div>
+        <div v-if="voted(poll)" class="pw-bar mt-px6 rounded-5 overflow-hidden">
+          <div class="pw-bar-fill h-100 rounded-5" :style="{ width: pollService.percent(poll, idx) + '%' }"></div>
         </div>
       </button>
 
-      <p v-if="!voted(poll)" class="pw-reward">Vote to earn +25 PP</p>
+      <p v-if="!voted(poll)" class="pw-reward mt-px6 mb-0">Vote to earn +25 PP</p>
     </div>
 
-    <p v-if="pollState.polls.length > polls.length" class="pw-more">
+    <p v-if="pollState.polls.length > polls.length" class="pw-more mt-px10 mb-0 text-center">
       +{{ pollState.polls.length - polls.length }} more poll{{ pollState.polls.length - polls.length === 1 ? '' : 's' }} running
     </p>
   </div>
@@ -79,6 +79,9 @@ onMounted(() => pollService.load())
 // are owned by style.css. `.poll-widget-item`, `.poll-widget-question` and
 // `.poll-widget-timer` have no rule anywhere — legacy relied on `.poll-option`
 // alone and left the rest unstyled — so they live here, as do the result bars.
+// The only structural rule left: an adjacent-sibling divider, which Bootstrap
+// has no utility for — the spacing is conditional on position, not on the
+// element itself.
 .poll-widget-item + .poll-widget-item {
   margin-top: 12px;
   padding-top: 12px;
@@ -94,14 +97,11 @@ onMounted(() => pollService.load())
 .poll-widget-timer {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-bottom: 8px;
 }
 
-// `.poll-option` is a <button> here rather than a clickable div.
+// `.poll-option` is a <button> here rather than a clickable div, so the
+// browser's own button chrome has to be neutralised.
 .pw-option {
-  display: block;
-  width: 100%;
-  text-align: left;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -109,17 +109,13 @@ onMounted(() => pollService.load())
   &:disabled { cursor: default; }
 }
 
+// 6px is the bar's drawn thickness, not a spacing step.
 .pw-bar {
   height: 6px;
-  margin-top: 6px;
-  border-radius: 20px;
   background: rgba(153, 102, 255, 0.12);
-  overflow: hidden;
 }
 
 .pw-bar-fill {
-  height: 100%;
-  border-radius: 20px;
   background: linear-gradient(90deg, #9966ff, #ff66cc);
   transition: width 0.4s;
 }
@@ -127,13 +123,10 @@ onMounted(() => pollService.load())
 .pw-reward {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin: 6px 0 0;
 }
 
 .pw-more {
   font-size: 0.75rem;
   color: var(--text-light);
-  margin: 10px 0 0;
-  text-align: center;
 }
 </style>

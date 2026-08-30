@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">💖 ✦ 💖</div>
       <h1>My Pets</h1>
@@ -9,7 +9,7 @@
 
     <div v-if="loading" class="spinner"></div>
     <div v-else-if="!AppState.ownedPets.length" class="empty-state">
-      <div class="empty-icon">🐾</div>
+      <div class="empty-icon mb-3">🐾</div>
       <h2>No pets yet!</h2>
       <p>Head to the adoption centre!</p>
       <router-link to="/adopt" class="btn btn-primary btn-lg">🐣 Adopt a Pet</router-link>
@@ -27,7 +27,8 @@
           @allocate-stats="open('stats', pet)"
           @manage-variant="open('variant', pet)"
           @manage-room="open('room', pet)"
-          @snapshot="snapshotComingSoon" />
+          @scrapbook="open('scrapbook', pet)"
+          @snapshot="open('snapshot', pet)" />
       </div>
     </div>
 
@@ -37,6 +38,8 @@
     <StatPointsModal v-if="modal === 'stats'" :pet="modalPet" @close="close" />
     <VariantModal v-if="modal === 'variant'" :pet="modalPet" @close="close" />
     <PetRoomModal v-if="modal === 'room'" :pet="modalPet" @close="close" />
+    <ScrapbookModal v-if="modal === 'scrapbook'" :pet-id="modalPet.id" :pet-name="petLabel" @close="close" />
+    <SnapshotModal v-if="modal === 'snapshot'" :pet-id="modalPet.id" :pet-name="petLabel" @close="close" />
   </div>
 </template>
 
@@ -56,6 +59,8 @@ import SkillLoadoutModal from '../components/pet/SkillLoadoutModal.vue'
 import EquipmentModal from '../components/pet/EquipmentModal.vue'
 import StatPointsModal from '../components/pet/StatPointsModal.vue'
 import VariantModal from '../components/pet/VariantModal.vue'
+import ScrapbookModal from '../components/pet/ScrapbookModal.vue'
+import SnapshotModal from '../components/pet/SnapshotModal.vue'
 import PetRoomModal from '../components/pet/PetRoomModal.vue'
 import { furnitureService } from '../services/FurnitureService.js'
 
@@ -82,9 +87,9 @@ async function refreshPets() {
   await ownedPetsService.getMyPets(AppState.user.id)
 }
 
-function snapshotComingSoon() {
-  toastService.info('Snapshot cards arrive with the sharing system — coming soon!')
-}
+// The nickname the scrapbook and snapshot headers use.
+const petLabel = computed(() =>
+  modalPet.value ? (modalPet.value.nickname || (modalPet.value.pets && modalPet.value.pets.name) || 'Your pet') : '')
 
 const points = computed(() => AppState.player ? AppState.player.pawketpoints : 0)
 
@@ -126,6 +131,5 @@ onMounted(async () => {
 
 .empty-icon {
   font-size: 3.5rem;
-  margin-bottom: 16px;
 }
 </style>

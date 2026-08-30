@@ -39,22 +39,22 @@
       </div>
     </div>
 
-    <div class="rc-milestones">
-      <div class="rc-milestones-title">🏆 Referral Milestones</div>
+    <div class="rc-milestones mt-3 pt-px14">
+      <div class="rc-milestones-title mb-px10">🏆 Referral Milestones</div>
 
-      <div v-if="progress.next" class="rc-progress">
-        <div class="rc-progress-label">
+      <div v-if="progress.next" class="mb-tight">
+        <div class="rc-progress-label d-flex justify-content-between mb-1">
           <span>Progress to <strong>{{ progress.next.label }}</strong></span>
           <span>{{ data.count }} / {{ progress.next.count }}</span>
         </div>
-        <div class="rc-progress-track">
-          <div class="rc-progress-fill" :style="{ width: progress.pct + '%' }"></div>
+        <div class="rc-progress-track rounded-5 overflow-hidden">
+          <div class="rc-progress-fill h-100 rounded-5" :style="{ width: progress.pct + '%' }"></div>
         </div>
       </div>
 
-      <div v-for="m in REFERRAL_MILESTONES" :key="m.count" class="rc-row">
+      <div v-for="m in REFERRAL_MILESTONES" :key="m.count" class="rc-row d-flex align-items-center gap-2">
         <span class="rc-row-tick">{{ data.count >= m.count ? '✅' : '🔘' }}</span>
-        <span class="rc-row-label" :class="{ 'rc-done': data.count >= m.count }">
+        <span class="rc-row-label flex-grow-1 min-w-0" :class="{ 'rc-done': data.count >= m.count }">
           {{ m.label }} <em>({{ m.count }} referrals)</em>
         </span>
         <span class="rc-row-tier" :style="{ color: MILESTONE_TIER_COLORS[m.tier] || '#9966ff' }">
@@ -110,48 +110,35 @@ onMounted(async () => {
 // legible on that gradient. Those greys are replaced with translucent white,
 // which reads on the card and keeps the same visual hierarchy.
 .rc-milestones {
-  margin-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.25);
-  padding-top: 14px;
 }
 
 .rc-milestones-title {
   font-weight: 700;
   font-size: 0.85rem;
   color: #fff;
-  margin-bottom: 10px;
 }
-
-.rc-progress { margin-bottom: 12px; }
 
 .rc-progress-label {
-  display: flex;
-  justify-content: space-between;
   font-size: 0.78rem;
   color: rgba(255, 255, 255, 0.9);
-  margin-bottom: 4px;
 }
 
+// 10px is the bar's drawn thickness, not a spacing step.
 .rc-progress-track {
   background: rgba(255, 255, 255, 0.2);
-  border-radius: 20px;
   height: 10px;
-  overflow: hidden;
 }
 
 .rc-progress-fill {
-  height: 100%;
   // Solid white rather than the purple→pink gradient: that gradient is barely
   // distinguishable from the card's own purple background behind it.
   background: #fff;
-  border-radius: 20px;
   transition: width 0.5s;
 }
 
 .rc-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  // 5px is below the spacing scale's finest step.
   padding: 5px 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15);
   font-size: 0.8rem;
@@ -160,8 +147,6 @@ onMounted(async () => {
 .rc-row-tick { font-size: 1rem; }
 
 .rc-row-label {
-  flex: 1;
-  min-width: 0;
   color: #fff;
 
   em { color: rgba(255, 255, 255, 0.75); }

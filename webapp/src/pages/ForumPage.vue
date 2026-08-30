@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">💬 ✦ 💬</div>
       <h1>Forum</h1>
@@ -27,7 +27,7 @@
         <div class="fm-category-icon flex-shrink-0">{{ c.icon }}</div>
         <div class="flex-grow-1 min-w-0">
           <div class="fm-category-name">{{ c.name }}</div>
-          <div class="fm-category-desc">{{ c.description }}</div>
+          <div class="fm-category-desc mt-px2">{{ c.description }}</div>
         </div>
         <div class="text-center flex-shrink-0">
           <div class="fm-stat-number">{{ c.threadCount }}</div>
@@ -63,7 +63,7 @@
           <div class="fm-thread-icon flex-shrink-0">{{ t.is_pinned ? '📌' : t.is_locked ? '🔒' : '💬' }}</div>
           <div class="flex-grow-1 min-w-0">
             <div class="fm-thread-title">{{ t.title }}</div>
-            <div class="fm-thread-meta">
+            <div class="fm-thread-meta mt-px2">
               Started by <strong>{{ t.players ? t.players.username : 'Unknown' }}</strong> • {{ getTimeAgo(new Date(t.created_at)) }}
             </div>
           </div>
@@ -416,7 +416,6 @@ onMounted(async () => {
 .fm-category-desc {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 
 .fm-stat-number {
@@ -466,7 +465,6 @@ onMounted(async () => {
 .fm-thread-meta {
   font-size: 0.74rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 
 .fm-thread-stat-number {
@@ -567,5 +565,4 @@ onMounted(async () => {
   font-size: 3rem;
   margin-bottom: 12px;
 }
-
 </style>

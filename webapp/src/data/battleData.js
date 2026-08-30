@@ -1082,5 +1082,9 @@ export const BATTLE_CONSTANTS = {
   BATTLE_MAX_TURNS: 50,
   BOSS_ENCOUNTER_RATE: 0.008,
   HP_REGEN_PER_HOUR: 5,
-  ZONE_BOSS_CHANCE: 0.12
+  // A DELIBERATE CHANGE FROM LEGACY, not a port. game.js rolled 0.12, but the
+  // comment directly above that line reads "ZONE BOSS ROLL — 5% chance (~1/20
+  // fights)" — so the code and its own stated intent had disagreed all along,
+  // and the code won. Set to the documented 5% at the user's direction.
+  ZONE_BOSS_CHANCE: 0.05
 }

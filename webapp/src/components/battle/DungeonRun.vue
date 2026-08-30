@@ -9,7 +9,7 @@
       <p>Three waves. No healing between them.</p>
     </div>
 
-    <div class="pp-waves">
+    <div class="d-flex gap-2 justify-content-center my-3 mx-0">
       <div v-for="(e, i) in s.enemies" :key="i" class="pp-wave" :class="waveClass(i)">
         <div class="pp-wave-num">Wave {{ i + 1 }}</div>
         <div class="pp-wave-name">{{ e.name }}</div>
@@ -17,7 +17,7 @@
       </div>
     </div>
 
-    <div class="pp-dungeon-hp">
+    <div class="pp-dungeon-hp my-0 mx-auto">
       <div class="battle-hp-label"><span>{{ s.pet?.name }}</span><span>{{ s.petHP }}/{{ s.petMaxHP }}</span></div>
       <div class="battle-hp-bar">
         <div class="battle-hp-fill" :style="{ width: hpPct + '%' }"></div>
@@ -36,8 +36,8 @@
 
     <!-- BATTLE PLAYBACK -->
     <div v-else-if="s.phase === 'fighting'" class="mt-3">
-      <div class="pp-enemy-card">
-        <div v-if="currentEnemy?.sprite" class="pp-sprite" :style="spriteStyle"></div>
+      <div class="text-center mb-px10">
+        <div v-if="currentEnemy?.sprite" class="pp-sprite mt-0 mx-auto mb-px6 overflow-hidden" :style="spriteStyle"></div>
         <div class="pp-enemy-name">{{ currentEnemy?.name }}</div>
       </div>
       <div class="battle-log-container">
@@ -152,13 +152,6 @@ onUnmounted(() => { if (playbackTimer) clearInterval(playbackTimer) })
 </script>
 
 <style lang="scss" scoped>
-.pp-waves {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  margin: 16px 0;
-}
-
 .pp-wave {
   flex: 1;
   max-width: 160px;
@@ -199,7 +192,9 @@ onUnmounted(() => { if (playbackTimer) clearInterval(playbackTimer) })
   color: var(--text-light);
 }
 
-.pp-dungeon-hp { max-width: 420px; margin: 0 auto; }
+.pp-dungeon-hp {
+  max-width: 420px;
+}
 
 .pp-dungeon-msg {
   font-size: 0.88rem;
@@ -207,17 +202,10 @@ onUnmounted(() => { if (playbackTimer) clearInterval(playbackTimer) })
   margin: 10px 0;
 }
 
-.pp-enemy-card {
-  text-align: center;
-  margin-bottom: 10px;
-}
-
 // The dungeon is the only place enemies render as spritesheet frames rather
 // than emoji; frame 0 only, since legacy's animation hook is a no-op.
 .pp-sprite {
-  margin: 0 auto 6px;
   image-rendering: pixelated;
-  overflow: hidden;
 }
 
 .pp-enemy-name {

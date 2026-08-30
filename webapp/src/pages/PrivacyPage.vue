@@ -1,11 +1,11 @@
 <template>
-  <div class="page-wrap" style="max-width:860px;margin:0 auto;">
-    <div style="padding:32px 24px;">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-        <button @click="router.back()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer;color:var(--text);font-size:0.88rem;">← Back</button>
-        <h1 style="margin:0;font-size:1.8rem;">Privacy Policy</h1>
+  <div class="page-wrap container-fluid position-relative z-1 pb-page privacy-col">
+    <div class="privacy-doc">
+      <div class="d-flex align-items-center gap-tight mb-2">
+        <button class="privacy-back rounded-1 py-px6 px-px14" @click="router.back()">← Back</button>
+        <h1 class="privacy-title m-0">Privacy Policy</h1>
       </div>
-      <p style="color:var(--text-light);font-size:0.88rem;margin-bottom:32px;">Last updated: August 2026 &nbsp;·&nbsp; <em>This policy is provided in good faith for a free beta. It will be formally reviewed by legal counsel before any paid features are introduced.</em></p>
+      <p class="privacy-sub">Last updated: August 2026 &nbsp;·&nbsp; <em>This policy is provided in good faith for a free beta. It will be formally reviewed by legal counsel before any paid features are introduced.</em></p>
 
       <div class="legal-doc">
         <h2>1. Who We Are</h2>
@@ -94,7 +94,7 @@
           <li><strong>Email:</strong> pawketpetsvt@gmail.com</li>
           <li><strong>Twitch:</strong> twitch.tv/embertail</li>
         </ul>
-        <p style="margin-top:24px;font-size:0.82rem;color:var(--text-light);border-top:1px solid var(--border);padding-top:16px;"><em>This Privacy Policy was drafted by the PawketPetsVT development team in good faith based on applicable privacy law requirements. It will be formally reviewed by qualified legal counsel before any paid features are introduced. Last updated August 2026.</em></p>
+        <p class="privacy-footnote mt-4 pt-3"><em>This Privacy Policy was drafted by the PawketPetsVT development team in good faith based on applicable privacy law requirements. It will be formally reviewed by qualified legal counsel before any paid features are introduced. Last updated August 2026.</em></p>
       </div>
     </div>
   </div>
@@ -104,3 +104,42 @@
 import { useRouter } from 'vue-router'
 const router = useRouter()
 </script>
+
+<style lang="scss" scoped>
+// Layout is Bootstrap's (`container-fluid` + spacing/flex utilities). What
+// stays here is what the utility scale cannot express: a legal document's
+// reading measure and inset, and the colour/border treatment.
+.privacy-col {
+  // 860px is a reading measure, not a grid step — Bootstrap has no container
+  // between 720px and 960px, and a `col-*` fraction would move with the
+  // viewport rather than holding a fixed line length.
+  max-width: 860px;
+}
+
+// 32px sits between the site's `wide` (28px) and `page` (60px) spacer tokens.
+// Kept literal rather than rounded to a utility, since "close enough" spacing
+// drift is what the radius audit had to unpick earlier in this migration.
+.privacy-doc { padding: 32px 24px; }
+
+.privacy-back {
+  background: none;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.privacy-title { font-size: 1.8rem; }
+
+.privacy-sub {
+  color: var(--text-light);
+  font-size: 0.88rem;
+  margin-bottom: 32px;
+}
+
+.privacy-footnote {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  border-top: 1px solid var(--border);
+}
+</style>

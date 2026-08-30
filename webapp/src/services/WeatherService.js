@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
-import { WEATHER_TYPES, WEATHER_BONUS_TYPE, ROTATION_HOURS } from '../data/weatherData.js'
+import { WEATHER_TYPES, WEATHER_BONUS_TYPE, WEATHER_BONUSES, ROTATION_HOURS } from '../data/weatherData.js'
 import { worldStateService } from './WorldStateService.js'
 
 // Ports weatherSystem (game.js:32593+) — the shared six-hourly weather.
@@ -11,10 +11,9 @@ import { worldStateService } from './WorldStateService.js'
 // because `currentWeather` always evaluated to 'clear', and the companion's
 // weather dialogue could never fire for the same reason.
 //
-// NOT ported here, and left for the navbar phase:
-//   • the `#event-status-widget` navbar chrome (its own ~580-line system)
-//   • adpocalypse_start/stop — the Ad-pocalypse popup-ad event, ~1,386 lines
-//   • addCursedGlitches() — decorative, and part of the ARG glitch layer
+// The navbar widget (EventStatusWidget.vue) and Ad-pocalypse
+// (AdpocalypseService.js) are both built as of Phase 9.5. Still not ported:
+// addCursedGlitches() — decorative, UNBLOCKED BY the ARG glitch layer.
 export const weatherState = reactive({
   current: null,
   loaded: false
@@ -119,12 +118,9 @@ class WeatherService {
 
     const pool = WEATHER_TYPES
       .filter(w => isNight || w.id !== 'starry')
-      // Ad-pocalypse is excluded while its popup-ad system is unmigrated.
-      // Rolling it would announce "Ads appear!" and then produce none, which is
-      // worse than not rolling it — the opposite trade-off from Phase 4's
-      // weather-gated fish, where the feature simply stayed unreachable.
-      // Restore this line's removal when that system lands.
-      .filter(w => w.id !== 'adpocalypse')
+      // Ad-pocalypse is BACK IN THE ROLL as of Phase 9.5. It was excluded while
+      // its popup-ad system was unmigrated, because rolling it would have
+      // announced "Ads appear!" and then produced none.
       .map(w => w.id === 'cursed' ? { ...w, weight: 2 + (corruption / 100) * 18 } : w)
 
     const total = pool.reduce((s, w) => s + w.weight, 0)
@@ -157,6 +153,14 @@ class WeatherService {
     const root = document.body
     for (const w of WEATHER_TYPES) root.classList.remove('weather-' + w.id)
     root.classList.add('weather-' + weatherState.current.id)
+
+    // Ad-pocalypse is the one weather with behaviour attached, so it starts and
+    // stops with the rotation. Imported lazily to keep the popup system out of
+    // the path of every other weather change.
+    import('./AdpocalypseService.js').then(({ adpocalypseService }) => {
+      if (weatherState.current.id === 'adpocalypse') adpocalypseService.start()
+      else adpocalypseService.stop()
+    }).catch(e => console.error('[weather] adpocalypse toggle failed:', e))
   }
 
   startRotationChecker() {
@@ -186,6 +190,24 @@ class WeatherService {
   // callers can compare without reaching into the object.
   currentId() {
     return (weatherState.current && weatherState.current.id) || 'clear'
+  }
+
+  // Ports getWeatherBonus() — the half of the weather system that was dropped
+  // in Phase 8b (see the note on WEATHER_BONUSES). Returns 1.0 for anything
+  // unrecognised, so every call site can multiply unconditionally.
+  //
+  // Legacy layers the community celebration buff on top of XP and PP
+  // specifically — the temporary flag `record_boss_kill` sets after every tenth
+  // community boss kill. That is a cache-only read there and here: this is
+  // called from reward paths that must not block on a network round trip.
+  bonus(bonusType) {
+    const row = WEATHER_BONUSES[bonusType]
+    let value = (row && row[this.currentId()] !== undefined) ? row[this.currentId()] : 1.0
+    if (bonusType === 'xpBonus' || bonusType === 'ppBonus') {
+      const celebration = worldStateService.valueSync('celebration_buff', null)
+      if (celebration) value *= celebration
+    }
+    return value
   }
 }
 

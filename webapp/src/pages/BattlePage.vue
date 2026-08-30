@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <!-- EXPLORING: pick a pet, pick a zone, go looking for a fight -->
     <template v-if="s.phase === 'exploring' && !dungeon.active">
       <div class="page-hero">
@@ -27,7 +27,7 @@
 
         <template v-else>
           <h3 class="pp-section-title">Choose Your Fighter</h3>
-          <p class="pp-helper">Select a pet to battle ({{ pets.length }} available)</p>
+          <p class="pp-helper text-center mb-tight">Select a pet to battle ({{ pets.length }} available)</p>
           <div class="row row-cols-1 row-cols-md-2 g-3">
             <div v-for="pet in pets" :key="pet.id" class="col">
               <BattlePetCard :pet="pet" :selected="selectedPetId === pet.id" @select="selectPet" />
@@ -48,22 +48,22 @@
             <div v-for="zone in zones" :key="zone.key" class="col">
               <button class="pp-zone-btn w-100 h-100" :class="{ 'pp-selected': selectedZone === zone.key }"
                 :style="{ borderColor: zone.color }" @click="selectedZone = zone.key">
-                <div class="pp-zone-icon">{{ zone.icon }}</div>
-                <div class="pp-zone-name">{{ zone.name }}</div>
-                <div class="pp-zone-blurb">{{ zone.blurb }}</div>
+                <div class="pp-zone-icon mb-2">{{ zone.icon }}</div>
+                <div class="pp-zone-name mb-1">{{ zone.name }}</div>
+                <div class="pp-zone-blurb mb-2">{{ zone.blurb }}</div>
                 <div class="pp-zone-diff" :style="{ color: zone.color }">{{ zone.difficulty }}</div>
-                <div class="pp-zone-denizens">{{ zone.denizens }}</div>
-                <div class="pp-zone-cost">{{ zoneCostLabel(zone) }}</div>
+                <div class="pp-zone-denizens mt-1">{{ zone.denizens }}</div>
+                <div class="pp-zone-cost mt-px6">{{ zoneCostLabel(zone) }}</div>
               </button>
             </div>
           </div>
 
             <!-- Ports showExplorationResult() — the non-battle outcome panel. -->
-          <div v-if="lastEncounter" class="pp-encounter">
-            <div class="pp-encounter-title">{{ lastEncounter.title }}</div>
+          <div v-if="lastEncounter" class="pp-encounter mt-gap text-center">
+            <div class="pp-encounter-title mb-px6">{{ lastEncounter.title }}</div>
             <div class="pp-encounter-body">{{ lastEncounter.body }}</div>
-            <div v-if="lastEncounter.note" class="pp-encounter-note">{{ lastEncounter.note }}</div>
-            <div class="pp-encounter-reward">{{ lastEncounter.reward }}</div>
+            <div v-if="lastEncounter.note" class="pp-encounter-note mt-px6">{{ lastEncounter.note }}</div>
+            <div class="pp-encounter-reward mt-2">{{ lastEncounter.reward }}</div>
             <button class="btn btn-primary btn-sm mt-2" @click="lastEncounter = null">Continue</button>
           </div>
 
@@ -270,18 +270,15 @@ onUnmounted(() => battleService.reset())
 
 <style lang="scss" scoped>
 .pp-encounter {
-  margin-top: 20px;
   padding: 16px 18px;
   border: 2.5px solid var(--purple-light);
   border-radius: var(--radius-lg);
   background: rgba(153, 102, 255, 0.06);
-  text-align: center;
 }
 
 .pp-encounter-title {
   font-family: 'Fredoka One', cursive;
   color: var(--purple-dark);
-  margin-bottom: 6px;
 }
 
 .pp-encounter-body {
@@ -293,11 +290,9 @@ onUnmounted(() => battleService.reset())
   font-size: 0.78rem;
   color: var(--text-light);
   font-style: italic;
-  margin-top: 6px;
 }
 
 .pp-encounter-reward {
-  margin-top: 8px;
   font-weight: 800;
   color: var(--green);
 }
@@ -317,11 +312,9 @@ onUnmounted(() => battleService.reset())
 }
 
 .pp-helper {
-  text-align: center;
   font-size: 0.85rem;
   color: var(--text-light);
   font-weight: 700;
-  margin-bottom: 12px;
 }
 
 // Colour-matched to their action, as the legacy buttons were.
@@ -351,24 +344,30 @@ onUnmounted(() => battleService.reset())
   &.pp-selected { background: var(--purple-light); }
 }
 
-.pp-zone-icon { font-size: 2rem; margin-bottom: 8px; }
+.pp-zone-icon {
+  font-size: 2rem;
+}
 
 .pp-zone-name {
   font-weight: bold;
   color: var(--purple);
   font-size: 1.1rem;
-  margin-bottom: 4px;
 }
 
-.pp-zone-blurb { font-size: 0.85rem; color: var(--text-light); margin-bottom: 8px; }
+.pp-zone-blurb {
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
 .pp-zone-diff { font-size: 0.75rem; font-weight: bold; }
-.pp-zone-denizens { font-size: 0.7rem; color: var(--text-light); margin-top: 4px; }
+.pp-zone-denizens {
+  font-size: 0.7rem;
+  color: var(--text-light);
+}
 
 .pp-zone-cost {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--purple-dark);
-  margin-top: 6px;
 }
 
 .pp-blocked { font-size: 0.85rem; color: var(--text-light); font-weight: 700; }

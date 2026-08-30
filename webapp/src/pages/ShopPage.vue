@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">🍉 ✦ 🍉</div>
       <h1>Melon's Melons</h1>
@@ -80,18 +80,18 @@
          weekly A/B/C, so what's here changes; gear is bought unequipped and
          assigned to a pet from My Pets → Manage. -->
     <template v-else-if="activeTab === 'equipment'">
-      <div class="pp-equip-filters">
+      <div class="d-flex gap-2 justify-content-center flex-wrap mb-2">
         <button v-for="f in EQUIP_FILTERS" :key="f.key" class="shop-tab"
           :class="{ active: equipFilter === f.key }" @click="setEquipFilter(f.key)">{{ f.label }}</button>
       </div>
-      <p class="pp-rotation">Stock rotates weekly — currently showing week {{ rotationWeek }}.</p>
+      <p class="pp-rotation text-center mb-3">Stock rotates weekly — currently showing week {{ rotationWeek }}.</p>
 
       <div v-if="!equipment.length" class="empty-state"><p>No equipment in this week's rotation!</p></div>
       <div v-else class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-4">
         <div v-for="item in equipment" :key="item.id" class="col"><div class="shop-card h-100">
           <div class="shop-item-icon">{{ item.icon || '⚔️' }}</div>
           <div class="shop-item-name">
-            {{ item.name }} <span class="pp-tier">T{{ item.tier || 1 }}</span>
+            {{ item.name }} <span class="pp-tier py-0 px-1">T{{ item.tier || 1 }}</span>
           </div>
           <div class="shop-item-desc">{{ equipBonusText(item) }}</div>
           <div v-if="item.passive_effect" class="pp-passive">
@@ -150,9 +150,9 @@
         <div v-for="item in AppState.inventory" :key="item.invId" class="col"><div class="inv-card h-100">
           <div class="inv-item-icon"><ItemIcon :item="item" /></div>
           <div class="inv-item-name">{{ item.name }}</div>
-          <div v-if="item.effectText" class="inv-effect">{{ item.effectText }}</div>
+          <div v-if="item.effectText" class="inv-effect mt-1">{{ item.effectText }}</div>
           <div class="inv-item-qty">x{{ item.qty }}</div>
-          <p class="inv-use-hint">Use items from <router-link to="/mypets">My Pets</router-link></p>
+          <p class="inv-use-hint mt-2">Use items from <router-link to="/mypets">My Pets</router-link></p>
           </div>
         </div>
       </div>
@@ -169,6 +169,7 @@ import { shopService } from '../services/ShopService.js'
 import { equipmentService } from '../services/EquipmentService.js'
 import { furnitureService, furnitureState } from '../services/FurnitureService.js'
 import { taskTracker } from '../services/TaskTrackerService.js'
+import { petMoodService } from '../services/PetMoodService.js'
 import { ROOM_BONUS_LABELS } from '../data/roomData.js'
 import { toastService } from '../services/ToastService.js'
 import { isFoodFeatured, getFoodCategoryLabel } from '../utils/itemIcons.js'
@@ -312,6 +313,8 @@ onMounted(async () => {
   // Melon's "stop by the shop, even just to browse" request is satisfied by
   // arriving, so this fires before anything can fail.
   taskTracker.report('visit_shop')
+  // A pet can wish for a shop visit — legacy sweeps every pet from showTab().
+  petMoodService.completeWishAll('visit_shop')
   await playerService.getPlayer(AppState.user.id)
   await inventoryService.getInventory(AppState.user.id)
   catalog.value = await shopService.getCatalog()
@@ -328,19 +331,9 @@ onMounted(async () => {
   margin-right: 4px;
 }
 
-.pp-equip-filters {
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
 .pp-rotation {
-  text-align: center;
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 16px;
 }
 
 .pp-tier {
@@ -348,7 +341,6 @@ onMounted(async () => {
   color: var(--purple);
   border: 1px solid var(--purple-light);
   border-radius: 6px;
-  padding: 0 4px;
 }
 
 .pp-passive {
@@ -447,13 +439,11 @@ onMounted(async () => {
 .inv-effect {
   font-size: 0.85rem;
   color: var(--green);
-  margin-top: 4px;
 }
 
 .inv-use-hint {
   font-size: 0.75rem;
   color: var(--text-light);
-  margin-top: 8px;
 }
 
 .empty-state {

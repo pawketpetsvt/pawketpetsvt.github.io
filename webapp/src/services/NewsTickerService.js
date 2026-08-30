@@ -1,6 +1,7 @@
 import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { settingsState } from './SettingsService.js'
+import { worldEventService } from './WorldEventService.js'
 import {
   TICKER_MESSAGES,
   SPOOKY_MESSAGES,
@@ -32,9 +33,6 @@ class NewsTickerService {
     this.dailyStats = null
     this.dailyStatsDate = null
 
-    // Set once the World Events system is migrated; until then no event
-    // announcement is ever prepended. See newsTickerData.js.
-    this.currentEventId = null
   }
 
   // Fisher-Yates, ported from newsTicker.shuffle().
@@ -129,9 +127,13 @@ class NewsTickerService {
     tickerState.tick++
   }
 
+  // Reads the live event straight from WorldEventService rather than keeping a
+  // second copy — the seam this used to hold (`currentEventId`, always null
+  // while World Events was unmigrated) is closed as of Phase 9.5.
   getEventAnnouncement() {
-    if (!this.currentEventId) return ''
-    return EVENT_ANNOUNCEMENTS[this.currentEventId] || ''
+    const id = worldEventService.currentId()
+    if (!id) return ''
+    return EVENT_ANNOUNCEMENTS[id] || ''
   }
 
   // Ports init(). The stats fetch is intentionally not awaited — the first

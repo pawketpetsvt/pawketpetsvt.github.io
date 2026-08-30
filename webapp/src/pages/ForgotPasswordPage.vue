@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page fp-col">
     <div class="page-hero">
       <div class="sparkle-row">✦ ✧ ✦</div>
       <h1>Reset Password</h1>
@@ -50,5 +50,12 @@ async function handleSubmit() {
 </script>
 
 <style lang="scss" scoped>
-// No page-specific styling yet — fully covered by globals/legacy classes.
+// This is the ONE `.page-wrap` page that is not `requiresAuth`, so it renders
+// in GuestLayout rather than inside AppShell's centre column. Everywhere else
+// the old `max-width: 1100px` was dead (the column tops out near 800px), but
+// here it genuinely capped the page on a wide screen — so it is kept.
+// Bootstrap has no container step at 1100px.
+.fp-col {
+  max-width: 1100px;
+}
 </style>

@@ -1,13 +1,13 @@
 <template>
   <div class="journal-section mt-gap pt-3">
-    <button class="journal-toggle d-flex align-items-center gap-2 mb-2" @click="open = !open">
+    <button class="journal-toggle d-flex align-items-center gap-2 mb-2 p-0" @click="open = !open">
       📖 Fish Journal <span class="journal-chevron">{{ open ? '▲' : '▼' }}</span>
     </button>
 
     <div v-if="open">
       <div class="journal-summary mb-3">📖 Fish Journal: {{ discoveredCount }}/{{ totalFish }} discovered</div>
       <div v-for="spot in SPOTS" :key="spot">
-        <div v-if="fishBySpot(spot).length" class="journal-spot-label">{{ spot }}</div>
+        <div v-if="fishBySpot(spot).length" class="journal-spot-label mt-px10 mx-0 mb-px6">{{ spot }}</div>
         <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 g-2">
           <div v-for="fish in fishBySpot(spot)" :key="fish.id" class="col">
             <div class="journal-fish-card h-100 text-center p-2 rounded-2" :class="{ caught: collection[fish.id] }">
@@ -15,7 +15,7 @@
               <div class="fish-name">{{ collection[fish.id] ? fish.name : '???' }}</div>
               <div class="fish-rarity">{{ fish.rarity }}</div>
               <template v-if="collection[fish.id]">
-                <div class="fish-count">×{{ collection[fish.id].count || 1 }} caught</div>
+                <div class="fish-count mt-px2">×{{ collection[fish.id].count || 1 }} caught</div>
                 <div v-if="collection[fish.id].bestWeight" class="fish-best">best: {{ formatWeight(collection[fish.id].bestWeight) }}</div>
                 <button v-if="(collection[fish.id].count || 0) > 0" class="btn btn-sm btn-outline cook-btn mt-1" @click="$emit('cook-feed', fish)">🍳 Cook</button>
               </template>
@@ -61,7 +61,6 @@ function fishBySpot(spot) {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 0;
 }
 
 .journal-chevron {
@@ -76,7 +75,6 @@ function fishBySpot(spot) {
 
 .journal-spot-label {
   font-weight: 700;
-  margin: 10px 0 6px;
   text-transform: capitalize;
 }
 
@@ -107,7 +105,6 @@ function fishBySpot(spot) {
 .fish-count {
   font-size: 0.68rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 
 .fish-best {

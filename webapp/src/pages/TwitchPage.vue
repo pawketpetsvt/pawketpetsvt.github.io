@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">🟪 ✦ 🟪</div>
       <h1>Twitch &amp; Rewards</h1>
@@ -12,7 +12,7 @@
 
     <!-- Reward explainer — visible whether or not an account is linked -->
     <div class="twitch-rewards-section">
-      <h3 class="tw-rewards-title">🎁 Earn PP by Being Active in Our Streams!</h3>
+      <h3 class="tw-rewards-title mb-3">🎁 Earn PP by Being Active in Our Streams!</h3>
       <div class="reward-cards row row-cols-1 row-cols-md-2 g-3">
         <div v-for="c in TWITCH_REWARD_CARDS" :key="c.title" class="col">
           <div class="reward-card h-100">
@@ -37,7 +37,7 @@
          the request that just came back from Twitch — never re-read from the DB. -->
     <div v-if="twitchState.displayToken" class="token-box">
       <h3>Authorization Successful!</h3>
-      <p class="tw-token-note">Streamers: copy this token for Cloudflare. Viewers can ignore this.</p>
+      <p class="tw-token-note mb-px10">Streamers: copy this token for Cloudflare. Viewers can ignore this.</p>
       <textarea class="token-textarea" readonly :value="twitchState.displayToken"></textarea>
       <br><button class="btn btn-primary btn-sm mt-2" @click="copyToken">Copy Token</button>
     </div>
@@ -50,7 +50,7 @@
 
       <template v-else-if="!twitchState.linked">
         <button class="btn-twitch" @click="twitchService.beginLink()">🟪 Connect with Twitch</button>
-        <p class="tw-privacy-note">We only read public info. We never post on your behalf.</p>
+        <p class="tw-privacy-note mt-px14">We only read public info. We never post on your behalf.</p>
       </template>
 
       <template v-else>
@@ -81,15 +81,15 @@
           </button>
         </div>
 
-        <div v-if="twitchState.stats" class="tw-stats-panel">
-          <div class="tw-stats-title">📊 Your Twitch Rewards</div>
+        <div v-if="twitchState.stats" class="tw-stats-panel py-px14 px-3 rounded-4">
+          <div class="tw-stats-title mb-px10">📊 Your Twitch Rewards</div>
           <div class="row row-cols-4 g-2 text-center">
             <div class="col"><div class="tw-stat"><div class="tw-stat-num">{{ twitchState.stats.pp.toLocaleString() }}</div><div class="tw-stat-label">PP Earned</div></div></div>
             <div class="col"><div class="tw-stat"><div class="tw-stat-num">{{ twitchState.stats.chats.toLocaleString() }}</div><div class="tw-stat-label">Chats</div></div></div>
             <div class="col"><div class="tw-stat"><div class="tw-stat-num">{{ twitchState.stats.follows }}</div><div class="tw-stat-label">Follows</div></div></div>
             <div class="col"><div class="tw-stat"><div class="tw-stat-num">{{ twitchState.stats.subs.toLocaleString() }}</div><div class="tw-stat-label">Subs</div></div></div>
           </div>
-          <div class="tw-stats-legend">
+          <div class="tw-stats-legend mt-px10">
             💬 Chat rewards: +2 PP per 5 min · 👥 Follow: +{{ FOLLOW_REWARD_PP }} PP each · 🌟 Sub: +200 PP · 🪙 Bits: +1 PP per 10
           </div>
         </div>
@@ -149,7 +149,6 @@ onMounted(async () => {
 // .status-done / .status-pending (the badge variants), and the whole stats
 // panel, which legacy built from inline styles in the markup.
 .tw-rewards-title {
-  margin-bottom: 16px;
   color: var(--purple-dark);
 }
 
@@ -158,9 +157,6 @@ onMounted(async () => {
   font-size: 0.85rem;
   color: var(--text-light);
 }
-
-.tw-privacy-note { margin-top: 14px; }
-.tw-token-note { margin-bottom: 10px; }
 
 .tw-connected-as {
   color: var(--text-light);
@@ -182,8 +178,6 @@ onMounted(async () => {
 
 .tw-stats-panel {
   margin-top: 18px;
-  padding: 14px 16px;
-  border-radius: 14px;
   background: rgba(153, 102, 255, 0.06);
   border: 1px solid var(--purple-light);
 }
@@ -192,7 +186,6 @@ onMounted(async () => {
   font-weight: 700;
   font-size: 0.88rem;
   color: var(--purple-dark);
-  margin-bottom: 10px;
 }
 
 .tw-stat {
@@ -213,7 +206,6 @@ onMounted(async () => {
 }
 
 .tw-stats-legend {
-  margin-top: 10px;
   font-size: 0.72rem;
   color: var(--text-light);
   line-height: 1.5;

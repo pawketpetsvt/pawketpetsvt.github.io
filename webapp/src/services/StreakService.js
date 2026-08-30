@@ -1,4 +1,7 @@
 import { supabase } from './SupabaseService.js'
+import { referralService } from './ReferralService.js'
+import { scrapbookService } from './ScrapbookService.js'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
@@ -12,11 +15,11 @@ class StreakService {
     return next ? `🎯 ${next - streak} more for ${next}-day reward!` : '🏆 Legendary streak!'
   }
 
-  // Ports checkDailyLogin(), game.js:27512-27688. The item/skin-key/scrapbook/
-  // furniture/guild-perk side effects there belong to systems not yet
-  // migrated (Shop/Inventory, skin keys, Scrapbook, Housing, Guild) — this
-  // keeps the core streak + PP reward + notification, and intentionally
-  // skips those cross-system rewards until their own migration phases land.
+  // Ports checkDailyLogin(), game.js:27512-27688. Every cross-system side
+  // effect legacy fires from here is live: the room happiness bonus (Housing),
+  // referral milestones, badges, Pass XP, and — as of Phase 9.5 — the daily
+  // random scrapbook memory and the neglect-recovery memory for pets that have
+  // been left alone for two days.
   async checkDailyLogin(userId) {
     const today = new Date().toISOString().split('T')[0]
     const key = 'lastLoginDate_' + userId
@@ -58,8 +61,37 @@ class StreakService {
     this.applyRoomBonuses().catch(() => {})
 
     badgeHooks.onStreak(streak)
+    passService.addXP(10, 'login')
+    referralService.claimPendingMilestones()
     badgeHooks.onLogin()
+    this.recordDailyMemories().catch(() => {})
     return { awarded: true, streak, ppReward }
+  }
+
+  // Ports the two scrapbook hooks legacy fires around a daily login: one random
+  // flavour memory on a random pet (main:6091), and a quiet 'neglect_recovery'
+  // note for any pet untouched for 48 hours (main:12785, inside
+  // newFeatures_init's welcome-back block).
+  async recordDailyMemories() {
+    // Lazily imported, as applyRoomBonuses() below does — OwnedPetsService
+    // imports this one back, so a static import would be a cycle.
+    let pets = AppState.ownedPets || []
+    if (!pets.length) {
+      const { ownedPetsService } = await import('./OwnedPetsService.js')
+      pets = await ownedPetsService.getMyPets(AppState.user.id)
+    }
+    if (!pets || !pets.length) return
+
+    const pick = pets[Math.floor(Math.random() * pets.length)]
+    await scrapbookService.addRandomDaily(pick.id)
+
+    const now = Date.now()
+    for (const pet of pets) {
+      const last = pet.last_played || pet.last_fed
+      if (!last) continue
+      const hoursGone = (now - new Date(last).getTime()) / 3600000
+      if (hoursGone >= 48) await scrapbookService.add(pet.id, 'neglect_recovery', {})
+    }
   }
 
   // Ports furniture_applyDailyBonus()'s call site. Legacy read the pet ids from

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">📊 ✦ 📊</div>
       <h1>Statistics</h1>
@@ -16,7 +16,7 @@
             <div class="st-icon">{{ c.icon }}</div>
             <div class="st-value">{{ c.value.toLocaleString() }}</div>
             <div class="st-label">{{ c.label }}</div>
-            <div v-if="c.sub" class="st-sub">{{ c.sub }}</div>
+            <div v-if="c.sub" class="st-sub mt-1">{{ c.sub }}</div>
           </div>
         </div>
         <div class="col">
@@ -42,9 +42,14 @@
 
       <div class="st-footer text-center mt-5 p-gap rounded-4">
         <p>🎮 Keep playing to improve your stats!</p>
-        <p class="st-footer-sub">Adopt more pets, catch more fish, and log in daily to climb the leaderboards!</p>
+        <p class="st-footer-sub mt-px6">Adopt more pets, catch more fish, and log in daily to climb the leaderboards!</p>
+        <!-- Ports the tab's Share Progress button, deferred at Phase 6.9
+             because it pulls in the whole sharing system. -->
+        <button class="btn btn-primary mt-3" @click="showShare = true">📤 Share My Progress</button>
       </div>
     </template>
+
+    <ShareProgressModal v-if="showShare" @close="showShare = false" />
   </div>
 </template>
 
@@ -53,7 +58,9 @@ import { ref, onMounted } from 'vue'
 import { AppState } from '../AppState.js'
 import { statsService } from '../services/StatsService.js'
 import { toastService } from '../services/ToastService.js'
+import ShareProgressModal from '../components/ShareProgressModal.vue'
 
+const showShare = ref(false)
 const loading = ref(true)
 const personal = ref({ cards: [], memberSince: 'N/A' })
 const community = ref([])
@@ -111,7 +118,6 @@ onMounted(async () => {
 .st-sub {
   font-size: 0.68rem;
   color: var(--text-light);
-  margin-top: 4px;
   opacity: 0.85;
 }
 
@@ -136,6 +142,5 @@ onMounted(async () => {
 .st-footer-sub {
   color: var(--text-light);
   font-size: 0.85rem;
-  margin-top: 6px;
 }
 </style>

@@ -7,9 +7,9 @@
     <div v-if="loading" class="text-center py-3"><div class="spinner"></div></div>
 
     <template v-else>
-      <div class="pr-desc">📝 {{ description }}</div>
+      <div class="pr-desc rounded-3 py-tight px-px14 mb-px14">📝 {{ description }}</div>
 
-      <div class="pr-bonus">
+      <div class="pr-bonus d-flex align-items-center justify-content-between rounded-2 py-2 px-px14 mb-px14">
         <span class="pr-bonus-label">✨ Daily Happiness Bonus</span>
         <span class="pr-bonus-value">+{{ totalBonus }} happiness</span>
       </div>
@@ -32,7 +32,7 @@
           <span class="pr-emoji">{{ f.emoji }}</span>
           <span class="pr-name pr-muted flex-grow-1 min-w-0">{{ f.name }}</span>
           <span class="pr-per-day">+{{ f.happiness_bonus }}/day</span>
-          <span v-if="isFull" class="pr-full">Room full</span>
+          <span v-if="isFull" class="pr-full flex-shrink-0">Room full</span>
           <button v-else class="btn btn-sm btn-primary pr-btn" :disabled="busy" @click="equip(f.id)">Equip</button>
         </div>
       </div>
@@ -120,9 +120,6 @@ onMounted(load)
 // classes exist in style.css — so all of it is owned here.
 .pr-desc {
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 14px;
   font-size: 0.85rem;
   color: var(--purple-dark);
   line-height: 1.6;
@@ -130,13 +127,7 @@ onMounted(load)
 }
 
 .pr-bonus {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   background: rgba(93, 222, 122, 0.1);
-  border-radius: 10px;
-  padding: 8px 14px;
-  margin-bottom: 14px;
 }
 
 .pr-bonus-label {
@@ -188,7 +179,6 @@ onMounted(load)
 .pr-full {
   font-size: 0.72rem;
   color: #ff6b6b;
-  flex-shrink: 0;
 }
 
 .pr-btn {

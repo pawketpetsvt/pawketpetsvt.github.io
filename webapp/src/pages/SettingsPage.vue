@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">⚙️ ✦ ⚙️</div>
       <h1>Settings</h1>
@@ -130,7 +130,7 @@
     </div>
 
     <div class="modal-overlay" :class="{ show: referral }">
-      <div class="modal referral-modal" v-if="referral">
+      <div class="modal referral-modal p-gap" v-if="referral">
         <h2 class="settings-heading text-center mb-3">💰 Refer Friends!</h2>
         <!-- Reads the same constant as the Home referral card. These used to
              disagree (250 here, 200 there) — see the note in referralData.js. -->
@@ -380,7 +380,6 @@ onMounted(async () => {
 }
 
 .referral-modal {
-  padding: 20px;
   max-width: 500px;
 }
 

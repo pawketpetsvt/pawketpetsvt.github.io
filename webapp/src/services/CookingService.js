@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { inventoryService } from './InventoryService.js'
 import { COOKING_RECIPES, COOKING_INGREDIENTS } from '../data/cookingData.js'
@@ -90,6 +91,8 @@ class CookingService {
     // Total dishes cooked = the sum of times_cooked across the log, which is
     // what legacy's cook_10 / cook_50 thresholds count.
     badgeHooks.onCook({ totalCooked: await this.totalCooked(userId), recipeId: match.id })
+    // 3 XP per dish in the batch, capped at 30 (main:42017).
+    passService.addXP(Math.min(multiCount * 3, 30), 'cooking')
     return { recipe: match, isNewDiscovery }
   }
 

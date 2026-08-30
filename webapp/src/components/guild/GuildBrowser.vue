@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- Pending invitations, shown above the list so they can't be missed -->
-    <div v-if="guildState.invitations.length" class="gd-invites">
-      <div class="gd-invites-title">✉️ Guild Invitations ({{ guildState.invitations.length }})</div>
+    <div v-if="guildState.invitations.length" class="gd-invites rounded-4 py-px14 px-3">
+      <div class="gd-invites-title mb-px10">✉️ Guild Invitations ({{ guildState.invitations.length }})</div>
       <div
         v-for="inv in guildState.invitations"
         :key="inv.id"
@@ -26,7 +26,7 @@
     <div v-if="guildState.loading" class="spinner"></div>
 
     <div v-else-if="!guildState.guilds.length" class="empty-state">
-      <div class="gd-empty-icon">🏛️</div>
+      <div class="gd-empty-icon mb-tight">🏛️</div>
       <h3>No Guilds Yet!</h3>
       <p class="gd-muted">Be the first to create a guild!</p>
       <button class="btn btn-primary mt-3" @click="$emit('create')">✨ Create the First Guild</button>
@@ -34,8 +34,8 @@
 
     <template v-else>
       <div class="d-flex flex-column gap-2">
-        <div v-for="g in guildState.guilds" :key="g.id" class="gd-row d-flex align-items-center gap-3">
-          <div class="gd-emblem">{{ g.emblem_emoji || '🏛️' }}</div>
+        <div v-for="g in guildState.guilds" :key="g.id" class="gd-row d-flex align-items-center gap-3 rounded-4">
+          <div class="gd-emblem text-center">{{ g.emblem_emoji || '🏛️' }}</div>
           <div class="flex-fill min-w-0">
             <div class="gd-name">
               {{ g.name }} <span class="gd-tag">[{{ g.tag || '???' }}]</span>
@@ -44,7 +44,7 @@
               Level {{ g.guild_level || 1 }} · {{ g.member_count || 0 }}/{{ GUILD_MAX_MEMBERS }} members ·
               {{ g.is_open !== false ? '🟢 Open' : '🔴 Closed' }}
             </div>
-            <div v-if="g.description" class="gd-desc">{{ g.description.slice(0, 100) }}</div>
+            <div v-if="g.description" class="gd-desc mt-1">{{ g.description.slice(0, 100) }}</div>
           </div>
           <div>
             <span v-if="(g.member_count || 0) >= GUILD_MAX_MEMBERS" class="gd-full">Full</span>
@@ -66,7 +66,7 @@
 
       <div v-if="guildService.totalPages > 1" class="d-flex justify-content-center align-items-center gap-2 mt-4">
         <button class="btn btn-outline btn-sm" :disabled="guildState.currentPage <= 1" @click="page(-1)">← Prev</button>
-        <span class="gd-page">Page {{ guildState.currentPage }} of {{ guildService.totalPages }}</span>
+        <span class="gd-page py-0 px-px10">Page {{ guildState.currentPage }} of {{ guildService.totalPages }}</span>
         <button class="btn btn-outline btn-sm" :disabled="guildState.currentPage >= guildService.totalPages" @click="page(1)">Next →</button>
       </div>
     </template>
@@ -122,8 +122,6 @@ async function page(dir) {
 .gd-invites {
   background: rgba(153, 102, 255, 0.08);
   border: 2px solid var(--purple);
-  border-radius: 14px;
-  padding: 14px 16px;
   margin-bottom: 18px;
 }
 
@@ -131,25 +129,24 @@ async function page(dir) {
   font-weight: 700;
   font-size: 0.88rem;
   color: var(--purple-dark);
-  margin-bottom: 10px;
 }
 
 .gd-invite-text { font-size: 0.85rem; }
 .gd-emblem-sm { font-size: 1.5rem; }
 .gd-muted { color: var(--text-light); }
 .gd-heading { color: var(--purple-dark); }
-.gd-empty-icon { font-size: 3rem; margin-bottom: 12px; }
+.gd-empty-icon {
+  font-size: 3rem;
+}
 
 .gd-row {
   border: 2px solid var(--border);
-  border-radius: 14px;
   padding: 16px 18px;
 }
 
 .gd-emblem {
   font-size: 2.3rem;
   min-width: 46px;
-  text-align: center;
 }
 
 .gd-name {
@@ -173,7 +170,6 @@ async function page(dir) {
   font-size: 0.78rem;
   color: var(--text-light);
   font-style: italic;
-  margin-top: 4px;
 }
 
 .gd-full {
@@ -185,7 +181,6 @@ async function page(dir) {
 .gd-action { min-width: 76px; }
 
 .gd-page {
-  padding: 0 10px;
   color: var(--text-light);
   font-size: 0.85rem;
 }

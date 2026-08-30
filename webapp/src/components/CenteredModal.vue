@@ -1,15 +1,15 @@
 <template>
-  <div v-if="modalState.open" class="centered-modal-overlay" role="dialog" aria-modal="true" @click.self="modalService.close()">
-    <div class="centered-modal-container">
+  <div v-if="modalState.open" class="centered-modal-overlay position-fixed w-100 h-100 d-flex align-items-center justify-content-center p-gap" role="dialog" aria-modal="true" @click.self="modalService.close()">
+    <div class="centered-modal-container position-relative">
       <button class="centered-modal-close" aria-label="Close modal" @click="modalService.close()">×</button>
-      <div class="centered-modal-header">
-        <div class="centered-modal-icon">{{ modalState.icon }}</div>
-        <h2 class="centered-modal-title">{{ modalState.title }}</h2>
+      <div class="centered-modal-header text-center">
+        <div class="centered-modal-icon mb-3 d-inline-block">{{ modalState.icon }}</div>
+        <h2 class="centered-modal-title m-0">{{ modalState.title }}</h2>
       </div>
-      <div class="centered-modal-body">
-        <p class="centered-modal-message">{{ modalState.message }}</p>
+      <div class="centered-modal-body p-4 text-center">
+        <p class="centered-modal-message m-0">{{ modalState.message }}</p>
       </div>
-      <div class="centered-modal-footer">
+      <div class="centered-modal-footer text-center">
         <button class="centered-modal-button" @click="modalService.close()">{{ modalState.buttonText }}</button>
       </div>
     </div>
@@ -34,18 +34,11 @@ onUnmounted(() => document.removeEventListener('keydown', handleEscape))
 
 <style lang="scss" scoped>
 .centered-modal-overlay {
-  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
   z-index: 100000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
   animation: modalOverlayFadeIn 0.3s ease-out;
 }
 
@@ -60,7 +53,6 @@ onUnmounted(() => document.removeEventListener('keydown', handleEscape))
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
   max-width: 450px;
   width: 90%;
-  position: relative;
   animation: modalPopIn 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   border: 2px solid rgba(102, 126, 234, 0.3);
 }
@@ -96,14 +88,11 @@ onUnmounted(() => document.removeEventListener('keydown', handleEscape))
 
 .centered-modal-header {
   padding: 32px 24px 24px 24px;
-  text-align: center;
   border-bottom: 2px solid rgba(102, 126, 234, 0.2);
 }
 
 .centered-modal-icon {
   font-size: 64px;
-  margin-bottom: 16px;
-  display: inline-block;
   animation: modalIconBounce 1s ease-in-out infinite;
 }
 
@@ -116,25 +105,17 @@ onUnmounted(() => document.removeEventListener('keydown', handleEscape))
   font-size: 24px;
   font-weight: bold;
   color: #667eea;
-  margin: 0;
   line-height: 1.3;
-}
-
-.centered-modal-body {
-  padding: 24px;
-  text-align: center;
 }
 
 .centered-modal-message {
   font-size: 16px;
   color: #e2e8f0;
   line-height: 1.6;
-  margin: 0;
 }
 
 .centered-modal-footer {
   padding: 20px 24px 24px 24px;
-  text-align: center;
 }
 
 .centered-modal-button {

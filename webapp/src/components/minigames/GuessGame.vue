@@ -10,7 +10,7 @@
         <br /><br />
         <button class="btn btn-primary" @click="makeGuess">Guess!</button>
         <div class="attempts-left">{{ guessesLeft }} guess{{ guessesLeft === 1 ? '' : 'es' }} remaining</div>
-        <div v-if="hotCold" class="guess-hotcold" :style="{ color: hotColdColor }">{{ hotCold }}</div>
+        <div v-if="hotCold" class="guess-hotcold mt-1" :style="{ color: hotColdColor }">{{ hotCold }}</div>
       </div>
       <div class="game-result" :style="{ color: resultColor }">{{ resultText }}</div>
     </div>
@@ -113,6 +113,5 @@ onMounted(async () => {
 .guess-hotcold {
   font-weight: 700;
   font-size: 0.85rem;
-  margin-top: 4px;
 }
 </style>

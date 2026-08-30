@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!pets.length" class="empty-note">
+  <div v-if="!pets.length" class="empty-note text-center p-4">
     <p>No pets yet! 🐾</p>
   </div>
   <div v-else class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-3">
@@ -104,8 +104,6 @@ const decorated = computed(() =>
 }
 
 .empty-note {
-  text-align: center;
-  padding: 24px;
   color: var(--text-light);
 }
 </style>

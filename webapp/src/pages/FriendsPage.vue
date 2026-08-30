@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">👥 ✦ 👥</div>
       <h1>Friends</h1>
@@ -28,7 +28,7 @@
         <div v-if="!friends.length" class="empty-state">
           <div class="empty-icon">👥</div>
           <p>No friends yet!</p>
-          <p class="empty-sub">Search for players above to send friend requests.</p>
+          <p class="empty-sub mt-1">Search for players above to send friend requests.</p>
         </div>
         <FriendCard
           v-for="f in friends"
@@ -192,6 +192,5 @@ onMounted(async () => {
 
 .empty-sub {
   font-size: 0.85rem;
-  margin-top: 4px;
 }
 </style>

@@ -2,6 +2,9 @@ import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { notificationService } from './NotificationService.js'
+import { awardService } from './AwardService.js'
+import { cosmeticUnlockService } from './CosmeticUnlockService.js'
+import { skinKeyService } from './SkinKeyService.js'
 import { REFERRAL_MILESTONES, REFERRER_PP, REFEREE_PP } from '../data/referralData.js'
 
 function generateReferralCode(username) {
@@ -36,6 +39,48 @@ class ReferralService {
       link: window.location.origin + window.location.pathname + '?ref=' + code,
       count: player.referral_count || 0,
       code
+    }
+  }
+
+  // Grants any referral milestone this player has reached but not yet been
+  // given. Runs for the signed-in player, which is the only account whose
+  // badges/titles/keys this session is allowed to write — see the note in
+  // processPendingReferral about why the referrer can't be paid inline.
+  //
+  // Idempotent: awardBadge / awardPlayerTitle short-circuit on anything already
+  // held, and the skin keys are gated on a `player_unlocks` marker so a
+  // milestone can't pay twice.
+  async claimPendingMilestones() {
+    if (!AppState.user) return
+    try {
+      const { data: player } = await supabase
+        .from('players').select('referral_count').eq('id', AppState.user.id).maybeSingle()
+      const count = (player && player.referral_count) || 0
+      if (!count) return
+
+      for (const m of REFERRAL_MILESTONES) {
+        if (count < m.count) continue
+        if (m.badge) await awardService.awardBadge(m.badge)
+        if (m.title) await awardService.awardPlayerTitle(m.title, `${m.count} referrals`)
+        // The cosmetic profile frame, unblocked by the cosmetic-unlock port.
+        if (m.frame) await cosmeticUnlockService.unlock('frame', m.frame)
+        if (m.skinKeys > 0) {
+          const key = 'referral_milestone_' + m.count
+          const { data: already } = await supabase
+            .from('player_unlocks').select('unlock_key')
+            .eq('user_id', AppState.user.id).eq('unlock_key', key).maybeSingle()
+          if (already) continue
+          const ok = await skinKeyService.grant(m.skinKeys, key)
+          if (ok) {
+            await supabase.from('player_unlocks').upsert(
+              { user_id: AppState.user.id, unlock_key: key, unlocked_at: new Date().toISOString() },
+              { onConflict: 'user_id,unlock_key' }
+            )
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[referral] milestone claim failed:', e)
     }
   }
 
@@ -141,9 +186,21 @@ class ReferralService {
           .eq('id', AppState.user.id)
       }
 
+      const newCount = (referrer.referral_count || 0) + 1
       await supabase.from('players')
-        .update({ referral_count: (referrer.referral_count || 0) + 1 })
+        .update({ referral_count: newCount })
         .eq('id', referrer.id)
+
+      // Ports grantReferralMilestone(). Badges, titles and skin keys are all
+      // migrated as of Phase 9.5, so a milestone now actually pays out.
+      //
+      // NOTE: these grant to the REFERRER, who is a different user, and every
+      // award path here is scoped to `auth.uid()` — so they cannot be issued
+      // from this session. The milestone is recorded by the incremented
+      // `referral_count`; `claimPendingMilestones()` below hands them over the
+      // next time that player is the one signed in — including the cosmetic
+      // frame, which is live as of the cosmetic-unlock port.
+
 
       // Cross-user award needs the dedicated RPC; the referee uses their own.
       await supabase.rpc('award_pp_to_user_secure', {

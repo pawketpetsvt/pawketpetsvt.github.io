@@ -84,7 +84,6 @@ const canDelete = computed(() =>
   border-bottom: 1px solid var(--border);
 }
 
-
 .fp-date {
   font-size: 0.72rem;
   color: var(--text-light);

@@ -17,7 +17,7 @@
     <template v-else-if="result">
       <div class="pr-result" :class="result.won ? 'pr-won' : 'pr-lost'">
         <div class="pr-result-icon">{{ result.won ? '🏆' : result.best && result.best.finishOrder <= 3 ? '🎖️' : '🏁' }}</div>
-        <div class="pr-result-line">
+        <div class="pr-result-line my-1 mx-0">
           {{ result.best ? `${result.best.pet.nickname} finished ${ORDINALS[result.best.finishOrder - 1]}` : 'Race complete' }}
         </div>
         <div class="pr-result-pp" :class="{ 'pr-profit': result.profit > 0, 'pr-loss': result.profit < 0 }">
@@ -80,13 +80,13 @@
       <button class="btn btn-primary w-100" :disabled="!canRace || running" @click="race">
         {{ running ? 'Racing…' : `🏇 Race for ${bet} PP` }}
       </button>
-      <p v-if="blockedReason" class="pr-blocked">{{ blockedReason }}</p>
+      <p v-if="blockedReason" class="pr-blocked mt-2 mx-0 mb-0 text-center">{{ blockedReason }}</p>
 
       <!-- Ports race_renderWeeklyLeaderboard(). Weeks start on Sunday. -->
-      <details class="pr-board">
+      <details class="pr-board mt-tight pt-px10">
         <summary class="pr-board-summary">🏆 This Week's Top Racers</summary>
-        <div v-if="!leaders.length" class="pr-empty pr-board-empty">No wins recorded yet this week.</div>
-        <ol v-else class="pr-standings pr-board-list">
+        <div v-if="!leaders.length" class="pr-empty pr-board-empty mt-2">No wins recorded yet this week.</div>
+        <ol v-else class="pr-standings pr-board-list mt-2 mb-0">
           <li v-for="(row, i) in leaders" :key="i">
             {{ (row.user_pets && row.user_pets.nickname) || 'A pet' }}
             <span class="pr-speed">{{ row.wins_this_week }} win{{ row.wins_this_week === 1 ? '' : 's' }}</span>
@@ -213,8 +213,6 @@ onMounted(async () => {
 .pr-blocked {
   font-size: 0.76rem;
   color: var(--text-light);
-  margin: 8px 0 0;
-  text-align: center;
 }
 
 .pr-result {
@@ -233,7 +231,6 @@ onMounted(async () => {
 .pr-result-line {
   font-weight: 700;
   font-size: 0.9rem;
-  margin: 4px 0;
 }
 
 .pr-result-pp {
@@ -266,9 +263,7 @@ onMounted(async () => {
 }
 
 .pr-board {
-  margin-top: 12px;
   border-top: 1px solid var(--border);
-  padding-top: 10px;
 }
 
 .pr-board-summary {
@@ -277,7 +272,4 @@ onMounted(async () => {
   color: var(--purple-dark);
   cursor: pointer;
 }
-
-.pr-board-empty { margin-top: 8px; }
-.pr-board-list { margin-top: 8px; margin-bottom: 0; }
 </style>

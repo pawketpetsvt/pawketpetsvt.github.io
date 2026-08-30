@@ -4,7 +4,7 @@
 
     <div class="d-flex align-items-center justify-content-between mb-3">
       <div>
-        <div class="gt-label">GUILD TREASURY</div>
+        <div class="gt-label mb-px2">GUILD TREASURY</div>
         <div class="gt-amount">🪙 {{ treasury.toLocaleString() }} PP</div>
       </div>
       <button v-if="guildService.isOfficer" class="btn btn-primary btn-sm" @click="showProposal = true">
@@ -12,23 +12,23 @@
       </button>
     </div>
 
-    <div v-if="activePerks.length" class="gt-perks">
-      <div class="gt-perks-title">✨ Active Guild Perks</div>
+    <div v-if="activePerks.length" class="gt-perks rounded-2 py-px10 px-tight mb-px14">
+      <div class="gt-perks-title mb-px6">✨ Active Guild Perks</div>
       <div v-for="p in activePerks" :key="p.type" class="gt-perk-row">
         {{ PERK_LABELS[p.type] || p.type }} · {{ remaining(p) }} remaining
       </div>
     </div>
 
     <!-- Donate -->
-    <div class="gt-donate">
-      <div class="gt-donate-title">💰 Donate PP</div>
+    <div class="gt-donate rounded-3 py-tight px-px14 mb-3">
+      <div class="gt-donate-title mb-2">💰 Donate PP</div>
       <div class="d-flex gap-2">
         <input
           v-model="donateAmount"
           type="number"
           :min="DONATE_MIN"
           placeholder="Amount..."
-          class="gt-donate-input flex-fill"
+          class="gt-donate-input flex-fill rounded-1"
         />
         <button class="btn btn-primary btn-sm" :disabled="donating" @click="donate">
           {{ donating ? '...' : 'Donate' }}
@@ -41,19 +41,19 @@
     <template v-else>
       <div class="gt-section">🗳️ Active Proposals</div>
       <div v-if="!votes.length" class="gt-empty">No active proposals.</div>
-      <div v-for="v in votes" :key="v.id" class="gt-vote">
+      <div v-for="v in votes" :key="v.id" class="gt-vote rounded-3 py-tight px-px14 mb-px10">
         <div class="d-flex align-items-center gap-2 mb-1">
           <span class="gt-vote-icon">{{ EFFECT_ICONS[v.effect_type] || '📊' }}</span>
           <span class="gt-vote-title">{{ v.proposal }}</span>
           <span class="gt-vote-time ms-auto">⏱️ {{ endsIn(v) }}</span>
         </div>
-        <div v-if="v.description" class="gt-vote-desc">{{ v.description }}</div>
-        <div class="gt-vote-cost">Cost: <strong>🪙{{ v.cost }} PP</strong> from treasury</div>
-        <div class="d-flex gap-4 gt-tally">
+        <div v-if="v.description" class="gt-vote-desc mb-2">{{ v.description }}</div>
+        <div class="gt-vote-cost mb-2">Cost: <strong>🪙{{ v.cost }} PP</strong> from treasury</div>
+        <div class="d-flex gap-4 gt-tally mb-px10">
           <span class="gt-for">👍 {{ v.votes_for || 0 }} For</span>
           <span class="gt-against">👎 {{ v.votes_against || 0 }} Against</span>
         </div>
-        <div v-if="myVotes.has(v.id)" class="gt-voted">✅ You have already voted</div>
+        <div v-if="myVotes.has(v.id)" class="gt-voted text-center p-px6 rounded-1">✅ You have already voted</div>
         <div v-else class="d-flex gap-2">
           <button class="btn btn-primary btn-sm flex-fill" :disabled="voting" @click="vote(v, true)">
             👍 Vote Yes
@@ -99,7 +99,7 @@
           <input v-model="propDuration" type="number" min="1" max="72" class="gt-form-input" />
         </div>
       </div>
-      <div class="gt-cost-box">
+      <div class="gt-cost-box rounded-2 py-px10 px-tight mb-px14">
         Cost: <strong>🪙{{ (PROPOSAL_COSTS[propEffect] || 1000).toLocaleString() }} PP</strong>
         from treasury · Votes close in {{ propDuration }} hours
       </div>
@@ -224,7 +224,6 @@ onMounted(load)
   font-size: 0.72rem;
   color: var(--text-light);
   letter-spacing: 1px;
-  margin-bottom: 2px;
 }
 
 .gt-amount {
@@ -236,32 +235,27 @@ onMounted(load)
 .gt-perks {
   background: rgba(93, 222, 122, 0.1);
   border: 1px solid rgba(93, 222, 122, 0.3);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
 }
 
 .gt-perks-title {
   font-weight: 700;
   font-size: 0.8rem;
   color: #2d8a4e;
-  margin-bottom: 6px;
 }
 
 .gt-perk-row { font-size: 0.78rem; color: #2d8a4e; }
 
 .gt-donate {
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
 }
 
-.gt-donate-title { font-weight: 700; font-size: 0.82rem; margin-bottom: 8px; }
+.gt-donate-title {
+  font-weight: 700;
+  font-size: 0.82rem;
+}
 
 .gt-donate-input {
   padding: 7px 10px;
-  border-radius: 8px;
   border: 2px solid var(--border);
   font-size: 0.85rem;
 }
@@ -282,9 +276,6 @@ onMounted(load)
 
 .gt-vote {
   border: 2px solid var(--border);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 10px;
 }
 
 .gt-vote-icon { font-size: 1.2rem; }
@@ -300,23 +291,23 @@ onMounted(load)
 .gt-vote-desc {
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 8px;
 }
 
-.gt-vote-cost { font-size: 0.78rem; margin-bottom: 8px; }
+.gt-vote-cost {
+  font-size: 0.78rem;
+}
 
-.gt-tally { font-size: 0.82rem; margin-bottom: 10px; }
+.gt-tally {
+  font-size: 0.82rem;
+}
 .gt-for { color: #5dde7a; }
 .gt-against { color: #ff6b6b; }
 .gt-no-btn { color: #ff6b6b; border-color: #ff6b6b; }
 
 .gt-voted {
-  text-align: center;
   font-size: 0.78rem;
   color: var(--text-light);
-  padding: 6px;
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 8px;
 }
 
 .gt-log {
@@ -353,9 +344,6 @@ onMounted(load)
 
 .gt-cost-box {
   background: rgba(255, 215, 0, 0.1);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
   font-size: 0.82rem;
 }
 </style>

@@ -14,66 +14,68 @@
     </div>
 
     <template v-else>
-      <div class="gp-head">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-px10 mb-px6">
         <div class="gp-title">🎪 Grand Prix — Week {{ gpState.event.week_number }}, {{ gpState.event.year }}</div>
-        <div class="gp-status" :class="'gp-status-' + gpState.event.status">{{ STATUS_LABELS[gpState.event.status] || gpState.event.status }}</div>
+        <div class="gp-status px-px10 rounded-5" :class="'gp-status-' + gpState.event.status">{{ STATUS_LABELS[gpState.event.status] || gpState.event.status }}</div>
       </div>
-      <div class="gp-pool">💰 Prize pool: <strong>{{ gpState.event.prize_pool || 0 }} PP</strong></div>
+      <div class="gp-pool mb-px14">💰 Prize pool: <strong>{{ gpState.event.prize_pool || 0 }} PP</strong></div>
 
       <!-- ── registration ────────────────────────────────────────────────── -->
       <template v-if="gpState.event.status === 'registration'">
         <template v-if="gpState.entry">
-          <div class="gp-entered">
+          <div class="gp-entered px-px14 py-tight rounded-3 mb-px14">
             ✅ You're entered with <strong>{{ entryPetName }}</strong>. Racing begins when registration closes.
           </div>
         </template>
         <template v-else>
-          <p class="gp-sub">Pick the pet to enter. Entry costs {{ GP_ENTRY_FEE }} PP.</p>
+          <p class="gp-sub mb-tight">Pick the pet to enter. Entry costs {{ GP_ENTRY_FEE }} PP.</p>
           <RacingPetSelector v-model="pickedPetId" />
-          <div v-if="pickedPet" class="gp-estimate">
+          <div v-if="pickedPet" class="gp-estimate mb-tight">
             Estimated race score: <strong>{{ estimate }}</strong>
             <span class="gp-estimate-note">— speed, level, happiness, gear and variant</span>
           </div>
-          <button class="btn btn-primary gp-enter" :disabled="busy || !pickedPetId" @click="enter">
+          <button class="btn btn-primary w-100 mb-3" :disabled="busy || !pickedPetId" @click="enter">
             🎪 Enter Grand Prix ({{ GP_ENTRY_FEE }} PP)
           </button>
         </template>
-        <div class="gp-prizes">
-          <div class="gp-prizes-title">🏆 Prize Structure</div>
+        <div class="gp-prizes px-px14 py-tight rounded-3">
+          <div class="gp-prizes-title fw-bold mb-2">🏆 Prize Structure</div>
           <div v-for="(line, i) in GP_PRIZE_STRUCTURE" :key="i" class="gp-prize-line">{{ line }}</div>
         </div>
       </template>
 
       <!-- ── racing (training window) ────────────────────────────────────── -->
       <template v-else-if="gpState.event.status === 'racing'">
-        <div v-if="!gpState.entry" class="gp-entered gp-missed">
+        <div v-if="!gpState.entry" class="gp-entered gp-missed px-px14 py-tight rounded-3 mb-px14">
           Registration has closed for this event. Catch the next one!
         </div>
         <template v-else>
-          <div class="gp-entered">
+          <div class="gp-entered px-px14 py-tight rounded-3 mb-px14">
             🏁 <strong>{{ entryPetName }}</strong> is racing. Training now still improves the result.
           </div>
-          <div class="gp-training-bar">
-            <div class="gp-training-label">
+          <div class="mb-tight">
+            <div class="gp-training-label mb-1">
               Training bonus <strong>{{ grandPrixService.trainingBonus() }}</strong> / {{ TRAINING_CAP }}
             </div>
-            <div class="gp-training-track">
-              <div class="gp-training-fill" :style="{ width: trainingPct + '%' }"></div>
+            <div class="gp-training-track rounded-5 overflow-hidden">
+              <div class="gp-training-fill h-100 rounded-5" :style="{ width: trainingPct + '%' }"></div>
             </div>
           </div>
-          <div class="gp-drills">
-            <button
-              v-for="(t, key) in GP_TRAINING_TYPES"
-              :key="key"
-              class="gp-drill"
-              :disabled="busy || grandPrixService.trainingRoom() <= 0"
-              @click="train(key)"
-            >
-              <div class="gp-drill-label">{{ t.label }}</div>
-              <div class="gp-drill-desc">{{ t.desc }}</div>
-            </button>
+          <!-- Four drills. Was `auto-fit, minmax(180px, 1fr)` — four across at
+               full width, two once the column narrows. -->
+          <div class="row row-cols-2 row-cols-md-4 g-px10">
+            <div v-for="(t, key) in GP_TRAINING_TYPES" :key="key" class="col">
+              <button
+                class="gp-drill w-100 h-100 text-start px-px14 py-tight rounded-3"
+                :disabled="busy || grandPrixService.trainingRoom() <= 0"
+                @click="train(key)"
+              >
+                <div class="gp-drill-label fw-bold">{{ t.label }}</div>
+                <div class="gp-drill-desc">{{ t.desc }}</div>
+              </button>
+            </div>
           </div>
-          <p v-if="grandPrixService.trainingRoom() <= 0" class="gp-capped">
+          <p v-if="grandPrixService.trainingRoom() <= 0" class="gp-capped mt-px10">
             Weekly training cap reached — your pet is as ready as it gets.
           </p>
         </template>
@@ -81,28 +83,29 @@
 
       <!-- ── results / reward claim ──────────────────────────────────────── -->
       <template v-else>
-        <div v-if="gpState.entry && gpState.entry.final_rank" class="gp-result">
+        <div v-if="gpState.entry && gpState.entry.final_rank" class="gp-result text-center p-tight rounded-4 mb-3">
           <div class="gp-result-icon">{{ gpState.entry.final_rank === 1 ? '🏆' : gpState.entry.final_rank <= 3 ? '🎖️' : '🏁' }}</div>
-          <div class="gp-result-rank">You finished #{{ gpState.entry.final_rank }}</div>
-          <div class="gp-result-score">Final score: {{ gpState.entry.final_score || 0 }}</div>
+          <div class="gp-result-rank mt-px6 mx-0 mb-px2">You finished #{{ gpState.entry.final_rank }}</div>
+          <div class="gp-result-score mb-tight">Final score: {{ gpState.entry.final_score || 0 }}</div>
           <button
             v-if="!gpState.entry.rewards_claimed"
-            class="btn btn-primary gp-claim"
+            class="btn btn-primary w-100"
             :disabled="busy"
             @click="claim"
           >🎁 Claim Rewards</button>
           <div v-else class="gp-claimed">✅ Rewards claimed</div>
         </div>
-        <div v-else-if="gpState.entry" class="gp-entered">
+        <div v-else-if="gpState.entry" class="gp-entered px-px14 py-tight rounded-3 mb-px14">
           Results are still being tallied. Check back shortly!
         </div>
 
-        <div v-if="gpState.leaderboard.length" class="gp-board">
-          <div class="gp-board-title">🏁 Final Standings</div>
-          <ol class="gp-board-list">
-            <li v-for="row in gpState.leaderboard" :key="row.id || row.final_rank">
-              <span class="gp-board-name">{{ row.username || 'Racer' }}</span>
-              <span class="gp-board-score">{{ row.final_score || 0 }}</span>
+        <div v-if="gpState.leaderboard.length" class="gp-board px-px14 py-tight rounded-3">
+          <div class="gp-board-title fw-bold mb-2">🏁 Final Standings</div>
+          <ol class="gp-board-list m-0 ps-4">
+            <li v-for="row in gpState.leaderboard" :key="row.id || row.final_rank"
+              class="d-flex justify-content-between gap-px10">
+              <span>{{ row.username || 'Racer' }}</span>
+              <span>{{ row.final_score || 0 }}</span>
             </li>
           </ol>
         </div>
@@ -195,16 +198,8 @@ onMounted(async () => {
 
 <style lang="scss" scoped>
 // Grand Prix has no dedicated CSS in style.css — legacy built the whole panel
-// from inline styles — so all of it is owned here.
-.gp-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-}
-
+// from inline styles. Layout and spacing are Bootstrap's now; what remains is
+// the colour treatment, the bar's drawn thickness and the transitions.
 .gp-title {
   font-weight: 700;
   font-size: 1.05rem;
@@ -214,8 +209,9 @@ onMounted(async () => {
 .gp-status {
   font-size: 0.74rem;
   font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
+  // 3px vertical is below the spacing scale's finest step.
+  padding-top: 3px;
+  padding-bottom: 3px;
   background: rgba(153, 102, 255, 0.12);
   color: var(--purple);
 
@@ -223,24 +219,17 @@ onMounted(async () => {
   &.gp-status-reward_claim { background: rgba(93, 222, 122, 0.15); color: #2e8b4f; }
 }
 
-.gp-pool {
-  font-size: 0.85rem;
-  margin-bottom: 14px;
-}
+.gp-pool { font-size: 0.85rem; }
 
 .gp-sub {
   color: var(--text-light);
   font-size: 0.82rem;
-  margin-bottom: 12px;
 }
 
 .gp-entered {
   background: rgba(153, 102, 255, 0.08);
   border: 2px solid var(--purple-light);
-  border-radius: 12px;
-  padding: 12px 14px;
   font-size: 0.88rem;
-  margin-bottom: 14px;
 
   &.gp-missed {
     background: rgba(0, 0, 0, 0.04);
@@ -249,29 +238,18 @@ onMounted(async () => {
   }
 }
 
-.gp-estimate {
-  font-size: 0.88rem;
-  margin-bottom: 12px;
-}
+.gp-estimate { font-size: 0.88rem; }
 
 .gp-estimate-note {
   font-size: 0.74rem;
   color: var(--text-light);
 }
 
-.gp-enter { width: 100%; margin-bottom: 16px; }
-
-.gp-prizes {
-  background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+.gp-prizes { background: rgba(153, 102, 255, 0.06); }
 
 .gp-prizes-title {
-  font-weight: 700;
   font-size: 0.82rem;
   color: var(--purple-dark);
-  margin-bottom: 8px;
 }
 
 .gp-prize-line {
@@ -280,38 +258,21 @@ onMounted(async () => {
   line-height: 2;
 }
 
-.gp-training-bar { margin-bottom: 12px; }
+.gp-training-label { font-size: 0.82rem; }
 
-.gp-training-label {
-  font-size: 0.82rem;
-  margin-bottom: 4px;
-}
-
+// 10px is the bar's drawn thickness, not a spacing step.
 .gp-training-track {
   height: 10px;
-  border-radius: 20px;
   background: rgba(153, 102, 255, 0.12);
-  overflow: hidden;
 }
 
 .gp-training-fill {
-  height: 100%;
-  border-radius: 20px;
   background: linear-gradient(90deg, #9966ff, #ff66cc);
   transition: width 0.4s;
 }
 
-.gp-drills {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 10px;
-}
-
 .gp-drill {
-  text-align: left;
-  padding: 12px 14px;
   border: 2px solid var(--border);
-  border-radius: 12px;
   background: var(--white);
   cursor: pointer;
   transition: border-color 0.15s, transform 0.15s;
@@ -324,10 +285,7 @@ onMounted(async () => {
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 }
 
-.gp-drill-label {
-  font-weight: 700;
-  font-size: 0.88rem;
-}
+.gp-drill-label { font-size: 0.88rem; }
 
 .gp-drill-desc {
   font-size: 0.74rem;
@@ -337,16 +295,11 @@ onMounted(async () => {
 .gp-capped {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-top: 10px;
 }
 
 .gp-result {
-  text-align: center;
-  padding: 12px;
   background: var(--white);
   border: 2px solid var(--purple-light);
-  border-radius: 14px;
-  margin-bottom: 16px;
 }
 
 .gp-result-icon { font-size: 2.4rem; }
@@ -355,16 +308,12 @@ onMounted(async () => {
   font-size: 1.3rem;
   font-weight: 800;
   color: var(--purple);
-  margin: 6px 0 2px;
 }
 
 .gp-result-score {
   font-size: 0.85rem;
   color: var(--text-light);
-  margin-bottom: 12px;
 }
-
-.gp-claim { width: 100%; }
 
 .gp-claimed {
   font-size: 0.85rem;
@@ -372,29 +321,14 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.gp-board {
-  background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+.gp-board { background: rgba(153, 102, 255, 0.06); }
 
-.gp-board-title {
-  font-weight: 700;
-  font-size: 0.85rem;
-  margin-bottom: 8px;
-}
+.gp-board-title { font-size: 0.85rem; }
 
 .gp-board-list {
-  margin: 0;
-  padding-left: 24px;
   font-size: 0.83rem;
 
-  li {
-    padding: 3px 0;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-  }
+  li { padding: 3px 0; }
 }
 
 .gp-board-name {

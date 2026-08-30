@@ -11,13 +11,13 @@
           <div
             v-for="shell in shells"
             :key="shell.id"
-            class="shell"
+            class="shell position-absolute d-flex align-items-center justify-content-center"
             :class="{ shuffle: shuffling }"
             :style="{ left: shell.slotIndex * SLOT_WIDTH + 'px' }"
             @click="guess(shell.id)"
           >
             <span class="shell-glyph">{{ shell.glyph }}</span>
-            <span v-if="shell.sparkle" class="shell-sparkle">✨</span>
+            <span v-if="shell.sparkle" class="shell-sparkle position-absolute">✨</span>
           </div>
         </div>
       </template>
@@ -157,13 +157,9 @@ onMounted(async () => {
 }
 
 .shell {
-  position: absolute;
   top: 0;
   width: 84px;
   height: 84px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: left 0.3s ease, transform 0.2s;
 }
 
@@ -172,7 +168,6 @@ onMounted(async () => {
 }
 
 .shell-sparkle {
-  position: absolute;
   top: -2px;
   right: 4px;
   font-size: 1.5rem;

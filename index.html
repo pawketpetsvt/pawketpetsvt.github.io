@@ -820,7 +820,6 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
   body.guest .notification-bell,
   body.guest .pass-button,
   body.guest .bingo-button,
-  body.guest .event-status-widget,
   body.guest #nav-skin-key-display { display: none !important; }
 
   body.guest .navbar {
@@ -937,19 +936,11 @@ body.night-mode .landing-v2-lore { border-color: rgba(153,102,255,0.3); backgrou
       🎯 Bingo <span id="bingo-completion">0/12</span>
     </div>
 
-    <!-- Event/Weather Status Widget -->
-    <div class="event-status-widget" id="event-status-widget" style="display:none;">
-      <div class="event-status-icon" id="event-status-icon">🌤️</div>
-      <div class="event-status-text" id="event-status-text">...</div>
-      <div class="event-status-dot" id="event-status-dot"></div>
-    </div>
   </div>
   
   <div class="navbar-right">
     <span id="nav-user"></span>
-    <span id="nav-points" onclick="pp_showHistory()" title="Click to see PP history" style="cursor:pointer;"></span>
-    <button onclick="showHelpModal()" title="Game Information" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:var(--purple);display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">❓</button>
-    <button onclick="showReportModal()" title="Report a player or bug" style="background:none;border:1px solid var(--border);border-radius:50%;width:30px;height:30px;font-size:0.9rem;cursor:pointer;color:#ff6b6b;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;">🚩</button>
+    <span id="nav-points"></span>
 
     <!-- Skin Key counter — hidden until logged in -->
     <div id="nav-skin-key-display" style="display:none;align-items:center;gap:4px;background:linear-gradient(135deg,rgba(255,215,0,0.15),rgba(255,165,0,0.15));border-radius:20px;padding:4px 10px;border:1px solid rgba(255,215,0,0.35);cursor:help;" title="Skin Keys — use to unlock pet variants and cosmetics">

@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import { passService } from './PassService.js'
 import { AppState } from '../AppState.js'
 import { toastService } from './ToastService.js'
 import { DAILY_COMPLETE_BONUS_PP } from '../data/minigamesData.js'
@@ -45,6 +46,7 @@ class MinigamesService {
     if (claimed === null) return
 
     taskTracker.report('complete_minigame')
+    passService.addXP(3, 'minigame')
 
     // Minigame Monday: the calendar bonus is paid as EXTRA PP on top of what
     // the game already awarded, rather than by scaling the original claim —

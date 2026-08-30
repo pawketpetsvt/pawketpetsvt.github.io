@@ -71,7 +71,6 @@ async function upgrade(rod) {
   font-size: 1.4rem;
 }
 
-
 .rod-name {
   font-weight: 700;
 }

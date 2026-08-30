@@ -1,14 +1,14 @@
 <template>
   <div>
     <button class="btn btn-outline btn-sm mb-3" @click="$emit('back')">← Back to Guild</button>
-    <h3 class="gc-title">💬 Guild Chat</h3>
+    <h3 class="gc-title mb-px14">💬 Guild Chat</h3>
 
     <div class="mb-3">
       <textarea
         v-model="draft"
         :maxlength="CHAT_MAX_LEN"
         placeholder="Say something to your guild..."
-        class="gc-input"
+        class="gc-input w-100 py-px10 px-tight rounded-2"
       ></textarea>
       <div class="d-flex justify-content-between align-items-center mt-1">
         <span class="gc-count">{{ draft.length }} / {{ CHAT_MAX_LEN }}</span>
@@ -29,7 +29,7 @@
       No messages yet. Say hello to your guild! 👋
     </div>
     <div v-else>
-      <div v-for="m in messages" :key="m.id" class="gc-msg d-flex gap-2">
+      <div v-for="m in messages" :key="m.id" class="gc-msg d-flex gap-2 py-2 px-0">
         <div class="gc-avatar" :class="{ me: m.isMe }">{{ m.author.charAt(0).toUpperCase() }}</div>
         <div class="flex-fill min-w-0">
           <div class="d-flex align-items-center gap-1 mb-1">
@@ -87,12 +87,11 @@ onMounted(load)
 </script>
 
 <style lang="scss" scoped>
-.gc-title { color: var(--purple); margin-bottom: 14px; }
+.gc-title {
+  color: var(--purple);
+}
 
 .gc-input {
-  width: 100%;
-  padding: 10px 12px;
-  border-radius: 10px;
   border: 2px solid var(--border);
   font-size: 0.88rem;
   resize: vertical;
@@ -116,7 +115,6 @@ onMounted(load)
 }
 
 .gc-msg {
-  padding: 8px 0;
   border-bottom: 1px solid rgba(153, 102, 255, 0.08);
 }
 

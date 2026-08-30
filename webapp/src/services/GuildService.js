@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
@@ -203,7 +204,7 @@ class GuildService {
     }
 
     const bestPet = [...myPets].sort((a, b) => (b.level || 1) - (a.level || 1))[0]
-    if (bestPet) await this._setLiaisonRow(guild.id, bestPet.id).catch(() => {})
+    if (bestPet) await this._setLiaisonRow(guild.id, bestPet.id)
 
     await this.checkStatus()
     return guild
@@ -287,11 +288,30 @@ class GuildService {
   }
 
   // ── Liaison ("guild pet") ─────────────────────────────────────────────────
-  _setLiaisonRow(guildId, petId) {
-    return supabase.from('guild_liaisons').upsert(
+  //
+  // `async` MATTERS HERE. This used to return the Supabase query builder
+  // directly and both callers wrote `._setLiaisonRow(...).catch(() => {})` to
+  // make it best-effort. But PostgrestBuilder is a THENABLE, not a Promise — in
+  // postgrest-js 2.112.3 it defines only `then(onfulfilled, onrejected)`, with
+  // no `catch` and no `finally`. So that `.catch()` threw
+  // "…catch is not a function" the moment the line ran, which aborted guild
+  // creation AFTER the guild and member rows were already written.
+  //
+  // Being `async` wraps the result in a real Promise, but the errors are simply
+  // handled here instead: best-effort is the intent, and a caller cannot forget
+  // to guard it.
+  async _setLiaisonRow(guildId, petId) {
+    const { error } = await supabase.from('guild_liaisons').upsert(
       { guild_id: guildId, user_id: AppState.user.id, pet_id: petId, is_active: true },
       { onConflict: 'guild_id,user_id' }
     )
+    if (error) {
+      // Not fatal: the player is in the guild and can set the pet by hand from
+      // the guild view. Never let this cost them the guild they just made.
+      console.error('[guild] could not set the guild pet:', error)
+      return false
+    }
+    return true
   }
 
   async _autoAssignLiaison(guildId) {
@@ -300,7 +320,7 @@ class GuildService {
     const best = (pets || [])
       .filter(p => (p.level || 1) >= GUILD_MIN_PET_LEVEL)
       .sort((a, b) => (b.level || 1) - (a.level || 1))[0]
-    if (best) await this._setLiaisonRow(guildId, best.id).catch(() => {})
+    if (best) await this._setLiaisonRow(guildId, best.id)
   }
 
   async setLiaison(pet) {
@@ -578,12 +598,15 @@ class GuildService {
       throw new GuildError('Could not add to treasury. Your PP has been refunded.')
     }
 
-    const { data: m } = await supabase.from('guild_members')
-      .select('total_contributions').eq('guild_id', guildId)
-      .eq('user_id', AppState.user.id).maybeSingle()
-    await supabase.from('guild_members')
-      .update({ total_contributions: ((m && m.total_contributions) || 0) + amount })
-      .eq('guild_id', guildId).eq('user_id', AppState.user.id)
+    // `total_contributions` is NOT updated here. `add_to_guild_treasury`
+    // already does it server-side, in the same transaction as the treasury
+    // credit and the log row:
+    //     UPDATE guild_members SET total_contributions =
+    //       COALESCE(total_contributions,0) + p_amount ...
+    // Legacy repeated it client-side anyway — a read-then-write of the value
+    // the RPC had just incremented — so every donation counted twice toward a
+    // member's contribution total. Removing it also drops a read-modify-write
+    // that two concurrent donations could clobber.
 
     taskTracker.report('donate_guild')
     badgeHooks.onGuildDonation()
@@ -614,6 +637,7 @@ class GuildService {
       ends_at: new Date(Date.now() + duration * 3600000).toISOString()
     })
     if (error) throw new GuildError('Failed: ' + error.message)
+    passService.addXP(10, 'guild_proposal')
   }
 
   async castVote(voteId, inFavor) {
@@ -654,6 +678,7 @@ class GuildService {
 
     try { localStorage.setItem('guild_voted_' + voteId + '_' + AppState.user.id, '1') } catch { /* private mode */ }
     taskTracker.report('vote_in_guild')
+    passService.addXP(5, 'guild_vote')
 
     // Re-read rather than reasoning from the row fetched before the increment —
     // legacy computed the new tally from its own stale copy, which mis-decides

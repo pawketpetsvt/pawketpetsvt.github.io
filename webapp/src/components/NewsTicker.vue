@@ -2,7 +2,7 @@
   <!-- `news-ticker` is kept as a class hook: `body.night-mode .news-ticker` in
        the root style.css recolours the bar, and the global night-mode
        transition group lists it too. Only the base appearance moved here. -->
-  <div class="news-ticker">
+  <div class="news-ticker position-relative overflow-hidden">
     <!-- The `:key` bump replaces the element on every rotation, which restarts
          the single-run scroll animation. Legacy achieved the same restart by
          cloning the node and re-attaching its listener (game.js:13436-13445);
@@ -65,11 +65,23 @@ onUnmounted(() => {
 // against other global rules; nothing competes for these selectors inside a
 // scoped component, so they are dropped. `body.night-mode .news-ticker` still
 // carries `!important` globally and so still overrides the background below.
+// The navbar's bottom corners are rounded (`border-radius: 0 0 24px 24px`,
+// style.css:14315), so the two corner wedges are transparent — and with the
+// ticker starting flush below the navbar's box, what showed through there was
+// the page background, not the ticker.
+//
+// The ticker is pulled up BEHIND the navbar by exactly that radius so its
+// gradient fills those wedges, with the same amount added back as padding so
+// the headline itself does not move. The navbar is `z-index: 100`, so 99 puts
+// this underneath it and lets the curve mask the overlap.
+$navbar-radius: 24px;
+
 .news-ticker {
   background: linear-gradient(90deg, #ffdd00, #ff9933, #ff66cc);
   color: var(--text);
-  padding: 10px 0;
-  overflow: hidden;
+  padding: (10px + $navbar-radius) 0 10px;
+  margin-top: -$navbar-radius;
+  z-index: 99;
   white-space: nowrap;
   font-family: 'Chewy', cursive;
   font-size: 1rem;

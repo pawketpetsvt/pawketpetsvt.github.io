@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import { passService } from './PassService.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { expeditionService } from './ExpeditionService.js'
@@ -171,6 +172,7 @@ class GuildDungeonService {
     }).then(null, () => {})
 
     taskTracker.report('guild_dungeon')
+    passService.addXP(15, 'guild_dungeon')
 
     return { ppReward, xpReward, guildXp, tokens, victory, wavesCleared, totalWaves }
   }

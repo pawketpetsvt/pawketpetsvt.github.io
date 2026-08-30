@@ -1,4 +1,8 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
+import { questService } from './QuestService.js'
+import { petMoodService } from './PetMoodService.js'
+import { achievementTierService } from './AchievementTierService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
@@ -180,6 +184,10 @@ class PetRaceService {
 
     petRaceState.racesLeft = Math.max(0, petRaceState.racesLeft - 1)
     taskTracker.report('complete_race')
+    passService.addXP(5, 'race')
+    if (best) questService.progress(best.pet.id, 'race')
+    if (best) petMoodService.completeWish(best.pet.id, 'race')
+    if (best) achievementTierService.check('race_wins', best.pet.id, won ? 1 : 0)
     badgeHooks.onPetRaceStarted()
     if (best && best.finishOrder <= 3) taskTracker.report('race_podium')
 

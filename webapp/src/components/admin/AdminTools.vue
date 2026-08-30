@@ -3,9 +3,9 @@
        (index.html:3619-3628), which showApp() revealed only for admins. Kept in
        the same place rather than given its own route, so the tools sit exactly
        where they always have. -->
-  <div v-if="isAdminRef" class="admin-tools">
+  <div v-if="isAdminRef" class="admin-tools pt-4">
     <div class="ad-warn">⚠️ ADMIN CONTROLS: USE WITH CAUTION</div>
-    <h3 class="at-heading">⚙️ Admin Tools</h3>
+    <h3 class="at-heading mb-px10">⚙️ Admin Tools</h3>
     <div class="d-flex gap-2 flex-wrap">
       <button class="btn btn-primary at-btn at-polls" @click="open = 'polls'">🗳️ Manage Polls</button>
       <button class="btn btn-primary at-btn at-gp" @click="open = 'gp'">🏁 Grand Prix</button>
@@ -35,11 +35,12 @@ onMounted(() => adminService.refresh())
 
 .admin-tools {
   margin-top: 30px;
-  padding-top: 24px;
   border-top: 2px solid var(--border);
 }
 
-.at-heading { color: #ff4500; margin-bottom: 10px; }
+.at-heading {
+  color: #ff4500;
+}
 
 // The three buttons carry their own gradients in legacy; kept, since they are
 // the visual cue that these are destructive-capable controls.

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">👤 ✦ 👤</div>
       <h1>My Profile</h1>
@@ -8,24 +8,22 @@
 
     <div v-if="loading" class="spinner"></div>
 
-    <template v-else-if="profile">
+    <!-- Plain grouping div: the page wrapper above is already the container, and
+         Bootstrap containers must not be nested. -->
+    <div v-else-if="profile">
       <ProfileHeader :profile="profile" own />
       <ProfileStatCards :profile="profile" :badge-count="earnedCount" />
-
-      <div class="mt-3">
-        <router-link class="btn btn-outline btn-sm" :to="'/profile/' + encodeURIComponent(profile.username)">
-          👁️ View My Public Profile
-        </router-link>
-      </div>
 
       <h2 class="mp-section-title">✏️ Edit Profile</h2>
       <div class="mp-form d-flex flex-column gap-1">
         <label class="mp-label mt-2" for="mp-username">Username</label>
-        <input id="mp-username" v-model="usernameDraft" class="mp-input px-3 py-2 rounded-3" type="text" minlength="2" maxlength="30" />
+        <input id="mp-username" v-model="usernameDraft" class="mp-input px-3 py-2 rounded-3" type="text" minlength="2"
+          maxlength="30" />
         <div class="mp-help">Letters, numbers, and underscores only. Max 30 characters.</div>
 
         <label class="mp-label mt-2" for="mp-bio">Bio</label>
-        <textarea id="mp-bio" v-model="bioDraft" class="mp-input px-3 py-2 rounded-3" rows="3" maxlength="200"></textarea>
+        <textarea id="mp-bio" v-model="bioDraft" class="mp-input px-3 py-2 rounded-3" rows="3"
+          maxlength="200"></textarea>
         <div class="mp-help">{{ bioDraft.length }} / 200</div>
 
         <div v-if="saveError" class="mp-error my-2 px-3 py-2 rounded-3">{{ saveError }}</div>
@@ -46,7 +44,7 @@
       <h2 class="mp-section-title">🎮 Discord</h2>
       <div class="d-flex flex-column align-items-start gap-2">
         <div v-if="discordLinked" class="mp-discord-status">✅ Linked</div>
-        <template v-else>
+        <div v-else class="d-flex flex-column align-items-start gap-2">
           <div class="mp-discord-status">Not linked yet. Generate a code below and use <strong>/link</strong> in
             Discord.</div>
           <button class="btn btn-outline btn-sm" :disabled="generatingCode" @click="generateDiscordCode">
@@ -56,14 +54,14 @@
             <span class="mp-discord-code-value">{{ discordCode }}</span>
             <span class="mp-discord-code-note">Expires in 10 minutes</span>
           </div>
-        </template>
+        </div>
       </div>
 
       <CosmeticsPanel :equipped="profile.equipped" :unlocked="unlockedCosmetics" @update="saveCosmetics" />
 
       <h2 class="mp-section-title">🎖️ Badges</h2>
       <BadgeGrid :badges="allBadges" empty-text="No badges available yet!" />
-    </template>
+    </div>
   </div>
 </template>
 
@@ -77,6 +75,8 @@ import ProfileHeader from '../components/profile/ProfileHeader.vue'
 import ProfileStatCards from '../components/profile/ProfileStatCards.vue'
 import BadgeGrid from '../components/profile/BadgeGrid.vue'
 import CosmeticsPanel from '../components/profile/CosmeticsPanel.vue'
+import { cosmeticUnlockService, cosmeticUnlockState } from '../services/CosmeticUnlockService.js'
+import { petMoodService } from '../services/PetMoodService.js'
 
 const loading = ref(true)
 const profile = ref(null)
@@ -91,12 +91,16 @@ const discordLinked = ref(false)
 const discordCode = ref('')
 const generatingCode = ref(false)
 
-// Cosmetic unlock state lives in a system that isn't migrated yet (game.js's
-// phase1_state.unlockedBackgrounds/Frames/Badges) — until it is, only the
-// alwaysUnlocked catalog entries are equippable, which profileService.isOwned
-// handles on its own. Graceful degradation, same pattern as Phase 4's
-// weather-gated fish.
-const unlockedCosmetics = ref({ backgrounds: [], frames: [], badges: [] })
+// Cosmetic unlock state, live as of Phase 9.5 (CosmeticUnlockService reads
+// `unlocked_cosmetics`). Until that landed only the alwaysUnlocked catalogue
+// entries were ever equippable, so every earned background, frame and badge pip
+// showed permanently locked behind its hint. Keyed to the plural names
+// CosmeticsPanel indexes by.
+const unlockedCosmetics = computed(() => ({
+  backgrounds: cosmeticUnlockState.background,
+  frames: cosmeticUnlockState.frame,
+  badges: cosmeticUnlockState.badge
+}))
 
 const earnedCount = computed(() => allBadges.value.filter(b => b.earned).length)
 
@@ -116,6 +120,10 @@ async function load() {
     titles.value = titleData.titles
     activeTitleId.value = titleData.activeId
     allBadges.value = badgeData
+    await cosmeticUnlockService.load()
+    // A pet can wish to be shown off — legacy sweeps every pet on a profile
+    // visit (main:1854 / 11694).
+    petMoodService.completeWishAll('view_profile')
   } catch (err) {
     toastService.error(err.message)
   }
@@ -176,7 +184,6 @@ onMounted(load)
 </script>
 
 <style lang="scss" scoped>
-
 // Layout via Bootstrap utilities in the template; visuals only here.
 .mp-section-title {
   font-size: 1.15rem;

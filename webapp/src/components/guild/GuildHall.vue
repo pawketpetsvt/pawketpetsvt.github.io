@@ -1,10 +1,10 @@
 <template>
   <div>
     <button class="btn btn-outline btn-sm mb-3" @click="$emit('back')">← Back to Guild</button>
-    <h3 class="gh-title">🏠 Guild Hall</h3>
-    <div class="gh-sub">Furniture buffs apply to ALL pets owned by guild members.</div>
+    <h3 class="gh-title mb-1">🏠 Guild Hall</h3>
+    <div class="gh-sub mb-3">Furniture buffs apply to ALL pets owned by guild members.</div>
 
-    <div class="gh-tokens d-flex align-items-center justify-content-between">
+    <div class="gh-tokens d-flex align-items-center justify-content-between rounded-3 py-tight px-px14 mb-3">
       <div>
         <div class="gh-tokens-title">🏅 Guild Tokens</div>
         <div class="gh-tokens-sub">Earned from dungeons and PP donations</div>
@@ -12,13 +12,13 @@
       <div class="gh-tokens-amount">{{ tokens.toLocaleString() }}</div>
     </div>
 
-    <div class="gh-buffs">
-      <div class="gh-buffs-title">✨ Active Buffs (all guild members)</div>
+    <div class="gh-buffs rounded-3 py-tight px-px14 mb-3">
+      <div class="gh-buffs-title mb-2">✨ Active Buffs (all guild members)</div>
       <div v-if="!buffEntries.length" class="gh-no-buffs">
         No furniture placed yet — no active buffs.
       </div>
       <div v-else>
-        <span v-for="b in buffEntries" :key="b.key" class="gh-buff-pill">
+        <span v-for="b in buffEntries" :key="b.key" class="gh-buff-pill d-inline-flex align-items-center rounded-5 py-px2 px-2 m-px2">
           {{ BUFF_LABELS[b.key] || b.key }}: +{{ b.value }}{{ BUFF_UNITS[b.key] || '' }}
         </span>
       </div>
@@ -37,28 +37,28 @@
       >
         <template v-if="slotMap[i - 1]">
           <span class="gh-slot-emoji">{{ (defOf(slotMap[i - 1]) || {}).emoji || '📦' }}</span>
-          <span class="gh-slot-name">
+          <span class="gh-slot-name text-center">
             {{ (defOf(slotMap[i - 1]) || {}).name || slotMap[i - 1].furniture_key }}
           </span>
-          <button v-if="isOfficer" class="btn btn-sm gh-remove-btn" @click="remove(i - 1)">Remove</button>
+          <button v-if="isOfficer" class="btn btn-sm gh-remove-btn mt-1" @click="remove(i - 1)">Remove</button>
         </template>
         <template v-else>
           <span class="gh-slot-empty-emoji">🪑</span>
           <span class="gh-slot-empty-label">Empty</span>
-          <button v-if="isOfficer" class="btn btn-primary btn-sm gh-place-btn" @click="openShop(i - 1)">
+          <button v-if="isOfficer" class="btn btn-primary btn-sm gh-place-btn mt-1 py-px2 px-2" @click="openShop(i - 1)">
             + Place
           </button>
         </template>
       </div>
     </div>
 
-    <div v-if="guildLevel < GUILD_FURNITURE_MAX_SLOTS" class="gh-next-unlock">
+    <div v-if="guildLevel < GUILD_FURNITURE_MAX_SLOTS" class="gh-next-unlock text-center mt-2">
       Reach Guild Level {{ guildLevel + 1 }} to unlock slot {{ totalSlots + 1 }}/{{ GUILD_FURNITURE_MAX_SLOTS }}
     </div>
 
-    <div class="gh-donate">
+    <div class="gh-donate mt-gap pt-3">
       <div class="gh-section mb-2">💸 Donate PP for Tokens</div>
-      <div class="gh-donate-note">
+      <div class="gh-donate-note mb-px10">
         Every {{ PP_PER_GUILD_TOKEN }} PP donated = 1 Guild Token. Tokens go to the guild, not your balance.
       </div>
       <div class="d-flex gap-2 align-items-center">
@@ -68,7 +68,7 @@
           :min="PP_PER_GUILD_TOKEN"
           :step="PP_PER_GUILD_TOKEN"
           max="10000"
-          class="gh-donate-input"
+          class="gh-donate-input p-px6 rounded-1 text-center"
         />
         <button class="btn btn-primary" :disabled="donating" @click="donate">
           {{ donating ? '...' : 'Donate PP' }}
@@ -84,7 +84,7 @@
       @close="shopSlot = null"
     >
       <div v-for="tier in tiers" :key="tier" class="mb-3">
-        <div class="gh-tier-label">Tier {{ tier }}</div>
+        <div class="gh-tier-label mb-px6">Tier {{ tier }}</div>
         <div class="row row-cols-1 row-cols-sm-2 g-2">
           <div v-for="f in catalogByTier(tier)" :key="f.key" class="col">
             <div class="gh-shop-card h-100" :class="{ unaffordable: !canAfford(f) }">
@@ -95,8 +95,8 @@
                   <div class="gh-shop-cost">🏅 {{ f.cost }}</div>
                 </div>
               </div>
-              <div class="gh-shop-desc">{{ f.desc }}</div>
-              <div v-if="f.requiresLevel && guildLevel < f.requiresLevel" class="gh-shop-locked">
+              <div class="gh-shop-desc mt-px6">{{ f.desc }}</div>
+              <div v-if="f.requiresLevel && guildLevel < f.requiresLevel" class="gh-shop-locked mt-px6">
                 Requires Guild Level {{ f.requiresLevel }}
               </div>
               <button
@@ -211,20 +211,18 @@ onMounted(load)
 <style lang="scss" scoped>
 // style.css owns .guild-furniture-grid and .guild-furniture-slot (+ .filled /
 // .empty). The rest was inline in legacy's template string.
-.gh-title { color: var(--purple); margin-bottom: 4px; }
+.gh-title {
+  color: var(--purple);
+}
 
 .gh-sub {
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 16px;
 }
 
 .gh-tokens {
   background: rgba(255, 215, 0, 0.1);
   border: 1px solid rgba(255, 215, 0, 0.3);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
 }
 
 .gh-tokens-title { font-weight: 700; font-size: 0.9rem; color: #e6a800; }
@@ -233,31 +231,22 @@ onMounted(load)
 
 .gh-buffs {
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 12px 14px;
-  margin-bottom: 16px;
 }
 
 .gh-buffs-title {
   font-weight: 700;
   font-size: 0.82rem;
   color: var(--purple-dark);
-  margin-bottom: 8px;
 }
 
 .gh-no-buffs { font-size: 0.78rem; color: var(--text-light); font-style: italic; }
 
 .gh-buff-pill {
-  display: inline-flex;
-  align-items: center;
   gap: 3px;
   background: rgba(153, 102, 255, 0.12);
   border: 1px solid rgba(153, 102, 255, 0.25);
-  border-radius: 20px;
-  padding: 2px 8px;
   font-size: 0.7rem;
   color: var(--purple-dark);
-  margin: 2px;
 }
 
 .gh-section {
@@ -273,7 +262,6 @@ onMounted(load)
   font-size: 0.65rem;
   color: var(--purple-dark);
   font-weight: 600;
-  text-align: center;
   line-height: 1.2;
 }
 
@@ -281,41 +269,34 @@ onMounted(load)
 .gh-slot-empty-label { font-size: 0.65rem; color: var(--text-light); }
 
 .gh-remove-btn {
-  margin-top: 4px;
   font-size: 0.6rem;
   padding: 1px 6px;
   color: #ff6b6b;
   border-color: #ff6b6b;
 }
 
-.gh-place-btn { margin-top: 4px; font-size: 0.62rem; padding: 2px 8px; }
+.gh-place-btn {
+  font-size: 0.62rem;
+}
 
 .gh-next-unlock {
   font-size: 0.72rem;
   color: var(--text-light);
-  text-align: center;
-  margin-top: 8px;
 }
 
 .gh-donate {
-  margin-top: 20px;
   border-top: 1px solid var(--border);
-  padding-top: 16px;
 }
 
 .gh-donate-note {
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 10px;
 }
 
 .gh-donate-input {
   width: 90px;
-  padding: 6px;
-  border-radius: 8px;
   border: 2px solid var(--border);
   font-size: 0.85rem;
-  text-align: center;
 }
 
 .gh-tier-label {
@@ -323,7 +304,6 @@ onMounted(load)
   font-weight: 700;
   color: var(--text-light);
   letter-spacing: 1px;
-  margin-bottom: 6px;
 }
 
 .gh-shop-card {
@@ -340,14 +320,12 @@ onMounted(load)
 .gh-shop-desc {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-top: 6px;
   line-height: 1.4;
 }
 
 .gh-shop-locked {
   font-size: 0.7rem;
   color: #ff6b6b;
-  margin-top: 6px;
   font-weight: 600;
 }
 </style>

@@ -13,7 +13,7 @@
     </defs>
   </svg>
 
-  <div class="pp-app-shell-wrap">
+  <div class="pp-app-shell-wrap d-flex flex-column">
     <NavBar />
     <!-- Second bar under the navbar, matching legacy DOM order. Authed-only:
          the legacy stylesheet hid it for guests via `body.guest .news-ticker`,
@@ -57,8 +57,6 @@ import GuestLayout from './layouts/GuestLayout.vue'
 @import './assets/scss/globals.scss';
 
 .pp-app-shell-wrap {
-  display: flex;
-  flex-direction: column;
   min-height: 100vh;
 }
 </style>

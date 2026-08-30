@@ -4,7 +4,7 @@
        it; here the numbers are reactive, so the modal simply updates. -->
   <PetModal title="✨ Allocate Stat Points" :subtitle="subtitle" width="380px" @close="$emit('close')">
     <div class="d-flex flex-column gap-2">
-      <div v-for="stat in STAT_DEFS" :key="stat.key" class="pp-stat-row">
+      <div v-for="stat in STAT_DEFS" :key="stat.key" class="pp-stat-row d-flex align-items-center gap-tight py-px10 px-px14 rounded-3">
         <div class="pp-stat-icon">{{ stat.icon }}</div>
         <div class="flex-grow-1">
           <div class="pp-stat-label">{{ stat.label }}</div>
@@ -67,13 +67,8 @@ async function spend(stat) {
 
 <style lang="scss" scoped>
 .pp-stat-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
   background: rgba(153, 102, 255, 0.06);
   border: 1px solid var(--border);
-  border-radius: 12px;
 }
 
 .pp-stat-icon { font-size: 1.4rem; }

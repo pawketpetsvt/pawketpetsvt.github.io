@@ -27,7 +27,7 @@
               :class="{ active: AppState.tabKey === item.tab }"
               @click="go(item.tab)"
             >{{ item.icon }} {{ item.label }}
-              <span v-if="item.tab === 'friends' && AppState.friendRequestCount > 0" class="nav-badge">{{ AppState.friendRequestCount }}</span>
+              <span v-if="item.tab === 'friends' && AppState.friendRequestCount > 0" class="nav-badge d-inline-block rounded-2 ms-1">{{ AppState.friendRequestCount }}</span>
             </button>
           </div>
         </div>
@@ -51,7 +51,7 @@
         </div>
         <div class="stat-row">
           <span class="stat-label">Points</span>
-          <span class="stat-value">{{ points.toLocaleString() }} PP</span>
+          <span class="stat-value" :class="{ 'glitch-text': ppGlitchState.active, 'spooky-wobble': ppGlitchState.active }">{{ displayPP(points) }} PP</span>
         </div>
         <div class="stat-row">
           <span class="stat-label">Items</span>
@@ -61,7 +61,7 @@
           <span class="stat-label">Day Streak</span>
           <span class="stat-value">{{ AppState.sidebarStats.streak }}</span>
         </div>
-        <div class="streak-milestone">{{ milestoneText }}</div>
+        <div class="streak-milestone text-center mt-px2">{{ milestoneText }}</div>
       </div>
     </div>
   </div>
@@ -73,6 +73,7 @@ import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { streakService } from '../services/StreakService.js'
 import { friendService } from '../services/FriendService.js'
+import { displayPP, ppGlitchState } from '../services/PPGlitchService.js'
 
 const router = useRouter()
 const openGroup = ref(null)
@@ -159,21 +160,16 @@ function go(tab) {
 
 <style lang="scss" scoped>
 .nav-badge {
-  display: inline-block;
   background: var(--red, #ff4d4d);
   color: #fff;
   font-size: 0.65rem;
   font-weight: 700;
-  border-radius: 10px;
   padding: 1px 6px;
-  margin-left: 4px;
 }
 
 .streak-milestone {
   font-size: 0.68rem;
   color: #ffaa00;
-  text-align: center;
-  margin-top: 2px;
   line-height: 1.3;
 }
 </style>

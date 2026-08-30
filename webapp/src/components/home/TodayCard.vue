@@ -2,10 +2,9 @@
   <!-- Ports todayCard_render() — "Today in PawketPets", the Home page's status
        board. All `.today-card*` classes are owned by style.css.
 
-       Two of legacy's sections are absent because their systems are not
-       migrated — the mini-season banner and the featured community goal. Legacy
-       renders both conditionally, so their absence is a state the card already
-       handles. -->
+       Both of legacy's previously-absent sections are live as of Phase 9.5:
+       the mini-season banner and the featured community goal. Legacy renders
+       both conditionally, so each still hides itself when nothing is running. -->
   <div class="today-card">
     <div class="today-card-title">🌟 Today in PawketPets</div>
 
@@ -43,15 +42,41 @@
       </div>
     </div>
 
+    <!-- Mini-season banner. `.today-card-season` is legacy's own rule for
+         exactly this row — a gradient pill — and had been sitting unused in
+         style.css the whole time the system was unmigrated. -->
+    <div v-if="seasons.length" class="mt-2">
+      <div v-for="s in seasons" :key="s.season_key" class="today-card-season">
+        {{ s.icon || '🎪' }} <strong>{{ s.name || s.season_key }}</strong>
+        <span v-if="s.description"> — {{ s.description }}</span>
+      </div>
+    </div>
+
+    <!-- Featured community goal: the one closest to completion. -->
+    <div v-if="featuredGoal" class="today-card-stats tc-goal mt-2 px-tight py-2 rounded-1">
+      <div class="tc-goal-title">🌍 {{ featuredGoal.title }}</div>
+      <div class="tc-goal-bar rounded-5 overflow-hidden mt-1 mb-px2">
+        <div class="tc-goal-fill h-100 rounded-5" :style="{ width: goalPct + '%' }"></div>
+      </div>
+      <div class="tc-goal-meta">
+        {{ (featuredGoal.current_progress || 0).toLocaleString() }} /
+        {{ featuredGoal.goal_target.toLocaleString() }} ({{ goalPct }}%)
+      </div>
+    </div>
+
     <!-- Beta Integrity — world-state corruption, inverted. The two rituals are
          the only way a player can deliberately move it; everything else shifts
          it as a side-effect of boss kills. -->
     <div v-if="integrity !== null" class="today-card-section today-card-section-world mt-2">
       <div class="today-card-worldstate">
         🖥️ Beta Integrity: {{ integrity }}%. {{ integrityDesc }}
-        <button class="tc-integrity-info" title="What is this?" @click="explainIntegrity">❓</button>
+        <button class="tc-integrity-info p-0 ps-1" title="What is this?" @click="explainIntegrity">❓</button>
         <div class="today-card-ritual-buttons">
-          <div class="tc-ritual-note">Each ritual shifts integrity by ~1%</div>
+          <!-- The once-per-day limit is enforced by `perform_corruption_ritual`
+               (`user_corruption_ritual.last_ritual_date`) but was stated
+               nowhere, so a second attempt just returned an error the player
+               had no way to anticipate. -->
+          <div class="tc-ritual-note mb-1">Each ritual shifts integrity by 1% · once per day</div>
           <button class="today-card-ritual-btn purify" :disabled="ritualBusy"
             title="Spend 100 PP to raise Beta Integrity by ~1%" @click="ritual('purify')">
             🛠️ Debug (+1% · 100 PP)
@@ -83,10 +108,18 @@ import { weatherService, weatherState } from '../../services/WeatherService.js'
 import { liveStreamers } from '../../services/StreamStatusService.js'
 import { worldStateService } from '../../services/WorldStateService.js'
 import { toastService } from '../../services/ToastService.js'
+import { communityGoalService } from '../../services/CommunityGoalService.js'
+import { miniSeasonService } from '../../services/MiniSeasonService.js'
 
 const stats = ref({})
 const onlineCount = ref(null)
 const integrity = ref(null)
+const seasons = ref([])
+const featuredGoal = ref(null)
+
+// Legacy surfaces the goal CLOSEST to completion (main:14277-14284).
+const goalPct = computed(() =>
+  featuredGoal.value ? Math.round(communityGoalService.percent(featuredGoal.value)) : 0)
 const ritualBusy = ref(false)
 
 const integrityDesc = computed(() =>
@@ -149,10 +182,36 @@ onMounted(async () => {
   worldStateService.corruption()
     .then(c => { integrity.value = worldStateService.integrityFrom(c) })
     .catch(() => { integrity.value = null })
+
+  miniSeasonService.active().then(s => { seasons.value = s || [] }).catch(() => {})
+  communityGoalService.loadGoals().then(goals => {
+    if (!goals || !goals.length) return
+    featuredGoal.value = goals.slice().sort((a, b) =>
+      communityGoalService.percent(b) - communityGoalService.percent(a))[0]
+  }).catch(() => {})
 })
 </script>
 
 <style lang="scss" scoped>
+// The season banner and featured-goal rows are new to this card in the Vue app;
+// style.css has no rule for either, so they are defined here.
+
+.tc-goal { background: rgba(153, 102, 255, 0.06); }
+
+.tc-goal-title { font-size: 0.82rem; font-weight: 700; color: var(--purple-dark); }
+
+// 8px is the bar's drawn thickness, not a spacing step.
+.tc-goal-bar {
+  background: rgba(153, 102, 255, 0.15);
+  height: 8px;
+}
+
+.tc-goal-fill {
+  background: linear-gradient(90deg, var(--purple), var(--pink));
+}
+
+.tc-goal-meta { font-size: 0.72rem; color: var(--text-light); }
+
 // `.today-card-worldstate`, `.today-card-ritual-buttons` and
 // `.today-card-ritual-btn` are owned by style.css. The tooltip button and the
 // ritual note have no rule anywhere — legacy styled the note inline and gave
@@ -160,7 +219,6 @@ onMounted(async () => {
 .tc-integrity-info {
   border: none;
   background: none;
-  padding: 0 0 0 4px;
   font-size: 0.85rem;
   line-height: 1;
   cursor: help;
@@ -175,7 +233,6 @@ onMounted(async () => {
 .tc-ritual-note {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-bottom: 4px;
 }
 
 .today-card-ritual-btn:disabled {

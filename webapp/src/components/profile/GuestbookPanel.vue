@@ -5,7 +5,7 @@
     <div v-if="canPost" class="mb-3">
       <textarea
         v-model="draft"
-        class="gb-input px-3 py-2 rounded-3"
+        class="gb-input px-3 py-2 rounded-3 w-100"
         rows="3"
         :maxlength="GUESTBOOK_MAX_LENGTH"
         placeholder="Leave a nice message..."
@@ -20,7 +20,7 @@
 
     <template v-else>
       <div v-if="!entries.length" class="gb-empty text-center p-4">
-        <div class="gb-empty-icon">📖</div>
+        <div class="gb-empty-icon mb-2">📖</div>
         <p>No messages yet!</p>
         <p class="gb-empty-sub mt-1">Be the first to leave a message!</p>
       </div>
@@ -130,7 +130,6 @@ onMounted(load)
 }
 
 .gb-input {
-  width: 100%;
   border: 1px solid var(--border);
   font-size: 0.85rem;
   font-family: inherit;
@@ -183,11 +182,9 @@ onMounted(load)
 
 .gb-empty-icon {
   font-size: 2.6rem;
-  margin-bottom: 8px;
 }
 
 .gb-empty-sub {
   font-size: 0.85rem;
 }
-
 </style>

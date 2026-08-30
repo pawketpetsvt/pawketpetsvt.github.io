@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div v-if="loading" class="text-center py-5">
       <div class="spinner"></div>
     </div>

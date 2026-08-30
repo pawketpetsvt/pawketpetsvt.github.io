@@ -4,15 +4,15 @@
        blob; one shell means the backdrop, Escape handling and scroll behaviour
        are written once instead of four times. -->
   <Teleport to="body">
-    <div class="pp-modal-backdrop" @click.self="$emit('close')">
-      <div class="pp-modal" :style="{ maxWidth: width }">
-        <div class="pp-modal-head">
-          <h3 class="pp-modal-title">{{ title }}</h3>
+    <div class="pp-modal-backdrop position-fixed d-flex align-items-center justify-content-center p-gap" @click.self="$emit('close')">
+      <div class="pp-modal w-100 d-flex flex-column" :style="{ maxWidth: width }">
+        <div class="d-flex align-items-start gap-px10">
+          <h3 class="pp-modal-title flex-grow-1 m-0">{{ title }}</h3>
           <button class="pp-modal-x" aria-label="Close" @click="$emit('close')">✕</button>
         </div>
-        <div v-if="subtitle" class="pp-modal-sub">{{ subtitle }}</div>
+        <div v-if="subtitle" class="pp-modal-sub mt-1 mx-0 mb-tight">{{ subtitle }}</div>
 
-        <div class="pp-modal-body">
+        <div class="pp-modal-body flex-grow-1">
           <slot />
         </div>
 
@@ -49,21 +49,13 @@ onUnmounted(() => {
 
 <style lang="scss" scoped>
 .pp-modal-backdrop {
-  position: fixed;
   inset: 0;
   z-index: 9000;
   background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
 }
 
 .pp-modal {
-  width: 100%;
   max-height: 88vh;
-  display: flex;
-  flex-direction: column;
   background: var(--white);
   border: 3px solid var(--purple-light);
   border-radius: var(--radius);
@@ -71,15 +63,7 @@ onUnmounted(() => {
   padding: 18px 20px;
 }
 
-.pp-modal-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
 .pp-modal-title {
-  flex: 1;
-  margin: 0;
   color: var(--purple);
   font-family: 'Fredoka One', cursive;
   font-size: 1.15rem;
@@ -100,7 +84,6 @@ onUnmounted(() => {
 .pp-modal-sub {
   font-size: 0.75rem;
   color: var(--text-light);
-  margin: 4px 0 12px;
 }
 
 // The body scrolls, not the whole dialog, so the title and Done button stay put.
@@ -115,7 +98,6 @@ onUnmounted(() => {
 // Bleeding 8px out and padding 8px back gives rows up to `g-3` room to sit in
 // while leaving the content aligned exactly with the title and Done button.
 .pp-modal-body {
-  flex: 1;
   min-height: 0;
   overflow-y: auto;
   margin-inline: -8px;

@@ -1,10 +1,10 @@
 <template>
-  <div class="sb-row">
-    <span class="sb-label">{{ label }}</span>
-    <div class="sb-track">
+  <div class="sb-row d-flex align-items-center gap-px10 py-2 px-0">
+    <span class="sb-label flex-shrink-0">{{ label }}</span>
+    <div class="sb-track min-w-0 overflow-hidden position-relative">
       <div class="sb-fill" :class="stat" :style="{ width: pct + '%' }"></div>
     </div>
-    <span class="sb-value">{{ value }}/{{ max }}</span>
+    <span class="sb-value flex-shrink-0 text-end">{{ value }}/{{ max }}</span>
   </div>
 </template>
 
@@ -31,15 +31,10 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
 // those global rules were producing (20px track, 2px border, dotted row rule),
 // so the look is unchanged but nothing outside this file can alter it.
 .sb-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 0;
   border-bottom: 2px dotted rgba(153, 102, 255, 0.3);
 }
 
 .sb-label {
-  flex-shrink: 0;
   width: 90px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -48,13 +43,10 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
 
 .sb-track {
   flex: 1 1 auto;
-  min-width: 0;
   height: 20px;
   background: rgba(153, 102, 255, 0.15);
   border: 2px solid var(--border);
   border-radius: 15px;
-  overflow: hidden;
-  position: relative;
 }
 
 .sb-fill {
@@ -80,9 +72,7 @@ const pct = computed(() => Math.round((props.value / props.max) * 100))
 }
 
 .sb-value {
-  flex-shrink: 0;
   width: 52px;
-  text-align: right;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-light);

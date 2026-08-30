@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
+import { playerService } from './PlayerService.js'
 import { AppState } from '../AppState.js'
 import { toastService } from './ToastService.js'
 
@@ -100,7 +101,14 @@ class WorldStateService {
       }
       const data = res.data
 
-      if (AppState.player && typeof data.new_pp === 'number') AppState.player.pawketpoints = data.new_pp
+      // The ritual's cost is taken inside the RPC. Logged from the actual
+      // difference rather than an assumed price, since the RPC owns the figure.
+      const before = (AppState.player && AppState.player.pawketpoints) || 0
+      if (typeof data.new_pp === 'number') {
+        await playerService.noteExternalSpend(
+          Math.max(0, before - data.new_pp), 'corruption_ritual', data.new_pp
+        )
+      }
       // Force a fresh read so every reader reflects the new value.
       await this.loadFlags(true)
 

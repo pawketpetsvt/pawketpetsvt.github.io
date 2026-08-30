@@ -3,14 +3,14 @@
        renderForm/renderHistory, game.js:10763-11097): what's out now, a form to
        send a pet, and recent returns. -->
   <div class="pp-exp mb-4">
-    <div class="pp-exp-active">
+    <div class="pp-exp-active py-px14 px-3 mb-tight">
       <div class="pp-exp-heading">🌲 Active Explorations</div>
 
       <div v-if="loading" class="pp-exp-muted">Loading…</div>
       <div v-else-if="!active.length" class="pp-exp-muted">No pets currently exploring.</div>
 
       <div v-else class="d-flex flex-column gap-2">
-        <div v-for="row in active" :key="row.id" class="pp-exp-row">
+        <div v-for="row in active" :key="row.id" class="d-flex align-items-center gap-px10">
           <span class="pp-exp-emoji">{{ zoneOf(row).emoji }}</span>
           <div class="flex-grow-1 min-w-0">
             <div class="pp-exp-name">{{ petName(row.pet_id) }} — {{ zoneOf(row).label }}</div>
@@ -30,13 +30,13 @@
 
     <details class="pp-exp-send">
       <summary>🚀 Send a Pet on Expedition</summary>
-      <div class="pp-exp-form">
+      <div class="pp-exp-form py-px14 px-3">
         <div v-if="!availablePets.length" class="pp-exp-muted">
           Every pet is already out exploring.
         </div>
         <template v-else>
           <label class="pp-exp-label" for="exp-pet">Pet</label>
-          <select id="exp-pet" v-model="formPetId" class="pp-exp-select">
+          <select id="exp-pet" v-model="formPetId" class="pp-exp-select w-100 py-2 px-tight rounded-5">
             <option v-for="p in availablePets" :key="p.id" :value="p.id">
               {{ p.nickname }} (Lv.{{ p.level }} · ⚡{{ p.energy }})
             </option>
@@ -48,7 +48,7 @@
               <button class="pp-exp-zone w-100 h-100" :class="{ 'pp-selected': formZone === z.key }"
                 @click="formZone = z.key">
                 <div class="pp-exp-zone-top">{{ z.emoji }} {{ z.label }}</div>
-                <div class="pp-exp-zone-desc">{{ z.desc }}</div>
+                <div class="pp-exp-zone-desc mt-px2 mx-0 mb-1">{{ z.desc }}</div>
                 <div class="pp-exp-zone-meta">
                   ⏱ {{ z.duration }}m · ⚡{{ z.energyCost }} · 💰{{ z.minPP }}-{{ z.maxPP }} PP
                 </div>
@@ -72,7 +72,7 @@
           <button class="btn btn-primary w-100 mt-3" :disabled="!canSend || sending" @click="send">
             {{ sending ? 'Sending…' : '🚀 Send on Expedition' }}
           </button>
-          <p v-if="blockedReason" class="pp-exp-blocked">{{ blockedReason }}</p>
+          <p v-if="blockedReason" class="pp-exp-blocked text-center mt-px6">{{ blockedReason }}</p>
         </template>
       </div>
     </details>
@@ -81,7 +81,7 @@
       <div class="pp-exp-heading">📜 Recent Expeditions</div>
       <div v-if="!history.length" class="pp-exp-muted">No expeditions yet.</div>
       <div v-else class="d-flex flex-column gap-1">
-        <div v-for="row in history" :key="row.id" class="pp-exp-hist">
+        <div v-for="row in history" :key="row.id" class="pp-exp-hist d-flex justify-content-between">
           <span>{{ zoneOf(row).emoji }} {{ zoneOf(row).label }}</span>
           <span class="pp-exp-hist-pp">+{{ row.reward_pp }} PP</span>
         </div>
@@ -257,8 +257,6 @@ onUnmounted(() => clearInterval(ticker))
 .pp-exp-active {
   background: linear-gradient(135deg, rgba(153, 102, 255, 0.08), rgba(255, 102, 204, 0.05));
   border-radius: 16px;
-  padding: 14px 16px;
-  margin-bottom: 12px;
 }
 
 .pp-exp-heading {
@@ -272,12 +270,6 @@ onUnmounted(() => clearInterval(ticker))
   color: var(--text-light);
   font-size: 0.82rem;
   font-style: italic;
-}
-
-.pp-exp-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .pp-exp-emoji { font-size: 1.4rem; }
@@ -318,7 +310,6 @@ onUnmounted(() => clearInterval(ticker))
 }
 
 .pp-exp-form {
-  padding: 14px 16px;
   border-top: 1px solid var(--border);
 }
 
@@ -330,10 +321,7 @@ onUnmounted(() => clearInterval(ticker))
 }
 
 .pp-exp-select {
-  width: 100%;
-  padding: 8px 12px;
   border: 3px solid var(--border);
-  border-radius: 20px;
   background: var(--cream);
   font-family: inherit;
   font-size: 0.85rem;
@@ -387,7 +375,6 @@ onUnmounted(() => clearInterval(ticker))
 .pp-exp-zone-desc {
   font-size: 0.7rem;
   color: var(--text-light);
-  margin: 2px 0 4px;
 }
 
 .pp-exp-zone-meta {
@@ -399,13 +386,9 @@ onUnmounted(() => clearInterval(ticker))
 .pp-exp-blocked {
   font-size: 0.78rem;
   color: var(--text-light);
-  text-align: center;
-  margin-top: 6px;
 }
 
 .pp-exp-hist {
-  display: flex;
-  justify-content: space-between;
   font-size: 0.8rem;
   color: var(--text-light);
 }

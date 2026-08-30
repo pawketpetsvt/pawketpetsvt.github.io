@@ -5,6 +5,7 @@ import { settingsState } from './SettingsService.js'
 import { cosmeticsState, petCosmeticsService } from './PetCosmeticsService.js'
 import { SKILL_KEY_MAP } from '../data/petKeys.js'
 import { weatherService } from './WeatherService.js'
+import { taskTracker } from './TaskTrackerService.js'
 import {
   COMPANION_MESSAGES, PET_COMPANION_MESSAGES, SPOOKY_PHRASES,
   COMPANION_TIMING, SPOOKY_CHANCE, MEMORY_CHANCE, PET_LINE_CHANCE
@@ -184,6 +185,9 @@ class CompanionService {
     if (this.bubbleTimer) clearTimeout(this.bubbleTimer)
     companionState.message = text
     companionState.spooky = spooky
+    // Ports onCompanionMessage() (main:35255) — the Bingo 'Chat with Companion'
+    // square counts each line the buddy speaks.
+    taskTracker.report('pet_companion', 1)
     companionState.showBubble = true
     const dwell = spooky ? COMPANION_TIMING.SPOOKY_BUBBLE_MS : COMPANION_TIMING.BUBBLE_MS
     this.bubbleTimer = setTimeout(() => { companionState.showBubble = false }, dwell)

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">👥 ✦ 👥</div>
       <h1>Meet the Team</h1>
@@ -51,7 +51,7 @@
       <div class="col">
         <div class="team-profile-card team-join-card h-100">
           <div class="team-join-content">
-            <div class="team-join-sparkle">✨</div>
+            <div class="team-join-sparkle mb-gap">✨</div>
             <h3>Want to Join?</h3>
             <p>We're looking for VTubers to join the PawketPetsVT team!</p>
             <button class="btn btn-primary" @click="showContactModal = true">Get in Touch</button>
@@ -151,15 +151,6 @@ const MEMBERS = [
     ]
   },
   {
-    name: 'Jess', image: 'jess.png', role: 'Paleoart Parasaur Potion Brewer 🦕⚗️',
-    bio: 'A local fossil and potion-prepping paleoart Parasaur specializing in the cute and creepy! A quiet critter who enjoys a little adventure and a lot of whimsy. 🦕⚗️',
-    stats: [{ label: 'Streaming Since', value: '??? WIP' }, { label: 'Favorite Game', value: '??? WIP' }],
-    socials: [
-      { platform: 'twitch', url: 'https://twitch.tv/teatimejess', icon: '📺', label: 'Twitch' },
-      { platform: 'twitter', url: 'https://x.com/teatimejess', icon: '🐦', label: 'Twitter' }
-    ]
-  },
-  {
     name: 'Gnarly', image: 'gnarly.png', role: 'PaleoPlex Arcade Operator 🎮🦖',
     bio: 'A radical gal running the PaleoPlex arcade! Loves Furbies and nachos! 🎮🦖',
     stats: [{ label: 'Streaming Since', value: '??? WIP' }, { label: 'Favorite Game', value: '??? WIP' }],
@@ -186,6 +177,5 @@ const MEMBERS = [
 // Was an inline style attribute on the sparkle div.
 .team-join-sparkle {
   font-size: 4rem;
-  margin-bottom: 20px;
 }
 </style>

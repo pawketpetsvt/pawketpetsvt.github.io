@@ -51,12 +51,18 @@ $dark:      #2d1b4e; // --text
 // Match the game's existing spacing/layout metrics so converted markup keeps
 // its exact geometry rather than drifting to Bootstrap's defaults:
 //   • 20px column gutters  — legacy `.app-container` used `gap: 20px`
-//   • 20px container inset — legacy used `padding: 20px`
+//   • 20px container inset — legacy `.app-container` and `.page-wrap` both used
+//     `padding: 0 20px`. NOTE the doubling: Bootstrap containers set
+//     `--bs-gutter-x: $container-padding-x` and then apply HALF of it to each
+//     side (`padding-x: calc(var(--bs-gutter-x) * .5)`), so 40px here is what
+//     emits the 20px-per-side inset the design actually uses. This previously
+//     read `20px`, which emitted 10px per side — harmless only because the one
+//     container in the app (AppShell) overrode it with a `p-gap` utility.
 //   • 1400px max width     — legacy `max-width: 1400px`, and Bootstrap's
 //     xxl breakpoint is itself 1400px, so `.container-xxl` reproduces the
 //     legacy behavior precisely: fluid below 1400px, capped and centered above.
 $grid-gutter-width: 20px;
-$container-padding-x: 20px;
+$container-padding-x: 40px;
 
 // Bootstrap's default radius scale (4 / 6 / 8 / 16 / 32px) does not line up
 // with this site's, which is built on 8 / 10 / 12 / 16 / 20px plus the
@@ -87,10 +93,30 @@ $container-max-widths: (
 // with plain utilities (`p-gap`, `mt-gap`, `gap-gap`…) instead of one-off CSS.
 // Named rather than numbered so they can never be confused with Bootstrap's
 // responsive infix (a token called "sm" would make `g-sm-2` ambiguous).
+// Two groups, deliberately distinguishable by name:
+//
+//   SEMANTIC — the site's structural rhythm, used for containers and grids.
+//   LITERAL (px*) — the fine ramp the components actually draw on. Measured
+//   rather than guessed: across every scoped block, the most-used spacing
+//   values are 8px (135), 10px (130), 12px (101), 6px (94), 4px (88) and
+//   14px (71). Bootstrap's own scale supplies 4/8/16/24/48 and the semantic
+//   tokens supply 12/20/28/60 — leaving 2, 6, 10 and 14 with no utility at
+//   all, which is why ~330 spacing declarations had to stay hand-written.
+//
+// The px* names carry their value so they need no lookup, and cannot be
+// confused either with Bootstrap's numeric scale (where `mb-5` is 48px, so a
+// token literally named "10" would read as larger than it is) or with a
+// responsive infix (`mb-px10` vs `mb-md-2`).
 $custom-spacers: (
   "tight": 12px, // theme swatches
   "gap": 20px, // the site's base rhythm — old `.app-container` gap/padding
-  "wide": 28px // minigame card grid
+  "wide": 28px, // minigame card grid
+  "page": 60px, // the trailing gutter every page carries (old `.page-wrap`)
+
+  "px2": 2px,
+  "px6": 6px,
+  "px10": 10px,
+  "px14": 14px
 );
 
 $spacers: map-merge($spacers, $custom-spacers);

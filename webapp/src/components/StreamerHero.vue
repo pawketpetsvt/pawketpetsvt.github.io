@@ -1,6 +1,6 @@
 <template>
   <div
-    class="landing-hero streamer-landing-hero"
+    class="landing-hero streamer-landing-hero rounded-5 pt-wide px-gap pb-4 mb-gap"
     :style="{ background: member.bgGradient || DEFAULT_BG, borderColor: accent }"
   >
     <div class="streamer-landing-pet-wrap">
@@ -15,16 +15,16 @@
 
     <div class="streamer-landing-info">
       <div class="streamer-landing-invited">
-        <span class="streamer-landing-dot" :style="{ background: accent }"></span>
+        <span class="streamer-landing-dot flex-shrink-0" :style="{ background: accent }"></span>
         <span>{{ member.name }} invited you to PawketPets<span :style="{ color: accent }">VT</span>!</span>
       </div>
 
-      <h1 class="landing-title sh-title" :style="{ textShadow: `0 2px 12px ${accent}` }">
+      <h1 class="landing-title sh-title mt-px10 mb-px6" :style="{ textShadow: `0 2px 12px ${accent}` }">
         Adopt <span :style="{ color: accent }">{{ member.petName }}</span>!
       </h1>
 
-      <p v-if="member.bio" class="sh-bio">{{ member.bio }}</p>
-      <p class="sh-free">Free to play · Your first pet is on us!</p>
+      <p v-if="member.bio" class="sh-bio mb-tight">{{ member.bio }}</p>
+      <p class="sh-free mb-px14">Free to play · Your first pet is on us!</p>
 
       <div class="streamer-landing-links">
         <a
@@ -70,16 +70,12 @@ function onImgError(e) {
 // classes to the stylesheet. The per-streamer colours stay bindings (they vary
 // per member); the fixed geometry moves here.
 .streamer-landing-hero {
-  border-radius: 20px;
-  padding: 28px 20px 24px;
-  margin-bottom: 20px;
   border: 2px solid;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
 .sh-title {
   font-size: 1.9rem;
-  margin: 10px 0 6px;
   color: #fff;
 }
 
@@ -87,16 +83,14 @@ function onImgError(e) {
   font-size: 0.84rem;
   color: rgba(255, 255, 255, 0.65);
   line-height: 1.6;
-  margin: 0 0 12px;
+  // A reading measure for the bio, not a layout step.
   max-width: 340px;
 }
 
 .sh-free {
   font-size: 0.82rem;
   color: rgba(255, 255, 255, 0.45);
-  margin: 0 0 14px;
 }
 
 .streamer-landing-invited { color: rgba(255, 255, 255, 0.65); }
-.streamer-landing-dot { flex-shrink: 0; }
 </style>

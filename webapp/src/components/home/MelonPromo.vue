@@ -9,8 +9,9 @@
       <span class="melon-promo-word melon-promo-word-melons-2">Melons</span>
       <span class="melon-promo-word">to buy treats for your pets!</span>
     </div>
-    <router-link to="/shop" class="melon-promo-image" aria-label="Go to the Shop">
-      <img v-if="!imgError" src="/images/Melon2.png" alt="Melon, the shopkeeper" @error="imgError = true" />
+    <router-link to="/shop" class="melon-promo-image d-block" aria-label="Go to the Shop">
+      <img v-if="!imgError" class="d-block w-100 mx-auto" src="/images/Melon2.png"
+        alt="Melon, the shopkeeper" @error="imgError = true" />
     </router-link>
   </div>
 </template>
@@ -29,14 +30,9 @@ const imgError = ref(false)
 // style.css. `.melon-promo-image` has no rule anywhere — legacy styled the
 // <img> inline — so it lives here.
 .melon-promo-image {
-  display: block;
   cursor: pointer;
 
-  img {
-    max-width: 300px;
-    width: 100%;
-    display: block;
-    margin: 0 auto;
-  }
+  // A cap on the artwork's rendered size, not a layout step.
+  img { max-width: 300px; }
 }
 </style>

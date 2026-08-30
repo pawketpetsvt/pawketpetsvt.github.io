@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { furnitureService } from './FurnitureService.js'
+import { playerService } from './PlayerService.js'
 import { ROOM_SLOTS, ROOM_THEMES, ROOM_BONUS_LABELS, VIBE_MAX } from '../data/roomData.js'
 
 // The PLAYER room — the Housing tab. Ports the room_* family (game.js:22339+).
@@ -60,6 +61,15 @@ class RoomService {
   // room_removeSlot() is implemented in legacy.
   async place(slotId, furnitureId) {
     const slots = { ...roomState.layout.slots }
+    if (this.isPlaced(furnitureId)) {
+      // Remove the furniture from its current slot if it's already placed
+      for (const [existingSlotId, existingFurnitureId] of Object.entries(slots)) {
+        if (existingFurnitureId === furnitureId) {
+          delete slots[existingSlotId]
+          break
+        }
+      }
+    }
     if (furnitureId) slots[slotId] = furnitureId
     else delete slots[slotId]
     roomState.layout = { ...roomState.layout, slots }
@@ -97,7 +107,12 @@ class RoomService {
     if (!roomState.unlocked.includes(key)) roomState.unlocked = [...roomState.unlocked, key]
     roomState.layout = { ...roomState.layout, theme: key }
     // The RPC writes room_theme itself, so there is nothing left to save.
-    if (AppState.player && typeof data.points === 'number') {
+    // The charge is recorded in PP History here: the RPC took the PP itself, so
+    // it never passed through spendPoints and would otherwise be invisible to
+    // the player — a balance dropping with no matching entry.
+    if (data.charged) {
+      await playerService.noteExternalSpend(data.charged, 'room_theme', data.points)
+    } else if (AppState.player && typeof data.points === 'number') {
       AppState.player.pawketpoints = data.points
     }
     return data.charged || null

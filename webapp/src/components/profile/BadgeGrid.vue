@@ -1,5 +1,5 @@
 <template>
-  <div v-if="!badges.length" class="empty-note">
+  <div v-if="!badges.length" class="empty-note text-center p-4">
     <p>{{ emptyText }}</p>
   </div>
   <div v-else class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
@@ -9,9 +9,9 @@
           {{ b.rarity }}
         </div>
         <div class="pf-badge-icon">{{ b.icon }}</div>
-        <div class="pf-badge-name">{{ b.earned === false ? '???' : b.name }}</div>
-        <div class="pf-badge-desc">{{ b.earned === false ? 'Not yet earned' : b.description }}</div>
-        <div v-if="b.earnedAt" class="pf-badge-date">Earned {{ formatDate(b.earnedAt) }}</div>
+        <div class="pf-badge-name mt-1">{{ b.earned === false ? '???' : b.name }}</div>
+        <div class="pf-badge-desc mt-px2">{{ b.earned === false ? 'Not yet earned' : b.description }}</div>
+        <div v-if="b.earnedAt" class="pf-badge-date mt-px6">Earned {{ formatDate(b.earnedAt) }}</div>
       </div>
     </div>
   </div>
@@ -55,26 +55,21 @@ function formatDate(iso) {
 .pf-badge-name {
   font-weight: 700;
   font-size: 0.85rem;
-  margin-top: 4px;
   color: var(--purple-dark);
 }
 
 .pf-badge-desc {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 
 .pf-badge-date {
   font-size: 0.65rem;
   color: var(--text-light);
-  margin-top: 6px;
   opacity: 0.8;
 }
 
 .empty-note {
-  text-align: center;
-  padding: 24px;
   color: var(--text-light);
 }
 </style>

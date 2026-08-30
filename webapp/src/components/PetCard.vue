@@ -1,5 +1,5 @@
 <template>
-  <div class="my-pet-card" :class="variantClass">
+  <div class="my-pet-card d-flex flex-column" :class="variantClass">
     <!-- Header banner: the habitat gradient runs to every edge of the card, and
          the avatar straddles the boundary into the body below via
          `.pet-avatar-wrap { margin-bottom: -50px }` + `.pet-card-body`'s 65px
@@ -8,7 +8,7 @@
          `.pet-habitat` sets `background` with `!important`, which a plain
          inline style would lose to. -->
     <div class="pet-habitat" :style="{ '--pp-habitat': habitatBackground }">
-      <div v-if="props.isExploring" class="pp-exploring">🧭 Exploring</div>
+      <div v-if="props.isExploring" class="pp-exploring position-absolute rounded-5">🧭 Exploring</div>
       <div class="pet-avatar-wrap">
         <div class="pet-avatar">
           <img v-if="pet.species.image_file && !imgError" :src="'/images/' + pet.species.image_file" :alt="pet.nickname"
@@ -19,7 +19,7 @@
       </div>
     </div>
 
-    <div class="pet-card-body">
+    <div class="pet-card-body d-flex flex-column gap-px10">
       <div class="pet-card-info w-100">
         <!-- Rename: legacy opened a modal from a pencil button on the card
              (openEditNicknameModal/saveNickname). Editing in place needs no
@@ -29,7 +29,7 @@
           <button class="pp-edit-btn" title="Rename pet" @click="startEditName">✏️</button>
         </div>
         <div v-else class="d-flex align-items-center justify-content-center gap-2">
-          <input ref="nameInput" v-model="nameDraft" class="pp-name-input" maxlength="30" @keyup.enter="saveName"
+          <input ref="nameInput" v-model="nameDraft" class="pp-name-input flex-grow-1 min-w-0 py-1 px-px10 text-center" maxlength="30" @keyup.enter="saveName"
             @keyup.esc="editingName = false" />
           <button class="pp-edit-btn" :disabled="savingName" title="Save" @click="saveName">✅</button>
           <button class="pp-edit-btn" title="Cancel" @click="editingName = false">✖️</button>
@@ -38,7 +38,7 @@
         <div class="pet-stage">({{ stageName }})</div>
 
         <!-- Variant badge and active pet title, when the pet has them. -->
-        <div v-if="variant" class="pet-variant-badge"
+        <div v-if="variant" class="pet-variant-badge d-inline-block py-1 px-px10 rounded-3"
           :style="{ background: variant.color + '20', borderColor: variant.color, color: variant.color }">
           {{ variant.icon }} {{ variant.name }}
         </div>
@@ -49,7 +49,7 @@
 
         <div class="pet-card-species d-flex flex-wrap justify-content-center align-items-center gap-2">
           <span v-if="pet.species.vtuber_name">🎭 {{ pet.species.vtuber_name }}</span>
-          <a v-if="pet.species.twitch_url" :href="pet.species.twitch_url" target="_blank" class="watch-live">Watch
+          <a v-if="pet.species.twitch_url" :href="pet.species.twitch_url" target="_blank" class="watch-live py-px2 px-2 rounded-2 ms-px6">Watch
             Live</a>
         </div>
 
@@ -70,17 +70,21 @@
 
       <!-- Mood readout, ported from makeMyPetCard's `.pet-mood-display`. Colour
            is data-driven so it stays an inline binding. -->
-      <div class="pp-mood" :style="{ background: mood.color + '20', borderColor: mood.color, color: mood.color }">
+      <div class="pp-mood text-center p-2 rounded-3" :style="{ background: mood.color + '20', borderColor: mood.color, color: mood.color }">
         {{ mood.emoji }} Mood: {{ mood.mood }}
       </div>
 
       <!-- Character-specific flavour line, chosen by overall condition. -->
-      <div v-if="personalityMessage" class="pet-personality-msg">"{{ personalityMessage }}"</div>
+      <div v-if="personalityMessage" class="pet-personality-msg text-center py-2 px-tight mt-0 mx-0 mb-2 rounded-2">"{{ personalityMessage }}"</div>
 
       <PetBattleStats :pet="pet" />
       <PetEquipment :pet="pet" @manage="$emit('manage-equipment', $event)" />
 
-      <div class="stat-bars">
+      <!-- 10px gap / 16px block margin come from what actually rendered: the
+           global `.stat-bars` rule set both with `!important`, which beat this
+           component's scoped 8px. That rule is now deleted and these utilities
+           carry the same values. -->
+      <div class="d-flex flex-column gap-px10 my-3">
         <StatBar stat="hunger" label="🍖 Hunger" :value="pet.hunger" :max="pet.max_hunger" />
         <StatBar stat="happiness" label="💖 Happiness" :value="pet.happiness" :max="pet.max_happiness" />
         <StatBar stat="energy" label="⚡ Energy" :value="pet.energy" :max="pet.max_energy" />
@@ -91,8 +95,14 @@
       </div>
 
       <PetWishes :pet-id="pet.id" :pet-name="pet.nickname" />
+      <PetQuest :pet-id="pet.id" />
 
-      <div class="pet-actions">
+      <!-- Centred wrapping row, NOT the two-column grid this component's scoped
+           block used to ask for: the global `.pet-actions` rule set
+           `display: flex !important` and won, so the grid never rendered. These
+           utilities reproduce what is actually on screen. The class stays as a
+           hook for the ≤768px rule that still targets it. -->
+      <div class="pet-actions d-flex flex-wrap justify-content-center gap-px6 my-tight">
         <button class="btn-action btn-feed" :disabled="!pet.canFeed || feeding" @click="handleFeed">
           {{ pet.canFeed ? '🍖 Feed' : '🍖 Full!' }}
         </button>
@@ -112,6 +122,8 @@
           @click="$emit('manage-variant', pet.id)">
           {{ variant ? `${variant.icon} ${variant.name}` : '🎨 Variant' }}
         </button>
+        <button class="btn-action btn-scrapbook" title="Read this pet's scrapbook of memories"
+          @click="$emit('scrapbook', pet.id)">📖</button>
         <button class="btn-action btn-snapshot" title="Take a Snapshot of this pet!"
           @click="$emit('snapshot', pet.id)">📸</button>
       </div>
@@ -124,11 +136,12 @@
         {{ isCompanion ? '🐾 Remove Companion' : '🐾 Set Companion' }}
       </button>
 
-      <div class="use-item-section">
-        <div class="use-item-label">🎒 Use an Item</div>
+      <div class="use-item-section pt-tight">
+        <div class="use-item-label mb-2">🎒 Use an Item</div>
         <p v-if="!inventory.length" class="no-items">No items. <router-link to="/adopt">Visit the adoption
             centre!</router-link></p>
-        <div v-else class="use-item-row">
+        <!-- 10px gap, again from the global rule that was overriding the scoped 8px. -->
+        <div v-else class="d-flex gap-px10 mb-2">
           <select v-model="selectedInvId" class="item-select">
             <option value="">— Choose an item —</option>
             <option v-for="item in inventory" :key="item.invId" :value="item.invId">
@@ -180,6 +193,7 @@ import { companionService } from '../services/CompanionService.js'
 import PetBattleStats from './PetBattleStats.vue'
 import PetEquipment from './PetEquipment.vue'
 import PetWishes from './PetWishes.vue'
+import PetQuest from './pet/PetQuest.vue'
 
 const props = defineProps({
   pet: { type: Object, required: true },
@@ -191,7 +205,7 @@ const props = defineProps({
 })
 
 // Modals live on the page rather than in every card, so the card just asks.
-defineEmits(['manage-equipment', 'manage-skills', 'manage-variant', 'manage-room', 'allocate-stats', 'snapshot'])
+defineEmits(['manage-equipment', 'manage-skills', 'manage-variant', 'manage-room', 'allocate-stats', 'snapshot', 'scrapbook'])
 
 const imgError = ref(false)
 const feeding = ref(false)
@@ -355,10 +369,7 @@ async function handleUseItem() {
 // 180px banner, the avatar's -50px overhang and the body's 65px top padding
 // that clears it. The card carries no padding of its own so the banner reaches
 // every edge; the body supplies the padding instead.
-.my-pet-card {
-  display: flex;
-  flex-direction: column;
-}
+// The card's own stacking is `d-flex flex-column` in the template.
 
 // The card is `overflow: visible` (style.css:14651 overrides the earlier
 // `hidden`), so the banner has to round its own top corners or it would square
@@ -374,15 +385,10 @@ async function handleUseItem() {
   border-top-right-radius: calc(var(--radius-xl) - 4px);
 }
 
-// The body stacks its sections; legacy relied on each child's own margins.
-.pet-card-body {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+// The body stacks its sections (`d-flex flex-column gap-px10` in the template);
+// legacy relied on each child's own margins.
 
 .pp-exploring {
-  position: absolute;
   top: 8px;
   left: 8px;
   background: rgba(153, 102, 255, 0.85);
@@ -390,7 +396,6 @@ async function handleUseItem() {
   font-size: 0.68rem;
   font-weight: 700;
   padding: 3px 8px;
-  border-radius: 20px;
   z-index: 10;
 }
 
@@ -417,10 +422,7 @@ async function handleUseItem() {
 }
 
 .pp-name-input {
-  flex: 1;
-  min-width: 0;
   max-width: 220px;
-  padding: 4px 10px;
   border: 2.5px solid var(--purple);
   border-radius: var(--radius);
   font-family: 'Fredoka One', cursive;
@@ -428,14 +430,10 @@ async function handleUseItem() {
   color: var(--purple-dark);
   background: var(--cream);
   outline: none;
-  text-align: center;
 }
 
 .pp-mood {
-  text-align: center;
-  padding: 8px;
   border: 2px solid;
-  border-radius: 12px;
   font-weight: 700;
   font-size: 0.9rem;
 }
@@ -455,14 +453,11 @@ async function handleUseItem() {
   font-size: 0.82rem;
   color: var(--text-light);
   font-style: italic;
-  text-align: center;
-  padding: 8px 12px;
-  margin: 0 0 8px;
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 10px;
   line-height: 1.5;
 }
 
+.btn-scrapbook,
 .btn-snapshot {
   transition: transform 0.15s;
 
@@ -512,10 +507,7 @@ async function handleUseItem() {
 // colors are bound in the template (they vary per variant), so the box itself
 // belongs here.
 .pet-variant-badge {
-  display: inline-block;
-  padding: 4px 10px;
   border: 2px solid;
-  border-radius: 12px;
   font-size: 0.85rem;
   font-weight: 700;
 }
@@ -598,11 +590,8 @@ async function handleUseItem() {
   font-size: 0.78rem;
   background: #9146ff;
   color: white !important;
-  padding: 2px 8px;
-  border-radius: 10px;
   font-family: 'Fredoka One', cursive;
   text-decoration: none;
-  margin-left: 6px;
 }
 
 .sadness-warning {
@@ -616,21 +605,16 @@ async function handleUseItem() {
   text-align: center;
 }
 
-.stat-bars {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.pet-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
+// `.stat-bars` and `.pet-actions` rules used to live here and were BOTH dead —
+// the global copies in style.css carried `!important`, which outranks a scoped
+// rule's higher specificity. Their real values now sit on the elements as
+// utilities and the global rules are deleted.
 
 .btn-action {
   font-family: 'Fredoka One', cursive;
   font-size: 0.95rem;
+  // Neither 9px nor a 24px radius has an exact utility (the radius scale tops
+  // out at 20px), so the shorthand stays rather than drifting.
   padding: 9px 12px;
   border-radius: 24px;
   border: none;
@@ -660,24 +644,17 @@ async function handleUseItem() {
 
 .use-item-section {
   border-top: 2px solid var(--border);
-  padding-top: 12px;
 }
 
 .use-item-label {
   font-family: 'Fredoka One', cursive;
   font-size: 0.9rem;
   color: var(--purple-dark);
-  margin-bottom: 8px;
 }
 
 .no-items {
   font-size: 0.82rem;
   color: var(--text-light);
-}
-
-.use-item-row {
-  display: flex;
-  gap: 8px;
 }
 
 // The global `.item-select` (style.css:1137) owns this control's padding,

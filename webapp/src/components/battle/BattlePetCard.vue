@@ -19,15 +19,15 @@
       </div>
     </div>
 
-    <div class="pp-energy">
-      <div class="pp-energy-row">
+    <div class="pp-energy mt-px6">
+      <div class="pp-energy-row d-flex align-items-center">
         <span class="pp-energy-icon">⚡</span>
-        <div class="pp-energy-track">
-          <div class="pp-energy-fill" :style="{ width: energyPct + '%', background: energyColor }"></div>
+        <div class="pp-energy-track flex-grow-1 overflow-hidden">
+          <div class="pp-energy-fill h-100" :style="{ width: energyPct + '%', background: energyColor }"></div>
         </div>
-        <span class="pp-energy-text" :style="{ color: energyColor }">{{ energy }}/{{ maxEnergy }}</span>
+        <span class="pp-energy-text text-end" :style="{ color: energyColor }">{{ energy }}/{{ maxEnergy }}</span>
       </div>
-      <div v-if="energy < 5" class="pp-energy-warn">⚠️ Too low to battle</div>
+      <div v-if="energy < 5" class="pp-energy-warn text-center mt-px2">⚠️ Too low to battle</div>
     </div>
   </div>
 </template>
@@ -99,11 +99,7 @@ const energyColor = computed(() =>
 
 .pp-help { cursor: help; }
 
-.pp-energy { margin-top: 6px; }
-
 .pp-energy-row {
-  display: flex;
-  align-items: center;
   gap: 5px;
   font-size: 0.68rem;
 }
@@ -114,15 +110,12 @@ const energyColor = computed(() =>
 }
 
 .pp-energy-track {
-  flex: 1;
   background: rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   height: 6px;
-  overflow: hidden;
 }
 
 .pp-energy-fill {
-  height: 100%;
   border-radius: 6px;
   transition: width 0.3s;
 }
@@ -130,13 +123,10 @@ const energyColor = computed(() =>
 .pp-energy-text {
   font-weight: 700;
   min-width: 36px;
-  text-align: right;
 }
 
 .pp-energy-warn {
   font-size: 0.65rem;
   color: #ff6b6b;
-  text-align: center;
-  margin-top: 2px;
 }
 </style>

@@ -6,29 +6,37 @@ import { playerService } from './PlayerService.js'
 import { inventoryService } from './InventoryService.js'
 import { COOKING_INGREDIENTS, SHOP_STAPLE_INGREDIENT_IDS } from '../data/cookingData.js'
 import { guildPerkService } from './GuildPerkService.js'
+import { worldEventService } from './WorldEventService.js'
+import { worldStateService } from './WorldStateService.js'
+import { miniSeasonService } from './MiniSeasonService.js'
 
 const SKIN_KEY_ID = '00000000-0000-0000-0000-000000000001'
 
 // Ports loadShop()'s dedupe/categorize pipeline, game.js:7151-7252.
 //
-// The guild shop-discount perk IS applied as of Phase 9 (see effectivePrice
-// below) — it was deferred here while Guild was unmigrated. Still out of scope,
-// each still unmigrated: world events, mini-season stock, and world-state
-// gating.
+// Every layer is live as of Phase 9.5: the guild shop-discount perk, the world
+// event's `shopDiscount`, mini-season stock rotation and the world-state
+// corruption gates. Nothing here is deferred any more.
 class ShopService {
-  // What an item actually costs this player right now. Legacy applied the
-  // guild discount in two separate places — once for the displayed price
+  // What an item actually costs this player right now. Legacy applied the two
+  // discounts in two separate places — once for the displayed price
   // (main:7318/7373) and again for the charged price (main:33221) — and the two
-  // could disagree if a perk expired between render and click. One function
-  // used by both means the number shown is always the number charged.
+  // could disagree if a perk or an event expired between render and click. One
+  // function used by both means the number shown is always the number charged.
+  //
+  // Order matters and matches legacy: the event discount applies to the list
+  // price, then the guild perk applies to that result. Multiplying the other way
+  // rounds differently.
   effectivePrice(item, qty = 1) {
+    let unit = worldEventService.applyModifier(item.price, 'shopDiscount')
     const discount = guildPerkService.multiplier('discount')
-    const unit = discount < 1 ? Math.floor(item.price * discount) : item.price
+    if (discount < 1) unit = Math.floor(unit * discount)
     return unit * qty
   }
 
   hasDiscount() {
-    return guildPerkService.multiplier('discount') < 1
+    return guildPerkService.multiplier('discount') < 1 ||
+      worldEventService.bonus('shopDiscount') < 1
   }
 
   async getCatalog() {
@@ -40,8 +48,20 @@ class ShopService {
       .order('price', { ascending: true })
     if (res.error || !res.data) return { food: [], toys: [], energy: [], other: [] }
 
+    // Mini-season stock and the world-state corruption gates — the last two
+    // shop deferrals, both live as of Phase 9.5. A seasonal item only appears
+    // while its season runs and its week slot is current; a corruption-gated
+    // item only appears inside its integrity band.
+    let stock = await miniSeasonService.filterStock(res.data)
+    const corruption = await worldStateService.corruption()
+    stock = stock.filter(item => {
+      if (item.unlock_min_corruption != null && corruption < item.unlock_min_corruption) return false
+      if (item.unlock_max_corruption != null && corruption > item.unlock_max_corruption) return false
+      return true
+    })
+
     const seen = new Map()
-    res.data.forEach(item => {
+    stock.forEach(item => {
       const key = item.name.toLowerCase().trim()
       const existing = seen.get(key)
       if (!existing || item.price < existing.price) seen.set(key, item)

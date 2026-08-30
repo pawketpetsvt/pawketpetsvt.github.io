@@ -22,6 +22,12 @@ const BATTLE_VOLUMES = { piper: 0.28, boss: 0.22, normal: 0.18 }
 let battleAudio = null
 let battleTrack = null
 let fadeTimer = null
+// The element a fade-out is currently working on. `stopBattleTrack` clears
+// `battleAudio` immediately but defers the actual pause() into the fade timer,
+// so without this handle a second stop (or a new battle starting inside the
+// 0.8s fade) cancels the timer and leaves that element playing with nothing
+// referencing it — the boss theme carrying on over the next track.
+let fadingAudio = null
 let bgWasPlaying = false
 
 // 1s ramp in 20 steps, matching legacy's fade.
@@ -116,7 +122,16 @@ class MusicService {
   }
 
   stopBattleTrack(fade = true) {
+    // Cancel any fade still in flight AND hard-stop the element it was fading.
+    // Clearing the timer alone is what orphaned it: `battleAudio` was already
+    // nulled when that fade began, so the code below finds nothing to pause.
     if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null }
+    if (fadingAudio) {
+      fadingAudio.pause()
+      fadingAudio.src = ''
+      fadingAudio = null
+    }
+
     const audio = battleAudio
     battleAudio = null
     battleTrack = null
@@ -134,6 +149,7 @@ class MusicService {
     }
     const startVol = audio.volume
     let ticks = 0
+    fadingAudio = audio
     fadeTimer = setInterval(() => {
       ticks++
       audio.volume = Math.max(0, startVol * (1 - ticks / 16))
@@ -142,6 +158,7 @@ class MusicService {
         fadeTimer = null
         audio.pause()
         audio.src = ''
+        if (fadingAudio === audio) fadingAudio = null
       }
     }, 50)
   }

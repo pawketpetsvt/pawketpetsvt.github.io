@@ -4,12 +4,12 @@
        count. Passives are listed but never occupy a slot. -->
   <PetModal :title="`⚔️ Skills — ${pet.nickname}`" :subtitle="subtitle" @close="$emit('close')">
     <div class="pp-section-label">Active Loadout ({{ loadout.length }}/{{ slots }})</div>
-    <div class="pp-loadout">
+    <div class="pp-loadout d-flex flex-wrap gap-px6 mb-3">
       <template v-if="loadout.length">
-        <div v-for="skill in loadout" :key="skill.id" class="pp-chip">
+        <div v-for="skill in loadout" :key="skill.id" class="pp-chip rounded-2 d-flex align-items-center">
           <span>{{ skill.icon }}</span>
           <span class="pp-chip-name">{{ skill.name }}</span>
-          <button class="pp-chip-x" :aria-label="`Remove ${skill.name}`" @click="remove(skill.id)">✕</button>
+          <button class="pp-chip-x py-0 px-px2" :aria-label="`Remove ${skill.name}`" @click="remove(skill.id)">✕</button>
         </div>
       </template>
       <span v-else class="pp-empty">No skills selected — add from the list below.</span>
@@ -31,14 +31,14 @@
         <span v-else class="pp-full">Full</span>
       </div>
 
-      <div v-if="passives.length" class="pp-passives">
-        <span class="pp-passive-tag">✨ PASSIVE</span>
+      <div v-if="passives.length" class="pp-passives mt-px6 py-px6 px-px10 rounded-2">
+        <span class="pp-passive-tag me-1">✨ PASSIVE</span>
         <span v-for="(p, i) in passives" :key="p.id" class="pp-passive">
           {{ p.icon }} <strong>{{ p.name }}</strong> — {{ p.desc }}<span v-if="i < passives.length - 1">, </span>
         </span>
       </div>
 
-      <div v-if="lockedCount" class="pp-locked">
+      <div v-if="lockedCount" class="pp-locked mt-px6 py-1 px-px10">
         + {{ lockedCount }} more skill{{ lockedCount === 1 ? '' : 's' }} unlock at higher levels
       </div>
     </div>
@@ -107,21 +107,14 @@ function remove(id) {
 }
 
 .pp-loadout {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 16px;
   min-height: 40px;
 }
 
 .pp-chip {
   background: rgba(153, 102, 255, 0.15);
   border: 2px solid var(--purple-light);
-  border-radius: 10px;
   padding: 5px 10px;
   font-size: 0.74rem;
-  display: flex;
-  align-items: center;
   gap: 5px;
 }
 
@@ -132,7 +125,6 @@ function remove(id) {
   border: none;
   color: #ff6b6b;
   cursor: pointer;
-  padding: 0 2px;
   font-size: 0.85rem;
 }
 
@@ -200,10 +192,7 @@ function remove(id) {
 }
 
 .pp-passives {
-  margin-top: 6px;
-  padding: 6px 10px;
   background: rgba(93, 222, 122, 0.08);
-  border-radius: 10px;
   border: 1px solid rgba(93, 222, 122, 0.25);
   font-size: 0.7rem;
 }
@@ -212,13 +201,10 @@ function remove(id) {
   font-size: 0.72rem;
   font-weight: 700;
   color: #5dde7a;
-  margin-right: 4px;
 }
 
 .pp-locked {
-  margin-top: 6px;
   font-size: 0.68rem;
   color: var(--text-light);
-  padding: 4px 10px;
 }
 </style>

@@ -7,18 +7,17 @@
        carries no styling of its own — only the per-theme colors, which legacy
        also set inline because they vary with the chosen theme. -->
   <div class="player-room-wrap">
-    <div v-if="!ready" class="text-center py-4"><div class="spinner"></div></div>
+    <div v-if="!ready" class="text-center py-4">
+      <div class="spinner"></div>
+    </div>
 
     <template v-else>
       <!-- Theme picker, owner only. -->
       <div v-if="!readOnly" class="room-theme-bar">
-        <span class="rm-theme-label">Theme:</span>
+        <span class="rm-theme-label me-2">Theme:</span>
         <button v-for="(t, key) in THEMES" :key="key" class="rm-theme-btn"
-          :class="{ 'rm-theme-current': key === layout.theme }"
-          :style="themeBtnStyle(key, t)"
-          :title="t.desc"
-          :disabled="busy"
-          @click="pickTheme(key)">
+          :class="{ 'rm-theme-current': key === layout.theme }" :style="themeBtnStyle(key, t)" :title="t.desc"
+          :disabled="busy" @click="pickTheme(key)">
           {{ shortName(t) }}<span v-if="t.price > 0 && !roomService.isThemeUnlocked(key)"> ({{ t.price }}PP)</span>
         </button>
       </div>
@@ -35,21 +34,19 @@
              showing the active companion instead means the pet you chose to
              follow you around is the one who lives here, and it falls back to
              the first pet when no companion is set. -->
-        <div v-if="roomPet && roomPet.image" class="room-pet-sprite" :style="{ bottom: '12%', left: '47%' }">
+        <div v-if="roomPet && roomPet.image" class="room-pet-sprite" :style="{ bottom: '5%', left: '90%' }">
           <img :src="roomPet.image" :alt="roomPet.name" class="rm-pet-img" @error="onPetImgError" />
-          <div class="rm-pet-name" :style="{ color: theme.accent }">{{ roomPet.name }}</div>
+          <div class="rm-pet-name text-center mt-px2" :style="{ color: theme.accent }">{{ roomPet.name }}</div>
         </div>
 
         <div v-for="slot in SLOTS" :key="slot.id" class="room-slot"
           :style="{ left: slot.x, top: slot.y, cursor: readOnly ? 'default' : 'pointer' }"
-          :title="readOnly ? '' : slot.label"
-          @click="!readOnly && clickSlot(slot.id)">
+          :title="readOnly ? '' : slot.label" @click="!readOnly && clickSlot(slot.id)">
           <div v-if="itemFor(slot.id)" class="room-item-placed" :style="{ borderColor: theme.accent }">
             <div class="rm-item-emoji">{{ itemFor(slot.id).emoji || '🪑' }}</div>
             <div class="room-item-name">{{ itemFor(slot.id).name }}</div>
             <div v-if="bonusLabelFor(slot.id)" class="room-item-bonus">{{ bonusLabelFor(slot.id) }}</div>
-            <div v-if="!readOnly" class="room-item-remove" title="Remove"
-              @click.stop="place(slot.id, null)">✕</div>
+            <div v-if="!readOnly" class="room-item-remove" title="Remove" @click.stop="place(slot.id, null)">✕</div>
           </div>
           <div v-else-if="!readOnly" class="room-slot-empty">
             <div class="rm-plus">+</div>
@@ -59,7 +56,7 @@
       </div>
 
       <div v-if="bonuses.length" class="room-bonuses-panel">
-        <div class="rm-bonus-head">
+        <div class="rm-bonus-head mb-2">
           ✨ Room Bonuses
           <span v-if="!readOnly" class="rm-bonus-note">(active while on this page)</span>
         </div>
@@ -77,22 +74,22 @@
       <!-- Furniture picker. Legacy toggled a hidden div and rebuilt its HTML;
            here the open slot is just state. -->
       <div v-if="!readOnly && openSlot !== null" class="room-picker">
-        <div class="rm-picker-head">Choose furniture for {{ slotLabel(openSlot) }}:</div>
+        <div class="rm-picker-head mb-px10">Choose furniture for {{ slotLabel(openSlot) }}:</div>
 
         <p v-if="!owned.length" class="rm-picker-empty">
           You don't own any furniture yet!<br /><br />
           <router-link to="/shop">Visit the Shop →</router-link>
         </p>
 
-        <div v-else class="rm-picker-grid">
+        <div v-else class="d-flex flex-wrap gap-2">
           <button class="rm-pick" :disabled="busy" @click="place(openSlot, null)">
             <div class="rm-pick-emoji">✕</div>
             <div class="rm-pick-name rm-muted">Empty</div>
           </button>
           <button v-for="item in owned" :key="item.id" class="rm-pick"
-            :class="{ 'rm-pick-current': isCurrent(item), 'rm-pick-placed': isElsewhere(item) }"
-            :disabled="busy" @click="place(openSlot, item.id)">
-            <span v-if="isElsewhere(item)" class="rm-pick-badge">placed</span>
+            :class="{ 'rm-pick-current': isCurrent(item), 'rm-pick-placed': isElsewhere(item) }" :disabled="busy"
+            @click="place(openSlot, item.id)">
+            <span v-if="isElsewhere(item)" class="rm-pick-badge position-absolute">placed</span>
             <div class="rm-pick-emoji">{{ item.emoji || '🪑' }}</div>
             <div class="rm-pick-name">{{ item.name }}</div>
             <div v-if="item.bonus_type" class="rm-pick-bonus">has bonus</div>
@@ -215,7 +212,6 @@ async function pickTheme(key) {
 .rm-theme-label {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-right: 8px;
 }
 
 .rm-theme-btn {
@@ -225,8 +221,13 @@ async function pickTheme(key) {
   font-size: 0.72rem;
   cursor: pointer;
 
-  &:disabled { cursor: not-allowed; }
-  &:not(.rm-theme-current) { opacity: 0.85; }
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &:not(.rm-theme-current) {
+    opacity: 0.85;
+  }
 }
 
 .rm-pet-img {
@@ -237,18 +238,25 @@ async function pickTheme(key) {
 }
 
 .rm-pet-name {
-  text-align: center;
   font-size: 0.65rem;
-  margin-top: 2px;
 }
 
-.rm-item-emoji { font-size: 1.8rem; }
-.rm-plus { font-size: 1.1rem; opacity: 0.4; }
-.rm-slot-label { font-size: 0.55rem; opacity: 0.4; }
+.rm-item-emoji {
+  font-size: 1.8rem;
+}
+
+.rm-plus {
+  font-size: 1.1rem;
+  opacity: 0.4;
+}
+
+.rm-slot-label {
+  font-size: 0.55rem;
+  opacity: 0.4;
+}
 
 .rm-bonus-head {
   font-weight: 700;
-  margin-bottom: 8px;
   font-size: 0.85rem;
 }
 
@@ -261,7 +269,6 @@ async function pickTheme(key) {
 .rm-picker-head {
   font-weight: 700;
   font-size: 0.82rem;
-  margin-bottom: 10px;
 }
 
 .rm-picker-empty {
@@ -271,13 +278,9 @@ async function pickTheme(key) {
   font-size: 0.85rem;
   margin: 0;
 
-  a { color: var(--purple); }
-}
-
-.rm-picker-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  a {
+    color: var(--purple);
+  }
 }
 
 .rm-pick {
@@ -290,21 +293,44 @@ async function pickTheme(key) {
   text-align: center;
   cursor: pointer;
 
-  &.rm-pick-current { border-color: var(--purple); background: rgba(153, 102, 255, 0.1); }
-  &.rm-pick-placed { border-color: rgba(153, 102, 255, 0.3); }
-  &:disabled { opacity: 0.6; cursor: not-allowed; }
+  &.rm-pick-current {
+    border-color: var(--purple);
+    background: rgba(153, 102, 255, 0.1);
+  }
+
+  &.rm-pick-placed {
+    border-color: rgba(153, 102, 255, 0.3);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
 }
 
 .rm-pick-badge {
-  position: absolute;
   top: 2px;
   right: 4px;
   font-size: 0.55rem;
   color: var(--text-light);
 }
 
-.rm-pick-emoji { font-size: 1.6rem; }
-.rm-pick-name { font-size: 0.65rem; font-weight: 700; }
-.rm-muted { color: var(--text-light); font-weight: 400; }
-.rm-pick-bonus { font-size: 0.58rem; color: var(--purple); }
+.rm-pick-emoji {
+  font-size: 1.6rem;
+}
+
+.rm-pick-name {
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.rm-muted {
+  color: var(--text-light);
+  font-weight: 400;
+}
+
+.rm-pick-bonus {
+  font-size: 0.58rem;
+  color: var(--purple);
+}
 </style>

@@ -2,6 +2,7 @@ import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { notificationService } from './NotificationService.js'
+import { activityService } from './ActivityService.js'
 import { PLAYER_TITLE_UNLOCKS } from '../data/playerTitleUnlocks.js'
 
 // Ports awardBadge() / loadUserBadges() (game.js:3174-3288) and
@@ -131,6 +132,14 @@ class AwardService {
     }
   }
 
+  // A generic entry into the same celebration queue, for unlocks that are
+  // neither a badge nor a player title — cosmetics use it. Legacy's
+  // showUnlockCelebration() takes the same shape (a kind, a name and a hint at
+  // where to find it).
+  celebrate({ kind, name, emoji, detail }) {
+    celebrationQueue.items.push({ kind, name, emoji, detail })
+  }
+
   // Ports checkPlayerTitleUnlocks(). Reads the denormalised counters on
   // `players` rather than joining battle_history, which legacy notes is far too
   // slow. Called after login and after anything that moves one of these numbers.
@@ -171,17 +180,11 @@ class AwardService {
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────
+  // Delegates to ActivityService so the row carries `username`. Without it the
+  // Discord bot and the OBS ticker — which read the raw Realtime INSERT and so
+  // cannot join `players` — both fall back to "Someone".
   async _logActivity(type, data) {
-    try {
-      await supabase.from('activity_feed').insert([{
-        user_id: AppState.user.id,
-        activity_type: type,
-        activity_data: data,
-        is_public: true
-      }])
-    } catch {
-      // Activity logging is decorative; never surface a failure.
-    }
+    await activityService.log(type, data)
   }
 
   // Legacy sent these itself rather than relying on the DB trigger, whose

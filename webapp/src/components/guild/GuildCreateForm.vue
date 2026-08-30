@@ -1,7 +1,7 @@
 <template>
   <div class="gd-create">
     <button class="btn btn-outline btn-sm mb-3" @click="$emit('back')">← Back</button>
-    <h3 class="gd-create-title">✨ Create a Guild</h3>
+    <h3 class="gd-create-title mb-3">✨ Create a Guild</h3>
 
     <div v-if="!hasEligiblePet" class="gd-warn">
       ⚠️ You need a level {{ GUILD_MIN_PET_LEVEL }}+ pet to create a guild. Keep training!
@@ -29,7 +29,7 @@
 
     <div class="mb-3">
       <label class="gd-label">Emblem (any emoji)</label>
-      <input v-model="emblem" type="text" maxlength="4" placeholder="🏛️" class="gd-input gd-emblem-input" />
+      <input v-model="emblem" type="text" maxlength="4" placeholder="🏛️" class="gd-input gd-emblem-input text-center" />
     </div>
 
     <div class="mb-3">
@@ -37,7 +37,7 @@
       <textarea v-model="bio" maxlength="200" placeholder="Describe your guild..." class="gd-input gd-textarea"></textarea>
     </div>
 
-    <div class="gd-cost-note">
+    <div class="gd-cost-note mb-px14">
       ⚠️ Cost: {{ GUILD_CREATE_COST }} PP · Requires level {{ GUILD_MIN_PET_LEVEL }}+ pet
     </div>
 
@@ -93,11 +93,15 @@ async function submit() {
 </script>
 
 <style lang="scss" scoped>
-.gd-create { max-width: 480px; }
+// Centred for the same reason as `.gd-member` — a max-width block with no auto
+// margin pins itself to the left of the page column.
+.gd-create {
+  max-width: 480px;
+  margin-inline: auto;
+}
 
 .gd-create-title {
   color: var(--purple);
-  margin-bottom: 16px;
 }
 
 .gd-warn {
@@ -129,7 +133,6 @@ async function submit() {
 .gd-emblem-input {
   width: 80px;
   font-size: 1.2rem;
-  text-align: center;
 }
 
 .gd-textarea {
@@ -141,6 +144,5 @@ async function submit() {
 .gd-cost-note {
   font-size: 0.78rem;
   color: var(--text-light);
-  margin-bottom: 14px;
 }
 </style>

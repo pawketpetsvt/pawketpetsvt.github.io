@@ -123,5 +123,4 @@ async function sendRequest(p) {
   color: var(--text-light);
   font-size: 0.85rem;
 }
-
 </style>

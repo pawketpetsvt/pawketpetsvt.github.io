@@ -1,7 +1,9 @@
 import { supabase } from './SupabaseService.js'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
+import { taskTracker } from './TaskTrackerService.js'
 import { COOKING_RECIPES } from '../data/cookingData.js'
 import { FLAVOR_BY_ZONE, FLAVOR_UNIVERSAL, ENCOUNTER_ODDS } from '../data/encounterData.js'
 
@@ -94,6 +96,10 @@ class EncounterService {
       }])
       await playerService.awardPoints(25, 'recipe_book')
       badgeHooks.onRecipeBookFound()
+      passService.addXP(10, 'recipe_book')
+      // Legacy reports this (main:18335). No Bingo square draws on it today, but
+      // the vocabulary entry exists and an emitter costs nothing.
+      taskTracker.report('find_recipe_book')
 
       return {
         kind: 'recipe',

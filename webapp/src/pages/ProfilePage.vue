@@ -1,9 +1,9 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div v-if="loading" class="spinner"></div>
 
     <div v-else-if="error" class="empty-state">
-      <div class="empty-icon">😕</div>
+      <div class="empty-icon mb-tight">😕</div>
       <p>{{ error }}</p>
       <router-link class="btn btn-outline btn-sm" to="/friends">Back to Friends</router-link>
     </div>
@@ -11,12 +11,14 @@
     <template v-else>
       <ProfileHeader :profile="profile" />
 
-      <div v-if="relationship.kind !== 'self'" class="pf-actions">
+      <div v-if="relationship.kind !== 'self'" class="d-flex gap-2 flex-wrap mt-px14">
         <template v-if="relationship.kind === 'blocked'">
           <button class="btn btn-outline" :disabled="busy" @click="unblock">Unblock User</button>
         </template>
         <template v-else-if="relationship.kind === 'accepted'">
           <button class="btn btn-success" disabled>✅ Friends</button>
+          <!-- Stubbed since Phase 5/6 while Gifting was unmigrated. -->
+          <button class="btn btn-primary" :disabled="busy" @click="showGift = true">🎁 Send Gift</button>
           <button class="btn btn-outline btn-danger" :disabled="busy" @click="removeFriend">Remove Friend</button>
           <button class="btn btn-outline" :disabled="busy" @click="block">Block</button>
         </template>
@@ -45,6 +47,13 @@
         @view-profile="goToProfile"
       />
     </template>
+
+    <SendGiftModal
+      v-if="showGift && profile"
+      :to-user-id="profile.id"
+      :to-username="profile.username"
+      @close="showGift = false"
+    />
   </div>
 </template>
 
@@ -60,10 +69,13 @@ import ProfileStatCards from '../components/profile/ProfileStatCards.vue'
 import ProfilePetsGrid from '../components/profile/ProfilePetsGrid.vue'
 import BadgeGrid from '../components/profile/BadgeGrid.vue'
 import GuestbookPanel from '../components/profile/GuestbookPanel.vue'
+import SendGiftModal from '../components/gift/SendGiftModal.vue'
+import { petMoodService } from '../services/PetMoodService.js'
 
 const route = useRoute()
 const router = useRouter()
 
+const showGift = ref(false)
 const loading = ref(true)
 const error = ref('')
 const profile = ref(null)
@@ -96,6 +108,9 @@ async function load(username) {
     pets.value = petRows
     badges.value = badgeRows
     await refreshRelationship()
+    // A pet can wish to be shown off — legacy sweeps every pet on a profile
+    // visit (main:1854 / 11694).
+    petMoodService.completeWishAll('view_profile')
   } catch (err) {
     error.value = err.message
   }
@@ -159,13 +174,6 @@ onMounted(() => load(route.params.username))
 </script>
 
 <style lang="scss" scoped>
-.pf-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
 .pf-section-title {
   font-size: 1.15rem;
   color: var(--purple-dark);
@@ -180,6 +188,5 @@ onMounted(() => load(route.params.username))
 
 .empty-icon {
   font-size: 3rem;
-  margin-bottom: 12px;
 }
 </style>

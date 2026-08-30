@@ -9,30 +9,30 @@
       <div class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
         <div v-for="slot in SLOTS" :key="slot.key" class="col">
           <div class="pp-slot" :class="{ 'pp-filled': slots[slot.key] }">
-            <div class="pp-slot-label">{{ slot.icon }} {{ slot.label }}</div>
+            <div class="pp-slot-label mb-px6">{{ slot.icon }} {{ slot.label }}</div>
             <template v-if="slots[slot.key]">
               <div class="pp-slot-name">{{ slots[slot.key].equipment?.name }}</div>
-              <div class="pp-slot-bonus">{{ bonusText(slots[slot.key].equipment) }}</div>
-              <button class="pp-unequip" :disabled="busy" @click="doUnequip(slot.key)">Unequip</button>
+              <div class="pp-slot-bonus mb-px6">{{ bonusText(slots[slot.key].equipment) }}</div>
+              <button class="pp-unequip rounded-1" :disabled="busy" @click="doUnequip(slot.key)">Unequip</button>
             </template>
             <div v-else class="pp-slot-empty">Empty</div>
           </div>
         </div>
       </div>
 
-      <div class="pp-section-label">Available Equipment</div>
+      <div class="pp-section-label mb-2">Available Equipment</div>
       <div v-if="!available.length" class="pp-none">
         Nothing spare — buy gear from the Shop's Equipment tab.
       </div>
       <div v-else class="d-flex flex-column gap-1">
         <!-- Gear goes in the slot its own type dictates — a weapon cannot be
              worn as armor — so there is ONE Equip button, as in legacy. -->
-        <div v-for="row in available" :key="row.id" class="pp-item">
-          <div class="pp-item-icon">{{ slotOf(row) === 'weapon' ? '⚔️' : '🛡️' }}</div>
+        <div v-for="row in available" :key="row.id" class="pp-item d-flex align-items-center gap-2 py-2 px-px10 rounded-2">
+          <div class="pp-item-icon flex-shrink-0">{{ slotOf(row) === 'weapon' ? '⚔️' : '🛡️' }}</div>
           <div class="flex-grow-1 min-w-0">
             <div class="pp-item-name">
               {{ row.equipment?.name }}
-              <span class="pp-tier">T{{ row.equipment?.tier || 1 }}</span>
+              <span class="pp-tier py-0 px-1 ms-1">T{{ row.equipment?.tier || 1 }}</span>
             </div>
             <div class="pp-item-bonus">{{ bonusText(row.equipment) }}</div>
             <div class="pp-item-slot">{{ slotOf(row) === 'weapon' ? 'Weapon' : 'Armor' }}</div>
@@ -161,7 +161,6 @@ onMounted(load)
   font-weight: 700;
   font-size: 0.82rem;
   color: var(--purple-dark);
-  margin-bottom: 6px;
 }
 
 .pp-slot-name {
@@ -172,7 +171,6 @@ onMounted(load)
 .pp-slot-bonus {
   font-size: 0.7rem;
   color: var(--text-light);
-  margin-bottom: 6px;
 }
 
 .pp-slot-empty {
@@ -184,7 +182,6 @@ onMounted(load)
 .pp-unequip {
   font-size: 0.7rem;
   padding: 3px 10px;
-  border-radius: 8px;
   border: 1px solid #ff6b6b;
   background: none;
   color: #ff6b6b;
@@ -195,7 +192,6 @@ onMounted(load)
   font-weight: 700;
   font-size: 0.8rem;
   color: var(--purple-dark);
-  margin-bottom: 8px;
 }
 
 .pp-none {
@@ -205,12 +201,7 @@ onMounted(load)
 }
 
 .pp-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
   border: 1px solid var(--border);
-  border-radius: 10px;
 }
 
 .pp-item-name {
@@ -223,8 +214,6 @@ onMounted(load)
   color: var(--purple);
   border: 1px solid var(--purple-light);
   border-radius: 6px;
-  padding: 0 4px;
-  margin-left: 4px;
 }
 
 .pp-item-bonus {
@@ -235,7 +224,6 @@ onMounted(load)
 .pp-item-icon {
   font-size: 1.4rem;
   line-height: 1;
-  flex-shrink: 0;
 }
 
 .pp-item-slot {

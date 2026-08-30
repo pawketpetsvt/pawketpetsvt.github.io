@@ -1,6 +1,6 @@
 <template>
   <div v-if="battle">
-    <div class="gdb-header">
+    <div class="gdb-header mb-px10">
       ⚔️ {{ battle.dungeon.name }} • Wave {{ battle.waveIndex + 1 }}/{{ battle.waves.length }} • Turn {{ battle.turn }}
     </div>
 
@@ -54,7 +54,7 @@
           >
             <div class="gdb-enemy-icon">
               {{ e.icon }}
-              <span v-if="isActor(e)" class="gdb-acting-tag">ACTING</span>
+              <span v-if="isActor(e)" class="gdb-acting-tag d-block">ACTING</span>
             </div>
             <div class="gdb-enemy-name" :class="{ dead: e.currentHp <= 0 }">{{ e.name }}</div>
             <div class="guild-enemy-hp-bar">
@@ -73,18 +73,18 @@
 
     <!-- Actions -->
     <template v-if="!over">
-      <div v-if="partyTurn" class="gdb-actions">
-        <div class="gdb-actor-name">🐾 {{ actorName }}'s turn!</div>
+      <div v-if="partyTurn" class="gdb-actions rounded-2 p-px10 mb-px10">
+        <div class="gdb-actor-name mb-2">🐾 {{ actorName }}'s turn!</div>
         <div class="d-flex gap-2">
           <button class="btn btn-primary flex-fill gdb-act-btn" @click="act('attack')">⚔️ Attack</button>
           <button class="btn btn-outline flex-fill gdb-act-btn" @click="act('power')">💥 Power</button>
           <button class="btn btn-outline flex-fill gdb-act-btn" @click="act('guard')">🛡️ Guard</button>
         </div>
-        <div class="gdb-act-hint">
+        <div class="gdb-act-hint mt-px6">
           Attack: normal hit · Power: 1.5x hits all · Guard: double DEF this round
         </div>
       </div>
-      <div v-else class="gdb-waiting">Enemies are acting...</div>
+      <div v-else class="gdb-waiting text-center p-px10">Enemies are acting...</div>
     </template>
 
     <div class="gdb-side-label mt-2">BATTLE LOG</div>
@@ -98,9 +98,9 @@
     </div>
 
     <!-- Wave / run result -->
-    <div v-if="over" class="text-center gdb-result">
+    <div v-if="over" class="text-center py-2 px-0">
       <template v-if="enemiesDead">
-        <div class="gdb-cleared">✅ Wave {{ battle.waveIndex + 1 }}/{{ battle.waves.length }} Cleared!</div>
+        <div class="gdb-cleared mb-px10">✅ Wave {{ battle.waveIndex + 1 }}/{{ battle.waves.length }} Cleared!</div>
         <button
           v-if="moreWaves && !partyDead"
           class="btn btn-primary w-100 mb-2"
@@ -111,7 +111,7 @@
         </button>
       </template>
       <template v-else>
-        <div class="gdb-defeated">❌ Party Defeated on Wave {{ battle.waveIndex + 1 }}!</div>
+        <div class="gdb-defeated mb-px10">❌ Party Defeated on Wave {{ battle.waveIndex + 1 }}!</div>
         <button class="btn btn-outline btn-sm w-100" :disabled="finishing" @click="finish(false)">
           💔 End Run
         </button>
@@ -206,7 +206,6 @@ onMounted(() => {
   font-weight: 700;
   color: var(--text-light);
   letter-spacing: 1px;
-  margin-bottom: 10px;
 }
 
 .gdb-side-label {
@@ -243,7 +242,6 @@ onMounted(() => {
 .gdb-acting-tag {
   font-size: 0.6rem;
   color: #ff6b6b;
-  display: block;
 }
 
 .gdb-name {
@@ -280,16 +278,12 @@ onMounted(() => {
 
 .gdb-actions {
   background: rgba(153, 102, 255, 0.08);
-  border-radius: 10px;
-  padding: 10px;
-  margin-bottom: 10px;
 }
 
 .gdb-actor-name {
   font-size: 0.75rem;
   font-weight: 700;
   color: var(--purple);
-  margin-bottom: 8px;
 }
 
 .gdb-act-btn { font-size: 0.85rem; }
@@ -297,30 +291,23 @@ onMounted(() => {
 .gdb-act-hint {
   font-size: 0.68rem;
   color: var(--text-light);
-  margin-top: 6px;
 }
 
 .gdb-waiting {
   font-size: 0.8rem;
   color: var(--text-light);
-  text-align: center;
-  padding: 10px;
   font-style: italic;
 }
-
-.gdb-result { padding: 8px 0; }
 
 .gdb-cleared {
   font-weight: 700;
   font-size: 0.95rem;
   color: #4ade80;
-  margin-bottom: 10px;
 }
 
 .gdb-defeated {
   font-weight: 700;
   font-size: 0.95rem;
   color: #ff6b6b;
-  margin-bottom: 10px;
 }
 </style>

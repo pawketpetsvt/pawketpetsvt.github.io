@@ -1,35 +1,42 @@
 <template>
-  <div class="pf-banner" :style="{ background: backgroundGradient }">
-    <div class="pf-avatar" :class="frameClass">{{ profile.initial }}</div>
-    <div class="pf-identity">
-      <div class="pf-username">{{ profile.username }}</div>
-      <div v-if="profile.title" class="pf-title" :style="{ color: profile.title.resolvedColor }">
-        {{ profile.title.icon }} {{ profile.title.display_name }}
+  <!-- Not a `container`: this is a banner inside an already-contained page, and
+       `.pf-banner`'s own `padding: 24px` outranks a container's inset anyway, so
+       the class was contributing nothing but width:100% and auto margins that a
+       block-level div already has. -->
+  <div class="pf-banner d-flex gap-gap p-4" :style="{ background: backgroundGradient }">
+    <div class="row w-100">
+      <div class="col-6 d-flex">
+        <div class="pf-avatar flex-shrink-0 rounded-circle d-flex align-items-center justify-content-center" :class="frameClass">{{ profile.initial }}</div>
+        <div class="ps-3 d-flex flex-column align-items-start min-w-0">
+          <div class="pf-username">{{ profile.username }}</div>
+          <div v-if="profile.title" class="pf-title mt-1" :style="{ color: profile.title.resolvedColor }">
+            {{ profile.title.icon }} {{ profile.title.display_name }}
+          </div>
+          <div v-if="pips.length" class="d-flex gap-px6 mt-px6">
+            <span v-for="pip in pips" :key="pip.id" class="pf-pip" :title="pip.name"
+              :style="{ filter: 'drop-shadow(0 0 4px ' + pip.color + ')' }">{{ pip.emoji }}</span>
+          </div>
+          <div class="pf-joined mt-px6">{{ profile.joinedText }}</div>
+        </div>
       </div>
-      <div v-if="pips.length" class="pf-pips">
-        <span
-          v-for="pip in pips"
-          :key="pip.id"
-          class="pf-pip"
-          :title="pip.name"
-          :style="{ filter: 'drop-shadow(0 0 4px ' + pip.color + ')' }"
-        >{{ pip.emoji }}</span>
+      <div class="col-6 d-flex flex-column justify-content-between align-items-end">
+        <div>
+          <router-link class="pf-room-btn" :to="own ? '/housing' : `/room/${encodeURIComponent(profile.username)}`"
+            :title="own ? 'Decorate your room' : `Visit ${profile.username}'s room`">
+            {{ own ? '🏠 My Room' : '🏠 Room' }}
+          </router-link>
+        </div>
+        <div>
+          <router-link class="pf-room-btn" :to="'/profile/' + encodeURIComponent(profile.username)"
+            title="View My Public Profile">
+            👁️ View My Public Profile
+          </router-link>
+        </div>
       </div>
-      <div class="pf-joined">{{ profile.joinedText }}</div>
     </div>
-
-    <!-- On your own profile this is the way in to editing your room; on anyone
-         else's it opens their read-only view.
-         Not a port on the public side: legacy exposed room-visiting ONLY from
-         the Friends tab's friend cards, so a profile reached any other way —
-         search, leaderboard, a notification — had no route into it. -->
-    <router-link class="pf-room-btn" :to="own ? '/housing' : `/room/${encodeURIComponent(profile.username)}`"
-      :title="own ? 'Decorate your room' : `Visit ${profile.username}'s room`">
-      {{ own ? '🏠 My Room' : '🏠 Room' }}
-    </router-link>
   </div>
 
-  <div class="pf-bio">{{ profile.bio || 'No bio yet' }}</div>
+  <div class="pf-bio mt-px14 py-px14 px-3 rounded-3">{{ profile.bio || 'No bio yet' }}</div>
 </template>
 
 <script setup>
@@ -68,11 +75,6 @@ const pips = computed(() =>
 // the identity's stacked children onto one horizontal line. Renaming off the
 // substring is the fix — the same sidestep used for `.notif-panel`/`.lb-list`.
 .pf-banner {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 20px;
-  padding: 24px;
   border-radius: 16px;
   color: #fff;
 }
@@ -93,9 +95,6 @@ const pips = computed(() =>
 // and an `!important` element selector beats a plain scoped class. That global
 // rule is also why this read as unreadable dark purple rather than white.
 .pf-room-btn {
-  align-self: flex-start;
-  margin-left: auto;
-  flex-shrink: 0;
   padding: 6px 12px;
   border: 2px solid rgba(255, 255, 255, 0.75);
   border-radius: 20px;
@@ -103,7 +102,6 @@ const pips = computed(() =>
   color: #fff !important;
   font-size: 0.8rem;
   font-weight: 700;
-  white-space: nowrap;
   text-decoration: none !important;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
   transition: background 0.15s, border-color 0.15s;
@@ -123,24 +121,12 @@ const pips = computed(() =>
 .pf-avatar {
   width: 84px;
   height: 84px;
-  flex-shrink: 0;
-  border-radius: 50%;
   background: rgba(0, 0, 0, 0.25);
-  display: flex;
-  align-items: center;
-  justify-content: center;
   font-size: 2.2rem;
   font-weight: 700;
   border-width: 4px;
   border-style: solid;
   border-color: rgba(255, 255, 255, 0.6);
-}
-
-.pf-identity {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  min-width: 0;
 }
 
 .pf-username {
@@ -152,14 +138,7 @@ const pips = computed(() =>
 .pf-title {
   font-size: 1.05rem;
   font-weight: 600;
-  margin-top: 4px;
   filter: brightness(1.4);
-}
-
-.pf-pips {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
 }
 
 .pf-pip {
@@ -169,14 +148,10 @@ const pips = computed(() =>
 .pf-joined {
   font-size: 0.82rem;
   opacity: 0.85;
-  margin-top: 6px;
 }
 
 .pf-bio {
-  margin-top: 14px;
-  padding: 14px 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
   font-size: 0.9rem;
   color: var(--text);
   white-space: pre-wrap;

@@ -20,3 +20,27 @@ export const WEATHER_BONUS_TYPE = {
 }
 
 export const ROTATION_HOURS = 6
+
+// Ports weatherSystem.getWeatherBonus()'s `bonusMap` (game.js:32790-32830).
+//
+// THIS WAS DROPPED. The Phase 8b weather port carried the rotation, the body
+// class and the id lookup, and documented what it was deferring (the navbar
+// widget, Ad-pocalypse, the cursed glitches) — but it silently left out the
+// bonus table, which is the half that actually affects play. Weather has been
+// purely cosmetic in the Vue app ever since, apart from the four weather-gated
+// legendary fish. These are the live multipliers, restored verbatim.
+//
+// `adpocalypse` appears in no row, so it falls through to the 1.0 default, as
+// it does in legacy.
+export const WEATHER_BONUSES = {
+  // Extra XP from battles and expeditions.
+  xpBonus:        { clear: 1.0, sunny: 1.10, rainy: 1.0,  foggy: 1.0,  windy: 1.0,  starry: 1.20, cursed: 0.90 },
+  // Extra PP from all sources.
+  ppBonus:        { clear: 1.0, sunny: 1.0,  rainy: 1.05, foggy: 1.0,  windy: 1.0,  starry: 1.15, cursed: 0.95 },
+  // Rare item find multiplier.
+  dropChance:     { clear: 1.0, sunny: 1.0,  rainy: 1.0,  foggy: 1.15, windy: 1.0,  starry: 1.25, cursed: 1.0 },
+  // Energy regen rate multiplier.
+  energyRegen:    { clear: 1.0, sunny: 1.15, rainy: 1.0,  foggy: 1.0,  windy: 1.10, starry: 1.0,  cursed: 0.85 },
+  // How fast happiness drops — LOWER is better here.
+  happinessDecay: { clear: 1.0, sunny: 0.85, rainy: 1.10, foggy: 1.0,  windy: 1.0,  starry: 0.90, cursed: 1.20 }
+}

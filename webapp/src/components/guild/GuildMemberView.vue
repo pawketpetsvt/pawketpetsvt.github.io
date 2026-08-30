@@ -9,12 +9,27 @@
         Level {{ g.guild_level || 1 }} · {{ guildState.members.length }}/{{ GUILD_MAX_MEMBERS }} members ·
         Treasury: 🪙{{ (g.guild_treasury || 0).toLocaleString() }} PP · 🏅 {{ g.guild_tokens || 0 }} Tokens
       </div>
-      <div v-if="g.description" class="gd-hero-desc">"{{ g.description }}"</div>
+      <div v-if="g.description && !editingBio" class="gd-hero-desc mt-px6">"{{ g.description }}"</div>
+
+      <!-- Ports the guild bio editor (guild_saveBio / #guild-bio-edit,
+           main:23626). GuildService.saveBio() was ported in Phase 9 but nothing
+           ever called it, so the leader had no way to write a bio. -->
+      <div v-if="editingBio" class="gd-bio-edit">
+        <textarea v-model="bioDraft" maxlength="200" class="gd-bio-input w-100 rounded-1 py-px6 px-2"
+          placeholder="Tell people what your guild is about…"></textarea>
+        <div class="d-flex gap-2 mt-1">
+          <button class="btn btn-primary btn-sm" :disabled="savingBio" @click="saveBio">Save</button>
+          <button class="btn btn-outline btn-sm" @click="editingBio = false">Cancel</button>
+        </div>
+      </div>
+      <button v-else-if="guildService.isLeader" class="gd-bio-btn" @click="startBio">
+        {{ g.description ? '✏️ Edit guild bio' : '✏️ Add a guild bio' }}
+      </button>
     </div>
 
     <!-- Active treasury perks, shown to every member -->
-    <div v-if="activePerks.length" class="gd-perks">
-      <div class="gd-perks-title">✨ Active Guild Perks</div>
+    <div v-if="activePerks.length" class="gd-perks rounded-2 py-px10 px-tight mb-px14">
+      <div class="gd-perks-title mb-px6">✨ Active Guild Perks</div>
       <div v-for="p in activePerks" :key="p.type" class="gd-perk-row">
         {{ PERK_LABELS[p.type] || p.type }} · {{ remaining(p) }} remaining
       </div>
@@ -24,19 +39,19 @@
       <div class="d-flex justify-content-between gd-xp-label">
         <span>Guild XP</span><span>{{ g.guild_xp || 0 }}/{{ xpNeeded }}</span>
       </div>
-      <div class="gd-xp-track"><div class="gd-xp-fill" :style="{ width: xpPct + '%' }"></div></div>
+      <div class="gd-xp-track rounded-5 overflow-hidden"><div class="gd-xp-fill h-100 rounded-5" :style="{ width: xpPct + '%' }"></div></div>
     </div>
 
     <!-- Guild pet (liaison) -->
-    <div class="gd-liaison">
-      <div class="gd-liaison-title">🏛️ Your Guild Pet</div>
-      <div v-if="myLiaison && myLiaison.user_pets" class="gd-liaison-current">
+    <div class="gd-liaison rounded-3 p-px14 my-3 mx-0">
+      <div class="gd-liaison-title mb-px10">🏛️ Your Guild Pet</div>
+      <div v-if="myLiaison && myLiaison.user_pets" class="gd-liaison-current mb-2">
         Current: {{ myLiaison.user_pets.nickname || 'Pet' }} Lv.{{ myLiaison.user_pets.level || 1 }}
       </div>
-      <div v-else class="gd-liaison-none">No guild pet set!</div>
+      <div v-else class="gd-liaison-none mb-2">No guild pet set!</div>
 
       <template v-if="eligiblePets.length">
-        <select v-model="liaisonChoice" class="gd-select">
+        <select v-model="liaisonChoice" class="gd-select w-100 p-2 rounded-1 mb-2">
           <option value="">-- Choose a pet --</option>
           <option v-for="p in eligiblePets" :key="p.id" :value="p.id">
             {{ p.nickname || 'Pet' }} Lv.{{ p.level || 1 }}
@@ -52,7 +67,7 @@
     </div>
 
     <!-- Roster -->
-    <div class="gd-section-title">👥 Members ({{ guildState.members.length }})</div>
+    <div class="gd-section-title mb-px10">👥 Members ({{ guildState.members.length }})</div>
     <div>
       <div v-for="m in guildState.members" :key="m.user_id" class="gd-member-row d-flex align-items-center gap-2">
         <span>{{ ROLE_ICONS[m.role] || '👤' }}</span>
@@ -76,12 +91,12 @@
     </div>
 
     <!-- Join requests (officers only) -->
-    <div v-if="guildState.joinRequests.length" class="gd-requests">
-      <div class="gd-requests-title">📬 Join Requests ({{ guildState.joinRequests.length }})</div>
+    <div v-if="guildState.joinRequests.length" class="gd-requests mt-3 pt-px14">
+      <div class="gd-requests-title mb-2">📬 Join Requests ({{ guildState.joinRequests.length }})</div>
       <div
         v-for="r in guildState.joinRequests"
         :key="r.id"
-        class="d-flex align-items-center gap-2 gd-request-row"
+        class="d-flex align-items-center gap-2 gd-request-row py-2 px-0"
       >
         <span class="flex-fill min-w-0">{{ (r.players && r.players.username) || 'Unknown' }}</span>
         <button class="btn btn-primary btn-sm" @click="acceptReq(r)">Accept</button>
@@ -104,8 +119,8 @@
 
     <!-- Invite -->
     <PetModal v-if="showInvite" title="✉️ Invite a Player" @close="showInvite = false">
-      <label class="gd-label">Username</label>
-      <input v-model="inviteName" type="text" placeholder="Enter exact username" class="gd-input mb-3" />
+      <label class="gd-label d-block mb-1">Username</label>
+      <input v-model="inviteName" type="text" placeholder="Enter exact username" class="gd-input mb-3 w-100 py-2 px-tight rounded-1" />
       <button class="btn btn-primary w-100" :disabled="inviting" @click="sendInvite">
         {{ inviting ? 'Sending...' : 'Send Invite' }}
       </button>
@@ -118,7 +133,7 @@
       :title="guildService.isLeader ? '⚠️ You are the Guild Leader' : '🚪 Leave Guild?'"
       @close="confirmLeave = false"
     >
-      <p class="gd-confirm-text">
+      <p class="gd-confirm-text mb-gap">
         <template v-if="guildService.isLeader">
           Leaders cannot leave without disbanding the guild. This will permanently remove the
           guild and all membership records.
@@ -218,6 +233,22 @@ const kick = m => guard(() => guildService.kickMember(g.value.guild_id, m.user_i
 const acceptReq = r => guard(() => guildService.acceptRequest(r.id, g.value.guild_id, r.user_id), 'Member accepted!')
 const declineReq = r => guard(() => guildService.declineRequest(r.id), 'Request declined.')
 
+// ── Guild bio ───────────────────────────────────────────────────────────────
+const editingBio = ref(false)
+const bioDraft = ref('')
+const savingBio = ref(false)
+
+function startBio() {
+  bioDraft.value = g.value.description || ''
+  editingBio.value = true
+}
+
+const saveBio = () => {
+  savingBio.value = true
+  return guard(() => guildService.saveBio(bioDraft.value), 'Guild bio saved!')
+    .finally(() => { savingBio.value = false; editingBio.value = false })
+}
+
 async function sendInvite() {
   inviting.value = true
   const name = await guard(() => guildService.sendInvite(inviteName.value))
@@ -246,9 +277,35 @@ onMounted(loadPets)
 </script>
 
 <style lang="scss" scoped>
+.gd-bio-btn {
+  background: none;
+  border: none;
+  color: var(--purple);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 4px 0 0;
+
+  &:hover { text-decoration: underline; }
+}
+
+.gd-bio-input {
+  border: 2px solid var(--border);
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 56px;
+  box-sizing: border-box;
+}
+
 // As with the browser, legacy built all of this inline — no `.guild-*` rules
 // exist in style.css, so everything is owned here.
-.gd-member { max-width: 700px; }
+// `margin-inline: auto` is what centres this in the page column. Without it a
+// max-width block sits hard against the left edge and leaves all the slack on
+// the right — which is how this rendered from the day it was written.
+.gd-member {
+  max-width: 700px;
+  margin-inline: auto;
+}
 
 .gd-hero-emblem { font-size: 3rem; }
 
@@ -273,22 +330,17 @@ onMounted(loadPets)
   font-size: 0.82rem;
   color: var(--text-light);
   font-style: italic;
-  margin-top: 6px;
 }
 
 .gd-perks {
   background: rgba(93, 222, 122, 0.1);
   border: 1px solid rgba(93, 222, 122, 0.3);
-  border-radius: 10px;
-  padding: 10px 12px;
-  margin-bottom: 14px;
 }
 
 .gd-perks-title {
   font-weight: 700;
   font-size: 0.8rem;
   color: #2d8a4e;
-  margin-bottom: 6px;
 }
 
 .gd-perk-row { font-size: 0.78rem; color: #2d8a4e; }
@@ -297,48 +349,41 @@ onMounted(loadPets)
 
 .gd-xp-track {
   background: rgba(153, 102, 255, 0.12);
-  border-radius: 20px;
   height: 8px;
-  overflow: hidden;
 }
 
 .gd-xp-fill {
-  height: 100%;
   background: linear-gradient(90deg, #9966ff, #ff66cc);
-  border-radius: 20px;
 }
 
 .gd-liaison {
   background: rgba(153, 102, 255, 0.06);
-  border-radius: 12px;
-  padding: 14px;
-  margin: 16px 0;
 }
 
 .gd-liaison-title {
   font-weight: 700;
   font-size: 0.9rem;
   color: var(--purple-dark);
-  margin-bottom: 10px;
 }
 
-.gd-liaison-current { font-size: 0.9rem; color: var(--purple-dark); margin-bottom: 8px; }
-.gd-liaison-none { font-size: 0.9rem; color: #ff6b6b; margin-bottom: 8px; }
+.gd-liaison-current {
+  font-size: 0.9rem;
+  color: var(--purple-dark);
+}
+.gd-liaison-none {
+  font-size: 0.9rem;
+  color: #ff6b6b;
+}
 .gd-liaison-hint { font-size: 0.8rem; color: var(--text-light); }
 
 .gd-select {
-  width: 100%;
-  padding: 8px;
-  border-radius: 8px;
   border: 2px solid var(--border);
-  margin-bottom: 8px;
 }
 
 .gd-section-title {
   font-weight: 700;
   font-size: 0.92rem;
   color: var(--purple-dark);
-  margin-bottom: 10px;
 }
 
 .gd-member-row {
@@ -356,20 +401,16 @@ onMounted(loadPets)
 .gd-kick { color: #ff6b6b; border-color: #ff6b6b; }
 
 .gd-requests {
-  margin-top: 16px;
   border-top: 1px solid var(--border);
-  padding-top: 14px;
 }
 
 .gd-requests-title {
   font-weight: 700;
   font-size: 0.85rem;
   color: var(--purple-dark);
-  margin-bottom: 8px;
 }
 
 .gd-request-row {
-  padding: 8px 0;
   border-bottom: 1px solid rgba(153, 102, 255, 0.08);
   font-size: 0.85rem;
 }
@@ -381,20 +422,14 @@ onMounted(loadPets)
 .gd-confirm-text {
   color: var(--text-light);
   font-size: 0.88rem;
-  margin-bottom: 20px;
 }
 
 .gd-label {
   font-size: 0.82rem;
   font-weight: 700;
-  display: block;
-  margin-bottom: 4px;
 }
 
 .gd-input {
-  width: 100%;
-  padding: 8px 12px;
-  border-radius: 8px;
   border: 2px solid var(--border);
   font-size: 0.9rem;
   box-sizing: border-box;

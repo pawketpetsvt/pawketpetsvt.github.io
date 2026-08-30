@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">📓 ✦ 📓</div>
       <h1>Pet Journal</h1>
@@ -16,7 +16,7 @@
     </div>
 
     <div v-else class="journal-book">
-      <div class="journal-controls">
+      <div class="journal-controls mt-0 pt-0 pb-gap">
         <button class="journal-nav-btn" :disabled="page === 0" @click="changePage(-1)">← Previous</button>
         <span class="journal-page-indicator">Page {{ page + 1 }} of {{ ownedJournalTypes.length }}</span>
         <button class="journal-nav-btn" :disabled="page === ownedJournalTypes.length - 1" @click="changePage(1)">Next →</button>
@@ -87,11 +87,8 @@ onMounted(async () => {
 // It's now positioned above instead (see template), so flip the border to
 // the bottom edge and mirror the spacing to match.
 .journal-controls {
-  margin-top: 0;
-  padding-top: 0;
   border-top: none;
   margin-bottom: 30px;
-  padding-bottom: 20px;
   border-bottom: 2px solid rgba(139, 69, 19, 0.3);
 }
 </style>

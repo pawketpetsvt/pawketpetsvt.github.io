@@ -1,12 +1,12 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">🍳 ✦ 🍵</div>
       <h1>Kitchen</h1>
       <p>Combine ingredients to discover recipes and cook meals for your pets.</p>
     </div>
 
-    <div class="cooking-subtabs d-flex flex-wrap gap-2">
+    <div class="cooking-subtabs d-flex flex-wrap gap-2 mb-gap">
       <button
         v-for="t in TABS"
         :key="t.key"
@@ -23,7 +23,7 @@
       <div v-if="activeTab === 'craft'" class="row g-3">
         <div class="col-12 col-md-7">
           <div class="craft-col-label">Your Ingredients</div>
-          <div class="cooking-ingredient-grid">
+          <div class="cooking-ingredient-grid gap-2">
             <div
               v-for="id in ingredientIds"
               :key="id"
@@ -52,7 +52,7 @@
               </div>
             </div>
           </div>
-          <div class="cooking-recipe-hint">{{ hint }}</div>
+          <div class="cooking-recipe-hint text-center mb-px10">{{ hint }}</div>
           <button class="btn btn-primary cook-btn" :class="{ 'recipe-ready': !!match }" :disabled="!filled.length || cooking" @click="cook">
             {{ cooking ? 'Cooking...' : (filled.length && !match ? 'Try Cooking' : 'Cook!') }}
           </button>
@@ -83,9 +83,9 @@
       <!-- INGREDIENTS -->
       <div v-else>
         <div class="craft-col-label">All Ingredients</div>
-        <p class="ingredients-hint">Ingredients drop from battles, fishing, and expeditions. Staples can be bought below.</p>
+        <p class="ingredients-hint mb-px14">Ingredients drop from battles, fishing, and expeditions. Staples can be bought below.</p>
         <div v-for="cat in INGREDIENT_SOURCE_CATEGORIES" :key="cat.label" class="ingredient-source-category">
-          <div class="ingredient-source-label">{{ cat.label }}</div>
+          <div class="ingredient-source-label mb-px6">{{ cat.label }}</div>
           <div v-for="id in cat.ids" :key="id" class="cooking-all-ing-row">
             <span class="all-ing-emoji">{{ COOKING_INGREDIENTS[id].emoji }}</span>
             <span class="all-ing-name">{{ COOKING_INGREDIENTS[id].name }}</span>
@@ -250,7 +250,6 @@ onMounted(async () => {
 // Layout comes from Bootstrap utilities in the template; the underline that
 // defines this tab strip visually stays here.
 .cooking-subtabs {
-  margin-bottom: 20px;
   border-bottom: 2px solid var(--border);
 }
 
@@ -268,7 +267,6 @@ onMounted(async () => {
 .cooking-ingredient-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-  gap: 8px;
 }
 
 .cook-slot-emoji {
@@ -278,8 +276,6 @@ onMounted(async () => {
 .cooking-recipe-hint {
   font-size: 0.75rem;
   color: var(--text-light);
-  text-align: center;
-  margin-bottom: 10px;
   min-height: 18px;
 }
 
@@ -320,7 +316,6 @@ onMounted(async () => {
 .ingredients-hint {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-bottom: 14px;
 }
 
 .ingredient-source-category {
@@ -331,7 +326,6 @@ onMounted(async () => {
   font-weight: 700;
   font-size: 0.82rem;
   color: var(--purple-dark);
-  margin-bottom: 6px;
 }
 
 .cooking-all-ing-row {

@@ -1,4 +1,5 @@
 import { supabase } from './SupabaseService.js'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
@@ -6,6 +7,14 @@ import { EXPEDITION_ZONES, EXPEDITION_SPEEDS } from '../data/expeditionData.js'
 import { taskTracker } from './TaskTrackerService.js'
 import { secretDungeonService } from './SecretDungeonService.js'
 import { guildPerkService } from './GuildPerkService.js'
+import { worldEventService } from './WorldEventService.js'
+import { weatherService } from './WeatherService.js'
+import { trackDailyStat } from './DailyStatsService.js'
+import { scrapbookService } from './ScrapbookService.js'
+import { questService } from './QuestService.js'
+import { achievementTierService } from './AchievementTierService.js'
+import { argLogService } from './ArgLogService.js'
+import { petMoodService } from './PetMoodService.js'
 
 // Ports the battle-page expedition system (battleExp_*, game.js:10763-11097).
 //
@@ -130,7 +139,13 @@ class ExpeditionService {
     const streak = await this.bumpStreak(row.pet_id, row.zone)
     const streakMult = this.streakMultiplier(row.pet_id, row.zone)
     const perkMult = guildPerkService.multiplier('reward_boost')
-    const pp = Math.floor((row.reward_pp || 0) * streakMult * perkMult)
+    // The world event's exploration multipliers. Both are advertised by events
+    // (Strange Fog, Butterfly Swarm, The Ruins are Rumbling) and read nowhere in
+    // legacy — the same decorative-bonus pattern as the battle XP one. Weather's
+    // ppBonus rides along too, since expedition PP is "PP from all sources".
+    const eventMult = worldEventService.bonus('explorationBonus') *
+      worldEventService.bonus('allRewards') * weatherService.bonus('ppBonus')
+    const pp = Math.floor((row.reward_pp || 0) * streakMult * perkMult * eventMult)
 
     await playerService.awardPoints(pp, 'expedition_' + row.zone)
     await this.awardPetXP(row.pet_id, zone.xpReward || 0)
@@ -150,13 +165,18 @@ class ExpeditionService {
     // streak port above.
     const secret = await secretDungeonService.checkExplorationSecret(row.pet_id, row.zone, streak)
 
-    // Still not ported, each belonging to a system that isn't migrated:
-    // PawketPass XP, quest-arc progress (Personality Quests), the community
-    // stat counter. UNBLOCKED BY: the PawketPass and Personality Quests ports
-    // (Phase 9.5). The `forest_friend` title IS awarded now — see the
-    // badgeHooks.onExplorationStreak call below.
+    // Badges, the forest_friend title, Pass XP, the community counter and the
+    // pet's quest arc are all live as of Phase 9.5 — nothing is deferred here
+    // any more.
     taskTracker.report('complete_expedition')
     badgeHooks.onExpeditionClaim()
+    passService.addXP(10, 'expedition')
+    trackDailyStat('expeditions_completed')
+    argLogService.tryDrop('expedition')
+    petMoodService.completeWish(row.pet_id, 'expedition')
+    scrapbookService.add(row.pet_id, 'expedition_complete', { zone: zone.label })
+    questService.progress(row.pet_id, 'expedition')
+    achievementTierService.check('expeditions_completed', row.pet_id, streak)
     badgeHooks.onExplorationStreak(streak)
     return { pp, xp: zone.xpReward || 0, items, zone, discovery, secret, streak, streakMult }
   }

@@ -5,25 +5,25 @@
       {{ AppState.unreadNotificationCount > 99 ? '99+' : AppState.unreadNotificationCount }}
     </span>
   </div>
-  <div v-if="open" class="notification-dropdown" @click.stop>
-    <div class="notif-panel">
+  <div v-if="open" class="notification-dropdown d-block" @click.stop>
+    <div class="notif-panel d-block w-100">
       <div class="notification-dropdown-header">
         <h3>Notifications</h3>
         <button class="btn-text" @click="markAllRead">Mark all read</button>
       </div>
-      <div class="notification-list">
+      <div class="notification-list d-flex flex-column">
         <div v-if="!AppState.notifications.length" class="notification-empty">No notifications</div>
         <div
           v-for="n in AppState.notifications"
           :key="n.id"
-          class="notification-item"
+          class="notification-item d-flex align-items-start gap-2 w-100 px-px14 py-px10"
           :class="{ unread: !n.is_read }"
           @click="handleClick(n)"
         >
-          <span class="notification-item-icon">{{ notificationService.getIcon(n.type) }}</span>
-          <div class="notification-item-body">
+          <span class="notification-item-icon flex-shrink-0">{{ notificationService.getIcon(n.type) }}</span>
+          <div class="flex-grow-1 min-w-0">
             <div class="notification-item-title">{{ n.title }}</div>
-            <div class="notification-item-message">{{ n.message }}</div>
+            <div class="notification-item-message mt-px2">{{ n.message }}</div>
             <div class="notification-item-time">{{ getTimeAgo(new Date(n.created_at)) }}</div>
           </div>
         </div>
@@ -38,6 +38,8 @@ import { useRouter } from 'vue-router'
 import { AppState } from '../AppState.js'
 import { notificationService } from '../services/NotificationService.js'
 import { getTimeAgo } from '../utils/timeAgo.js'
+
+const emit = defineEmits(['open-gifts'])
 
 const router = useRouter()
 const open = ref(false)
@@ -59,6 +61,9 @@ async function handleClick(n) {
   open.value = false
   if (target && target.kind === 'tab') router.push('/' + target.value)
   else if (target && target.kind === 'profile') router.push('/profile/' + encodeURIComponent(target.value))
+  // The gift inbox is a modal on the navbar rather than a route, so this asks
+  // the navbar to open it.
+  else if (target && target.kind === 'gift') emit('open-gifts')
 }
 
 // Close on any click outside the bell/dropdown. Both the bell and the
@@ -83,34 +88,15 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
-// The prior `display: block` override here didn't hold — something in the
-// 18,791-line global style.css still forces `.notification-dropdown`'s
-// children into a horizontal row (couldn't find the exact rule despite an
-// exhaustive grep; likely an untraceable cascade/specificity interaction).
-// Sidestepping it entirely: wrap the header+list in `.notif-panel`, a class
-// that provably doesn't exist anywhere else in style.css, so there's no
-// competing rule to lose to at all — same fix pattern used for the
-// Treasure Wheel/#dice-don-btns id collisions in Phase 4.
-.notification-dropdown {
-  display: block;
-}
-
-.notif-panel {
-  display: block;
-  width: 100%;
-}
-
-.notification-list {
-  display: flex;
-  flex-direction: column;
-}
-
+// A scoped `display: block` here previously didn't hold — something in the
+// 18,791-line global style.css forces `.notification-dropdown`'s children into
+// a horizontal row (the exact rule was never found despite an exhaustive grep).
+// The `.notif-panel` wrapper was added to sidestep it, and both now carry
+// Bootstrap display utilities instead of scoped declarations. That is strictly
+// stronger than what was here before: a utility is `!important`, so it beats
+// any non-important rule whatever its specificity — which the plain scoped
+// declaration could not do.
 .notification-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: 100%;
-  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
 
@@ -126,17 +112,12 @@ onUnmounted(() => {
 .notification-item-icon {
   font-size: 1.1rem;
   line-height: 1.3;
-  flex-shrink: 0;
-}
-
-.notification-item-body {
-  flex: 1;
-  min-width: 0;
 }
 
 .notification-item-time {
   font-size: 0.68rem;
   color: var(--text-light);
+  // 3px is below the spacing scale's finest step.
   margin-top: 3px;
 }
 
@@ -149,6 +130,5 @@ onUnmounted(() => {
 .notification-item-message {
   font-size: 0.8rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 </style>

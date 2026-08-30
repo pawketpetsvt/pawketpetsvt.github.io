@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
       <div class="sparkle-row">🎟 ✦ 🎟</div>
       <h1>Redeem a Code</h1>
@@ -37,10 +37,10 @@
 
       <div v-if="error" class="alert alert-error show mt-3">{{ error }}</div>
 
-      <div v-if="reward" class="redeem-success-panel">
+      <div v-if="reward" class="redeem-success-panel mt-gap rounded-4 text-center">
         <div class="redeem-success-icon">🎉</div>
-        <div class="redeem-success-title">{{ successTitle }}</div>
-        <div class="redeem-success-msg">{{ successMsg }}</div>
+        <div class="redeem-success-title mt-px6">{{ successTitle }}</div>
+        <div class="redeem-success-msg mt-px6">{{ successMsg }}</div>
         <a
           v-if="reward.lorePage"
           :href="reward.lorePage"
@@ -52,11 +52,11 @@
     <div class="redeem-history-wrap">
       <div class="section-header"><h2>Recently Redeemed</h2><div class="section-line"></div></div>
       <div v-if="loadingHistory" class="spinner"></div>
-      <div v-else-if="!history.length" class="redeem-empty">
+      <div v-else-if="!history.length" class="redeem-empty py-wide px-3 text-center">
         No codes redeemed yet!<br>Check streams and socials for codes. 🎟
       </div>
       <div v-else class="redeem-history d-flex flex-column gap-2">
-        <div v-for="(h, i) in history" :key="i" class="redeem-history-item d-flex align-items-center flex-wrap gap-2">
+        <div v-for="(h, i) in history" :key="i" class="redeem-history-item d-flex align-items-center flex-wrap gap-2 py-tight px-3 rounded-3">
           <span class="rhi-code">🎟 {{ h.code }}</span>
           <span class="rhi-desc flex-fill min-w-0">{{ h.description }}</span>
           <span class="rhi-pp" :class="{ lore: !h.pp }">{{ h.pp ? '+' + h.pp + ' PP' : '🔍 Lore' }}</span>
@@ -143,12 +143,9 @@ onMounted(loadHistory)
 // nothing, so on the live site they render as unstyled text. Owned here, in the
 // same spirit as `.ach-badge` on the pet card.
 .redeem-success-panel {
-  margin-top: 20px;
   padding: 22px 18px;
-  border-radius: 14px;
   background: linear-gradient(135deg, rgba(153, 102, 255, 0.12), rgba(255, 102, 204, 0.12));
   border: 2px solid var(--purple-light);
-  text-align: center;
 }
 
 .redeem-success-icon { font-size: 2.4rem; line-height: 1; }
@@ -157,20 +154,16 @@ onMounted(loadHistory)
   font-weight: 900;
   font-size: 1.35rem;
   color: var(--purple-dark);
-  margin-top: 6px;
 }
 
 .redeem-success-msg {
   font-size: 0.9rem;
   color: var(--text-light);
-  margin-top: 6px;
 }
 
 .redeem-history-wrap { margin-top: 36px; }
 
 .redeem-history-item {
-  padding: 12px 16px;
-  border-radius: 12px;
   background: var(--white);
   border: 2px solid var(--border);
 }
@@ -194,8 +187,6 @@ onMounted(loadHistory)
 }
 
 .redeem-empty {
-  padding: 28px 16px;
-  text-align: center;
   color: var(--text-light);
   font-size: 0.9rem;
   line-height: 1.7;

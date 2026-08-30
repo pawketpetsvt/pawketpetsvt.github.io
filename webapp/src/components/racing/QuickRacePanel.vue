@@ -4,23 +4,23 @@
   <div>
     <!-- ── setup ────────────────────────────────────────────────────────── -->
     <template v-if="!race">
-      <h3 class="qr-title">🏎️ Quick Race</h3>
-      <p class="qr-sub">
+      <h3 class="mb-px6">🏎️ Quick Race</h3>
+      <p class="qr-sub mb-px14">
         Eight turns against {{ '3–4' }} streamer rivals. First past {{ RACING_FINISH_LINE }} wins.
       </p>
 
       <RacingPetSelector v-model="selectedId" />
 
-      <div v-if="pet && racingState.stats" class="qr-ready">
-        <div class="qr-derived">
-          <span v-for="(v, k) in derived" :key="k" class="qr-pill">
+      <div v-if="pet && racingState.stats">
+        <div class="d-flex flex-wrap gap-2 mb-px10">
+          <span v-for="(v, k) in derived" :key="k" class="qr-pill px-px10 py-1 rounded-5">
             {{ DERIVED_LABELS[k] }} <strong>{{ v }}</strong>
           </span>
         </div>
-        <div class="qr-races-left">
+        <div class="qr-races-left mb-tight">
           Races left today: <strong>{{ racingState.racesLeft }}</strong> / {{ RACING_DAILY_RACES }}
         </div>
-        <button class="btn btn-primary qr-start" :disabled="racingState.racesLeft <= 0" @click="start">
+        <button class="btn btn-primary w-100" :disabled="racingState.racesLeft <= 0" @click="start">
           {{ racingState.racesLeft > 0 ? '🏁 Start Race' : 'No races left today' }}
         </button>
       </div>
@@ -28,62 +28,69 @@
 
     <!-- ── in progress ──────────────────────────────────────────────────── -->
     <template v-else-if="!race.finished">
-      <div class="qr-turn">Turn {{ race.turn + 1 }} / {{ race.maxTurns }}</div>
+      <div class="qr-turn mb-px10">Turn {{ race.turn + 1 }} / {{ race.maxTurns }}</div>
 
-      <div class="qr-track">
-        <div v-for="r in race.racers" :key="r.id" class="qr-lane" :class="{ 'qr-lane-player': r.isPlayer }">
-          <div class="qr-lane-head">
-            <span class="qr-lane-name">{{ r.emoji }} {{ r.isPlayer ? r.name + ' (you)' : shortName(r.name) }}</span>
-            <span class="qr-lane-pos">{{ r.position }} / {{ RACING_FINISH_LINE }}</span>
+      <div class="d-flex flex-column gap-px10 mb-px14">
+        <div v-for="r in race.racers" :key="r.id" class="qr-lane px-px10 py-2 rounded-3"
+          :class="{ 'qr-lane-player': r.isPlayer }">
+          <div class="d-flex justify-content-between align-items-baseline gap-2 mb-1 qr-lane-head">
+            <span class="text-truncate fw-bold">{{ r.emoji }} {{ r.isPlayer ? r.name + ' (you)' : shortName(r.name) }}</span>
+            <span class="qr-lane-pos flex-shrink-0">{{ r.position }} / {{ RACING_FINISH_LINE }}</span>
           </div>
-          <div class="qr-lane-track">
-            <div class="qr-lane-fill" :style="{ width: pct(r.position) + '%' }"></div>
-            <span class="qr-runner" :style="{ left: pct(r.position) + '%' }">{{ r.emoji }}</span>
+          <div class="qr-lane-track position-relative rounded-5">
+            <div class="qr-lane-fill h-100 rounded-5" :style="{ width: pct(r.position) + '%' }"></div>
+            <span class="qr-runner position-absolute" :style="{ left: pct(r.position) + '%' }">{{ r.emoji }}</span>
           </div>
-          <div v-if="r.isPlayer" class="qr-lane-meta">
+          <div v-if="r.isPlayer" class="qr-lane-meta mt-1">
             🫁 Stamina {{ r.stamina }} / {{ r.maxStamina }}
             <span v-if="r.jostlePenalty > 0" class="qr-penalty">· −{{ r.jostlePenalty }} pace next turn</span>
           </div>
         </div>
       </div>
 
-      <div class="qr-actions">
-        <button v-for="a in ACTIONS" :key="a.key" class="qr-action"
-          :disabled="!race.awaitingPlayerAction" :title="a.desc" @click="act(a.key)">
-          <div class="qr-action-label">{{ a.label }}</div>
-          <div class="qr-action-desc">{{ a.desc }}</div>
-        </button>
+      <!-- Was `grid-template-columns: repeat(auto-fit, minmax(140px, 1fr))`. Four
+           actions in the ~740px panel resolved to four across, which is what
+           `row-cols-md-4` reproduces; below md they stack two-up rather than
+           one-up, matching the 140px floor. -->
+      <div class="row row-cols-2 row-cols-md-4 g-2 mb-tight">
+        <div v-for="a in ACTIONS" :key="a.key" class="col">
+          <button class="qr-action w-100 h-100 px-tight py-px10 rounded-3 text-center"
+            :disabled="!race.awaitingPlayerAction" :title="a.desc" @click="act(a.key)">
+            <div class="qr-action-label fw-bold">{{ a.label }}</div>
+            <div class="qr-action-desc">{{ a.desc }}</div>
+          </button>
+        </div>
       </div>
 
-      <div class="qr-log">
-        <p v-for="(line, i) in recentLog" :key="i" class="qr-log-line">{{ line }}</p>
+      <div class="qr-log rounded-3 px-px14 py-px10">
+        <p v-for="(line, i) in recentLog" :key="i" class="m-0">{{ line }}</p>
       </div>
     </template>
 
     <!-- ── results ──────────────────────────────────────────────────────── -->
     <template v-else>
-      <div class="qr-results">
+      <div class="text-center p-2">
         <div class="qr-result-icon">{{ playerRank === 1 ? '🏆' : playerRank <= 3 ? '🎖️' : '🏁' }}</div>
-        <h2 class="qr-result-title">Race Complete!</h2>
-        <div class="qr-place">{{ PLACE_LABELS[playerRank - 1] || playerRank + 'th' }}</div>
+        <h2 class="mt-2 mb-px6">Race Complete!</h2>
+        <div class="qr-place mb-px10">{{ PLACE_LABELS[playerRank - 1] || playerRank + 'th' }}</div>
 
-        <div v-if="reward" class="qr-reward">
+        <div v-if="reward" class="qr-reward rounded-3 px-px14 py-px10 mb-tight">
           <div>🪙 <strong>+{{ reward.pp }} PP</strong></div>
           <div class="qr-reward-sub">+{{ reward.pts }} league point{{ reward.pts === 1 ? '' : 's' }}</div>
-          <div v-if="reward.beatAll" class="qr-beat-all">
+          <div v-if="reward.beatAll" class="qr-beat-all mt-1">
             🌟 Beat every streamer! +{{ reward.bonus }} PP bonus
           </div>
         </div>
-        <div v-else class="qr-reward"><div class="spinner"></div></div>
+        <div v-else class="qr-reward rounded-3 px-px14 py-px10 mb-tight"><div class="spinner"></div></div>
 
-        <ol class="qr-standings">
-          <li v-for="r in ranked" :key="r.id" :class="{ 'qr-standing-player': r.isPlayer }">
+        <ol class="qr-standings text-start mb-px14 ps-4">
+          <li v-for="r in ranked" :key="r.id" :class="{ 'fw-bold': r.isPlayer }">
             {{ r.emoji }} {{ r.isPlayer ? r.name + ' (you)' : shortName(r.name) }}
-            <span class="qr-standing-pos">{{ r.position }}</span>
+            <span class="qr-standing-pos float-end">{{ r.position }}</span>
           </li>
         </ol>
 
-        <button class="btn btn-primary qr-again" @click="reset">
+        <button class="btn btn-primary w-100" @click="reset">
           {{ racingState.racesLeft > 0 ? '🏁 Race Again' : 'Done' }}
         </button>
       </div>
@@ -174,35 +181,21 @@ watch(() => AppState.ownedPets, (pets) => {
 </script>
 
 <style lang="scss" scoped>
-.qr-title { margin-bottom: 6px; }
-
+// Layout, spacing and the action grid are Bootstrap's. What stays here is what
+// the utility scale genuinely cannot express: the game's colours and gradients,
+// the fixed track geometry, and the transitions.
 .qr-sub {
   color: var(--text-light);
   font-size: 0.82rem;
-  margin-bottom: 14px;
-}
-
-.qr-derived {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
 }
 
 .qr-pill {
   font-size: 0.78rem;
-  padding: 4px 10px;
-  border-radius: 20px;
   background: rgba(153, 102, 255, 0.08);
   border: 1px solid var(--purple-light);
 }
 
-.qr-races-left {
-  font-size: 0.85rem;
-  margin-bottom: 12px;
-}
-
-.qr-start { width: 100%; }
+.qr-races-left { font-size: 0.85rem; }
 
 .qr-turn {
   font-size: 0.78rem;
@@ -210,63 +203,36 @@ watch(() => AppState.ownedPets, (pets) => {
   letter-spacing: 2px;
   color: var(--text-light);
   text-transform: uppercase;
-  margin-bottom: 10px;
-}
-
-.qr-track {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin-bottom: 14px;
 }
 
 .qr-lane {
-  padding: 8px 10px;
   border: 2px solid var(--border);
-  border-radius: 12px;
   background: var(--white);
 
   &.qr-lane-player { border-color: var(--purple); }
 }
 
-.qr-lane-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 0.8rem;
-  margin-bottom: 4px;
-}
-
-.qr-lane-name {
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.qr-lane-head { font-size: 0.8rem; }
 
 .qr-lane-pos {
   color: var(--text-light);
   font-size: 0.74rem;
-  flex-shrink: 0;
 }
 
 .qr-lane-track {
-  position: relative;
+  // 14px is the bar's drawn thickness, not a spacing step.
   height: 14px;
-  border-radius: 20px;
   background: rgba(153, 102, 255, 0.1);
 }
 
 .qr-lane-fill {
-  height: 100%;
-  border-radius: 20px;
   background: linear-gradient(90deg, #9966ff, #ff66cc);
   transition: width 0.4s ease;
 }
 
 .qr-runner {
-  position: absolute;
+  // Rides the fill: `left` is bound inline, so only the offset and the easing
+  // belong here.
   top: -4px;
   transform: translateX(-50%);
   font-size: 1rem;
@@ -276,25 +242,14 @@ watch(() => AppState.ownedPets, (pets) => {
 .qr-lane-meta {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-top: 4px;
 }
 
 .qr-penalty { color: #e74c3c; }
 
-.qr-actions {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
 .qr-action {
-  padding: 10px 12px;
   border: 2px solid var(--purple-light);
-  border-radius: 12px;
   background: var(--white);
   cursor: pointer;
-  text-align: center;
   transition: transform 0.15s, border-color 0.15s;
 
   &:hover:not(:disabled) {
@@ -305,10 +260,7 @@ watch(() => AppState.ownedPets, (pets) => {
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
-.qr-action-label {
-  font-weight: 700;
-  font-size: 0.85rem;
-}
+.qr-action-label { font-size: 0.85rem; }
 
 .qr-action-desc {
   font-size: 0.7rem;
@@ -317,37 +269,20 @@ watch(() => AppState.ownedPets, (pets) => {
 
 .qr-log {
   background: rgba(0, 0, 0, 0.04);
-  border-radius: 12px;
-  padding: 10px 14px;
   font-size: 0.8rem;
   line-height: 1.6;
   min-height: 60px;
 }
 
-.qr-log-line { margin: 0; }
-
-.qr-results {
-  text-align: center;
-  padding: 8px;
-}
-
 .qr-result-icon { font-size: 2.5rem; }
-
-.qr-result-title { margin: 8px 0 6px; }
 
 .qr-place {
   font-size: 1.6rem;
   font-weight: 800;
   color: var(--purple);
-  margin-bottom: 10px;
 }
 
-.qr-reward {
-  background: rgba(93, 222, 122, 0.1);
-  border-radius: 12px;
-  padding: 10px 14px;
-  margin-bottom: 12px;
-}
+.qr-reward { background: rgba(93, 222, 122, 0.1); }
 
 .qr-reward-sub {
   font-size: 0.8rem;
@@ -355,28 +290,19 @@ watch(() => AppState.ownedPets, (pets) => {
 }
 
 .qr-beat-all {
-  margin-top: 4px;
   font-size: 0.82rem;
   font-weight: 700;
   color: #e6a800;
 }
 
 .qr-standings {
-  text-align: left;
-  margin: 0 0 14px;
-  padding-left: 24px;
   font-size: 0.85rem;
 
   li { padding: 3px 0; }
 }
 
-.qr-standing-player { font-weight: 700; }
-
 .qr-standing-pos {
-  float: right;
   color: var(--text-light);
   font-size: 0.78rem;
 }
-
-.qr-again { width: 100%; }
 </style>

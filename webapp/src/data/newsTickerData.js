@@ -109,25 +109,33 @@ export const SPOOKY_MESSAGES = [
 export const SPOOKY_TICKER_CHANCE = 0.12 // ~12% chance per rotation
 export const DYNAMIC_HEADLINE_CHANCE = 0.20
 
-// Ports getEventAnnouncement(), game.js:13183-13206. Keyed by worldEvents
-// event id. The World Events system that decides which event is active is not
-// migrated yet, so NewsTickerService.currentEventId stays null and no
-// announcement is prepended — the same graceful degradation Phase 4 used for
-// weather-gated fish. Wire it up when World Events is ported.
+// Ports getEventAnnouncement(), game.js:13183-13206. Keyed by the world event's
+// id, and live as of the World Events port — NewsTickerService.currentEventId
+// now carries the active event.
+//
+// LEGACY BUG: four of these keys are not event ids at all. The live map spells
+// them `spoon_week`, `marketplace_madness`, `arena_championship` and
+// `napping_day`, while WORLD_EVENTS calls those events `spoon_appreciation`,
+// `market_madness`, `battle_tournament` and `tactical_napping`. The lookup is
+// `announcements[event.id]`, so it misses every time and the ticker announces
+// NOTHING for those four — 4 of 15 events, including the week-long Spoon
+// Appreciation Week and the three-day Arena Championship. Same key-mismatch
+// family as PET_PERSONALITIES (Phase 7) and the Twitch follow badges (Phase 9).
+// Keys corrected here; the copy is untouched.
 export const EVENT_ANNOUNCEMENTS = {
   mushroom_migration: '🍄 Mushroom Migration Day! +25% Battle XP & 50% more encounters!',
-  spoon_week: '🥄 Spoon Appreciation Week! Spoon weapons deal 50% more damage & 25% off spoons!',
+  spoon_appreciation: '🥄 Spoon Appreciation Week! Spoon weapons deal 50% more damage & 25% off spoons!',
   pyxie_chaos: '✨ Pyxie Chaos Festival! 30% chance of random bonuses & 50% more PP from everything!',
   golden_bunny: '🐰 Golden Bunny Sighting! 2x rare item drops & 50% more critical hits!',
   strange_fog: '🌫️ Strange Fog in the Deep Woods! Happiness decays 50% slower & 25% more exploration rewards!',
   pet_parade: '🎉 Grand Pet Parade! 2x happiness from interactions & 25% more pet XP!',
-  marketplace_madness: '🛒 Marketplace Madness! 30% off all shop items!',
+  market_madness: '🛒 Marketplace Madness! 30% off all shop items!',
   void_watching: '👁️ The Void is Watching! 15% bonus to all stats & 20% mystery reward chance!',
-  arena_championship: '⚔️ Arena Championship! Double PP from battles & 50% more battle XP!',
+  battle_tournament: '⚔️ Arena Championship! Double PP from battles & 50% more battle XP!',
   snack_shortage: '🍪 Great Snack Shortage! Snacks 25% less effective but 50% cheaper!',
   full_moon: '🌕 Full Moon Night! 40% stronger at night & 50% faster energy regen!',
   butterfly_swarm: '🦋 Suspicious Butterfly Swarm! 2x discovery chance & 50% more exploration rewards!',
-  napping_day: '😴 Tactical Napping Day! 2.5x faster energy regen!',
+  tactical_napping: '😴 Tactical Napping Day! 2.5x faster energy regen!',
   ruins_rumbling: '🏛️ The Ruins are Rumbling! DOUBLE all rewards & 3x legendary drop chance!',
   friendship_festival: '💖 Friendship Festival! Double friendship XP & 50% more happiness!'
 }

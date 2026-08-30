@@ -9,8 +9,8 @@ export const STREAMERS = [
   { id: 'blushimia', name: 'Blushimia', login: 'realblushimia', image: 'pets/blushimia.png' },
   { id: 'cowbee', name: 'Cowbee', login: 'cowbeevt', image: 'pets/cowbee.png' },
   { id: 'kelta', name: 'Kelta', login: 'keltathepomeranian', image: 'pets/kelta.png' },
-  { id: 'jess', name: 'Jess', login: 'teatimejess', image: 'pets/jess.png' },
-  { id: 'gnarly', name: 'Gnarly', login: 'gnarly_neon_smilodon', image: 'pets/gnarly.png' }
+  { id: 'gnarly', name: 'Gnarly', login: 'gnarly_neon_smilodon', image: 'pets/gnarly.png' },
+  { id: 'cy', name: 'CypurrActive', login: 'cypurractive', image: 'pets/cy.png' }
 ]
 
 export const streamStatus = reactive(

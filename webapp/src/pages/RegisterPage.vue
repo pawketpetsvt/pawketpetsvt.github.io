@@ -150,6 +150,6 @@ async function handleRegister() {
 </script>
 
 <style lang="scss" scoped>
-// RegisterPage has no styling of its own yet — it's fully covered by the
-// shared page-wrap/form-card classes in assets/scss/globals.scss.
+// RegisterPage has no styling of its own — the auth pages sit outside AppShell
+// and are covered by the `.form-card` / `.landing-v2-*` rules in style.css.
 </style>

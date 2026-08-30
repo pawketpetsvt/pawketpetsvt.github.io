@@ -14,6 +14,18 @@ const queue = []
 let active = false
 let dismissTimer = null
 
+// The per-browser boss tally BattleService keeps, ported from legacy's
+// `player_local_stats` blob. See the first_boss milestone below.
+export const LOCAL_BOSS_KILLS_KEY = 'pp_local_boss_kills'
+
+function localBossKills() {
+  try { return parseInt(localStorage.getItem(LOCAL_BOSS_KILLS_KEY), 10) || 0 } catch { return 0 }
+}
+
+export function recordLocalBossKill() {
+  try { localStorage.setItem(LOCAL_BOSS_KILLS_KEY, String(localBossKills() + 1)) } catch { /* private mode */ }
+}
+
 function dismiss() {
   melonState.visible = false
   setTimeout(() => {
@@ -57,9 +69,12 @@ const MILESTONES = [
   {
     key: 'first_boss',
     // Legacy reads a `player_local_stats` localStorage blob that only it ever
-    // wrote; `players.bosses_killed` is the real, server-side counter and is
-    // what the Stats page already reads.
-    check: () => (AppState.player && AppState.player.bosses_killed || 0) >= 1,
+    // wrote. A Phase 8b note here claimed `players.bosses_killed` was "the real,
+    // server-side counter" — that was asserted, not checked, and nothing in the
+    // legacy codebase writes such a column. Both are consulted: the column if it
+    // exists, and the local tally BattleService keeps otherwise, so the
+    // milestone fires either way rather than depending on an unverified schema.
+    check: () => (AppState.player && AppState.player.bosses_killed || 0) >= 1 || localBossKills() >= 1,
     title: 'Melon has a question 🍉',
     message: "...That wasn't supposed to happen. The boss, I mean. I didn't think anyone would actually get that far this quickly. Are you doing okay? The pets seem unsettled."
   },

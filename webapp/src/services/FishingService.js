@@ -7,6 +7,10 @@ import { minigamesService } from './MinigamesService.js'
 import { toastService } from './ToastService.js'
 import { cookingService } from './CookingService.js'
 import { weatherService } from './WeatherService.js'
+import { taskTracker } from './TaskTrackerService.js'
+import { scrapbookService } from './ScrapbookService.js'
+import { argLogService } from './ArgLogService.js'
+import { cosmeticsState } from './PetCosmeticsService.js'
 import { FISH_SPOTS, FISH_BAIT, FISH_POOL, ROD_CASTS_BONUS, AUTO_FISHER_TIERS, DAILY_FISH_CHALLENGES, getWeekKey } from '../data/fishingData.js'
 import { FISHING_INGREDIENT_DROPS } from '../data/cookingData.js'
 
@@ -18,7 +22,17 @@ import { FISHING_INGREDIENT_DROPS } from '../data/cookingData.js'
 // bonus real — getCatch() below applies it when shoalState.active is true.
 export const shoalState = reactive({ active: false, castsLeft: 0 })
 
+// How much Pass XP one fishing session can contribute (legacy's min(8, …)).
+const FISHING_SESSION_XP_CAP = 8
+
 class FishingService {
+  // Reset by startSession() so each trip out gets its own XP allowance.
+  sessionPassXP = 0
+
+  startSession() {
+    this.sessionPassXP = 0
+  }
+
   // Shared helper for the server-side claim RPCs (see
   // supabase/migrations/2026-08-23_game_claims.sql) — applies the returned
   // new PP total to AppState.player, or returns null (and logs) on
@@ -117,10 +131,10 @@ class FishingService {
   // Full single-cast resolution: bait cost, catch roll, collection upsert,
   // cooking-ingredient drop, quest/daily/shoal hooks. Ports the body of
   // castLine(), game.js:9384-9555, minus session-end (owned by the page,
-  // which knows the remaining-casts count). Badges and the angler titles ARE
-  // awarded (Phase 9.5 — see the badgeHooks call below). Still deferred, each
-  // UNBLOCKED BY its own port: Bingo, PawketPass XP, ARG/scrapbook drops and
-  // the weekly challenge counter.
+  // which knows the remaining-casts count). Badges, the angler titles, Bingo,
+  // Pass XP, the weekly challenge counters and the scrapbook memory for a
+  // legendary catch are all live as of Phase 9.5. Still deferred, UNBLOCKED BY
+  // its own port: ARG lore-log drops.
   async castLine({ userId, spot, bait, rodLevel, power, collectionMap, ingredientsMap }) {
     let usedBait = bait
     let baitData = FISH_BAIT[usedBait] || FISH_BAIT.worm
@@ -176,6 +190,40 @@ class FishingService {
     // whole collection, which is what legacy's 50/100/250 thresholds count.
     const totalCaught = Object.values(collectionMap).reduce((s, e) => s + (e.count || 0), 0)
     badgeHooks.onFishCaught({ totalCaught, isNew, rarity: fish.rarity, fishId: fish.id })
+
+    // The two fishing weekly challenges ('Catch 25 fish' / 'Catch 3 rare or
+    // better'). Legacy counts junk toward wk_fish_caught too, so this is
+    // reported for every catch.
+    // Scrapbook: a legendary catch is worth remembering (main:9486). Legacy
+    // files it against the active companion rather than a rod-holder, since
+    // fishing has no per-pet actor.
+    if (fish.rarity === 'legendary' && cosmeticsState.companionPetId) {
+      scrapbookService.add(cosmeticsState.companionPetId, 'legendary_fish', {
+        fish: fish.name + ' ' + (fish.emoji || '')
+      })
+    }
+
+    argLogService.tryDrop(fish.rarity === 'legendary' ? 'fishing_legendary' : 'fishing')
+
+    taskTracker.report('catch_fish')
+    if (fish.rarity === 'rare' || fish.rarity === 'epic' || fish.rarity === 'legendary') {
+      taskTracker.report('catch_rare_fish')
+    }
+
+    // Pass XP for fishing, which the Phase 4 port never carried. Legacy files
+    // it under the 'play' source rather than one of its own, at 2 XP per fish
+    // with the SESSION contribution capped at 8 (main:9531) — on top of the
+    // daily 'play' cap the Pass already enforces.
+    //
+    // Legacy recomputes `min(8, caught * 2)` and grants that WHOLE amount on
+    // every catch, so a five-fish session grants 2+4+6+8+8 = 28 rather than the
+    // 8 the cap describes. Granting the increment gives the intended total.
+    this.sessionPassXP = (this.sessionPassXP || 0)
+    const passAward = Math.min(2, FISHING_SESSION_XP_CAP - this.sessionPassXP)
+    if (passAward > 0) {
+      this.sessionPassXP += passAward
+      passService.addXP(passAward, 'play')
+    }
 
     return { fish, weightG, isNew, isNewRecord, usedBait }
   }

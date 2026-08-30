@@ -9,8 +9,8 @@
        `companionPatFloat` keyframes), so this component carries almost no
        styling of its own — the same arrangement LiveBanner.vue uses. -->
   <div v-if="pet" id="companion-buddy">
-    <div class="companion-sprite" :class="variantClass" :style="spriteStyle"
-      title="Pat your pet!" @click="pat">
+    <div class="companion-sprite d-flex align-items-center justify-content-center"
+      :class="variantClass" :style="spriteStyle" title="Pat your pet!" @click="pat">
       <span v-if="!imageFile" class="pp-companion-fallback">🐾</span>
     </div>
 
@@ -25,7 +25,7 @@
     <!-- Pat floaters. Legacy appended these straight to <body> to escape any
          clipping container; `position: fixed` already does that, so they can
          live here and be cleaned up with the component. -->
-    <div v-for="f in floaters" :key="f.id" class="pp-pat-float"
+    <div v-for="f in floaters" :key="f.id" class="pp-pat-float position-fixed"
       :style="{ left: f.x + 'px', top: f.y + 'px', color: f.color }">{{ f.text }}</div>
   </div>
 </template>
@@ -99,8 +99,9 @@ onUnmounted(() => {
 // The pat floater. Legacy built this as an inline cssText blob on a
 // body-appended div; the keyframes it animates (`companionPatFloat`) are already
 // in style.css and are reused as-is.
+// Positioned inline from the click coordinates, so `position: fixed` stays with
+// the offsets it belongs to rather than moving to a utility.
 .pp-pat-float {
-  position: fixed;
   transform: translateX(-50%);
   pointer-events: none;
   z-index: 9999;
@@ -113,12 +114,8 @@ onUnmounted(() => {
 }
 
 // The sprite has no image when the pet's catalog row carries no file, so the
-// emoji fallback needs the sprite box to centre it.
-.companion-sprite {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+// emoji fallback needs the sprite box to centre it — `d-flex align-items-center
+// justify-content-center` in the template.
 
 .pp-companion-fallback {
   font-size: 3rem;

@@ -3,7 +3,7 @@
        streak strip that opens the full 30-day reward track. All `.calendar-*`
        classes are owned by style.css. -->
   <div v-if="loaded">
-    <button class="calendar-widget sc-widget" @click="open = true">
+    <button class="calendar-widget sc-widget w-100" @click="open = true">
       <div class="calendar-header">
         <span class="calendar-title">📅 Day {{ streak }} Streak</span>
         <span v-if="next" class="calendar-next">
@@ -18,8 +18,13 @@
     <Teleport to="body">
       <div v-if="open" class="modal-overlay calendar-modal-overlay" @click.self="open = false">
         <div class="modal-content calendar-modal">
-          <div class="sc-modal-head">
-            <h2 class="sc-modal-title">📅 30-Day Login Calendar</h2>
+          <!-- Utilities rather than a class, deliberately: any class name
+               containing "header" is caught by the global `[class*="header"]`
+               rule, which forces `justify-content: space-between !important` on
+               the container and `display: inline-flex !important` on its
+               children — flattening the title and close button onto one line. -->
+          <div class="d-flex align-items-center justify-content-between gap-px10 mb-tight">
+            <h2 class="sc-modal-title m-0">📅 30-Day Login Calendar</h2>
             <button class="modal-close" aria-label="Close" @click="open = false">✕</button>
           </div>
           <div class="modal-body">
@@ -92,8 +97,9 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 // `.calendar-widget` is a <button> here rather than legacy's clickable div, so
 // the browser's button chrome has to go.
+// `.calendar-widget` is a <button> here rather than legacy's clickable div, so
+// the browser's button chrome has to go.
 .sc-widget {
-  width: 100%;
   border: none;
   background: none;
   font: inherit;
@@ -102,21 +108,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 
-// Named off "…header": the global `[class*="header"]` rule forces
-// `justify-content: space-between !important` on the container and
-// `display: inline-flex !important` on its children, which would put the title
-// and the close button on one flattened line. `.calendar-header` above is
-// legacy's own class and is left as-is, since space-between is what it wants.
-.sc-modal-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
 .sc-modal-title {
-  margin: 0;
   font-size: 1.1rem;
   color: var(--purple);
 }

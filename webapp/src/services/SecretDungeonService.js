@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
@@ -86,9 +87,9 @@ class SecretDungeonService {
     await playerService.awardPoints(DISCOVERY_PP, 'secret_dungeon_found')
     taskTracker.report('find_secret_dungeon')
     badgeHooks.onSecretDungeonFound(dungeon.key)
+    passService.addXP(25, 'secret_dungeon')
 
-    // The `secret_dungeon_<key>` badge IS granted (see the hook above, Phase
-    // 9.5). Pass XP is not — UNBLOCKED BY: the PawketPass port.
+    // Badge and Pass XP are both granted above as of Phase 9.5.
     return { dungeon, pp: DISCOVERY_PP }
   }
 
@@ -170,8 +171,15 @@ class SecretDungeonService {
         await playerService.awardPoints(secret.reward_pp, 'secret_discovery')
       }
 
-      // Badge (`secret.badge_reward`) and Pass XP are not granted — both systems
-      // are unmigrated, same as the hidden-zone discovery above.
+      // Pass XP is granted as of Phase 9.5. The badge (`secret.badge_reward`)
+      // is a per-secret key that comes from the row rather than a fixed list, so
+      // it is awarded through the generic path.
+      passService.addXP(20, 'secret_discovery')
+      if (secret.badge_reward) {
+        const { awardService } = await import('./AwardService.js')
+        awardService.awardBadge(secret.badge_reward).catch(() => {})
+      }
+
       return {
         key: secret.secret_key,
         name: secret.name || 'Hidden Location',

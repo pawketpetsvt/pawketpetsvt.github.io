@@ -80,5 +80,4 @@ defineEmits(['view-profile', 'visit-room', 'remove', 'accept', 'decline', 'unblo
     color: #5dde7a;
   }
 }
-
 </style>

@@ -1,5 +1,6 @@
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
+import { activityService } from './ActivityService.js'
 
 class AuthService {
   async restoreSession() {
@@ -75,6 +76,9 @@ class AuthService {
     AppState.ownedPets = []
     AppState.ownedPetIds = []
     AppState.inventory = []
+    // The activity feed caches the username for its announcement payloads, so
+    // the next player to sign in on this browser must not inherit it.
+    activityService.reset()
   }
 
   async resetPassword(email) {

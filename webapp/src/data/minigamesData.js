@@ -2,8 +2,7 @@
 //
 // The Event Calendar's Minigame Monday bonus IS applied — see
 // MinigamesService.completeGame(), which pays the multiplier as extra PP.
-// Badge, Bingo and PawketPass side effects are still not ported; those three
-// systems remain unmigrated.
+// Badge, Bingo and PawketPass side effects are all live as of Phase 9.5.
 
 export const WHEEL_PRIZES = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
 
@@ -35,7 +34,28 @@ export const MEMORY_EMOJIS = ['🐾', '🍉', '⭐', '🎈', '🌙', '🔥', '�
 export const MEMORY_PAIRS = 6
 export const MEMORY_TRIES = 15
 
-export const WHACK_MOLE_IMAGES = ['/images/pets/ember.png', '/images/pets/pyxie.png']
+// Whack-a-Mole targets. Melon is the mascot and the ONLY thing worth points;
+// everything else that pops up is a pet acting as bait. Legacy had no such
+// distinction — it alternated two pet images by hole index and scored every
+// pop, so the two pictures meant nothing.
+export const WHACK_MELON_IMAGE = '/images/melon.png'
+
+// Bait normally comes from the live pet catalog, so new pets appear here on
+// their own. This is only the fallback for when the catalog has not loaded.
+export const WHACK_BAIT_FALLBACK = [
+  '/images/pets/aria.png',
+  '/images/pets/blushimia.png',
+  '/images/pets/cowbee.png',
+  '/images/pets/cy.png',
+  '/images/pets/disc.png',
+  '/images/pets/ember.png',
+  '/images/pets/gnarly.png',
+  '/images/pets/kelta.png',
+  '/images/pets/pyxie.png'
+]
+
+// Share of pops that are bait rather than Melon.
+export const WHACK_BAIT_CHANCE = 0.3
 
 // The 6 "core" games that count toward the +50 PP daily-complete bonus.
 // Dice and Slot Machine are deliberately excluded, game.js:35198.

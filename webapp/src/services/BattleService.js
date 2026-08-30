@@ -1,12 +1,25 @@
 import { reactive } from 'vue'
+import { AppState } from '../AppState.js'
+import { passService } from './PassService.js'
 import { supabase } from './SupabaseService.js'
 import { equipmentService } from './EquipmentService.js'
+import { inventoryService } from './InventoryService.js'
 import { musicService } from './MusicService.js'
+import { toastService } from './ToastService.js'
 import { companionService } from './CompanionService.js'
 import { taskTracker } from './TaskTrackerService.js'
+import { trackDailyStat } from './DailyStatsService.js'
+import { recordLocalBossKill } from './MelonService.js'
+import { scrapbookService } from './ScrapbookService.js'
+import { communityGoalService } from './CommunityGoalService.js'
+import { argLogService } from './ArgLogService.js'
+import { petMoodService } from './PetMoodService.js'
+import { weatherService } from './WeatherService.js'
+import { worldEventService } from './WorldEventService.js'
 import { worldStateService } from './WorldStateService.js'
 import { getCalendarBonus, todaysEvent } from '../utils/calendarBonus.js'
 import { guildPerkService } from './GuildPerkService.js'
+import { activityService } from './ActivityService.js'
 import { isPiper, piperTurnAction, piperResolveAction, applyDefendPassives, tickInfluence } from './PiperBoss.js'
 import {
   ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS,
@@ -23,13 +36,10 @@ import {
 // the turn loop testable and is why the port reads shorter than the original
 // despite covering the same rules.
 //
-// Deliberately NOT ported, each guarded behind a clearly-named seam below
-// because the owning system is still unmigrated:
-//   - Archive lore bonuses  (ARG log system)      -> archiveBonus()
-//   - Beta Integrity glitch (world-state system)  -> integrityEffects()
-//   - Weekly challenge counters                   -> noted at the call site
-// Each returns a neutral value, so combat behaves exactly as it does today for
-// a player with none of those bonuses active. Wire them up with their phases.
+// The Archive lore bonus and the world-state corruption read are both live as
+// of Phase 9.5/8b. One seam remains — integrityEffects(), the per-turn glitch
+// damage at very low Beta Integrity — and it returns a neutral value, so combat
+// behaves exactly as it does for a player in a healthy beta.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const battleState = reactive({
@@ -51,6 +61,12 @@ export const battleState = reactive({
   log: [],
   victory: null,
   processing: false,
+  // Set true by a successful flee. It MUST be declared here and reset in
+  // startBattle: `battleState` is a module-level singleton, so a `fled` left
+  // over from a previous battle makes `playerAction` end the NEXT battle on the
+  // player's first move — whatever they chose — because the flee check runs
+  // straight after the action resolves.
+  fled: false,
   rewards: null,
   calendarBonus: null,
   // Per-battle counters the badge checks read (ports s.totalDamageTaken /
@@ -82,8 +98,11 @@ class BattleService {
   // ── unmigrated-system seams ───────────────────────────────────────────────
   // The ARG "archive logs" grant passive combat bonuses. Until that system is
   // migrated this returns the same zeros a player with no logs would have.
+  // Live as of Phase 9.5 — the Archive's combat bonus scales with how many
+  // tester logs the player has recovered. Returns zeros for a player with none,
+  // which is what this seam used to return for everyone.
   archiveBonus() {
-    return { dmgPct: 0, corruptedDmgPct: 0, healPct: 0 }
+    return argLogService.combatBonus()
   }
 
   // World-state corruption inflicts per-turn glitch damage at low integrity.
@@ -198,8 +217,9 @@ class BattleService {
       }
     }
 
-    // Zone boss: roughly one fight in eight. `spawn_weight = 0` marks the
-    // Piper-only rows handled above, so they're excluded here.
+    // Zone boss: roughly one fight in twenty (see ZONE_BOSS_CHANCE, which
+    // documents why this is 5% rather than legacy's 12%). `spawn_weight = 0`
+    // marks the Piper-only rows handled above, so they're excluded here.
     if (Math.random() < BATTLE_CONSTANTS.ZONE_BOSS_CHANCE) {
       const bossRes = await supabase.from('enemy_pets').select('*')
         .eq('forest_zone', zoneKey).eq('is_boss', true).gt('spawn_weight', 0)
@@ -303,6 +323,7 @@ class BattleService {
       log: [],
       victory: null,
       processing: false,
+      fled: false,
       rewards: null,
       calendarBonus: null,
       usedRevive: false,
@@ -487,8 +508,8 @@ class BattleService {
       tickInfluence(s, 5, this.bossContext())
       this.cue('playerAttack')
       if (!s.skillsUsedThisBattle.includes(skill.id)) s.skillsUsedThisBattle.push(skill.id)
-      // Weekly-challenge counter (`wk_skills_used`) omitted — that system is
-      // not migrated yet.
+      // Feeds the 'Use battle skills 20 times' weekly challenge.
+      taskTracker.report('use_skill')
       if (skill.cooldown > 0) s.skillCooldowns[skill.id] = skill.cooldown
       return this.applySkill(skill)
     }
@@ -527,6 +548,8 @@ class BattleService {
   resolveItemUse(item) {
     const s = battleState
     const name = (item.name || '').toLowerCase()
+    // Feeds the 'Use items in battle 5 times' weekly challenge.
+    taskTracker.report('use_battle_item')
 
     if (name.includes('smoke bomb')) {
       this.applyStatusToEnemy('confuse')
@@ -869,33 +892,69 @@ class BattleService {
 
       await equipmentService.consumeCombatBuffs(s.petId)
 
+      // Records the fight. THIS IS THE CALL THAT WRITES `battle_history` AND
+      // THE `players.battles_won` / `total_battles` COUNTERS — see the note on
+      // saveBattleResult(). It also awards XP and PP server-side when it
+      // succeeds, so the client award below only runs on the fallback path.
+      const saved = await this.saveBattleResult(s, result === true)
+
       if (result === true) {
         const enemyLevel = s.enemy.level || 1
-        let xp = Math.max(5, Math.round(enemyLevel * 8 * (s.enemy.is_boss ? 2.5 : 1)))
 
-        // Guild XP-boost perk. Legacy applies it here, immediately before the
-        // calendar bonus (main:16210) — deferred through Phase 7 because Guild
-        // was unmigrated, live again as of Phase 9. Returns 1.0 for a player
-        // with no guild or no active perk, so this is a no-op for most fights.
+        // Base rewards: the server's figures when the RPC ran, this port's own
+        // formula otherwise (the Phase 7 behaviour, kept intact as the fallback).
+        const baseXP = saved
+          ? Math.max(0, saved.exp_gained || 0)
+          : Math.max(5, Math.round(enemyLevel * 8 * (s.enemy.is_boss ? 2.5 : 1)))
+        const basePP = saved
+          ? Math.max(0, saved.pp_gained || 0)
+          : Math.max(1, Math.round(enemyLevel * 3 * (s.enemy.is_boss ? 3 : 1)))
+
+        // ── XP multipliers ───────────────────────────────────────────────────
+        // Guild XP-boost perk (main:16210), then Battle Tuesday, then weather,
+        // then the world event. All four return 1.0 when nothing is active.
+        let xpMult = 1
         const guildXpMult = guildPerkService.multiplier('xp_boost')
-        if (guildXpMult > 1) xp = Math.floor(xp * guildXpMult)
+        if (guildXpMult > 1) xpMult *= guildXpMult
 
-        // Battle Tuesday: the calendar's XP bonus, applied before the level-up
-        // loop so a doubled haul can actually carry a pet through a level.
         const calMult = getCalendarBonus('battle_xp')
         if (calMult > 1) {
-          xp = Math.floor(xp * calMult)
+          xpMult *= calMult
           s.calendarBonus = todaysEvent().name
         }
 
-        const pp = Math.max(1, Math.round(enemyLevel * 3 * (s.enemy.is_boss ? 3 : 1)))
+        xpMult *= weatherService.bonus('xpBonus')
+        // LEGACY NOTE: `battleXpBonus` and `petXpBonus` are advertised by five
+        // events (and by the news ticker headline) but are read NOWHERE in
+        // legacy — only the "helper functions for other systems to use" comment
+        // block mentions them. Applied for real here, for the same reason the
+        // Rare Shoal bonus and Guard were: the game states them to the player.
+        xpMult *= worldEventService.bonus('battleXpBonus')
+        xpMult *= worldEventService.bonus('petXpBonus')
 
+        const xp = Math.floor(baseXP * xpMult)
+
+        // ── PP multipliers ───────────────────────────────────────────────────
+        let ppMult = weatherService.bonus('ppBonus')
+        ppMult *= worldEventService.bonus('ppGainBonus')
+        ppMult *= worldEventService.bonus('battleRewards')
+        ppMult *= worldEventService.bonus('allRewards')
+        const pp = Math.floor(basePP * ppMult)
+
+        // ── Grant ────────────────────────────────────────────────────────────
+        // On the RPC path the server has already written `baseXP` to the pet, so
+        // only the bonus difference is added here; on the fallback path the
+        // whole amount is. Legacy shows these bonuses and grants NONE of them
+        // when the RPC succeeds — it recomputes a display number with nothing
+        // behind it (main:16209-16235). Granting the difference is what makes
+        // the numbers on the rewards screen true.
+        const xpToWrite = saved ? Math.max(0, xp - baseXP) : xp
         const petRes = await supabase.from('user_pets')
           .select('xp, level').eq('id', s.petId).single()
         let leveled = false
         let newLevel = petRes.data?.level || 1
         if (petRes.data) {
-          let newXP = (petRes.data.xp || 0) + xp
+          let newXP = (petRes.data.xp || 0) + xpToWrite
           while (newXP >= newLevel * BATTLE_CONSTANTS.XP_PER_LEVEL) {
             newXP -= newLevel * BATTLE_CONSTANTS.XP_PER_LEVEL
             newLevel++
@@ -906,16 +965,72 @@ class BattleService {
         }
 
         const { playerService } = await import('./PlayerService.js')
-        await playerService.awardPoints(pp, 'battle_victory')
+        const ppToAward = saved ? Math.max(0, pp - basePP) : pp
+        if (ppToAward > 0) {
+          await playerService.awardPoints(ppToAward, saved ? 'battle_bonus' : 'battle_victory')
+        } else if (saved && basePP > 0) {
+          // The server already moved the balance; re-read it so the navbar and
+          // sidebar don't keep showing the pre-battle number.
+          await playerService.refreshPoints()
+        }
 
-        s.rewards = { xp, pp, leveled, newLevel }
+        s.rewards = { xp, pp, leveled, newLevel, item: null }
+
+        // Item drops — dropped entirely from the Phase 7 port. See rollItemDrop().
+        s.rewards.item = await this.rollItemDrop(s)
       } else {
-        s.rewards = { xp: 0, pp: 0, leveled: false }
+        s.rewards = { xp: 0, pp: 0, leveled: false, item: null }
       }
 
       this.companionReaction(result === true, s)
+      this.recordMemories(result === true, s)
+
+      // Pass XP. Legacy grants battle XP from TWO places for the same fight —
+      // 8 inside saveBattleHistory (main:16158) and another 15/5 by result
+      // (main:16235) — so a win is worth 23 and a loss 5, against a 50/day cap.
+      // The Phase 7 port picked up only the first, so wins paid 8 and losses
+      // nothing. One call, same effective amounts.
+      passService.addXP(result === true ? 23 : 5, 'battle')
+
       if (result === true) {
         taskTracker.report('win_battle')
+        // The last two weekly-challenge counters: 'Win a battle without damage'
+        // and 'Fight a boss battle'. Both read state this engine already keeps.
+        if (s.totalDamageTaken === 0) taskTracker.report('flawless_win')
+        // Two community goals count specific KINDS of enemy, which no bus
+        // event can express — reported straight to the goal service, as legacy
+        // does (main:16355-16362).
+        const enemyName = ((s.enemy && s.enemy.name) || '').toLowerCase()
+        if (enemyName.includes('mushroom')) communityGoalService.increment('defeat_mushrooms')
+        if (s.enemy && s.enemy.specialVariant === 'corrupted') communityGoalService.increment('corrupted_kills')
+        if (s.enemy.is_boss) taskTracker.report('boss_fight')
+        trackDailyStat('battles_won')
+        argLogService.tryDrop('battle')
+        petMoodService.completeWish(s.petId, 'win_battle')
+        // Announce to activity_feed. These three (boss_defeated / level_up /
+        // pet_fainted) all live in legacy's saveBattleHistory (main:16258,
+        // 16417, 16452) and were dropped when it was ported — so the Discord
+        // bot and the OBS ticker, which subscribe to activity_feed INSERTs,
+        // have never reported a boss kill, a level-up or a faint from the
+        // Vue app.
+        if (s.rewards && s.rewards.leveled) {
+          activityService.log('level_up', {
+            pet_name: this.petNameFor(s.petId),
+            level: s.rewards.newLevel
+          })
+        }
+        if (s.enemy.is_boss) {
+          activityService.log('boss_defeated', { boss_name: s.enemy.name })
+          trackDailyStat('bosses_killed')
+          // Per-player tally, ported from legacy's `player_local_stats` blob —
+          // Melon's `first_boss` milestone is the only reader.
+          recordLocalBossKill()
+          // Ports nudgeWorldStateForBossKill() — corruption ticks down and, on
+          // every tenth community kill, a one-hour +15% XP/PP celebration buff
+          // fires for everyone. WeatherService.bonus() already layers that buff
+          // on XP and PP, so this is what makes it reachable.
+          this.nudgeWorldStateForBossKill()
+        }
         // Badges and player titles. Not awaited: the rewards screen should not
         // wait on several count queries, and awardBattleBadges never throws.
         import('./BattleBadges.js')
@@ -925,6 +1040,159 @@ class BattleService {
     } catch (err) {
       console.error('[battleService.endBattle]', err)
     }
+  }
+
+  // The activity_feed payloads name the pet, and the battle state carries only
+  // its id. Legacy read the name off its in-memory pet cache the same way.
+  petNameFor(petId) {
+    const pet = (AppState.ownedPets || []).find(p => p.id === petId)
+    return (pet && pet.nickname) || 'their pet'
+  }
+
+  // Ports the six SCRAPBOOK blocks in manualBattle_endBattle (main:16362-16446).
+  // Fire-and-forget: a memory is flavour, and must never delay or fail the
+  // rewards screen. `add()` handles its own once-per-pet and cooldown rules.
+  recordMemories(won, s) {
+    const petId = s.petId
+    if (!petId) return
+    const maxHP = Math.max(1, s.playerMaxHP || 60)
+
+    if (won) {
+      scrapbookService.add(petId, 'first_battle_win', { enemy: (s.enemy && s.enemy.name) || 'an enemy' })
+      if (s.playerHP > 0 && s.playerHP < maxHP * 0.1) {
+        scrapbookService.add(petId, 'low_hp_victory', { hp: s.playerHP })
+      }
+      const lvl = s.rewards && s.rewards.newLevel
+      if (s.rewards && s.rewards.leveled && [5, 10, 15, 20].includes(lvl)) {
+        scrapbookService.add(petId, 'level_milestone', { level: lvl })
+      }
+      // Evolution stages land at 5 and 10, so a level-up across either boundary
+      // is also an evolution.
+      if (s.rewards && s.rewards.leveled) {
+        if (lvl === 5) scrapbookService.add(petId, 'evolution_teen', {})
+        if (lvl === 10) scrapbookService.add(petId, 'evolution_adult', {})
+      }
+    } else if (s.playerHP <= 0) {
+      // Legacy records this only on an actual 0-HP faint, not on every loss, so
+      // it stays a moment rather than noise. The activity_feed announcement is
+      // gated the same way, matching main:16452.
+      scrapbookService.add(petId, 'first_battle_loss', { enemy: (s.enemy && s.enemy.name) || 'an enemy' })
+      activityService.log('pet_fainted', {
+        pet_name: this.petNameFor(petId),
+        enemy: (s.enemy && s.enemy.name) || 'an enemy'
+      })
+    }
+  }
+
+  // Ports saveBattleHistory() (main:16100-16145).
+  //
+  // THIS WAS DROPPED BY THE PHASE 7 PORT, and it is the load-bearing half of
+  // the legacy function rather than a nicety. `save_battle_result` is the ONLY
+  // writer of `players.battles_won` and `players.total_battles` anywhere in the
+  // codebase — nothing updates those columns client-side — and it is what
+  // inserts the `battle_history` row. Without it:
+  //   • BattleBadges' `battle_history` counts are always 0, so the boss-slayer
+  //     and battle-count badges are unreachable
+  //   • AwardService's fighter/warrior/champion player titles never unlock
+  //   • the Stats page shows 0 battles for a player who has fought hundreds
+  //   • Melon's `first_boss` milestone can never fire
+  //
+  // Returns the server's reward figures, or null if the RPC is unavailable — in
+  // which case endBattle falls back to computing and awarding them itself,
+  // which is the behaviour this port has had since Phase 7. Legacy decides
+  // whether to fall back the same way.
+  async saveBattleResult(s, victory) {
+    if (!s.petId || !s.enemy) return null
+    try {
+      // Legacy is explicit that enemy ids are INTEGERS here and that passing a
+      // numeric string breaks the RPC's signature, so the coercion is kept.
+      const rawId = s.enemy.id
+      const enemyId = (typeof rawId === 'string' && !isNaN(parseInt(rawId, 10)))
+        ? parseInt(rawId, 10)
+        : rawId
+
+      const { data, error } = await supabase.rpc('save_battle_result', {
+        p_pet_id: s.petId,
+        p_enemy_id: enemyId,
+        p_victory: victory,
+        p_turns_taken: s.turn || 0,
+        p_player_final_hp: Math.max(0, s.playerHP),
+        p_battle_log: s.log || []
+      })
+      if (error || !data || data.error) {
+        console.error('[battleService.saveBattleResult] falling back to client rewards:',
+          (error && error.message) || (data && data.error))
+        return null
+      }
+      return data
+    } catch (e) {
+      console.error('[battleService.saveBattleResult]', e)
+      return null
+    }
+  }
+
+  // Ports the two item-drop branches of manualBattle_endBattle
+  // (main:16276-16340). Also dropped by the Phase 7 port, so no battle in the
+  // Vue app has ever produced loot — including bosses, whose drop tables are
+  // the only source of their gear.
+  //
+  // Boss kills roll the boss's own zone-scoped table; ordinary wins have a flat
+  // 10% chance at something cheap, multiplied by the world event's
+  // rareFindChance and the weather's dropChance.
+  async rollItemDrop(s) {
+    if (!AppState.user) return null
+    try {
+      if (s.enemy.is_boss) {
+        const zone = s.enemy.forest_zone || s.zone || ''
+        const res = await supabase.from('items').select('*')
+          .eq('is_boss_drop', true)
+          .ilike('boss_source', '%' + zone + '%')
+        if (res.error || !res.data || !res.data.length) return null
+        const item = res.data[Math.floor(Math.random() * res.data.length)]
+        await inventoryService.grant(AppState.user.id, item.id, 1)
+        return item
+      }
+
+      let dropChance = 0.1
+      dropChance *= worldEventService.bonus('rareFindChance')
+      dropChance *= worldEventService.bonus('legendaryDropChance')
+      dropChance *= weatherService.bonus('dropChance')
+      if (Math.random() >= dropChance) return null
+
+      const res = await supabase.from('items').select('*')
+        .lte('price', 100)
+        .or('is_boss_drop.is.null,is_boss_drop.eq.false')
+        .limit(20)
+      if (res.error || !res.data || !res.data.length) return null
+      const item = res.data[Math.floor(Math.random() * res.data.length)]
+      // Legacy inserts a fresh row here rather than incrementing, so a second
+      // drop of the same item produced a duplicate inventory line. grant()
+      // upserts, which is what every other award path in this app does.
+      await inventoryService.grant(AppState.user.id, item.id, 1)
+      return item
+    } catch (e) {
+      console.error('[battleService.rollItemDrop]', e)
+      return null
+    }
+  }
+
+  // Ports nudgeWorldStateForBossKill() (main:7066). Fire-and-forget: a failure
+  // here must never hold up the rewards screen.
+  nudgeWorldStateForBossKill() {
+    ;(async () => {
+      try {
+        await supabase.rpc('nudge_world_state', { p_flag_key: 'corruption_level', p_delta: -1 })
+        const killRes = await supabase.rpc('record_boss_kill')
+        // Force a fresh read so corruption and any new celebration buff are
+        // visible to the next thing that asks.
+        await worldStateService.loadFlags(true)
+        if (killRes.data && killRes.data.triggered) {
+          toastService.success('🎉 10 bosses defeated by the community! Everyone gets a 1-hour +15% XP/PP bonus!')
+        }
+      } catch (e) {
+        console.error('[battleService.nudgeWorldStateForBossKill]', e)
+      }
+    })()
   }
 
   // Ports the two COMPANION REACTION blocks in manualBattle_endBattle: the

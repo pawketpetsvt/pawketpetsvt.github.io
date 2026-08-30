@@ -3,8 +3,12 @@
        defined six competing times across style.css) is replaced by Bootstrap's
        container/row/col system. `container-xxl` reproduces the legacy geometry
        exactly — fluid below 1400px, capped and centered above — because both
-       the container max-width and Bootstrap's xxl breakpoint are 1400px. -->
-  <div class="container-xxl p-gap">
+       the container max-width and Bootstrap's xxl breakpoint are 1400px.
+
+       Horizontal padding comes from the container itself ($container-padding-x
+       emits 20px per side); `py-gap` supplies the vertical half that legacy's
+       `padding: 20px` also had and a container does not. -->
+  <div class="container-xxl py-gap">
     <div class="row g-3 align-items-start">
       <aside class="col-auto d-none d-lg-block pp-sidebar-col">
         <LeftSidebar />
@@ -27,6 +31,8 @@
   <ToastHost />
   <CenteredModal />
   <MelonPopup />
+  <QuestCompleteModal />
+  <AdpocalypseOverlay />
 </template>
 
 <script setup>
@@ -45,6 +51,8 @@ import RightSidebar from '../components/RightSidebar.vue'
 import ToastHost from '../components/ToastHost.vue'
 import CenteredModal from '../components/CenteredModal.vue'
 import MelonPopup from '../components/MelonPopup.vue'
+import QuestCompleteModal from '../components/pet/QuestCompleteModal.vue'
+import AdpocalypseOverlay from '../components/AdpocalypseOverlay.vue'
 
 // Ports the shell-relevant slice of showApp(), game.js:2036-2241. The other
 // ~15 parallel bootstraps there (pass, bingo, scrapbook, community goals,

@@ -1,5 +1,5 @@
 <template>
-  <div class="fishing-pond" id="fishing-pond-area">
+  <div class="fishing-pond position-relative d-flex align-items-center justify-content-center flex-column gap-px6" id="fishing-pond-area">
     <div class="fishing-line" v-if="phase === 'charging' || phase === 'reeling'">
       <div class="fishing-hook">🪝</div>
     </div>
@@ -26,7 +26,7 @@
     </div>
   </div>
 
-  <button class="btn btn-primary fishing-cast-btn" id="fishing-btn" :disabled="disabled && phase === 'idle'"
+  <button class="btn btn-primary fishing-cast-btn w-100 mt-1 p-tight" id="fishing-btn" :disabled="disabled && phase === 'idle'"
     @mousedown="handlePress" @mouseup="handleRelease" @mouseleave="handleRelease" @touchstart.prevent="handlePress"
     @touchend="handleRelease">{{ buttonLabel }}</button>
 </template>
@@ -205,12 +205,6 @@ onUnmounted(() => {
 <style lang="scss" scoped>
 .fishing-pond {
   min-height: 90px;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 6px;
 }
 
 .pond-text {
@@ -281,9 +275,6 @@ onUnmounted(() => {
 }
 
 .fishing-cast-btn {
-  width: 100%;
-  margin-top: 4px;
-  padding: 12px;
   font-size: 1rem;
   user-select: none;
   touch-action: manipulation;

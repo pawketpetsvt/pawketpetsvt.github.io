@@ -3,7 +3,7 @@
     <div v-for="s in cards" :key="s.label" class="col">
       <div class="pf-stat-card h-100 text-center px-2 py-3 rounded-3">
         <div class="pf-stat-value">{{ s.value }}</div>
-        <div class="pf-stat-label">{{ s.label }}</div>
+        <div class="pf-stat-label mt-px2">{{ s.label }}</div>
       </div>
     </div>
   </div>
@@ -42,6 +42,5 @@ const cards = computed(() => [
 .pf-stat-label {
   font-size: 0.72rem;
   color: var(--text-light);
-  margin-top: 2px;
 }
 </style>

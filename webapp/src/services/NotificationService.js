@@ -82,6 +82,10 @@ class NotificationService {
     if (!link) return null
     if (link.startsWith('tab:')) return { kind: 'tab', value: link.slice(4) }
     if (link.startsWith('profile:')) return { kind: 'profile', value: link.slice(8) }
+    // Gift notifications. Legacy links them to '/gifts', a path that has never
+    // existed — the gift inbox is a modal, not a route — so clicking one did
+    // nothing. Emitted as 'gift:inbox' now and handled by the bell.
+    if (link.startsWith('gift:')) return { kind: 'gift', value: link.slice(5) }
     return null
   }
 

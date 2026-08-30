@@ -1,4 +1,6 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
+import { awardService } from './AwardService.js'
 import { supabase } from './SupabaseService.js'
 import { supabaseUrl } from '../env.js'
 import { AppState } from '../AppState.js'
@@ -163,7 +165,15 @@ class GrandPrixService {
       if (error) throw error
       if (data && data.success === false) throw new Error(data.error || 'Entry failed')
 
+      // The entry fee is taken inside the RPC, so record it in PP History —
+      // otherwise the balance drops with nothing to account for it. Lazily
+      // imported, as this file's other PlayerService uses are: a static import
+      // would close a cycle.
+      const { playerService: ps } = await import('./PlayerService.js')
+      await ps.noteExternalSpend(GP_ENTRY_FEE, 'grand_prix_entry')
+
       taskTracker.report('enter_grand_prix')
+      passService.addXP(25, 'grand_prix_entry')
       toastService.success('🎪 You are entered in the Grand Prix!')
       await this.load()
       return true
@@ -226,6 +236,7 @@ class GrandPrixService {
       await this.applyTrainingCosts(t, pet)
 
       taskTracker.report('train_grand_prix')
+      passService.addXP(10, 'grand_prix_training')
       toastService.success(`🎯 Training complete! +${gain} race score! (${current + gain}/${TRAINING_CAP})`)
       return true
     } catch (e) {
@@ -293,7 +304,15 @@ class GrandPrixService {
         .update({ rewards_claimed: true }).eq('id', gpState.entry.id)
       gpState.entry.rewards_claimed = true
 
+      // Legacy reports BOTH of these here (main:27437-27438) — a win counts as
+      // a top-10 finish too. The top-10 report was missed when Bingo landed,
+      // leaving its '🏅 Grand Prix Top 10' square unable to complete.
+      await this.grantTierExtras(tier)
+      if (rank <= 10) taskTracker.report('grand_prix_top_10')
       if (rank === 1) taskTracker.report('grand_prix_winner')
+      if (rank === 1) passService.addXP(250, 'grand_prix_winner')
+      else if (rank <= 10) passService.addXP(100, 'grand_prix_top_10')
+      else passService.addXP(25, 'grand_prix_entry')
       toastService.success(`🏆 Rewards claimed! +${pp} PP`)
       return true
     } catch (e) {
@@ -302,9 +321,13 @@ class GrandPrixService {
     }
   }
 
-  // Titles and badges from the reward tier are deliberately not granted here —
-  // both systems are unmigrated. Their keys stay on the tier row, so wiring them
-  // up when Badges/Titles land is a two-line change.
+  // Grants the reward tier's badge and title. Deferred through Phase 8c while
+  // Badges and Player Titles were unmigrated; both landed in Phase 9.5.
+  async grantTierExtras(tier) {
+    if (!tier) return
+    if (tier.badge_reward) await awardService.awardBadge(tier.badge_reward)
+    if (tier.title_reward) await awardService.awardPlayerTitle(tier.title_reward, 'grand_prix')
+  }
 }
 
 export const grandPrixService = new GrandPrixService()

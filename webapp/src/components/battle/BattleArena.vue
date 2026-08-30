@@ -1,9 +1,9 @@
 <template>
   <div>
-    <div v-if="phaseFlash" class="pp-phase-flash"></div>
+    <div v-if="phaseFlash" class="pp-phase-flash position-fixed"></div>
 
     <!-- Zone modifier banner. Only zones with a real mechanic show one. -->
-    <div v-if="zoneMod && zoneMod.type !== 'none'" class="pp-zone-banner mb-3">
+    <div v-if="zoneMod && zoneMod.type !== 'none'" class="pp-zone-banner mb-3 text-center py-2 px-tight">
       {{ zoneMod.label }}: {{ zoneMod.desc }}
     </div>
 
@@ -49,7 +49,7 @@
         <!-- Melody counter — Piper only. The melody damages every third tick
              regardless of what either side does, so the countdown is the real
              information here. -->
-        <div v-if="fightingPiper" class="pp-melody">
+        <div v-if="fightingPiper" class="pp-melody text-center mt-px6">
           🎵 Melody: {{ s.piperMelody || 0 }}
           <span v-if="melodyIn <= 1" class="pp-melody-warn"> — Resonates next turn</span>
           <span v-else class="pp-melody-soft"> — resonates in {{ melodyIn }}</span>
@@ -61,16 +61,16 @@
          enough (see tickInfluence), so it only appears once it starts filling
          rather than sitting at a permanent 0%. -->
     <div v-if="fightingPiper && s.piperInfluence > 0" class="pp-influence mt-2">
-      <div class="pp-influence-head">
+      <div class="pp-influence-head d-flex justify-content-between align-items-center">
         <span>👁️ Piper's Influence</span>
         <span>{{ s.piperInfluence }}%</span>
       </div>
-      <div class="pp-influence-track">
-        <div class="pp-influence-fill" :style="{ width: s.piperInfluence + '%' }"></div>
+      <div class="pp-influence-track rounded-5 overflow-hidden">
+        <div class="pp-influence-fill h-100 rounded-5" :style="{ width: s.piperInfluence + '%' }"></div>
       </div>
     </div>
 
-    <div class="pp-narrative mt-3">
+    <div class="pp-narrative mt-3 py-px10 px-px14 rounded-3">
       <p v-for="(line, i) in s.narrative" :key="i" class="m-0">{{ line }}</p>
     </div>
 
@@ -79,15 +79,15 @@
 
       <!-- Ports manualBattle_showItemPicker(). Using an item costs the turn,
            which the heading says outright as legacy's did. -->
-      <div v-if="showItems" class="pp-item-picker">
-        <div class="pp-item-head">🎒 Use an Item (costs your turn)</div>
+      <div v-if="showItems" class="pp-item-picker rounded-4 p-px10 mb-2">
+        <div class="pp-item-head mb-2">🎒 Use an Item (costs your turn)</div>
         <button v-for="item in usableItems" :key="item.invId" class="pp-item-row" :disabled="s.processing"
           @click="useItem(item)">
           <strong>{{ item.name }}</strong>
           <span class="pp-item-effect">{{ battleService.itemBattleLabel(item) }}</span>
           <span class="pp-item-qty">×{{ item.qty }}</span>
         </button>
-        <button class="pp-item-cancel" @click="showItems = false">Cancel</button>
+        <button class="pp-item-cancel w-100 p-px6 rounded-1" @click="showItems = false">Cancel</button>
       </div>
 
       <div class="row row-cols-3 g-2 mt-1">
@@ -99,15 +99,15 @@
             @click="act('flee')">🏃 Flee</button></div>
       </div>
 
-      <div class="pp-skill-heading mt-3">SKILLS</div>
+      <div class="pp-skill-heading mt-3 text-center mb-px6">SKILLS</div>
       <div class="d-flex flex-wrap justify-content-center gap-2">
         <button v-for="(skill, i) in s.player?.skills || []" :key="skill.id" class="pp-skill-btn"
           :class="{ 'pp-skill-cooling': (s.skillCooldowns[skill.id] || 0) > 0 }"
           :disabled="s.processing || (s.skillCooldowns[skill.id] || 0) > 0" :title="skill.desc"
           @click="act('skill', i)">
           <span class="pp-skill-icon">{{ skill.icon }}</span>
-          <span class="pp-skill-name">{{ skill.name }}</span>
-          <span v-if="(s.skillCooldowns[skill.id] || 0) > 0" class="pp-skill-cd">{{ s.skillCooldowns[skill.id] }}</span>
+          <span class="pp-skill-name text-center">{{ skill.name }}</span>
+          <span v-if="(s.skillCooldowns[skill.id] || 0) > 0" class="pp-skill-cd position-absolute rounded-5">{{ s.skillCooldowns[skill.id] }}</span>
         </button>
       </div>
     </div>
@@ -120,6 +120,10 @@
         +{{ s.rewards.xp }} XP &nbsp;·&nbsp; +{{ s.rewards.pp }} PP
         <span v-if="s.calendarBonus" class="pp-cal-bonus"><br />⚔️ {{ s.calendarBonus }} — 2x XP!</span>
         <span v-if="s.rewards.leveled"><br />🎉 Level {{ s.rewards.newLevel }}!</span>
+        <!-- Item drops: a flat 10% on an ordinary win, guaranteed from a boss's
+             own loot table. Nothing rendered them before, because nothing
+             dropped — see BattleService.rollItemDrop(). -->
+        <span v-if="s.rewards.item" class="pp-drop"><br />🎁 Found {{ s.rewards.item.name }}!</span>
       </p>
       <button class="btn btn-primary" @click="$emit('done')">Continue</button>
     </div>
@@ -249,8 +253,6 @@ for (const key of Object.keys(cue)) {
 // `.battle-name` and `.battle-vs` are all owned by the root style.css and are
 // left alone. Only what the legacy markup styled inline lives here.
 .pp-zone-banner {
-  text-align: center;
-  padding: 8px 12px;
   border-radius: var(--radius);
   background: rgba(153, 102, 255, 0.12);
   border: 2px solid var(--purple-light);
@@ -261,9 +263,7 @@ for (const key of Object.keys(cue)) {
 
 .pp-narrative {
   min-height: 64px;
-  padding: 10px 14px;
   background: rgba(0, 0, 0, 0.04);
-  border-radius: 12px;
   font-size: 0.9rem;
   line-height: 1.6;
 }
@@ -280,9 +280,7 @@ for (const key of Object.keys(cue)) {
   font-weight: 700;
   letter-spacing: 2px;
   color: var(--text-light);
-  text-align: center;
   text-transform: uppercase;
-  margin-bottom: 6px;
 }
 
 .pp-skill-btn {
@@ -316,17 +314,14 @@ for (const key of Object.keys(cue)) {
   font-size: 0.68rem;
   font-weight: 700;
   color: var(--purple-dark);
-  text-align: center;
   line-height: 1.15;
 }
 
 .pp-skill-cd {
-  position: absolute;
   top: -6px;
   right: -6px;
   min-width: 20px;
   padding: 1px 5px;
-  border-radius: 20px;
   background: var(--pink);
   color: var(--white);
   font-size: 0.7rem;
@@ -335,8 +330,6 @@ for (const key of Object.keys(cue)) {
 
 // ── Piper-only chrome ───────────────────────────────────────────────────────
 .pp-melody {
-  text-align: center;
-  margin-top: 6px;
   font-size: 0.75rem;
   color: #cc66ff;
   font-weight: 700;
@@ -346,9 +339,6 @@ for (const key of Object.keys(cue)) {
 .pp-melody-soft { color: var(--text-light); font-weight: 400; }
 
 .pp-influence-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   font-size: 0.72rem;
   color: var(--text-light);
   margin-bottom: 3px;
@@ -356,21 +346,16 @@ for (const key of Object.keys(cue)) {
 
 .pp-influence-track {
   background: rgba(0, 0, 0, 0.08);
-  border-radius: 20px;
   height: 6px;
-  overflow: hidden;
 }
 
 .pp-influence-fill {
-  height: 100%;
   background: linear-gradient(90deg, #9966ff, #ff0066);
-  border-radius: 20px;
   transition: width 0.3s;
 }
 
 // Phase-3 transition flash, ported from piperBoss_phaseTransition().
 .pp-phase-flash {
-  position: fixed;
   inset: 0;
   background: rgba(200, 0, 80, 0.15);
   z-index: 9998;
@@ -385,16 +370,12 @@ for (const key of Object.keys(cue)) {
 .pp-item-picker {
   background: var(--white);
   border: 2px solid var(--purple);
-  border-radius: 14px;
-  padding: 10px;
-  margin-bottom: 8px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .pp-item-head {
   font-weight: 700;
   font-size: 0.82rem;
-  margin-bottom: 8px;
   color: var(--purple-dark);
 }
 
@@ -428,9 +409,6 @@ for (const key of Object.keys(cue)) {
 }
 
 .pp-item-cancel {
-  width: 100%;
-  padding: 6px;
-  border-radius: 8px;
   border: 1px solid var(--border);
   background: none;
   cursor: pointer;
@@ -444,6 +422,7 @@ for (const key of Object.keys(cue)) {
 .pp-win { color: var(--green); }
 .pp-lose { color: #ff6b6b; }
 .pp-rewards { font-weight: 700; color: var(--purple-dark); }
+.pp-drop { color: #d97706; }
 .pp-cal-bonus { color: #e6a800; }
 
 // Lunge / recoil cues. Kept short so they can't overlap the next turn.

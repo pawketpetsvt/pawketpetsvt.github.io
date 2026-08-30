@@ -1,7 +1,10 @@
 // Referral milestones, ported from REFERRAL_MILESTONES (game.js:29227).
-// `badge`, `title`, `skinKeys` and `frame` name rewards owned by systems that
-// are not migrated yet, so they are carried through as data and shown as the
-// milestone's label/tier — nothing grants them here.
+//
+// `badge`, `title` and `skinKeys` are all granted as of Phase 9.5, by
+// ReferralService.claimPendingMilestones() — which runs for the SIGNED-IN
+// player on daily login, because every award path is scoped to auth.uid() and
+// so cannot pay a referrer from the referee's session. The cosmetic `frame` is
+// granted too, via CosmeticUnlockService.
 export const REFERRAL_MILESTONES = [
   { count: 1, label: 'Referral Rookie', tier: 'common', badge: 'referral_rookie', title: null, skinKeys: 0, frame: null },
   { count: 3, label: 'Triple Recruiter', tier: 'uncommon', badge: null, title: null, skinKeys: 1, frame: null },

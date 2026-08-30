@@ -19,7 +19,7 @@
       </div>
     </template>
 
-    <template v-else>
+    <template v-else-if="current.kind === 'title'">
       <div class="unlock-cel-icon">👑</div>
       <div class="unlock-cel-body">
         <div class="unlock-cel-title">Title Unlocked!</div>
@@ -27,6 +27,19 @@
           {{ current.title.icon || '👑' }} {{ current.title.display_name }}
         </div>
         <button class="unlock-cel-nav-btn" @click="goSetActive">Set as Active →</button>
+      </div>
+    </template>
+
+    <!-- Cosmetics (backgrounds, avatar frames, profile badge pips). Ports
+         showUnlockCelebration('cosmetic', …), which legacy fires from
+         phase1_unlockCosmetic. -->
+    <template v-else>
+      <div class="unlock-cel-icon">{{ current.emoji || '✨' }}</div>
+      <div class="unlock-cel-body">
+        <div class="unlock-cel-title">Cosmetic Unlocked!</div>
+        <div class="unlock-cel-subtitle">{{ current.name }}</div>
+        <div v-if="current.detail" class="unlock-cel-detail mt-px2">{{ current.detail }}</div>
+        <button class="unlock-cel-nav-btn" @click="goCosmetics">Equip it →</button>
       </div>
     </template>
   </div>
@@ -67,6 +80,13 @@ function goSetActive() {
   next()
 }
 
+// The cosmetics panel lives on the player's own profile page, same as the
+// title picker.
+function goCosmetics() {
+  router.push('/myprofile')
+  next()
+}
+
 function shareBadge(platform) {
   const b = current.value.badge
   const text = `I just earned the "${b.name}" badge ${b.icon} in PawketPetsVT!\n\nJoin me!`
@@ -83,9 +103,18 @@ onUnmounted(() => clearTimeout(timer))
 
 <style lang="scss" scoped>
 // style.css owns .unlock-celebration-panel, .unlock-cel-*, .unlock-dismiss-btn,
-// .badge-notification, .badge-notif-* and .btn-social-mini — every class here
-// already has a rule. Only the dismiss button's size overrides are local, which
-// legacy set inline on the element.
+// .badge-notification, .badge-notif-* and .btn-social-mini — with one exception:
+// `.unlock-cel-detail` has no rule anywhere, so it is defined here rather than
+// rendering as unstyled body text. Only the dismiss button's size overrides are
+// otherwise local, which legacy set inline on the element.
+.unlock-cel-detail {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+// `position: relative` stays scoped rather than becoming a utility: it exists
+// to establish the containing block for the absolutely-positioned dismiss
+// button nested below, so the two belong together.
 .badge-notification {
   position: relative;
   .celebration-dismiss-btn {

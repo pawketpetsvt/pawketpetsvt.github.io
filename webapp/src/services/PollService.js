@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
 import { toastService } from './ToastService.js'
@@ -109,6 +110,7 @@ class PollService {
       const { playerService } = await import('./PlayerService.js')
       await playerService.awardPoints(VOTE_PP, 'poll_vote')
       taskTracker.report('vote_poll')
+      passService.addXP(5, 'poll_vote')
 
       toastService.success(`🗳️ Vote counted! +${VOTE_PP} PP`)
       await this.load()

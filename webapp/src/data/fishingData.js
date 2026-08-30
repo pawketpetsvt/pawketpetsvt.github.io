@@ -81,9 +81,11 @@ export function formatWeight(grams) {
   return (grams / 1000).toFixed(1) + 'kg'
 }
 
-// Ports weeklyChallenge_getWeekKey(), game.js:35862-35867 — the only piece of
-// the (unmigrated) Weekly Challenges system Fishing's own weekly quest needs,
-// since the quest's target fish are deterministically seeded per ISO week.
+// Ports weeklyChallenge_getWeekKey(), game.js:35862-35867. This was extracted
+// standalone in Phase 4 because Fishing's own weekly quest seeds its target fish
+// per ISO week and the Weekly Challenges system was unmigrated at the time; that
+// system landed in Phase 9.5, but the helper stays here so this data module has
+// no dependency on a service.
 export function getWeekKey() {
   const now = new Date()
   const startOfYear = new Date(now.getFullYear(), 0, 1)

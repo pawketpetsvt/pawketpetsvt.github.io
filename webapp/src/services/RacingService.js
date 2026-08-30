@@ -1,4 +1,7 @@
 import { reactive } from 'vue'
+import { passService } from './PassService.js'
+import { communityGoalService } from './CommunityGoalService.js'
+import { petMoodService } from './PetMoodService.js'
 import * as badgeHooks from './BadgeHooks.js'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
@@ -262,6 +265,7 @@ class RacingService {
     }
 
     taskTracker.report('train_pet_racing')
+    passService.addXP(3, 'racing')
     toastService.success(
       `${t.label} complete! +${t.gain} ${t.stat === 'fitness' ? 'Fitness' : 'Stat'}!`
     )
@@ -296,6 +300,7 @@ class RacingService {
   // no knowledge of the phantom field — it only sees a placement.
   async recordResult(placement, totalRacers) {
     badgeHooks.onRaceFinished({ placement, league: this.tier ? this.tier() : null })
+    passService.addXP(6, 'race')
     const league = this.tier()
     const rewards = RACING_LEAGUE_REWARDS[league] || RACING_LEAGUE_REWARDS.bronze
     let pp = rewards[Math.min(placement - 1, rewards.length - 1)] || 0
@@ -343,7 +348,12 @@ class RacingService {
     racingState.racesLeft = Math.max(0, racingState.racesLeft - 1)
 
     taskTracker.report('complete_race')
+    // Legacy uses the selected pet id here too (main:26472).
+    if (racingState.selectedPetId) petMoodService.completeWish(racingState.selectedPetId, 'race')
     if (placement <= 3) taskTracker.report('race_podium')
+    communityGoalService.increment('races_completed')
+    // Scaled by finishing position: 1st pays 10, 6th pays 5 (main:26462).
+    passService.addXP(5 + Math.max(0, 6 - placement), 'racing')
 
     return { pp: pp + bonus, pts, beatAll, bonus }
   }
@@ -397,7 +407,16 @@ class RacingService {
         toastService.error(rpc.data.error || 'Purchase failed!')
         return false
       }
-      if (AppState.player && typeof rpc.data.points === 'number') {
+      // Recorded in PP History — the RPC charges server-side (it owns the price
+      // list), so this never passes through spendPoints and would otherwise
+      // leave the player's balance dropping with no entry to explain it.
+      // `charged` is 0 for gear the pet already owns, which costs nothing.
+      const charged = typeof rpc.data.charged === 'number' ? rpc.data.charged : item.price
+      if (charged > 0) {
+        // Lazily imported, matching this file's other PlayerService uses.
+        const { playerService: ps } = await import('./PlayerService.js')
+        await ps.noteExternalSpend(charged, 'racing_gear', rpc.data.points)
+      } else if (AppState.player && typeof rpc.data.points === 'number') {
         AppState.player.pawketpoints = rpc.data.points
       }
       this.applyPurchase(slot, item)

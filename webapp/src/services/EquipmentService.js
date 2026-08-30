@@ -3,6 +3,7 @@ import { AppState } from '../AppState.js'
 import { evolutionStage, evolutionBonuses, skillLoadout, passiveSkills } from '../utils/petSkills.js'
 import { BATTLE_CONSTANTS } from '../data/battleData.js'
 import { worldStateService } from './WorldStateService.js'
+import { miniSeasonService } from './MiniSeasonService.js'
 import { guildFurnitureService } from './GuildFurnitureService.js'
 
 // Owns equipment I/O and the battle-ready stat calculation that depends on it.
@@ -59,10 +60,10 @@ class EquipmentService {
   // Ports loadEquipmentShop() — the Shop's Equipment tab, deferred out of
   // Phase 3 because equipment had no consumer until Battle.
   //
-  // The world-state corruption gate IS applied now that World State is migrated
-  // (Phase 8b): some gear only appears while the beta is stable, and some only
-  // once it is badly corrupted. Mini-season stock is still not applied — that
-  // system remains unmigrated, the same deferral ShopService documents.
+  // Both stock gates are live: the world-state corruption band (Phase 8b) and
+  // mini-season rotation (Phase 9.5). Some gear only appears while the beta is
+  // stable, some only once it is badly corrupted, and seasonal gear only during
+  // its season's current week slot.
   async getShopStock(filter = 'all') {
     const corruption = await worldStateService.corruption()
 
@@ -78,11 +79,13 @@ class EquipmentService {
     }
     // Corruption-gated stock: an item can require a minimum corruption level,
     // a maximum, or both. Null on either bound means "no limit that way".
-    const stock = (res.data || []).filter(item => {
+    const gated = (res.data || []).filter(item => {
       if (item.unlock_min_corruption != null && corruption < item.unlock_min_corruption) return false
       if (item.unlock_max_corruption != null && corruption > item.unlock_max_corruption) return false
       return true
     })
+    // Seasonal gear on top of that, same rule the shop uses.
+    const stock = await miniSeasonService.filterStock(gated)
 
     if (!filter || filter === 'all') return stock
     // Filters on `equipment_type`, matching legacy's own

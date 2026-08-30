@@ -1,5 +1,5 @@
 <template>
-  <div class="page-wrap">
+  <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="section-header">
       <h2 class="section-title">🏛️ Guild</h2>
     </div>

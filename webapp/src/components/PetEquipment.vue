@@ -1,8 +1,8 @@
 <template>
   <!-- Ports the equipped-items section from makeMyPetCard (game.js:4014-4036)
        plus loadEquippedItems(). -->
-  <div class="equipped-items-section">
-    <div class="pp-equip-head">
+  <div class="equipped-items-section my-px10 mx-0 py-px10 px-tight rounded-3">
+    <div class="pp-equip-head mb-2 d-flex justify-content-between align-items-center">
       <span>⚔️ Equipment</span>
       <button class="btn-sm pp-manage" @click="$emit('manage', pet.id)">Manage</button>
     </div>
@@ -11,9 +11,9 @@
       <div v-if="loading" class="pp-equip-loading">Loading equipment...</div>
       <div v-else-if="!equipped.length" class="pp-equip-empty">Nothing equipped.</div>
       <div v-else class="d-flex flex-column gap-1">
-        <div v-for="row in equipped" :key="row.id" class="pp-equip-row">
+        <div v-for="row in equipped" :key="row.id" class="pp-equip-row d-flex justify-content-between gap-2">
           <span class="pp-equip-name">{{ row.equipment?.name || 'Item' }}</span>
-          <span class="pp-equip-bonuses">{{ bonusText(row.equipment) }}</span>
+          <span class="pp-equip-bonuses text-end">{{ bonusText(row.equipment) }}</span>
         </div>
       </div>
     </div>
@@ -65,20 +65,13 @@ watch(() => props.pet.id, load)
 
 <style lang="scss" scoped>
 .equipped-items-section {
-  margin: 10px 0;
-  padding: 10px 12px;
   background: rgba(153, 102, 255, 0.06);
   border: 2px solid var(--purple-light);
-  border-radius: 12px;
 }
 
 .pp-equip-head {
   font-weight: bold;
   color: var(--purple);
-  margin-bottom: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .pp-manage {
@@ -108,9 +101,6 @@ watch(() => props.pet.id, load)
 }
 
 .pp-equip-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
   font-size: 0.8rem;
 }
 
@@ -121,6 +111,5 @@ watch(() => props.pet.id, load)
 
 .pp-equip-bonuses {
   color: var(--text-light);
-  text-align: right;
 }
 </style>
