@@ -173,6 +173,86 @@ class MusicService {
       }
     }, 50)
   }
+
+  // Ports startBossMusicGlitchFade() / simpleMusicFade() (game.js:19290-19384).
+  // The boss theme comes apart over 6 seconds as the death screen fades in:
+  // the volume falls on an exponential curve, playback slows to half speed, a
+  // lowpass sweeps 1000Hz -> 100Hz, and there is a 15% chance per 50ms tick of
+  // a random stutter to 0.3-0.7x that snaps back after 100ms.
+  //
+  // Deliberately does NOT resume the background music or clear `bgWasPlaying`
+  // — the sequence this belongs to ends by signing out and reloading, and the
+  // caller stops the track properly at the very end.
+  glitchFadeBattleTrack(durationMs = 6000) {
+    const audio = battleAudio
+    if (!audio) return
+
+    // Cancel the ordinary fade so the two are not both driving the volume.
+    if (fadeTimer) { clearInterval(fadeTimer); fadeTimer = null }
+
+    const startVolume = audio.volume
+    let gain = null
+    let filter = null
+
+    // Web Audio gives the filter sweep; without it this degrades to legacy's
+    // `simpleMusicFade` fallback — volume and playback rate only.
+    const Ctx = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext)
+    if (Ctx) {
+      try {
+        // `createMediaElementSource` may be called only ONCE per element, and
+        // after it is, the element routes through the graph instead of straight
+        // to the speakers. `battleAudio` is a fresh element per fight, so the
+        // handle is parked on the element rather than in a module global the
+        // way legacy did it — legacy's `window.bossAudioSource` guard meant the
+        // SECOND boss fight of a session reused the first fight's node, which
+        // belonged to an element that had already been torn down.
+        if (!audio._ppGraph) {
+          const ctx = new Ctx()
+          const source = ctx.createMediaElementSource(audio)
+          const g = ctx.createGain()
+          const f = ctx.createBiquadFilter()
+          f.type = 'lowpass'
+          f.frequency.value = 1000
+          source.connect(f)
+          f.connect(g)
+          g.connect(ctx.destination)
+          audio._ppGraph = { ctx, gain: g, filter: f }
+        }
+        gain = audio._ppGraph.gain
+        filter = audio._ppGraph.filter
+      } catch (e) {
+        console.warn('[musicService] Web Audio unavailable, plain fade instead:', e)
+      }
+    }
+
+    const startTime = Date.now()
+    fadingAudio = audio
+    fadeTimer = setInterval(() => {
+      const progress = Math.min((Date.now() - startTime) / durationMs, 1)
+
+      if (progress >= 1) {
+        clearInterval(fadeTimer)
+        fadeTimer = null
+        audio.pause()
+        if (fadingAudio === audio) fadingAudio = null
+        return
+      }
+
+      const volumeFade = Math.pow(1 - progress, 2)
+      if (gain) gain.gain.value = volumeFade
+      else audio.volume = Math.max(0, startVolume * volumeFade)
+
+      audio.playbackRate = 1 - progress * 0.5
+      if (filter) filter.frequency.value = 1000 - progress * 900
+
+      if (Math.random() < 0.15) {
+        audio.playbackRate = 0.3 + Math.random() * 0.4
+        setTimeout(() => {
+          if (fadingAudio === audio) audio.playbackRate = Math.max(0.5, 1 - progress * 0.5)
+        }, 100)
+      }
+    }, 50)
+  }
 }
 
 export const musicService = new MusicService()

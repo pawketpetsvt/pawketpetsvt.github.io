@@ -22,6 +22,7 @@ import { worldStateService } from './WorldStateService.js'
 import { getCalendarBonus, todaysEvent } from '../utils/calendarBonus.js'
 import { guildPerkService } from './GuildPerkService.js'
 import { activityService } from './ActivityService.js'
+import { authService } from './AuthService.js'
 import { isPiper, piperTurnAction, piperResolveAction, applyDefendPassives, tickInfluence } from './PiperBoss.js'
 import {
   ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS,
@@ -909,12 +910,24 @@ class BattleService {
     s.phase = 'over'
     s.narrative = lines
     s.log.push(...lines)
-    // Fades out and resumes the background music if it was playing.
-    musicService.stopBattleTrack()
-    // Ports clearBossEffects() at legacy's endBattle (game.js:16087): drops the
-    // body glitch, the overlay and the warning spawner. Safe for a non-boss
-    // fight — nothing was started, and stop() is idempotent.
-    bossPresentationService.stop()
+    // Losing a boss fight runs the death screen instead of the ordinary
+    // teardown: the boss theme comes apart over 6s while the page fades to
+    // black, and the sequence ends by signing the player out. `result` is
+    // `'flee'` when the player escapes, so `=== false` is the real defeat and
+    // fleeing correctly does NOT trigger it.
+    //
+    // The death screen owns the music (glitchFadeBattleTrack) and clears the
+    // boss effects itself at the end, so neither call below runs in that case.
+    if (s.enemy?.is_boss && result === false) {
+      bossPresentationService.deathScreen(() => authService.signOutAndReload())
+    } else {
+      // Fades out and resumes the background music if it was playing.
+      musicService.stopBattleTrack()
+      // Ports clearBossEffects() at legacy's endBattle (game.js:16087): drops
+      // the body glitch, the overlay and the warning spawner. Safe for a
+      // non-boss fight — nothing was started, and stop() is idempotent.
+      bossPresentationService.stop()
+    }
 
     try {
       await supabase.from('user_pets')

@@ -1,4 +1,5 @@
 import { reactive } from 'vue'
+import { musicService } from './MusicService.js'
 
 // Ports triggerBossEntrance() / startBossWarningText() / spawnWarningText() /
 // findNonOverlappingY() / stopBossWarningText() (legacy game.js:19013-19187).
@@ -18,7 +19,15 @@ export const bossPresentation = reactive({
   active: false,
   // Live warning texts. Each is { id, y, dir } and removes itself after the
   // 6s scroll animation completes.
-  warnings: []
+  warnings: [],
+
+  // ── Death screen ──────────────────────────────────────────────────────────
+  // Set while triggerBossDeathScreen()'s sequence is running. `dying` puts the
+  // black overlay in the tree; `blackout` is the second-frame flip that starts
+  // its 5s opacity transition; `deathWarnings` are the "WE WARNED YOU" texts.
+  dying: false,
+  blackout: false,
+  deathWarnings: []
 })
 
 // Legacy's own threshold: the UI fragmentation is desktop-only because the
@@ -31,6 +40,13 @@ const WARNING_STAGGER_MS = 800
 const WARNING_WAVE_MS = 4000
 const MIN_GAP_PX = 140
 const PLACEMENT_ATTEMPTS = 30
+
+// Death-screen timings, all legacy's. The blackout is a 5s CSS transition
+// started at 100ms; the wave at 5500 is the one that lands on a black screen.
+const MUSIC_GLITCH_MS = 6000
+const BLACKOUT_AT_MS = 5500
+const HOLD_ON_BLACK_MS = 3000
+const DEATH_WARNING_LIFETIME_MS = 5000
 
 let warningTimer = null
 let pending = []
@@ -102,6 +118,28 @@ function spawnWarning() {
   }, WARNING_LIFETIME_MS)
 }
 
+// Ports spawnDeathWarning(). Legacy positioned these with a pile of inline
+// styles; only the random placement is genuinely per-element, so that stays a
+// binding and the rest is a class in BossOverlay — the standing rule about
+// inline styles in this project.
+//
+// The 5s lifetime matches `death-warning-fade`, which ends at opacity 0; legacy
+// never removed these individually and instead swept them with a querySelectorAll
+// at two fixed points, leaving invisible nodes stacked up in between.
+function spawnDeathWarning() {
+  const w = {
+    id: nextId++,
+    x: Math.random() * Math.max(0, window.innerWidth - 500) + 100,
+    y: Math.random() * Math.max(0, window.innerHeight - 200) + 100
+  }
+  bossPresentation.deathWarnings.push(w)
+
+  schedule(() => {
+    const i = bossPresentation.deathWarnings.indexOf(w)
+    if (i > -1) bossPresentation.deathWarnings.splice(i, 1)
+  }, DEATH_WARNING_LIFETIME_MS)
+}
+
 // 3-4 warnings, staggered 0.8s apart — legacy's counts and cadence exactly.
 function spawnWave() {
   const count = Math.floor(Math.random() * 2) + 3
@@ -111,7 +149,10 @@ function spawnWave() {
 class BossPresentationService {
   // Called from BattleService.startBattle for any boss.
   start() {
-    this.stop()
+    // Forced: a new fight starting always means a clean slate, and the `dying`
+    // guard in stop() would otherwise refuse if a previous sequence had somehow
+    // been left standing.
+    this.stop(true)
     bossPresentation.active = true
 
     if (isDesktop()) {
@@ -136,15 +177,86 @@ class BossPresentationService {
     }, ms)
   }
 
+  // Ports triggerBossDeathScreen() (game.js:19189-19287) — the ARG beat for
+  // losing to a boss. The screen fades to black over 5s while "WE WARNED YOU"
+  // batters the page in five waves, then the player is signed out and the page
+  // reloads to the login screen.
+  //
+  // LEGACY MISWIRING, corrected here. Legacy calls this from
+  // `endBattlePlayback()` — the AUTO-battle teardown — gated on `isBossBattle`,
+  // a module global that only the MANUAL battle entry ever assigns
+  // (game.js:14381). The two are different engines, so on the live site the
+  // sequence fires when a player loses a Starter Dungeon auto-battle AND the
+  // last manual fight they happened to start was against a boss, which is not
+  // a rule anyone could infer while playing. The evident intent is stated by
+  // legacy's own comment at the call site — "Check if player lost to a boss -
+  // trigger special death screen!" — so it now fires on exactly that: losing a
+  // manual boss fight. Auto-battles do not trigger it at all.
+  //
+  // `onDone` performs the sign-out; the service does not import AuthService,
+  // so the sequence stays free of a dependency on the session layer.
+  deathScreen(onDone) {
+    if (!hasDom() || bossPresentation.dying) return
+    bossPresentation.dying = true
+
+    // Stop the in-fight warnings and the spawner, but leave the body glitch and
+    // the scanline overlay up — the page is supposed to stay broken through
+    // this. `stop()` runs at the very end instead.
+    if (warningTimer) { clearInterval(warningTimer); warningTimer = null }
+    bossPresentation.warnings.splice(0)
+
+    musicService.glitchFadeBattleTrack(MUSIC_GLITCH_MS)
+
+    // Legacy sets opacity on the next tick so the 5s CSS transition has a frame
+    // at 0 to start from; a Vue render pass serves the same purpose.
+    schedule(() => { bossPresentation.blackout = true }, 100)
+
+    // The five waves, verbatim: counts, offsets and per-wave stagger.
+    const WAVES = [
+      { at: 500, min: 3, spread: 2, stagger: 400 },
+      { at: 1500, min: 2, spread: 2, stagger: 350 },
+      { at: 2500, min: 3, spread: 2, stagger: 450 },
+      { at: 3500, min: 2, spread: 2, stagger: 400 },
+      { at: 4500, min: 2, spread: 2, stagger: 500 }
+    ]
+    for (const w of WAVES) {
+      schedule(() => {
+        const count = Math.floor(Math.random() * w.spread) + w.min
+        for (let i = 0; i < count; i++) schedule(spawnDeathWarning, i * w.stagger)
+      }, w.at)
+    }
+
+    // Screen is fully black by now: clear the field and put up eight more.
+    schedule(() => {
+      bossPresentation.deathWarnings.splice(0)
+      for (let i = 0; i < 8; i++) schedule(spawnDeathWarning, i * 200)
+    }, BLACKOUT_AT_MS)
+
+    schedule(() => {
+      this.stop(true)
+      if (typeof onDone === 'function') onDone()
+    }, BLACKOUT_AT_MS + HOLD_ON_BLACK_MS)
+  }
+
   // Ports stopBossWarningText() plus the class teardown. Called from endBattle
   // and from reset(), the latter covering a player navigating away mid-fight.
-  stop() {
+  //
+  // `force` is for the death sequence's own final call. Without the guard, any
+  // ordinary teardown reaching this during those ~8.5 seconds — reset(), the
+  // arena unmounting — would cancel the pending timers and abandon the player
+  // on a half-black screen, still signed in. The sequence is the one thing here
+  // that must be allowed to finish.
+  stop(force = false) {
+    if (bossPresentation.dying && !force) return
     if (warningTimer) { clearInterval(warningTimer); warningTimer = null }
     for (const t of pending) clearTimeout(t)
     pending = []
     sustained = false
     bossPresentation.active = false
+    bossPresentation.dying = false
+    bossPresentation.blackout = false
     bossPresentation.warnings.splice(0)
+    bossPresentation.deathWarnings.splice(0)
     if (hasDom()) document.body.classList.remove('boss-ui-glitch')
   }
 }

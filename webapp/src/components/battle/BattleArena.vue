@@ -12,20 +12,21 @@
          cannot outlive the arena. -->
     <BossOverlay />
 
-    <!-- NOT ported from triggerBossEntrance, deliberately: the three effects it
-         aimed at the battle screen have never run on the live site. It reaches
-         for `el('battle-tab')` to add `.boss-entrance` + `.boss-battle-bg`, and
-         `el('battle-area')` to insert a `⚠️ BOSS BATTLE ⚠️` indicator — and
-         NEITHER id exists anywhere in the legacy index.html (the real ones are
-         `section-battle` and `battle-screen`). Both lookups returned null, so
-         all three were dead, the same wrong-id family as the Twitch follow
-         badges. Only the three effects that go on <body> ever rendered, and
-         those are the ones ported.
-         `.boss-battle-bg` in particular must not be revived without a redesign:
-         it paints a near-black gradient, while `.battle-name` and `.battle-vs`
-         are `--purple-dark` with a white text-shadow — the arena would be
-         unreadable. -->
-    <div class="battle-container">
+    <!-- `.boss-entrance` and the indicator below are revived rather than
+         ported: legacy aims them at `el('battle-tab')` and `el('battle-area')`,
+         and NEITHER id exists anywhere in index.html (the real ones are
+         `section-battle` and `battle-screen`), so both lookups returned null
+         and neither has ever rendered on the live site — the same wrong-id
+         family as the Twitch follow badges.
+
+         The third effect from that block, `.boss-battle-bg`, is deliberately
+         still not applied. It paints a near-black gradient while
+         `.battle-name` and `.battle-vs` are `--purple-dark` with a white
+         text-shadow, so switching it on would leave the arena unreadable. Its
+         legacy CSS is in git at 71ad3a1^:style.css if it is ever redesigned. -->
+    <div class="battle-container" :class="{ 'boss-entrance': isBossFight, 'has-boss-banner': isBossFight }">
+      <div v-if="isBossFight" class="boss-battle-indicator">⚠️ BOSS BATTLE ⚠️</div>
+
       <div class="battle-side battle-player">
         <div class="battle-sprite-container">
           <div class="battle-sprite player-sprite" :class="{ 'pp-attack': cue.playerAttack, 'pp-hit': cue.playerHit }"
@@ -220,6 +221,7 @@ const enemySpriteStyle = computed(() => ({
 }))
 
 const fightingPiper = computed(() => isPiper(s.enemy))
+const isBossFight = computed(() => !!s.enemy?.is_boss)
 // Ticks remaining before the melody next resonates (it fires every 3rd tick).
 const melodyIn = computed(() => 3 - ((s.piperMelody || 0) % 3))
 
@@ -374,9 +376,48 @@ for (const key of Object.keys(cue)) {
 }
 .battle-sprite-container, .battle-side, .battle-container { background: transparent !important; }
 
-// No `.boss-entrance` / `.boss-battle-bg` / `.boss-battle-indicator` rules
-// here on purpose — see the note in the template. Their legacy CSS is intact
-// in git at 71ad3a1^:style.css if any of the three is ever wanted for real.
+// ── Boss entrance chrome ────────────────────────────────────────────────────
+// Recovered verbatim from the pre-migration stylesheet, where these were
+// global. The dead-CSS pass removed them during the style.css elimination,
+// correctly at the time, because the code that would have applied them had
+// never been ported. `.boss-battle-bg` is still not here — see the template.
+.boss-entrance {
+  animation: boss-fade-in 3s ease-in-out;
+}
+
+.boss-battle-indicator {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(139, 0, 0, 0.9);
+  color: #FF0000;
+  padding: 10px 30px;
+  border-radius: 8px;
+  font-weight: bold;
+  font-size: 1.2rem;
+  border: 2px solid #FF0000;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.6);
+  animation: boss-pulse 1s infinite;
+  z-index: 100;
+}
+
+// The banner is absolutely positioned at `top: 20px` and stands ~44px tall,
+// while `.battle-container`'s own top padding is 40px — so it would sit on top
+// of the sprites. Legacy never hit this because it was inserting the banner
+// into a different element entirely (one that did not exist). Extra top
+// padding only in the boss case keeps every other fight's layout untouched.
+.battle-container.has-boss-banner {
+  padding-top: 84px;
+}
+
+// `boss-pulse` bakes `translateX(-50%)` into both of its keyframes, so it
+// carries the centring itself while it runs. Under reduced motion the
+// animation is forced to 0.01ms and lands on its final frame, which still
+// includes the translate — the banner stays centred either way.
+body.reduced-motion .boss-battle-indicator {
+  animation: none;
+}
 .battle-sprite-container {
   width: 120px !important;
   height: 120px !important;

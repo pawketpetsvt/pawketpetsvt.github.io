@@ -81,6 +81,23 @@ class AuthService {
     activityService.reset()
   }
 
+  // Ports the tail of triggerBossDeathScreen() (game.js:19272-19285): sign out
+  // and hard-reload while the screen is still black, so the player's next sight
+  // is the login page. The reload is what makes it feel like the game threw
+  // them out rather than merely navigated.
+  //
+  // Reloads even if the sign-out throws — legacy has the same `.catch()`
+  // reload, and a player left sitting on a black screen because the network
+  // hiccuped would be far worse than one whose session outlived the beat.
+  async signOutAndReload() {
+    try {
+      await this.logout()
+    } catch (e) {
+      console.error('[auth] sign-out during boss death screen failed:', e)
+    }
+    window.location.reload()
+  }
+
   async resetPassword(email) {
     // No redirectTo override — let Supabase use the Site URL from its own settings.
     const result = await supabase.auth.resetPasswordForEmail(email)
