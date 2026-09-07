@@ -7,6 +7,24 @@
       {{ zoneMod.label }}: {{ zoneMod.desc }}
     </div>
 
+    <!-- The full-screen half of the boss entrance: the RGB scanline overlay and
+         the scrolling warnings. Rendered here rather than in AppShell so it
+         cannot outlive the arena. -->
+    <BossOverlay />
+
+    <!-- NOT ported from triggerBossEntrance, deliberately: the three effects it
+         aimed at the battle screen have never run on the live site. It reaches
+         for `el('battle-tab')` to add `.boss-entrance` + `.boss-battle-bg`, and
+         `el('battle-area')` to insert a `⚠️ BOSS BATTLE ⚠️` indicator — and
+         NEITHER id exists anywhere in the legacy index.html (the real ones are
+         `section-battle` and `battle-screen`). Both lookups returned null, so
+         all three were dead, the same wrong-id family as the Twitch follow
+         badges. Only the three effects that go on <body> ever rendered, and
+         those are the ones ported.
+         `.boss-battle-bg` in particular must not be revived without a redesign:
+         it paints a near-black gradient, while `.battle-name` and `.battle-vs`
+         are `--purple-dark` with a white text-shadow — the arena would be
+         unreadable. -->
     <div class="battle-container">
       <div class="battle-side battle-player">
         <div class="battle-sprite-container">
@@ -137,7 +155,9 @@ import { isPiper } from '../../services/PiperBoss.js'
 import { AppState } from '../../AppState.js'
 import { inventoryService } from '../../services/InventoryService.js'
 import { toastService } from '../../services/ToastService.js'
+import { bossPresentationService } from '../../services/BossPresentationService.js'
 import StatusRow from './StatusRow.vue'
+import BossOverlay from './BossOverlay.vue'
 
 defineEmits(['done'])
 
@@ -204,12 +224,18 @@ const fightingPiper = computed(() => isPiper(s.enemy))
 const melodyIn = computed(() => 3 - ((s.piperMelody || 0) % 3))
 
 // Legacy applied `boss-ui-glitch` to <body> directly from inside the combat
-// logic. The service now just stamps a timestamp and the component owns the
-// DOM — the global stylesheet already carries the `body.boss-ui-glitch` rules.
+// logic. The service still just stamps a timestamp, but the body class is now
+// owned by BossPresentationService rather than added and removed here.
+//
+// That ownership matters: the sustained entrance glitch holds the same class
+// for the whole fight, so the add-then-remove this used to do would have ENDED
+// the effect at the first phase transition — a brief flicker where the page is
+// supposed to be coming apart. `pulse()` is a no-op while the sustained effect
+// is running and only does real work where it isn't (a phone, which legacy
+// excludes from the fragmentation for performance).
 watch(() => s.piperGlitch, (t) => {
   if (!t) return
-  document.body.classList.add('boss-ui-glitch')
-  setTimeout(() => document.body.classList.remove('boss-ui-glitch'), 800)
+  bossPresentationService.pulse(800)
 })
 
 const phaseFlash = ref(false)
@@ -219,8 +245,10 @@ watch(() => s.piperFlash, (t) => {
   setTimeout(() => { phaseFlash.value = false }, 500)
 })
 
-// Never leave the glitch class behind if the player navigates mid-fight.
-onUnmounted(() => document.body.classList.remove('boss-ui-glitch'))
+// Never leave the glitch class, the overlay or a spawn timer behind if the
+// player navigates mid-fight. BattleService.reset() also calls this, but the
+// arena can unmount without that running.
+onUnmounted(() => bossPresentationService.stop())
 
 const resultText = computed(() => {
   if (s.victory === 'flee') return '🏃 Escaped!'
@@ -345,6 +373,10 @@ for (const key of Object.keys(cue)) {
   background: transparent !important;
 }
 .battle-sprite-container, .battle-side, .battle-container { background: transparent !important; }
+
+// No `.boss-entrance` / `.boss-battle-bg` / `.boss-battle-indicator` rules
+// here on purpose — see the note in the template. Their legacy CSS is intact
+// in git at 71ad3a1^:style.css if any of the three is ever wanted for real.
 .battle-sprite-container {
   width: 120px !important;
   height: 120px !important;

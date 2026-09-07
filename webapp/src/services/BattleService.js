@@ -6,6 +6,7 @@ import { equipmentService } from './EquipmentService.js'
 import { inventoryService } from './InventoryService.js'
 import { musicService } from './MusicService.js'
 import { soundService } from './SoundService.js'
+import { bossPresentationService } from './BossPresentationService.js'
 import { toastService } from './ToastService.js'
 import { companionService } from './CompanionService.js'
 import { taskTracker } from './TaskTrackerService.js'
@@ -344,9 +345,19 @@ class BattleService {
     })
     this.attachBehaviorHelpers()
 
-    // Piper gets his own theme; other bosses share the boss track.
-    const isPiper = !!e.is_boss && (e.name || '').includes('Piper')
-    musicService.playBattleTrack(isPiper ? 'piper' : e.is_boss ? 'boss' : 'normal')
+    // Ports triggerBossEntrance()'s call site — legacy fires it for ANY boss,
+    // immediately before choosing which theme to play. Missing entirely until
+    // now, which is why the page only twitched at Piper's phase transitions
+    // instead of coming apart for the whole fight.
+    if (e.is_boss) bossPresentationService.start()
+
+    // Piper gets her own theme; other bosses share the boss track.
+    //
+    // Uses the SHARED `isPiper` rather than the inline copy that used to sit
+    // here. Two independent tests for the same thing is how the music and the
+    // AI end up disagreeing about whether this is a Piper fight — and the local
+    // `const isPiper` was also shadowing the imported one inside this method.
+    musicService.playBattleTrack(isPiper(e) ? 'piper' : e.is_boss ? 'boss' : 'normal')
     // Warm the three most-used hit sounds so the opening exchange isn't silent
     // while they fetch. Starting a battle is a real user gesture, which is what
     // browsers require before audio may play at all.
@@ -777,8 +788,10 @@ class BattleService {
     this.cue('playerHit')
     // A boss gets Piper's flute instead of the ordinary enemy hit, and bypasses
     // the rate limit so it is never the sound that gets dropped.
-    const isBoss = !!(enemy.is_boss || (enemy.name || '').includes('Piper'))
-    soundService.hit(isBoss ? 'boss' : 'enemy', roll.variance, roll.isCrit)
+    // `is_boss` alone is enough — `isPiper()` already requires it, so the old
+    // `|| name.includes('Piper')` half could never add a case, and being
+    // case-sensitive it would not have caught a mis-cased row anyway.
+    soundService.hit(enemy.is_boss ? 'boss' : 'enemy', roll.variance, roll.isCrit)
 
     let line = `${roll.isCrit ? '⚡ ' : ''}${enemy.name} attacks for ${defend.finalDmg} damage!`
     if (defend.lines.length) line += ' ' + defend.lines.join(' ')
@@ -898,6 +911,10 @@ class BattleService {
     s.log.push(...lines)
     // Fades out and resumes the background music if it was playing.
     musicService.stopBattleTrack()
+    // Ports clearBossEffects() at legacy's endBattle (game.js:16087): drops the
+    // body glitch, the overlay and the warning spawner. Safe for a non-boss
+    // fight — nothing was started, and stop() is idempotent.
+    bossPresentationService.stop()
 
     try {
       await supabase.from('user_pets')
@@ -1236,6 +1253,7 @@ class BattleService {
   reset() {
     // Covers leaving the page mid-fight, where endBattle never runs.
     musicService.stopBattleTrack(false)
+    bossPresentationService.stop()
     battleState.active = false
     battleState.phase = 'exploring'
     battleState.victory = null

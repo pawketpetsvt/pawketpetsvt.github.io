@@ -12,10 +12,21 @@ export const musicState = reactive({
 let audioEl = null
 
 // Battle music state, kept module-local like `audioEl` above.
+// Piper's theme was the only Ogg Vorbis file in the game, which is very likely
+// why hers was the one track reported as not playing: Safari and iOS cannot
+// decode Ogg in <audio> at all, so `onerror` fired, the track was dropped and
+// the failure was silent apart from a console line. Re-encoded to 320k MP3
+// (same duration, matching normalfightsong's bitrate) so all three battle
+// tracks are one format that every browser handles.
+//
+// Tradeoff accepted deliberately: these tracks loop, and MP3's encoder
+// delay/padding puts a few milliseconds of silence at the loop point where
+// Vorbis loops seamlessly. The other two battle themes are already MP3 and
+// already have that gap, so this is consistent rather than a new flaw.
 const BATTLE_TRACKS = {
   normal: '/music/normalfightsong.mp3',
   boss: '/music/bossong.mp3',
-  piper: '/music/pipersong.ogg'
+  piper: '/music/pipersong.mp3'
 }
 const BATTLE_VOLUMES = { piper: 0.28, boss: 0.22, normal: 0.18 }
 

@@ -45,8 +45,19 @@ const PIPER_EVENTS = [
   }
 ]
 
+// The single test for "is this the Shadow of Piper fight" — the music, the
+// phase AI, the flute hit sounds and the arena's Piper chrome all read it, so
+// it must not exist in more than one place.
+//
+// Legacy: `String(enemy.id) === '10' || name.toLowerCase().includes('piper')`.
+// The lowercase comparison is what matters and is kept; this was ported as a
+// case-SENSITIVE `includes('Piper')`, so an `enemy_pets` row named "piper" or
+// "PIPER" would have silently dropped out of the whole fight — ordinary boss
+// track, no phases, no melody. The hardcoded id 10 is not carried over: the
+// name test already covers that row, and an id literal is the more fragile of
+// the two halves.
 export function isPiper(enemy) {
-  return !!enemy?.is_boss && (enemy.name || '').includes('Piper')
+  return !!enemy?.is_boss && (enemy.name || '').toLowerCase().includes('piper')
 }
 
 // Ports piperBoss_getTurnAction(). Decides what Piper does, ticking the Melody
