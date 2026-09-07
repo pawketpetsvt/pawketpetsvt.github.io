@@ -190,12 +190,12 @@ onMounted(async () => {
     .then(c => { integrity.value = worldStateService.integrityFrom(c) })
     .catch(() => { integrity.value = null })
 
-  miniSeasonService.active().then(s => { seasons.value = s || [] }).catch(() => {})
+  miniSeasonService.active().then(s => { seasons.value = s || [] }).catch(() => { })
   communityGoalService.loadGoals().then(goals => {
     if (!goals || !goals.length) return
     featuredGoal.value = goals.slice().sort((a, b) =>
       communityGoalService.percent(b) - communityGoalService.percent(a))[0]
-  }).catch(() => {})
+  }).catch(() => { })
 })
 </script>
 
@@ -213,17 +213,22 @@ onMounted(async () => {
   margin: 20px 0;
   box-shadow: 0 4px 12px rgba(153, 102, 255, 0.2);
 }
+
 .today-card-title {
   font-family: 'Fredoka One', cursive;
   font-size: 1.15rem;
   color: #7a3fd6;
   margin-bottom: 10px;
 }
-.today-card-weather, .today-card-stats, .today-card-live {
+
+.today-card-weather,
+.today-card-stats,
+.today-card-live {
   font-size: 0.92rem;
   color: var(--text);
   padding: 6px 0;
 }
+
 .today-card-season {
   font-size: 0.92rem;
   color: var(--text);
@@ -235,7 +240,11 @@ onMounted(async () => {
   cursor: pointer;
   transition: transform 0.15s ease;
 }
-.today-card-season:hover { transform: scale(1.01); }
+
+.today-card-season:hover {
+  transform: scale(1.01);
+}
+
 .today-card-worldstate {
   font-size: 0.88rem;
   font-style: italic;
@@ -246,12 +255,14 @@ onMounted(async () => {
   border-left: 3px solid #9966ff;
   border-radius: 8px;
 }
+
 .today-card-ritual-buttons {
   display: flex;
   gap: 8px;
   margin-top: 8px;
   font-style: normal;
 }
+
 .today-card-ritual-btn {
   flex: 1;
   font-size: 0.78rem;
@@ -262,31 +273,52 @@ onMounted(async () => {
   border: none;
   transition: transform 0.15s ease;
 }
-.today-card-ritual-btn:hover { transform: scale(1.03); }
+
+.today-card-ritual-btn:hover {
+  transform: scale(1.03);
+}
+
 .today-card-ritual-btn.purify {
   background: linear-gradient(135deg, #ffe89e, #fff6d9);
   color: #8a6d00;
 }
+
 .today-card-ritual-btn.corrupt {
   background: linear-gradient(135deg, #4a3466, #6b4a8e);
   color: #f0e0ff;
 }
-.today-card-icon { font-size: 1.1rem; }
+
+.today-card-icon {
+  font-size: 1.1rem;
+}
+
 .today-card-live {
   color: #e0245e;
   font-weight: 600;
 }
-body.night-mode .today-card { background: rgba(255,255,255,0.04) !important; }
+
+body.night-mode .today-card {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
 @media (max-width: 768px) {
-  .today-card { padding: 12px !important; }
+  .today-card {
+    padding: 12px !important;
+  }
 }
 
 // The season banner and featured-goal rows are new to this card in the Vue app;
 // the global stylesheet has no rule for either, so they are defined here.
 
-.tc-goal { background: rgba(153, 102, 255, 0.06); }
+.tc-goal {
+  background: rgba(153, 102, 255, 0.06);
+}
 
-.tc-goal-title { font-size: 0.82rem; font-weight: 700; color: var(--purple-dark); }
+.tc-goal-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--purple-dark);
+}
 
 // 8px is the bar's drawn thickness, not a spacing step.
 .tc-goal-bar {
@@ -298,7 +330,10 @@ body.night-mode .today-card { background: rgba(255,255,255,0.04) !important; }
   background: linear-gradient(90deg, var(--purple), var(--pink));
 }
 
-.tc-goal-meta { font-size: 0.72rem; color: var(--text-light); }
+.tc-goal-meta {
+  font-size: 0.72rem;
+  color: var(--text-light);
+}
 
 // `.today-card-worldstate`, `.today-card-ritual-buttons` and
 // `.today-card-ritual-btn` are owned by the global stylesheet. The tooltip button and the

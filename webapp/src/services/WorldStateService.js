@@ -112,7 +112,25 @@ class WorldStateService {
       // Force a fresh read so every reader reflects the new value.
       await this.loadFlags(true)
 
-      const integrity = this.integrityFrom(data.new_value)
+      // The card shows what the REST OF THE GAME will use, not what the RPC
+      // said it wrote. These were two separate sources of truth: the flags were
+      // re-read here and then thrown away in favour of the RPC's `new_value`,
+      // so if the two ever disagreed the card would report a number that the
+      // weather roll, Piper's Influence meter and the shop's corruption gates
+      // did not share, and nothing would surface the split.
+      const stored = this.corruptionSync()
+      if (typeof data.new_value === 'number' && Math.abs(stored - data.new_value) > 0.001) {
+        // Worth a loud line rather than a silent reconcile: it means either
+        // `nudge_world_state` returns something other than the value it stored,
+        // or `world_state_flags` holds more than one `corruption_level` row and
+        // the reader and the writer are looking at different ones.
+        console.warn(
+          `[worldState] corruption mismatch — RPC returned ${data.new_value}, ` +
+          `table holds ${stored}. Showing the stored value.`
+        )
+      }
+
+      const integrity = this.integrityFrom(stored)
       toastService.success(
         (direction === 'purify'
           ? '🛠️ You debugged the beta a little! Integrity restored.'
