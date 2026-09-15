@@ -52,7 +52,6 @@ export const TICKER_MESSAGES = [
   "Community notice: The ruins are having a 'bad vibe day.' Visit at your own risk.",
   "ALERT: Suspicious butterfly activity near the marketplace. Remain vigilant.",
   "Breaking: Embertail's new hobby is 'aggressive wholesomeness.' Casualties: zero. Smiles: many.",
-  // NEW MEMBER JOKES
   "BREAKING: Aria the Rosy Maple Moth spotted hovering suspiciously near all the lamps. Again.",
   "Alert: Aria insists the lamps are 'just friends.' Community remains skeptical.",
   "EXCLUSIVE: Blushimia the puppy's tail-wagging energy could power entire city. Scientists investigating.",
