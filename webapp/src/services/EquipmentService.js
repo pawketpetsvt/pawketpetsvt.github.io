@@ -5,6 +5,7 @@ import { BATTLE_CONSTANTS } from '../data/battleData.js'
 import { worldStateService } from './WorldStateService.js'
 import { miniSeasonService } from './MiniSeasonService.js'
 import { guildFurnitureService } from './GuildFurnitureService.js'
+import { combatBuffService } from './CombatBuffService.js'
 
 // Owns equipment I/O and the battle-ready stat calculation that depends on it.
 // Ports calculatePetStats() (game.js:6309-6473) plus the equipment queries
@@ -302,20 +303,11 @@ class EquipmentService {
       console.error('[equipment] guild furniture buffs unavailable:', e)
     }
 
-    // Combat buffs from the secret cooking recipes (Phase 3 stored these but
-    // nothing consumed them until now).
-    try {
-      const buffs = await supabase
-        .from('pet_combat_buffs')
-        .select('stat, amount')
-        .eq('user_id', AppState.user.id)
-        .eq('pet_id', petId)
-        .gt('battles_left', 0)
-      for (const b of buffs.data || []) {
-        if (b.stat && stats[b.stat] !== undefined) stats[b.stat] += b.amount || 0
-      }
-    } catch (e) {
-      console.error('[equipmentService] combat buff load failed:', e)
+    // Combat buffs from the secret cooking recipes. Returned as well as applied,
+    // so the battle can show what is boosting the pet — see CombatBuffService.
+    const combatBuffs = await combatBuffService.active(petId)
+    for (const b of combatBuffs) {
+      if (b.stat && stats[b.stat] !== undefined) stats[b.stat] += b.amount || 0
     }
 
     const petName = pet.pets.name || ''
@@ -334,27 +326,8 @@ class EquipmentService {
       passiveSkills: passiveSkills(petName, pet.level || 1),
       level: pet.level || 1,
       petBaseName: petName,
-      evolutionStage: stage
-    }
-  }
-
-  // Decrements the battle counter on any active cooking buffs. Legacy does this
-  // at battle end; kept here so all combat-buff handling lives together.
-  async consumeCombatBuffs(petId) {
-    try {
-      const res = await supabase
-        .from('pet_combat_buffs')
-        .select('id, battles_left')
-        .eq('user_id', AppState.user.id)
-        .eq('pet_id', petId)
-        .gt('battles_left', 0)
-      for (const b of res.data || []) {
-        await supabase.from('pet_combat_buffs')
-          .update({ battles_left: b.battles_left - 1 })
-          .eq('id', b.id)
-      }
-    } catch (e) {
-      console.error('[equipmentService.consumeCombatBuffs]', e)
+      evolutionStage: stage,
+      combatBuffs
     }
   }
 }

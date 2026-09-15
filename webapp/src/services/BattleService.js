@@ -24,9 +24,11 @@ import { guildPerkService } from './GuildPerkService.js'
 import { activityService } from './ActivityService.js'
 import { authService } from './AuthService.js'
 import { isPiper, piperTurnAction, piperResolveAction, applyDefendPassives, tickInfluence } from './PiperBoss.js'
+import { combatBuffService } from './CombatBuffService.js'
+import { generateWildEnemy, scalePiper } from '../utils/enemyScaling.js'
 import {
-  ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS,
-  PET_SKILLS, SKILL_KEY_MAP, ENEMY_BEHAVIORS, BATTLE_CONSTANTS
+  ZONE_CONFIG, STATUS_EFFECTS, PASSIVE_EFFECTS, INTEGRITY_TIERS, INTEGRITY_STABLE,
+  ENEMY_BEHAVIORS, BATTLE_CONSTANTS
 } from '../data/battleData.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,10 +41,8 @@ import {
 // the turn loop testable and is why the port reads shorter than the original
 // despite covering the same rules.
 //
-// The Archive lore bonus and the world-state corruption read are both live as
-// of Phase 9.5/8b. One seam remains — integrityEffects(), the per-turn glitch
-// damage at very low Beta Integrity — and it returns a neutral value, so combat
-// behaves exactly as it does for a player in a healthy beta.
+// The Archive lore bonus, the world-state corruption read and the Beta
+// Integrity modifier are all live; no neutral seams remain.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const battleState = reactive({
@@ -72,6 +72,27 @@ export const battleState = reactive({
   fled: false,
   rewards: null,
   calendarBonus: null,
+  // The Beta Integrity tier this fight runs under (see INTEGRITY_TIERS), read
+  // once at the start so a ritual mid-fight can't change the rules under it.
+  integrity: null,
+  // Flags the species AI in ENEMY_BEHAVIORS sets on the state it is handed.
+  // Legacy built a fresh state object per battle, so these never carried over
+  // there; on this singleton they did, until they were declared and reset here.
+  enemyTelegraph: null,
+  _squirrelDodge: false,
+  _bunnyDodgeActive: false,
+  _boarCharge: false,
+  _boarBerserk: false,
+  _bearMaul: false,
+  _wolfHowled: false,
+  _wolfAtkBuff: 0,
+  _slimeHealed: false,
+  // Timed stat changes — skill buffs, a timed DEF cut, the fox's feint. See
+  // addTimedMod().
+  timedMods: [],
+  // Where the turn has got to: 'player' (until the pet's statuses tick),
+  // 'enemy' (until the enemy's tick), then 'end'. See setStatus().
+  turnStep: 'end',
   // Per-battle counters the badge checks read (ports s.totalDamageTaken /
   // s.uniqueStatusesApplied / s.skillsUsedThisBattle). Arrays rather than Sets
   // so they stay plainly reactive; both are deduped on write.
@@ -81,6 +102,13 @@ export const battleState = reactive({
   // transient animation cues the page reacts to
   anim: { playerAttack: 0, enemyAttack: 0, playerHit: 0, enemyHit: 0 }
 })
+
+// Durations for buffs whose skill data gives none. "Random ATK or DEF buff" and
+// "30% chance: +15% ATK buff" name no length, so they take 2 turns, the most
+// common duration in the skill data; the no-damage scaling buffs (Afterburner,
+// Chaotic Wag) take 3, the longest. The skill descriptions state both.
+const UNTIMED_BUFF_TURNS = 2
+const SCALING_BUFF_TURNS = 3
 
 // Ports calculateDamage() (game.js). Defence is 50% effective; Luck raises the
 // crit rate from a 5% base by 0.5% per point, capped at 25%.
@@ -108,10 +136,32 @@ class BattleService {
     return argLogService.combatBonus()
   }
 
-  // World-state corruption inflicts per-turn glitch damage at low integrity.
-  // Neutral until the world-state system migrates.
-  integrityEffects() {
-    return null
+  // Ports the Beta Integrity battle modifier (initManualBattle). Integrity is
+  // 100 − corruption; see INTEGRITY_TIERS for what each tier does.
+  //
+  // DROPPED BY THE PHASE 7 PORT, restored 2026-09-15. This was a seam that
+  // returned null and that nothing called, so a failing beta never reached
+  // combat at all.
+  integrityTier(corruption) {
+    const integrity = 100 - corruption
+    return INTEGRITY_TIERS.find(t => integrity <= t.maxIntegrity) || INTEGRITY_STABLE
+  }
+
+  // Ports manualBattle_applyIntegrityEffects() — the glitch damage the pet takes
+  // every turn once integrity is 50 or below. Returns the narrative line, or
+  // null when this tier does no damage.
+  applyIntegrityEffects() {
+    const dmg = (battleState.integrity && battleState.integrity.glitchDmg) || 0
+    if (dmg <= 0) return null
+    battleState.playerHP = Math.max(0, battleState.playerHP - dmg)
+    battleState.totalDamageTaken += dmg
+    return `⚡ Beta glitch: ${dmg} integrity damage!`
+  }
+
+  // Below Stable integrity, a basic attack or a skill can misfire outright.
+  integrityMisfire() {
+    const chance = (battleState.integrity && battleState.integrity.skillFailChance) || 0
+    return chance > 0 && Math.random() < chance
   }
 
   // Ports getWorldStateValueSync('corruption_level', 50). Now reads the real
@@ -130,7 +180,11 @@ class BattleService {
       applyStatusToEnemy: (t) => this.applyStatusToEnemy(t),
       applyStatusDirect: (t, target) => battleState.$applyStatus(t, target),
       applyHeal: (n) => this.applyHeal(n),
-      corruptionLevel: () => this.corruptionLevel()
+      corruptionLevel: () => this.corruptionLevel(),
+      playerDodges: () => this.playerDodges(),
+      playerDefense: () => this.playerDefense(),
+      enemyAttack: () => this.enemyAttack(),
+      enemyDamageMult: () => this.damageDealtMult('enemy')
     }
   }
 
@@ -237,37 +291,45 @@ class BattleService {
       return null
     }
 
-    // Level band: the player-relative window is clamped to the zone's hard
-    // caps, so a high-level player can't drag level-20 enemies into the
-    // starter zone (and vice versa).
-    const conf = ZONE_CONFIG[zoneKey] || ZONE_CONFIG.outskirts
-    let minLevel = Math.max(conf.minLevel, Math.min(playerLevel - 1, conf.maxLevel))
-    let maxLevel = Math.min(conf.maxLevel, Math.max(playerLevel + 2, conf.minLevel))
-    if (minLevel > maxLevel) minLevel = maxLevel
-
-    const named = res.data.filter(e => e.name)
-    const inBand = named.filter(e => {
-      const lvl = e.level || 1
-      return lvl >= minLevel && lvl <= maxLevel
-    })
-    const pool = inBand.length ? inBand : named
+    // Bosses and `spawn_weight = 0` rows (Piper's) never join the ordinary pool.
+    //
+    // PORT BUG, fixed 2026-09-15: both filters were missing, and `spawn_weight
+    // || 1` read a weight of 0 as 1 — so zone bosses could turn up outside their
+    // 5% roll, and Piper outside hers, spooky mode or not.
+    const pool = res.data.filter(e => e.name && !e.is_boss && e.spawn_weight !== 0)
     if (!pool.length) return null
 
     // spawn_weight biases the pick; rows without one count as weight 1.
     const total = pool.reduce((sum, e) => sum + (e.spawn_weight || 1), 0)
     let roll = Math.random() * total
+    let base = pool[pool.length - 1]
     for (const e of pool) {
       roll -= e.spawn_weight || 1
-      if (roll <= 0) return e
+      if (roll <= 0) { base = e; break }
     }
-    return pool[pool.length - 1]
+
+    // The row is only a template: level, age, elemental and special variant are
+    // rolled per encounter — see utils/enemyScaling.js.
+    const corruption = await worldStateService.corruption()
+    return generateWildEnemy(base, zoneKey, playerLevel, {
+      corruption,
+      weatherId: weatherService.currentId()
+    })
   }
 
+  // Ports getBossEnemy(). One canonical Piper, scaled to the zone she is fought
+  // in and to the player's level (see scalePiper).
+  //
+  // PORT BUG, fixed 2026-09-15: this filtered on `forest_zone` and returned the
+  // raw row, so Piper could only appear in the zone her row names, and only at
+  // her unscaled base stats. Legacy loads row 10 wherever the player is; that
+  // row is preferred here, with the shared name test as the fallback.
   async getBossEnemy(zone, playerLevel) {
-    const res = await supabase.from('enemy_pets').select('*')
-      .eq('forest_zone', zone).eq('is_boss', true).eq('spawn_weight', 0)
-    if (res.error || !res.data || !res.data.length) return null
-    return res.data[Math.floor(Math.random() * res.data.length)]
+    const res = await supabase.from('enemy_pets').select('*').eq('is_boss', true)
+    if (res.error || !res.data) return null
+    const pipers = res.data.filter(isPiper)
+    const boss = pipers.find(p => String(p.id) === '10') || pipers[0]
+    return boss ? scalePiper(boss, zone, playerLevel) : null
   }
 
   // ── battle lifecycle ──────────────────────────────────────────────────────
@@ -292,11 +354,18 @@ class BattleService {
       hp: Math.max(1, enemy.base_hp || enemy.hp || 10),
       attack: Math.max(1, enemy.base_attack || enemy.attack || 3),
       defense: Math.max(0, enemy.base_defense || enemy.defense || 0),
-      speed: Math.max(1, enemy.base_speed || enemy.speed || 3)
+      speed: Math.max(1, enemy.base_speed || enemy.speed || 3),
+      // Ports executeBattle()'s wiring of a Corrupted variant's passive into the
+      // list the end-of-turn step reads.
+      passives: enemy.passives || (enemy.passive ? [enemy.passive] : [])
     }
 
     const newEnergy = Math.max(0, player.energy - conf.energyCost)
     await supabase.from('user_pets').update({ energy: newEnergy }).eq('id', petId)
+
+    // Awaited here rather than read from the cache: this also primes the cache
+    // that Piper's Influence and The Echo read synchronously every turn.
+    const corruption = await worldStateService.corruption()
 
     Object.assign(battleState, {
       active: true,
@@ -317,8 +386,10 @@ class BattleService {
       skillUseCount: 0,
       attackUseCount: 0,
       enemyDefDebuff: 0,
-      playerAtkBuff: 0,
       playerEvasionBuff: false,
+      enemyAtkDebuff: 0,
+      timedMods: [],
+      turnStep: 'end',
       totalDamageTaken: 0,
       uniqueStatusesApplied: [],
       skillsUsedThisBattle: [],
@@ -329,6 +400,16 @@ class BattleService {
       fled: false,
       rewards: null,
       calendarBonus: null,
+      integrity: this.integrityTier(corruption),
+      enemyTelegraph: null,
+      _squirrelDodge: false,
+      _bunnyDodgeActive: false,
+      _boarCharge: false,
+      _boarBerserk: false,
+      _bearMaul: false,
+      _wolfHowled: false,
+      _wolfAtkBuff: 0,
+      _slimeHealed: false,
       usedRevive: false,
       playerDefShred: 0,
       // Piper fight state — inert for every other enemy.
@@ -345,6 +426,11 @@ class BattleService {
       archive: this.archiveBonus()
     })
     this.attachBehaviorHelpers()
+
+    // Ports the battleStart hook: the mushroom's spore cloud Confuses the pet
+    // before the first turn. Never called by the Phase 7 port.
+    const opening = this.behaviorFor(e).battleStart?.(battleState, e)
+    if (opening) battleState.narrative.push(opening)
 
     // Ports triggerBossEntrance()'s call site — legacy fires it for ANY boss,
     // immediately before choosing which theme to play. Missing entirely until
@@ -375,32 +461,60 @@ class BattleService {
     battleState.$applyStatus = (type, target) => {
       const def = STATUS_EFFECTS[type]
       if (!def) return
-      const cur = target[type]
-      target[type] = { turns: cur ? Math.max(cur.turns, def.duration) : def.duration }
+      this.setStatus(target, type, def.duration, this.isFreshFor(target))
     }
     battleState.$applyStatusToPlayer = (type) => this.applyStatusToPlayer(type)
+    battleState.$addTimedMod = (mod) => this.addTimedMod(mod)
   }
 
   // ── status / heal helpers ─────────────────────────────────────────────────
+  // Puts a status on one side, keeping the longer duration if it is already
+  // there.
+  //
+  // `fresh` marks a status that lands on a side during that side's OWN part of
+  // the turn — after it has acted or been checked, but before its countdown
+  // tick. Without it the tick moments later ate a turn the status never got to
+  // affect: the Stun from a failed Escape Attempt, or the Fear from Piper's
+  // Curse mid-attack, expired before costing anything. tickStatuses() skips a
+  // fresh status once.
+  setStatus(statuses, type, duration, fresh) {
+    const cur = statuses[type]
+    statuses[type] = {
+      turns: cur ? Math.max(cur.turns, duration) : duration,
+      ...((fresh || (cur && cur.fresh)) ? { fresh: true } : {})
+    }
+  }
+
+  // Whether a status landing on this side right now is fresh (see setStatus).
+  isFreshFor(statuses) {
+    const step = battleState.turnStep
+    return statuses === battleState.playerStatuses ? step === 'player' : step === 'enemy'
+  }
+
   applyStatusToEnemy(type) {
     const def = STATUS_EFFECTS[type]
     if (!def) return
-    const cur = battleState.enemyStatuses[type]
-    battleState.enemyStatuses[type] = { turns: cur ? Math.max(cur.turns, def.duration) : def.duration }
+    this.setStatus(battleState.enemyStatuses, type, def.duration, this.isFreshFor(battleState.enemyStatuses))
     if (!battleState.uniqueStatusesApplied.includes(type)) {
       battleState.uniqueStatusesApplied.push(type)
     }
   }
 
-  // Spirit both resists statuses outright and shortens the ones that land.
+  // Ports manualBattle_applyStatusToPlayer() + manualBattle_resistStatus(). Luck,
+  // Spirit and the Archive's resistance give a chance to shrug a status off
+  // outright, capped at 50%; Spirit also shortens any that land.
+  //
+  // PORT BUG, fixed 2026-09-15: this read Spirit alone, at 2% a point capped at
+  // 40%, so Luck resisted nothing and the Archive's resistance was lost.
   applyStatusToPlayer(type) {
     const def = STATUS_EFFECTS[type]
     if (!def) return false
+    const luck = battleState.player.stats.luck || 0
     const spirit = battleState.player.stats.spirit || 0
-    if (Math.random() < Math.min(0.4, spirit * 0.02)) return false
+    const archiveResist = (battleState.archive && battleState.archive.statusResist) || 0
+    if (Math.random() < Math.min(0.5, luck * 0.04 + spirit * 0.03 + archiveResist)) return false
     const duration = Math.max(1, def.duration - Math.floor(spirit / 3))
-    const cur = battleState.playerStatuses[type]
-    battleState.playerStatuses[type] = { turns: cur ? Math.max(cur.turns, duration) : duration }
+    this.setStatus(battleState.playerStatuses, type, duration, this.isFreshFor(battleState.playerStatuses))
     return true
   }
 
@@ -418,14 +532,186 @@ class BattleService {
     return 1 + (a.dmgPct || 0) + (isCorrupted ? (a.corruptedDmgPct || 0) : 0)
   }
 
+  // ── effective stats ───────────────────────────────────────────────────────
+  // Every damage calculation reads the fighters' stats through these, so each
+  // buff, debuff and status is applied in exactly one place.
+
+  // The pet's attack: base, plus a timed ATK buff, plus a stacking attack passive.
+  playerAttack() {
+    const base = Math.max(1, Number(battleState.player.stats.attack) || 5)
+    return Math.max(1, base + this.modTotal('playerAtk') + Math.floor(base * this.passiveValue('atk_bonus')))
+  }
+
+  // The pet's defence: base plus timed changes, cut 10% by Petrify, less the
+  // lasting shred from squirrel chips and Piper's Haunting Refrain.
+  playerDefense() {
+    const s = battleState
+    const def = (Number(s.player.stats.defense) || 0) + this.modTotal('playerDef')
+    const petrify = s.playerStatuses.petrify ? 1 - STATUS_EFFECTS.petrify.defDown : 1
+    return Math.max(0, Math.round(def * petrify) - (s.playerDefShred || 0))
+  }
+
+  // The enemy's defence: cut 10% by Petrify, less skill and gear shred.
+  enemyDefense() {
+    const s = battleState
+    const petrify = s.enemyStatuses.petrify ? 1 - STATUS_EFFECTS.petrify.defDown : 1
+    return Math.max(0, Math.round((s.enemy.defense || 0) * petrify) - (s.enemyDefDebuff || 0) + this.modTotal('enemyDef'))
+  }
+
+  // The enemy's attack, less any `attackShred` from Piper's Final Verse.
+  enemyAttack() {
+    return Math.max(1, (battleState.enemy.attack || 3) - (battleState.enemyAtkDebuff || 0))
+  }
+
+  // Infatuate: the infatuated side deals 30% less damage.
+  damageDealtMult(side) {
+    const statuses = side === 'player' ? battleState.playerStatuses : battleState.enemyStatuses
+    return statuses.infatuate ? 1 - STATUS_EFFECTS.infatuate.dmgDown : 1
+  }
+
+  // ── timed modifiers ───────────────────────────────────────────────────────
+  // A stat change that lasts N turns: skill ATK/DEF buffs, Echo of Fear's DEF
+  // cut, the fox's feint. `target` is playerAtk | playerDef | enemyDef and
+  // `amount` a signed flat change. A new mod replaces any with the same
+  // `source`, so recasting a buff refreshes it rather than stacking it.
+  //
+  // `startsNextTurn` says whether the side the mod works FOR has already acted
+  // this turn. An ATK buff can't help the action that cast it, so its N turns
+  // start next turn; a DEF buff cast before the enemy attacks covers that
+  // attack, so its N turns include this one.
+  //
+  // Until 2026-09-15 a buff was a single number the next basic attack spent, so
+  // "+25% attack for 2 turns" lasted one attack and never helped a skill, and a
+  // DEF buff did nothing at all.
+  addTimedMod({ source, target, amount, turns, startsNextTurn }) {
+    const s = battleState
+    s.timedMods = s.timedMods.filter(m => m.source !== source)
+    s.timedMods.push({ source, target, amount, lastTurn: s.turn + turns - (startsNextTurn ? 0 : 1) })
+  }
+
+  modTotal(target) {
+    return (battleState.timedMods || []).reduce((sum, m) => m.target === target ? sum + m.amount : sum, 0)
+  }
+
+  // End of turn: drop every mod whose last turn this was.
+  expireTimedMods() {
+    battleState.timedMods = battleState.timedMods.filter(m => m.lastTurn > battleState.turn)
+  }
+
+  // A timed ATK or DEF buff on the pet, sized off its BASE stat so buffs never
+  // compound. Returns the narrative line.
+  buffPlayer(stat, pct, turns) {
+    const s = battleState
+    const isAttack = stat === 'attack'
+    const base = isAttack ? (Number(s.player.stats.attack) || 5) : (Number(s.player.stats.defense) || 0)
+    this.addTimedMod({
+      source: isAttack ? 'atkBuff' : 'defBuff',
+      target: isAttack ? 'playerAtk' : 'playerDef',
+      amount: Math.max(1, Math.floor(base * pct)),
+      turns,
+      // The pet has already acted this turn; the enemy's attack is still to come.
+      startsNextTurn: isAttack
+    })
+    return `+${Math.round(pct * 100)}% ${isAttack ? 'attack' : 'defense'} for ${turns} turn${turns === 1 ? '' : 's'}!`
+  }
+
+  // ── pet passive skills ────────────────────────────────────────────────────
+  // The Lv28+ passives: Chaotic Aura, Feral Aura, Portal Mastery, Primordial,
+  // Escape Aura and Cyber Aura. Defined but never read, live or here, until
+  // 2026-09-15.
+  passiveSkill(type) {
+    return (battleState.player.passiveSkills || []).find(p => p.passiveEffect && p.passiveEffect.type === type) || null
+  }
+
+  // A passive's strength right now. The two "each turn" passives grow by `pct`
+  // every turn up to `max`; the others are a flat `pct`.
+  passiveValue(type) {
+    const skill = this.passiveSkill(type)
+    if (!skill) return 0
+    const { pct = 0, max } = skill.passiveEffect
+    const value = (type === 'atk_bonus' || type === 'evasion_per_turn') ? pct * battleState.turn : pct
+    return max ? Math.min(max, value) : value
+  }
+
+  // Primordial: a share of the pet's defence added to each hit.
+  defenseBonusDamage() {
+    return Math.floor(this.playerDefense() * this.passiveValue('def_bonus'))
+  }
+
+  // Feral Aura: every hit heals a share of the damage dealt. Returns the line.
+  passiveLifesteal(dmg) {
+    const skill = this.passiveSkill('lifesteal_pct')
+    if (!skill || dmg <= 0) return null
+    const healed = this.applyHeal(Math.floor(dmg * skill.passiveEffect.pct))
+    return healed > 0 ? `${skill.icon} ${skill.name}: +${healed} HP` : null
+  }
+
+  // ── hits, misses and falls ────────────────────────────────────────────────
+  // Every enemy attack — an ordinary one or any of Piper's — asks this first.
+  // An evasion skill covers the NEXT attack only and is spent whether or not it
+  // works; Portal Mastery and Escape Aura add a standing chance on top.
+  //
+  // The evasion buff used to be rolled before the enemy had even chosen to
+  // attack (so a telegraph or a narrative move could "miss"), survived a failed
+  // roll, and was wiped by the pet's next basic attack.
+  playerDodges() {
+    const s = battleState
+    const buff = s.playerEvasionBuff
+    s.playerEvasionBuff = false
+    if (buff && Math.random() < buff) return true
+    const passive = this.passiveValue('evasion_per_turn')
+    return passive > 0 && Math.random() < passive
+  }
+
+  // Whether the pet's attack — a basic attack, or the hit of a damaging skill —
+  // misses. Returns the line, or null on a hit. Confuse is a 30% miss; a fog
+  // zone gives the enemy its evasion over the opening turns.
+  //
+  // Neither worked before 2026-09-15: Confuse on the pet was never read, and fog
+  // existed only in the Starter Dungeon's auto-battle.
+  playerAttackMisses() {
+    const s = battleState
+    if (s.playerStatuses.confuse && Math.random() < STATUS_EFFECTS.confuse.missChance) {
+      return `😵 ${s.player.name} is confused and misses!`
+    }
+    const mod = s.zoneConf && s.zoneConf.battleMod
+    if (mod && mod.type === 'fog' && s.turn <= (mod.fogTurns || 2) && Math.random() < (mod.evasion || 0.15)) {
+      return `🌫️ ${s.enemy.name} slips away in the fog!`
+    }
+    return null
+  }
+
+  // A revive skill (Phoenix Rebirth, Continue?, Fae Rebirth, Undying Menace,
+  // Digital Nine Lives) catches the pet the moment it would fall, once per
+  // battle. Returns true if it did.
+  //
+  // NEVER WORKED, fixed 2026-09-15. Legacy and the port both looked for a revive
+  // only at the very end of the turn, but every step that can knock the pet out
+  // ends the battle on the spot, so that check could never be reached.
+  tryRevive(lines) {
+    const s = battleState
+    if (s.playerHP > 0 || s.usedRevive) return false
+    const rev = (s.player.passiveSkills || []).find(sk => sk.revive)
+    if (!rev) return false
+    s.usedRevive = true
+    s.playerHP = Math.max(1, Math.floor(s.playerMaxHP * rev.revive.hpPct))
+    lines.push(`${rev.icon} ${rev.name}! ${s.player.name} refuses to fall! Revived at ${s.playerHP} HP!`)
+    return true
+  }
+
   // Ports manualBattle_tickDOT(). Damage-over-time statuses tick, then every
-  // status loses a turn and expires at zero.
+  // status loses a turn and expires at zero. A fresh status (see setStatus)
+  // sits this tick out.
   tickStatuses(side) {
     const statuses = side === 'player' ? battleState.playerStatuses : battleState.enemyStatuses
     const lines = []
     for (const key of Object.keys(statuses)) {
       const def = STATUS_EFFECTS[key]
       if (!def) continue
+      if (statuses[key].fresh) {
+        delete statuses[key].fresh
+        continue
+      }
       if (def.type === 'dot') {
         const dmg = def.damage || 0
         if (side === 'player') {
@@ -443,6 +729,12 @@ class BattleService {
   }
 
   // Ports manualBattle_applyEquipPassives() — gear procs on the player's hit.
+  //
+  // PORT BUG, fixed 2026-09-15: `doubleDamage`, `forceCrit` and `stunEnemy` were
+  // left out, so Piper's Final Verse, Fated Strike, Cataloged Weakness and
+  // Haunting Melody did nothing in a manual fight. `attackShred` and
+  // `ignoreDefense`, which two of those also declare, were never implemented by
+  // the manual engine even on the live site; both are now.
   applyAttackPassives(baseDamage) {
     const lines = []
     for (const p of battleState.player.passives || []) {
@@ -454,6 +746,10 @@ class BattleService {
         battleState.enemyHP = Math.max(0, battleState.enemyHP - fx.bonusDamage)
         lines.push(`${fx.icon} ${fx.label}! +${fx.bonusDamage}`)
       }
+      if (fx.doubleDamage) {
+        battleState.enemyHP = Math.max(0, battleState.enemyHP - baseDamage)
+        lines.push(`${fx.icon} ${fx.label}! Double hit! +${baseDamage}`)
+      }
       if (fx.healPct) {
         const healed = this.applyHeal(Math.floor(baseDamage * fx.healPct))
         lines.push(`${fx.icon} ${fx.label}! +${healed} HP`)
@@ -463,10 +759,56 @@ class BattleService {
         battleState.enemyHP = Math.max(0, battleState.enemyHP - extra)
         lines.push(`${fx.icon} ${fx.label}! +${extra}`)
       }
+      if (fx.forceCrit) {
+        const crit = Math.floor(baseDamage * 0.5)
+        battleState.enemyHP = Math.max(0, battleState.enemyHP - crit)
+        lines.push(`${fx.icon} ${fx.label}! Critical strike! +${crit}`)
+      }
       if (fx.defenseShred) {
         battleState.enemyDefDebuff += fx.defenseShred
         lines.push(`${fx.icon} ${fx.label}!`)
       }
+      if (fx.stunEnemy) {
+        this.applyStatusToEnemy('stun')
+        lines.push(`${fx.icon} ${fx.label}! The enemy is stunned!`)
+      }
+      if (fx.attackShred) {
+        battleState.enemyAtkDebuff = (battleState.enemyAtkDebuff || 0) + fx.attackShred
+        lines.push(`${fx.icon} ${fx.label}! Enemy attack -${fx.attackShred}`)
+      }
+      if (fx.ignoreDefense) {
+        // The half of the enemy's defence the hit was reduced by, added back.
+        const pierce = Math.floor(this.enemyDefense() * 0.5)
+        if (pierce > 0) {
+          battleState.enemyHP = Math.max(0, battleState.enemyHP - pierce)
+          lines.push(`${fx.icon} ${fx.label}! Ignores defence: +${pierce}`)
+        }
+      }
+    }
+    return lines
+  }
+
+  // The species AI for an enemy. Legacy keys ENEMY_BEHAVIORS by the first word
+  // of `species`.
+  behaviorFor(enemy) {
+    const key = ((enemy && enemy.species) || '').toLowerCase().split(' ')[0]
+    return ENEMY_BEHAVIORS[key] || {}
+  }
+
+  // Ports the CORRUPTED ENEMY PASSIVE step of _manualBattle_doTurn(). Only a
+  // Corrupted variant carries one (`corrupted_fury`), so for every other enemy
+  // this does nothing. Returns the narrative lines.
+  applyEnemyPassives() {
+    const s = battleState
+    const lines = []
+    for (const p of s.enemy.passives || []) {
+      const fx = PASSIVE_EFFECTS[p.effect]
+      if (!fx || fx.type !== 'enemyAttack') continue
+      if (Math.random() * 100 >= (p.chance || 20)) continue
+      const dmg = Math.max(1, Math.floor(this.enemyAttack() * (fx.bonusDamagePct || 0.4) * this.damageDealtMult('enemy')))
+      s.playerHP = Math.max(0, s.playerHP - dmg)
+      s.totalDamageTaken += dmg
+      lines.push(`${fx.icon} ${fx.label}! ${dmg} bonus damage!`)
     }
     return lines
   }
@@ -495,22 +837,23 @@ class BattleService {
       tickInfluence(s, 8, this.bossContext())
       this.cue('playerAttack')
       this.cue('enemyHit')
-      const atk = Math.max(1, (s.player.stats.attack || 5) + (s.playerAtkBuff || 0))
-      const def = Math.max(0, (s.enemy.defense || 0) - (s.enemyDefDebuff || 0))
-      const roll = calculateDamage(atk, def, s.player.stats.luck || 0)
+      if (this.integrityMisfire()) return '⚡ Beta glitch! Attack misfires!'
+      const miss = this.playerAttackMisses()
+      if (miss) return miss
+      const roll = calculateDamage(this.playerAttack(), this.enemyDefense(), s.player.stats.luck || 0)
       const isCorrupted = s.enemy.specialVariant === 'corrupted' || !!s.enemy.is_boss
-      const dmg = Math.max(1, Math.round(roll.damage * this.damageMultiplier(isCorrupted)))
+      const archiveMult = this.damageMultiplier(isCorrupted)
+      const dmg = Math.max(1, Math.round(roll.damage * archiveMult * this.damageDealtMult('player')) + this.defenseBonusDamage())
       s.enemyHP = Math.max(0, s.enemyHP - dmg)
       // Light / normal / crit, off the same roll that decided the damage.
       soundService.hit('player', roll.variance, roll.isCrit)
 
       let line = `${roll.isCrit ? '⚡ CRITICAL! ' : ''}${s.player.name} attacks for ${dmg} damage!`
+      if (archiveMult > 1.05) line += ' (Archive boost!)'
       const procs = this.applyAttackPassives(dmg)
+      const drain = this.passiveLifesteal(dmg)
+      if (drain) procs.push(drain)
       if (procs.length) line += ' ' + procs.join(' ')
-
-      // Both buffs are single-use and clear whether or not they mattered.
-      s.playerEvasionBuff = false
-      s.playerAtkBuff = 0
       return line
     }
 
@@ -533,6 +876,12 @@ class BattleService {
       // Feeds the 'Use battle skills 20 times' weekly challenge.
       taskTracker.report('use_skill')
       if (skill.cooldown > 0) s.skillCooldowns[skill.id] = skill.cooldown
+      // A misfire still puts the skill on cooldown, as legacy's does.
+      if (this.integrityMisfire()) return `⚡ Beta glitch! ${skill.name} misfires! (cooldown still applied)`
+      // Glitch on the pet: 20% chance the skill fails outright, cooldown spent.
+      if (s.playerStatuses.glitch && Math.random() < STATUS_EFFECTS.glitch.failChance) {
+        return `🌀 ${s.player.name} glitches — ${skill.name} fails!`
+      }
       return this.applySkill(skill)
     }
 
@@ -602,10 +951,16 @@ class BattleService {
 
   // Ports manualBattle_applySkill() (game.js:8548-8676) — the widest single
   // piece of the engine, since every optional field on a skill is handled here.
+  //
+  // Three kinds of skill never worked, live or in the port, because their
+  // effects sat inside the damage block and they deal no damage: a no-damage
+  // skill's status (Portal Peek, Alpha Roar, Pollen Bomb, Cat Scan), Escape
+  // Attempt, and the no-damage `atkScaling` skills (Afterburner, Chaotic Wag).
+  // All three run now. An effect aimed at the enemy — its DEF cut — needs a
+  // damaging skill's hit to land; effects on the pet itself can't miss.
   applySkill(skill) {
     const s = battleState
     const lines = [`${s.player.name} uses ${skill.name}!`]
-    const atk = Math.max(1, Number(s.player.stats.attack) || 5)
 
     // Self-cost skills can never be lethal — the floor is 1 HP.
     if (skill.selfCostPct > 0) {
@@ -621,80 +976,35 @@ class BattleService {
       lines.push('All negative effects cleared!')
     }
 
+    let landed = true
     if (skill.damageMult > 0) {
-      const def = Math.max(0, Number(s.enemy.defense || 0))
-      let scaling = 1
-      if (skill.skillScaling) {
-        scaling = 1 + Math.min(skill.skillScaling.max, s.skillUseCount * skill.skillScaling.perSkillUsed)
+      const miss = this.playerAttackMisses()
+      if (miss) {
+        landed = false
+        lines.push(miss)
+      } else {
+        this.applySkillHit(skill, lines)
       }
+    } else {
+      // Not an attack, so there is nothing to miss.
+      this.rollSkillStatuses(skill, lines)
       if (skill.atkScaling) {
-        scaling = 1 + Math.min(skill.atkScaling.max, s.attackUseCount * skill.atkScaling.perAttack)
+        // Afterburner / Chaotic Wag: with no hit to scale, the bonus becomes a
+        // timed ATK buff.
+        const pct = Math.min(skill.atkScaling.max, s.attackUseCount * skill.atkScaling.perAttack)
+        lines.push(pct > 0 ? this.buffPlayer('attack', pct, SCALING_BUFF_TURNS) : 'No attacks to build on yet...')
       }
-      let dmg = Math.max(1, Math.round((atk - def * 0.5) * skill.damageMult * scaling))
+    }
 
-      // Chaos Portal (Kelta) — a weighted table that can replace the hit entirely.
-      if (skill.chaosEffect) {
-        let roll = Math.random() * 100
-        let chosen = null
-        for (const opt of skill.chaosEffect) {
-          roll -= opt.weight
-          if (roll < 0) { chosen = opt.effect; break }
-        }
-        if (chosen === 'double_damage') { dmg *= 2; lines.push('The portal doubles power!') }
-        else if (chosen === 'heal_20pct') { this.applyHeal(Math.floor(s.playerMaxHP * 0.2)); lines.push('The portal heals you!'); dmg = 0 }
-        else if (chosen === 'enemy_skip') { this.applyStatusToEnemy('fear'); lines.push('The portal scares the enemy!'); dmg = 0 }
-        else { lines.push('The portal opens... and closes. (Nothing happened.)'); dmg = 0 }
-      }
-
-      // Escape Attempt (Blushimia) — trades a guaranteed skip either way.
-      if (skill.escapeEffect) {
-        if (Math.random() < skill.escapeEffect.successChance) {
-          this.applyStatusToEnemy('fear')
-          lines.push('Success! The enemy loses their next turn!')
-        } else {
-          this.applyStatusToPlayer('stun')
-          lines.push(`Failed! ${s.player.name} loses next turn!`)
-        }
-        dmg = 0
-      }
-
-      const isCorrupted = s.enemy.specialVariant === 'corrupted' || !!s.enemy.is_boss
-      dmg = Math.max(0, Math.round(dmg * this.damageMultiplier(isCorrupted)))
-      if (skill.condBonus?.ifStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
-        dmg = Math.floor(dmg * (skill.condBonus.mult || 2))
-        lines.push(`(${skill.condBonus.ifStatus} combo!)`)
-      }
-      if (dmg > 0) {
-        s.enemyHP = Math.max(0, s.enemyHP - dmg)
-        this.cue('enemyHit')
-        lines.push(`Hit for ${dmg} damage!`)
-      }
-
-      if (skill.status) {
-        // A conditional guarantee replaces the usual roll when its prerequisite
-        // status is already on the enemy.
-        if (skill.condBonus?.guaranteeStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
-          this.applyStatusToEnemy(skill.condBonus.guaranteeStatus)
-          const d = STATUS_EFFECTS[skill.condBonus.guaranteeStatus] || {}
-          lines.push(`${d.icon || ''} ${skill.condBonus.guaranteeStatus} guaranteed!`)
-        } else if (Math.random() < (skill.status.chance || 0)) {
-          this.applyStatusToEnemy(skill.status.type)
-          const d = STATUS_EFFECTS[skill.status.type] || {}
-          lines.push(`${d.icon || ''} ${skill.status.type} applied!`)
-        }
-      }
-      if (skill.lifeSteal && dmg > 0) {
-        this.applyHeal(Math.floor(dmg * skill.lifeSteal))
-        lines.push('Drained HP!')
-      }
-      if (skill.lifeStealChance && dmg > 0 && Math.random() < skill.lifeStealChance.chance) {
-        this.applyHeal(Math.floor(dmg * skill.lifeStealChance.pct))
-        lines.push('Siphoned HP!')
-      }
-      if (skill.status2 && Math.random() < (skill.status2.chance || 0)) {
-        this.applyStatusToEnemy(skill.status2.type)
-        const d = STATUS_EFFECTS[skill.status2.type] || {}
-        lines.push(`${d.icon || ''} ${skill.status2.type} applied!`)
+    // Escape Attempt (Blushimia) — trades a guaranteed skip either way.
+    if (skill.escapeEffect) {
+      if (Math.random() < skill.escapeEffect.successChance) {
+        this.applyStatusToEnemy('fear')
+        lines.push('Success! The enemy loses their next turn!')
+      } else if (this.applyStatusToPlayer('stun')) {
+        lines.push(`Failed! ${s.player.name} loses next turn!`)
+      } else {
+        lines.push(`Failed... but ${s.player.name} shakes it off!`)
       }
     }
 
@@ -702,53 +1012,131 @@ class BattleService {
       s.playerEvasionBuff = skill.evasionBuff
       lines.push(`Next enemy attack has ${Math.round(skill.evasionBuff * 100)}% miss chance!`)
     }
-    if (skill.atkBuff) {
-      s.playerAtkBuff = Math.floor(atk * skill.atkBuff.amount)
-      lines.push(`+${Math.round(skill.atkBuff.amount * 100)}% attack for ${skill.atkBuff.turns} turn(s)!`)
-    }
-    if (skill.debuff?.stat === 'defense') {
+    if (skill.atkBuff) lines.push(this.buffPlayer('attack', skill.atkBuff.amount, skill.atkBuff.turns))
+    if (skill.debuff?.stat === 'defense' && landed) {
       const shred = Math.floor(Math.max(0, Number(s.enemy.defense || 0)) * (skill.debuff.amount || 0.1))
-      s.enemyDefDebuff += shred
-      if (shred > 0) lines.push(`Enemy defense reduced by ${shred}!`)
+      if (shred > 0 && skill.debuff.turns) {
+        this.addTimedMod({ source: skill.id, target: 'enemyDef', amount: -shred, turns: skill.debuff.turns, startsNextTurn: true })
+        lines.push(`Enemy defense reduced by ${shred} for ${skill.debuff.turns} turns!`)
+      } else if (shred > 0) {
+        s.enemyDefDebuff += shred
+        lines.push(`Enemy defense reduced by ${shred}!`)
+      }
     }
     if (skill.randomBuff && Math.random() < skill.randomBuff.chance) {
       const stat = skill.randomBuff.options[Math.floor(Math.random() * skill.randomBuff.options.length)]
-      if (stat === 'attack') {
-        s.playerAtkBuff = Math.floor(atk * skill.randomBuff.amount)
-        lines.push(`+${Math.round(skill.randomBuff.amount * 100)}% attack buff!`)
-      } else {
-        lines.push('Defense boost!')
-      }
+      lines.push(this.buffPlayer(stat, skill.randomBuff.amount, UNTIMED_BUFF_TURNS))
     }
     if (skill.atkBuffChance && Math.random() < skill.atkBuffChance.chance) {
-      s.playerAtkBuff = Math.floor(atk * skill.atkBuffChance.amount)
-      lines.push(`+${Math.round(skill.atkBuffChance.amount * 100)}% attack buff!`)
+      lines.push(this.buffPlayer('attack', skill.atkBuffChance.amount, UNTIMED_BUFF_TURNS))
     }
 
     return lines.join(' ')
   }
 
+  // The attack half of a damaging skill: the hit, then everything riding on it.
+  applySkillHit(skill, lines) {
+    const s = battleState
+    let scaling = 1
+    if (skill.skillScaling) {
+      scaling = 1 + Math.min(skill.skillScaling.max, s.skillUseCount * skill.skillScaling.perSkillUsed)
+    }
+    if (skill.atkScaling) {
+      scaling = 1 + Math.min(skill.atkScaling.max, s.attackUseCount * skill.atkScaling.perAttack)
+    }
+    // The pet's effective attack against the enemy's effective defence. Skills
+    // used to read both raw, so no ATK buff and no enemy DEF cut ever changed
+    // a skill's damage.
+    let dmg = Math.max(1, Math.round((this.playerAttack() - this.enemyDefense() * 0.5) * skill.damageMult * scaling))
+
+    // Chaos Portal (Kelta) — a weighted table that can replace the hit entirely.
+    if (skill.chaosEffect) {
+      let roll = Math.random() * 100
+      let chosen = null
+      for (const opt of skill.chaosEffect) {
+        roll -= opt.weight
+        if (roll < 0) { chosen = opt.effect; break }
+      }
+      if (chosen === 'double_damage') { dmg *= 2; lines.push('The portal doubles power!') }
+      else if (chosen === 'heal_20pct') { this.applyHeal(Math.floor(s.playerMaxHP * 0.2)); lines.push('The portal heals you!'); dmg = 0 }
+      else if (chosen === 'enemy_skip') { this.applyStatusToEnemy('fear'); lines.push('The portal scares the enemy!'); dmg = 0 }
+      else { lines.push('The portal opens... and closes. (Nothing happened.)'); dmg = 0 }
+    }
+
+    const isCorrupted = s.enemy.specialVariant === 'corrupted' || !!s.enemy.is_boss
+    dmg = Math.max(0, Math.round(dmg * this.damageMultiplier(isCorrupted) * this.damageDealtMult('player')))
+    if (skill.condBonus?.ifStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
+      dmg = Math.floor(dmg * (skill.condBonus.mult || 2))
+      lines.push(`(${skill.condBonus.ifStatus} combo!)`)
+    }
+    if (dmg > 0) {
+      dmg += this.defenseBonusDamage()
+      s.enemyHP = Math.max(0, s.enemyHP - dmg)
+      this.cue('enemyHit')
+      lines.push(`Hit for ${dmg} damage!`)
+    }
+
+    this.rollSkillStatuses(skill, lines)
+    if (skill.lifeSteal && dmg > 0) {
+      this.applyHeal(Math.floor(dmg * skill.lifeSteal))
+      lines.push('Drained HP!')
+    }
+    if (skill.lifeStealChance && dmg > 0 && Math.random() < skill.lifeStealChance.chance) {
+      this.applyHeal(Math.floor(dmg * skill.lifeStealChance.pct))
+      lines.push('Siphoned HP!')
+    }
+    const drain = this.passiveLifesteal(dmg)
+    if (drain) lines.push(drain)
+  }
+
+  // A skill's status rolls: `status` (or its conditional guarantee), then
+  // `status2`.
+  rollSkillStatuses(skill, lines) {
+    const s = battleState
+    const land = (type, verb) => {
+      this.applyStatusToEnemy(type)
+      const d = STATUS_EFFECTS[type] || {}
+      lines.push(`${d.icon || ''} ${d.label || type} ${verb}!`)
+    }
+    if (skill.status) {
+      // A conditional guarantee replaces the usual roll when its prerequisite
+      // status is already on the enemy.
+      if (skill.condBonus?.guaranteeStatus && s.enemyStatuses[skill.condBonus.ifStatus]) {
+        land(skill.condBonus.guaranteeStatus, 'guaranteed')
+      } else if (Math.random() < (skill.status.chance || 0)) {
+        land(skill.status.type, 'applied')
+      }
+    }
+    if (skill.status2 && Math.random() < (skill.status2.chance || 0)) land(skill.status2.type, 'applied')
+  }
+
   // ── enemy's action ────────────────────────────────────────────────────────
   // Ports manualBattle_enemyTurn(). Skip/miss checks resolve before any damage.
+  //
+  // Status durations are counted down by tickStatuses() alone. Stun, Fear and a
+  // Confuse miss used to be counted down here as well, so a Confuse that made
+  // the enemy miss ran out a turn early — the Smoke Bomb's "Confused for 2
+  // turns" lasted one.
   enemyTurn() {
     const s = battleState
     const enemy = s.enemy
 
     for (const key of ['stun', 'fear']) {
-      if (s.enemyStatuses[key]) {
-        s.enemyStatuses[key].turns--
-        if (s.enemyStatuses[key].turns <= 0) delete s.enemyStatuses[key]
-        return `${enemy.name} is ${key === 'stun' ? 'stunned' : 'afraid'} and cannot act!`
-      }
+      if (s.enemyStatuses[key]) return `${enemy.name} is ${key === 'stun' ? 'stunned' : 'afraid'} and cannot act!`
     }
     if (s.enemyStatuses.confuse && Math.random() < STATUS_EFFECTS.confuse.missChance) {
-      s.enemyStatuses.confuse.turns--
-      if (s.enemyStatuses.confuse.turns <= 0) delete s.enemyStatuses.confuse
       return `${enemy.name} is confused and misses!`
     }
-    if (s.playerEvasionBuff && Math.random() < s.playerEvasionBuff) {
-      s.playerEvasionBuff = false
-      return `${enemy.name} attacks... but misses!`
+    // Glitch: the enemy's move — an attack, a skill or a special — can simply
+    // fail. Never read before 2026-09-15, so Glitch only ever enabled combos.
+    if (s.enemyStatuses.glitch && Math.random() < STATUS_EFFECTS.glitch.failChance) {
+      return `🌀 ${enemy.name} glitches out and its move fails!`
+    }
+    // A squirrel's getTurnAction can set this, costing it the NEXT turn. The
+    // Phase 7 port never checked it.
+    if (s._squirrelDodge) {
+      s._squirrelDodge = false
+      return `${enemy.name} dodges your attention and repositions!`
     }
 
     // Piper has her own phase-based AI rather than a species behaviour. A
@@ -765,8 +1153,7 @@ class BattleService {
 
     // Per-species AI may take the whole turn with a narrative move instead of
     // attacking (ENEMY_BEHAVIORS hooks are pure functions over the state).
-    const speciesKey = (enemy.species || '').toLowerCase().split(' ')[0]
-    const behavior = ENEMY_BEHAVIORS[speciesKey] || {}
+    const behavior = this.behaviorFor(enemy)
     if (behavior.checkMidpoint) {
       const mid = behavior.checkMidpoint(s, enemy)
       if (mid) return mid
@@ -777,13 +1164,27 @@ class BattleService {
     }
 
     this.cue('enemyAttack')
-    const atk = Math.max(1, enemy.attack || 3)
-    // Some behaviours (e.g. the boar's charge) shred defence for the hit.
-    const def = Math.max(0, (s.player.stats.defense || 0) - (s.playerDefShred || 0))
-    const roll = calculateDamage(atk, def, 0)
+    // Species attack modifiers: the boar's charge (1.6x, and 1.2x once
+    // berserk), the bear's maul (2x), the wolf's howl (1.2x), the bunny's
+    // frightened kick (1.5x below half HP) and the rabbit's occasional 1.4x.
+    // The Phase 7 port called none of them, so the boar and bear spent a turn
+    // telegraphing and then hit at 1x.
+    //
+    // The label is read BEFORE the multiplier — the reverse of legacy. The
+    // boar's and bear's getAttackMult() clears the flag their getAttackLabel()
+    // tests, so in legacy's order "CHARGE! (1.6x)" and "MAUL! (2.0x)" never
+    // showed.
+    const atkLabel = behavior.getAttackLabel ? behavior.getAttackLabel(s) : null
+    const atkMult = behavior.getAttackMult ? behavior.getAttackMult(s) : 1
+    const prefix = atkLabel ? atkLabel + ' ' : ''
+    if (this.playerDodges()) return `${prefix}${enemy.name} attacks... but misses!`
+    const atk = Math.max(1, Math.round(this.enemyAttack() * atkMult))
+    const roll = calculateDamage(atk, this.playerDefense(), 0)
+    // Infatuate on the enemy takes 30% off the hit.
+    const incoming = Math.max(1, Math.round(roll.damage * this.damageDealtMult('enemy')))
 
     // Defend-side gear passives can block, reduce, reflect or heal off the hit.
-    const defend = applyDefendPassives(s, roll.damage, this.bossContext())
+    const defend = applyDefendPassives(s, incoming, this.bossContext())
     s.playerHP = Math.max(0, s.playerHP - defend.finalDmg)
     s.totalDamageTaken += defend.finalDmg
     this.cue('playerHit')
@@ -794,7 +1195,7 @@ class BattleService {
     // case-sensitive it would not have caught a mis-cased row anyway.
     soundService.hit(enemy.is_boss ? 'boss' : 'enemy', roll.variance, roll.isCrit)
 
-    let line = `${roll.isCrit ? '⚡ ' : ''}${enemy.name} attacks for ${defend.finalDmg} damage!`
+    let line = `${prefix}${roll.isCrit ? '⚡ ' : ''}${enemy.name} attacks for ${defend.finalDmg} damage!`
     if (defend.lines.length) line += ' ' + defend.lines.join(' ')
 
     // Species procs that fire off the back of a landed attack.
@@ -811,87 +1212,118 @@ class BattleService {
 
   // ── the turn ──────────────────────────────────────────────────────────────
   // Ports _manualBattle_doTurn(). Order is load-bearing and matches legacy:
-  // player acts -> zone modifier -> player DOT -> enemy acts -> enemy DOT ->
-  // cooldowns. Every step that can reduce HP to zero ends the battle straight
-  // away rather than letting a dead combatant keep acting.
+  // player acts -> zone modifier -> integrity glitch -> player DOT -> enemy
+  // acts -> enemy DOT -> cooldowns and timed mods -> enemy passives -> species
+  // turn end -> Piper's Influence.
+  //
+  // Pure over `battleState` — no Supabase, nothing awaited — so the smoke test
+  // runs the real turn instead of a hand-kept copy of it. Returns the turn's
+  // lines and how it settled the battle, if it did: 'win' | 'lose' | 'flee' |
+  // null. Every step that can drop a fighter to zero settles it there, after a
+  // revive skill has had its chance.
+  resolveTurn(type, payload) {
+    const s = battleState
+    const lines = []
+    const fallen = () => s.playerHP <= 0 && !this.tryRevive(lines)
+    const settle = outcome => ({ lines, outcome })
+
+    s.turn++
+    s.turnStep = 'player'
+
+    // A skipped turn is just skipped: tickStatuses() below counts the status
+    // down, the same as every other status.
+    if (s.playerStatuses.stun || s.playerStatuses.fear) {
+      const key = s.playerStatuses.stun ? 'stun' : 'fear'
+      lines.push(`😵 ${s.player.name} is ${key === 'stun' ? 'stunned' : 'afraid'} and cannot act!`)
+    } else {
+      lines.push(this.resolvePlayerAction(type, payload))
+      if (s.fled) return settle('flee')
+      if (s.enemyHP <= 0) return settle('win')
+    }
+
+    const mod = (s.zoneConf && s.zoneConf.battleMod) || { type: 'none' }
+    if (mod.type === 'regen' && s.enemyHP > 0) {
+      s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + (mod.amount || 3))
+      lines.push(`${mod.label}: Enemy recovered ${mod.amount || 3} HP!`)
+    }
+    if (mod.type === 'corruption') {
+      const spirit = s.player.stats.spirit || 0
+      const dmg = Math.max(0, (mod.damage || 2) - Math.floor(spirit / 3))
+      s.playerHP = Math.max(0, s.playerHP - dmg)
+      s.totalDamageTaken += dmg
+      lines.push(`${mod.label}: ${dmg} corruption damage!${spirit > 0 ? ' (Spirit resisted!)' : ''}`)
+      if (fallen()) return settle('lose')
+    }
+    if (mod.type === 'burn_ground') {
+      const dmg = mod.damage || 1
+      s.playerHP = Math.max(0, s.playerHP - dmg)
+      s.enemyHP = Math.max(0, s.enemyHP - dmg)
+      s.totalDamageTaken += dmg
+      lines.push(`${mod.label}: ${dmg} damage to both fighters!`)
+      if (s.enemyHP <= 0) return settle('win')
+      if (fallen()) return settle('lose')
+    }
+
+    // Beta Integrity glitch damage, between the zone and the pet's own
+    // statuses as legacy orders it.
+    const glitch = this.applyIntegrityEffects()
+    if (glitch) {
+      lines.push(glitch)
+      if (fallen()) return settle('lose')
+    }
+
+    lines.push(...this.tickStatuses('player'))
+    s.turnStep = 'enemy'
+    if (fallen()) return settle('lose')
+
+    lines.push(this.enemyTurn())
+    if (fallen()) return settle('lose')
+
+    lines.push(...this.tickStatuses('enemy'))
+    s.turnStep = 'end'
+    if (s.enemyHP <= 0) return settle('win')
+
+    for (const k of Object.keys(s.skillCooldowns)) {
+      s.skillCooldowns[k] = Math.max(0, s.skillCooldowns[k] - 1)
+    }
+    this.expireTimedMods()
+
+    // A Corrupted enemy's fury can surge at the end of any turn.
+    lines.push(...this.applyEnemyPassives())
+    if (fallen()) return settle('lose')
+
+    // Some species regenerate or reposition at end of turn.
+    const behavior = this.behaviorFor(s.enemy)
+    if (behavior.turnEnd && s.enemyHP > 0) {
+      const end = behavior.turnEnd(s, s.enemy)
+      if (end) lines.push(end)
+    }
+
+    // Piper's Influence also builds by 3 at the end of every turn, whatever
+    // the enemy. Dropped by the Phase 7 port, which kept only the gains from
+    // actions.
+    const influence = tickInfluence(s, 3, this.bossContext())
+    if (influence) {
+      lines.push(influence)
+      if (fallen()) return settle('lose')
+      if (s.enemyHP <= 0) return settle('win')
+    }
+
+    if (s.turn >= BATTLE_CONSTANTS.BATTLE_MAX_TURNS) return settle('lose')
+    return settle(null)
+  }
+
   async playerAction(type, payload) {
     const s = battleState
     if (!s.active || s.victory !== null || s.processing) return
     s.processing = true
-    const lines = []
 
     try {
-      s.turn++
-
-      if (s.playerStatuses.stun || s.playerStatuses.fear) {
-        const key = s.playerStatuses.stun ? 'stun' : 'fear'
-        lines.push(`😵 ${s.player.name} is ${key === 'stun' ? 'stunned' : 'afraid'} and cannot act!`)
-        s.playerStatuses[key].turns--
-        if (s.playerStatuses[key].turns <= 0) delete s.playerStatuses[key]
-      } else {
-        lines.push(this.resolvePlayerAction(type, payload))
-        if (s.fled) { await this.endBattle('flee', lines); return }
-        if (s.enemyHP <= 0) { await this.endBattle(true, lines); return }
+      const { lines, outcome } = this.resolveTurn(type, payload)
+      if (outcome) {
+        await this.endBattle(outcome === 'flee' ? 'flee' : outcome === 'win', lines)
+        return
       }
-
-      const mod = (s.zoneConf && s.zoneConf.battleMod) || { type: 'none' }
-      if (mod.type === 'regen' && s.enemyHP > 0) {
-        s.enemyHP = Math.min(s.enemyMaxHP, s.enemyHP + (mod.amount || 3))
-        lines.push(`${mod.label}: Enemy recovered ${mod.amount || 3} HP!`)
-      }
-      if (mod.type === 'corruption') {
-        const spirit = s.player.stats.spirit || 0
-        const dmg = Math.max(0, (mod.damage || 2) - Math.floor(spirit / 3))
-        s.playerHP = Math.max(0, s.playerHP - dmg)
-        s.totalDamageTaken += dmg
-        lines.push(`${mod.label}: ${dmg} corruption damage!${spirit > 0 ? ' (Spirit resisted!)' : ''}`)
-        if (s.playerHP <= 0) { await this.endBattle(false, lines); return }
-      }
-      if (mod.type === 'burn_ground') {
-        const dmg = mod.damage || 1
-        s.playerHP = Math.max(0, s.playerHP - dmg)
-        s.enemyHP = Math.max(0, s.enemyHP - dmg)
-        s.totalDamageTaken += dmg
-        lines.push(`${mod.label}: ${dmg} damage to both fighters!`)
-        if (s.enemyHP <= 0) { await this.endBattle(true, lines); return }
-        if (s.playerHP <= 0) { await this.endBattle(false, lines); return }
-      }
-
-      lines.push(...this.tickStatuses('player'))
-      if (s.playerHP <= 0) { await this.endBattle(false, lines); return }
-
-      lines.push(this.enemyTurn())
-      if (s.playerHP <= 0) { await this.endBattle(false, lines); return }
-
-      lines.push(...this.tickStatuses('enemy'))
-      if (s.enemyHP <= 0) { await this.endBattle(true, lines); return }
-
-      for (const k of Object.keys(s.skillCooldowns)) {
-        s.skillCooldowns[k] = Math.max(0, s.skillCooldowns[k] - 1)
-      }
-
-      // Some species regenerate or reposition at end of turn.
-      const speciesKey = (s.enemy.species || '').toLowerCase().split(' ')[0]
-      const behavior = ENEMY_BEHAVIORS[speciesKey] || {}
-      if (behavior.turnEnd && s.enemyHP > 0) {
-        const end = behavior.turnEnd(s, s.enemy)
-        if (end) lines.push(end)
-      }
-
-      // A revive skill gets one chance to prevent a defeat, once per battle.
-      if (s.playerHP <= 0 && !s.usedRevive) {
-        const all = PET_SKILLS[SKILL_KEY_MAP[(s.player.petBaseName || '').toLowerCase()] || ''] || []
-        const rev = all.find(sk => sk.revive && sk.unlockLevel <= (s.player.level || 1))
-        if (rev) {
-          s.usedRevive = true
-          s.playerHP = Math.max(1, Math.floor(s.playerMaxHP * rev.revive.hpPct))
-          lines.push(`${rev.icon} ${rev.name}! ${s.player.name} refuses to fall! Revived at ${s.playerHP} HP!`)
-        }
-      }
-      if (s.playerHP <= 0) { await this.endBattle(false, lines); return }
-
-      if (s.turn >= BATTLE_CONSTANTS.BATTLE_MAX_TURNS) { await this.endBattle(false, lines); return }
-
       s.narrative = lines
       s.log.push(...lines)
     } catch (err) {
@@ -934,7 +1366,7 @@ class BattleService {
         .update({ current_hp: Math.max(0, s.playerHP) })
         .eq('id', s.petId)
 
-      await equipmentService.consumeCombatBuffs(s.petId)
+      await combatBuffService.tick(s.petId)
 
       // Records the fight. THIS IS THE CALL THAT WRITES `battle_history` AND
       // THE `players.battles_won` / `total_battles` COUNTERS — see the note on

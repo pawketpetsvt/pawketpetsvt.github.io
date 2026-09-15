@@ -20,10 +20,6 @@ export const argState = reactive({
   loaded: false
 })
 
-// Combat bonuses granted by how much of the Archive is recovered. Ported from
-// the `archiveBonus` reads in legacy's damage math.
-const BONUS_PER_LOG = { dmgPct: 0.25, corruptedDmgPct: 0.5, healPct: 0.25 }
-
 class ArgLogService {
   count() {
     return Object.keys(argState.found).length
@@ -125,16 +121,30 @@ class ArgLogService {
     return worldStateService.corruptionSync() > 60
   }
 
-  // Fills BattleService.archiveBonus(). Scales with how many logs are held, so
-  // a full Archive is worth +5% damage, +10% against corrupted enemies and +5%
-  // healing.
+  // Fills BattleService.archiveBonus(). Ports manualBattle_getArchiveBonus()
+  // (game.js:15678 at 826475d): every recovered log is +1% damage, three logs
+  // add a themed bonus, and the complete Archive adds +15% damage and +10%
+  // healing on top. Every value is a fraction — 0.01 is 1%.
+  //
+  // PORT BUG, fixed 2026-09-15: this multiplied the log count by 0.25 / 0.5 /
+  // 0.25. Its comment read those as percentages, but every reader treats them
+  // as fractions, so ONE log gave +25% damage and +25% healing, and a full
+  // Archive +500% damage (+1000% against corrupted enemies). It also dropped
+  // LOG-007's status resistance.
   combatBonus() {
     const n = this.count()
-    return {
-      dmgPct: n * BONUS_PER_LOG.dmgPct,
-      corruptedDmgPct: n * BONUS_PER_LOG.corruptedDmgPct,
-      healPct: n * BONUS_PER_LOG.healPct
+    const bonus = { dmgPct: n * 0.01, healPct: 0, statusResist: 0, corruptedDmgPct: 0 }
+    // LOG-007, hearing the flute: status resistance.
+    if (this.has('LOG-007')) bonus.statusResist += 0.10
+    // LOG-013, pets aren't simulated: stronger healing.
+    if (this.has('LOG-013')) bonus.healPct += 0.10
+    // LOG-016, the integrity system: extra damage against corrupted enemies.
+    if (this.has('LOG-016')) bonus.corruptedDmgPct += 0.10
+    if (n >= TESTER_LOGS.length) {
+      bonus.dmgPct += 0.15
+      bonus.healPct += 0.10
     }
+    return bonus
   }
 }
 

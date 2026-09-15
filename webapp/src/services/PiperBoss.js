@@ -153,18 +153,26 @@ export function piperResolveAction(action, s, ctx) {
   s.piperTelegraphFired = false
 
   if (action.type === 'skill') {
-    const atk = Math.max(1, enemy.attack || 3)
-    const def = Math.max(0, s.player.stats.defense || 0)
-    const dmg = Math.max(1, Math.round(Math.max(1, atk - def) * (action.mult || 1)))
-
     if (action.glitchEffect) s.piperGlitch = Date.now()
+
+    // Her skills are attacks too, so the pet's evasion gets its chance.
+    if (ctx.playerDodges()) {
+      lines.push(`🎵 ${enemy.name} uses ${action.name}... but misses!`)
+      return lines.join(' ')
+    }
+
+    // The same effective stats every other hit reads: the pet's DEF buffs,
+    // Petrify and shred, Piper's own attack shred, and Infatuate on her.
+    const dmg = Math.max(1, Math.round(
+      Math.max(1, ctx.enemyAttack() - ctx.playerDefense()) * (action.mult || 1) * ctx.enemyDamageMult()
+    ))
 
     s.playerHP = Math.max(0, s.playerHP - dmg)
     s.totalDamageTaken += dmg
     lines.push(`🎵 ${enemy.name} uses ${action.name}! ${dmg} damage!`)
 
     if (action.defDown) {
-      s.playerDefShred = (s.playerDefShred || 0) + Math.floor(def * 0.15)
+      s.playerDefShred = (s.playerDefShred || 0) + Math.floor((s.player.stats.defense || 0) * 0.15)
       lines.push('Your defense weakens!')
     }
     if (action.confuseChance && Math.random() < action.confuseChance) {
@@ -185,10 +193,12 @@ export function piperResolveAction(action, s, ctx) {
   }
 
   // Basic attack, with the defend-side gear passives applied.
-  const atk = Math.max(1, enemy.attack || 3)
-  const def = Math.max(0, (s.player.stats.defense || 0) - (s.playerDefShred || 0))
-  const roll = calculateDamage(atk, def, 0)
-  const defend = applyDefendPassives(s, roll.damage, ctx)
+  if (ctx.playerDodges()) {
+    lines.push(`${enemy.name} attacks... but misses!`)
+    return lines.join(' ')
+  }
+  const roll = calculateDamage(ctx.enemyAttack(), ctx.playerDefense(), 0)
+  const defend = applyDefendPassives(s, Math.max(1, Math.round(roll.damage * ctx.enemyDamageMult())), ctx)
   s.playerHP = Math.max(0, s.playerHP - defend.finalDmg)
   s.totalDamageTaken += defend.finalDmg
   lines.push(`${enemy.name} attacks for ${defend.finalDmg} damage!`)

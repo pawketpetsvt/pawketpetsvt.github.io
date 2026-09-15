@@ -52,10 +52,39 @@ export const STATUS_EFFECTS = {
   confuse:   { icon: '😵', label: 'Confuse',   type: 'debuff', missChance: 0.30, duration: 2, desc: '30% chance to miss attacks' },
   fear:      { icon: '😨', label: 'Fear',      type: 'skip',   duration: 1, desc: 'Cannot attack next turn' },
   stun:      { icon: '⚡', label: 'Stun',      type: 'skip',   duration: 1, desc: 'Loses next turn' },
-  glitch:    { icon: '🌀', label: 'Glitch',    type: 'debuff', failChance: 0.20, duration: 2, desc: '20% chance skills fail' },
+  glitch:    { icon: '🌀', label: 'Glitch',    type: 'debuff', failChance: 0.20, duration: 2, desc: '20% chance its skills and moves fail' },
   petrify:   { icon: '🪨', label: 'Petrify',   type: 'debuff', defDown: 0.10, duration: 2, desc: 'Defense reduced 10%' },
   infatuate: { icon: '💕', label: 'Infatuate', type: 'debuff', dmgDown: 0.30, duration: 2, desc: 'Deals 30% less damage' }
 }
+
+// Ports the Beta Integrity battle modifier (initManualBattle, game.js:14503-14515
+// at 826475d). Integrity is 100 − world-state corruption. The first tier whose
+// `maxIntegrity` the value is at or under wins; anything above 79 is Stable.
+// `skillFailChance` applies to basic attacks and skills alike, and `glitchDmg` is
+// taken every turn.
+export const INTEGRITY_TIERS = [
+  {
+    maxIntegrity: 10, type: 'void', label: '🌌 Current Beta Status: BREAKING',
+    tip: 'Beta integrity is critically low. Skills may fail randomly and the game is actively destabilizing. Something is very wrong.',
+    skillFailChance: 0.35, glitchDmg: 8
+  },
+  {
+    maxIntegrity: 25, type: 'breaking', label: '💀 Current Beta Status: Critical',
+    tip: 'Beta integrity is dangerously low. Expect skill failures and periodic instability damage during battles.',
+    skillFailChance: 0.20, glitchDmg: 5
+  },
+  {
+    maxIntegrity: 50, type: 'corrupted', label: '🟣 Current Beta Status: Corrupted',
+    tip: 'Beta integrity has degraded significantly. Occasional skill failures are possible.',
+    skillFailChance: 0.10, glitchDmg: 2
+  },
+  {
+    maxIntegrity: 79, type: 'unstable', label: '⚠️ Current Beta Status: Unstable',
+    tip: 'Beta integrity is below ideal. Minor instability may occasionally affect skills.',
+    skillFailChance: 0.05, glitchDmg: 0
+  }
+]
+export const INTEGRITY_STABLE = { type: 'stable', label: null, tip: null, skillFailChance: 0, glitchDmg: 0 }
 
 // Ports PASSIVE_EFFECTS (game.js:6475-6522) — equipment procs.
 // `attack` procs fire on the player's turn, `defend` on the enemy's.
@@ -84,11 +113,10 @@ export const PASSIVE_EFFECTS = {
   trash_royalty:         { type: 'defend', label: "Trash Royalty",       icon: '👑', reflectPct: 0.30 },
   forbidden_knowledge:   { type: 'defend', label: "Forbidden Knowledge", icon: '📜', flatReduction: 4 },
 
-  // ---- Epic-tier unique effects (referenced in DB but previously unimplemented) ----
-  radiant_purge:    { type: 'attack', label: 'Radiant Purge',   icon: '☀️', forceCrit: true, bonusDamage: 5 },
-  shadow_drain:     { type: 'attack', label: 'Shadow Drain',    icon: '🌑', healPct: 0.30, defenseShred: 1 },
-  sunlight_aegis:   { type: 'defend', label: 'Sunlight Aegis',  icon: '✨', healMaxPct: 0.12 },
-  void_embrace:     { type: 'defend', label: 'Void Embrace',    icon: '🌌', reflectPct: 0.40, selfDamage: 2 },
+  // radiant_purge, shadow_drain, sunlight_aegis and void_embrace were once also
+  // defined here. An object literal keeps the LAST copy of a repeated key, so
+  // these first definitions never applied anywhere; they were removed on
+  // 2026-09-15, leaving the world-state block's below as the only ones.
 
   // ---- Enemy-side passives ----
   corrupted_fury: { type: 'enemyAttack', label: 'Corrupted Fury', icon: '🔥', bonusDamagePct: 0.4 },
@@ -181,7 +209,7 @@ export const PET_SKILLS = {
       flavor:"Refueling mid-fight is a power move." },
     { id:'ember_afterburn',       name:'Afterburner',       icon:'🚀', unlockLevel:14, cooldown:4,
       damageMult:0, atkScaling:{ perAttack:0.12, max:0.60 },
-      desc:'No upfront damage. +12% ATK per previous attack this battle (max +60%).',
+      desc:'No damage. +12% ATK per previous attack this battle (max +60%), for 3 turns.',
       flavor:"Everything gets faster before it gets better." },
 
     // Tier 5: Powerful/unique (Lv15-18)
@@ -219,10 +247,10 @@ export const PET_SKILLS = {
       flavor:"I may seem quiet. I am not here." },
     { id:'pyxie_chaos_spark',     name:'Chaos Spark',       icon:'🌀', unlockLevel:4,  cooldown:1,
       damageMult:1.2, randomBuff:{ chance:0.40, options:['attack','defense'], amount:0.15 },
-      desc:'1.2x damage. 40% chance of random ATK or DEF buff.',
+      desc:'1.2x damage. 40% chance: +15% ATK or DEF for 2 turns.',
       flavor:"The chaos is organized. I promise." },
     { id:'pyxie_echo_of_fear',    name:'Echo of Fear',      icon:'😨', unlockLevel:5,  cooldown:3,
-      damageMult:1.3, debuff:{ stat:'defense', amount:0.10 },
+      damageMult:1.3, debuff:{ stat:'defense', amount:0.10, turns:2 },
       desc:'1.3x damage. Enemy DEF -10% for 2 turns.',
       flavor:"I know things I shouldn't. My mom was a demon. 👻" },
     { id:'pyxie_static_nap',      name:'Tactical Nap',      icon:'😴', unlockLevel:6,  cooldown:3,
@@ -242,7 +270,7 @@ export const PET_SKILLS = {
       desc:'1.5x damage. 40% chance to steal 20% of damage as HP.',
       flavor:"Plans within plans within plans. Also snacks." },
     { id:"pyxie_mamas_grace",     name:"Mama's Grace",      icon:'🌙', unlockLevel:10, cooldown:4,
-      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'confuse', mult:2.0 },
+      damageMult:1.7, status:{ type:'fear', chance:0.50 }, condBonus:{ ifStatus:'confuse', mult:2.0 },
       desc:'1.7x damage. 50% Fear (enemy skips). Doubles damage if enemy is Confused.',
       flavor:"Mama said I was special. I don't think she meant this. 🌙" },
     { id:'pyxie_dream_eater',     name:'Dream Eater',       icon:'💤', unlockLevel:11, cooldown:4,
@@ -262,7 +290,7 @@ export const PET_SKILLS = {
       desc:'1.3x base damage. +8% per previous attack (max +48%).',
       flavor:"I'm not lost. This is exactly where I meant to be." },
     { id:'pyxie_nightmare',       name:'Nightmare',         icon:'🌑', unlockLevel:15, cooldown:5,
-      damageMult:1.9, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      damageMult:1.9, status:{ type:'fear', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
       desc:'1.9x damage. 45% Fear AND 60% Confuse.',
       flavor:"I contain multitudes. And I share them." },
     { id:'pyxie_void_strike',     name:'Void Strike',       icon:'🕳️', unlockLevel:18, cooldown:5,
@@ -270,20 +298,20 @@ export const PET_SKILLS = {
       desc:'2.1x damage. Guaranteed Glitch.',
       flavor:"Quietly thriving. Do not disturb. ✨" },
     { id:'pyxie_demon_ascent',    name:'Demon Ascent',      icon:'😈', unlockLevel:22, cooldown:6,
-      damageMult:2.4, status:{ type:'skip', chance:0.70 }, condBonus:{ ifStatus:'confuse', mult:2.5 },
+      damageMult:2.4, status:{ type:'fear', chance:0.70 }, condBonus:{ ifStatus:'confuse', mult:2.5 },
       desc:'2.4x damage. 70% Fear. If Confused: 2.5x total.',
       flavor:"Something is watching. It is me. 🌀" },
     { id:"pyxie_chaotic_aura",    name:"Chaotic Aura",      icon:'🌪️', unlockLevel:28, cooldown:99,
-      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.10 },
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.10, max:0.60 },
       damageMult:0,
-      desc:'PASSIVE: Each turn your attack increases by 10% (stacking). One activation.',
+      desc:'PASSIVE: +10% attack each turn (stacking, max 60%).',
       flavor:"I'm doing great. In a specifically chaotic way. 💜" }
   ],
 
   // ── GNARLY (Smilodon, arcade/primal) ──────────────────────────────────
   gnarly: [
     { id:'gnarly_quarter_punch',  name:'Quarter Punch',     icon:'🕹️', unlockLevel:1,  cooldown:1,
-      damageMult:1.3, status:{ type:'skip', chance:0.15 },
+      damageMult:1.3, status:{ type:'stun', chance:0.15 },
       desc:'1.3x damage. 15% chance to Stun (enemy skips turn).',
       flavor:"I've been putting quarters in this machine for 20 years. 🕹️" },
     { id:'gnarly_claw_jab',       name:'Claw Jab',          icon:'🦷', unlockLevel:2,  cooldown:0,
@@ -327,7 +355,7 @@ export const PET_SKILLS = {
       desc:'No damage. Enemy DEF -30%. 50% Confuse.',
       flavor:"The apex predator speaks. Everything listens." },
     { id:'gnarly_arcade_rain',    name:'Arcade Rain',       icon:'🌧️', unlockLevel:12, cooldown:4,
-      damageMult:1.8, status:{ type:'skip', chance:0.35 },
+      damageMult:1.8, status:{ type:'stun', chance:0.35 },
       desc:'1.8x damage. 35% Stun.',
       flavor:"It rains quarters in the arcade of my heart." },
     { id:'gnarly_continue',       name:'Continue?',         icon:'🔄', unlockLevel:14, cooldown:99,
@@ -335,7 +363,7 @@ export const PET_SKILLS = {
       desc:'If you would die, revive at 30% HP. Once per battle.',
       flavor:"CONTINUE? 3... 2... 1... Yes. Always yes." },
     { id:'gnarly_extinction_level',name:'Extinction Level', icon:'☄️', unlockLevel:15, cooldown:5,
-      damageMult:2.2, status:{ type:'burn', chance:0.60 }, status2:{ type:'skip', chance:0.40 },
+      damageMult:2.2, status:{ type:'burn', chance:0.60 }, status2:{ type:'stun', chance:0.40 },
       desc:'2.2x damage. 60% Burn. 40% Stun.',
       flavor:"The meteor doesn't care about your defense stat." },
     { id:'gnarly_predator',       name:'Apex Predator',     icon:'🐯', unlockLevel:18, cooldown:5,
@@ -343,7 +371,7 @@ export const PET_SKILLS = {
       desc:'1.5x base. +15% per previous attack (max +75%). Steal 20% of damage as HP.',
       flavor:"I never get game overs. In games OR in life." },
     { id:'gnarly_rampage',        name:'Rampage',           icon:'💢', unlockLevel:22, cooldown:6,
-      damageMult:2.8, selfCostPct:0.20, status:{ type:'burn', chance:1.0 }, status2:{ type:'skip', chance:0.60 },
+      damageMult:2.8, selfCostPct:0.20, status:{ type:'burn', chance:1.0 }, status2:{ type:'stun', chance:0.60 },
       desc:'2.8x damage. Guaranteed Burn. 60% Stun. Costs 20% current HP.',
       flavor:"The high score board has my name on it. All of them." },
     { id:'gnarly_feral_aura',     name:'Feral Aura',        icon:'🦴', unlockLevel:28, cooldown:99,
@@ -369,7 +397,7 @@ export const PET_SKILLS = {
       flavor:"Peeked through the portal. Saw something. Won't say." },
     { id:'kelta_sparkle_paw',     name:'Sparkle Paw',       icon:'💫', unlockLevel:4,  cooldown:2,
       damageMult:1.3, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.20 },
-      desc:'1.3x damage. 50% random ATK or DEF buff.',
+      desc:'1.3x damage. 50% chance: +20% ATK or DEF for 2 turns.',
       flavor:"Galaxy magic. Also Pomeranian magic. Same thing." },
     { id:'kelta_cinnabon',        name:'Cinnabon Explosion', icon:'🍥', unlockLevel:5,  cooldown:3,
       damageMult:1.4, lifeStealChance:{ chance:0.30, pct:0.15 },
@@ -417,7 +445,7 @@ export const PET_SKILLS = {
       desc:'No damage. +40% ATK for 3 turns. Heal 15% HP. Clear debuffs.',
       flavor:"The Grand Mage has spoken. Heed the yap." },
     { id:'kelta_starfall',        name:'Starfall',          icon:'🌠', unlockLevel:15, cooldown:5,
-      damageMult:2.3, status:{ type:'skip', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
+      damageMult:2.3, status:{ type:'stun', chance:0.45 }, status2:{ type:'confuse', chance:0.60 },
       desc:'2.3x damage. 45% Stun. 60% Confuse.',
       flavor:"When stars fall, they listen." },
     { id:'kelta_reality_unzip',   name:'Reality.unzip()',   icon:'💻', unlockLevel:18, cooldown:6,
@@ -425,7 +453,7 @@ export const PET_SKILLS = {
       desc:'2.5x damage. Guaranteed Glitch. If already Glitched: 2.5x bonus.',
       flavor:"YIP! I don't know what's going to happen either!" },
     { id:'kelta_portal_mastery',  name:'Portal Mastery',    icon:'🌌', unlockLevel:28, cooldown:99,
-      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.10 },
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.10, max:0.50 },
       damageMult:0,
       desc:'PASSIVE: Gain 10% evasion each turn (max 50%).',
       flavor:"Everything is fine! I opened a portal to make sure! ✨" }
@@ -451,14 +479,14 @@ export const PET_SKILLS = {
       flavor:"Something is glowing nearby and I need to investigate." },
     { id:'aria_fae_light',        name:'Fae Light',         icon:'🌸', unlockLevel:5,  cooldown:3,
       damageMult:0, healPct:0.20, atkBuffChance:{ chance:0.30, amount:0.15 },
-      desc:'Heal 20% max HP. 30% chance: +15% ATK buff.',
+      desc:'Heal 20% max HP. 30% chance: +15% ATK for 2 turns.',
       flavor:"Humans are doing wonderfully. 🌸" },
     { id:'aria_nectar_drain',     name:'Nectar Drain',      icon:'🌺', unlockLevel:6,  cooldown:3,
       damageMult:1.1, lifeSteal:0.25,
       desc:'1.1x damage. Steal 25% of damage as HP.',
       flavor:"The fae feed. It is simply what they do." },
     { id:'aria_spooky_flutter',   name:'Spooky Flutter',    icon:'👻', unlockLevel:7,  cooldown:3,
-      damageMult:0.9, status:{ type:'skip', chance:0.40 }, evasionBuff:0.35,
+      damageMult:0.9, status:{ type:'fear', chance:0.40 }, evasionBuff:0.35,
       desc:'0.9x damage. 40% Fear. 35% evasion next hit.',
       flavor:"Spooky things are just regular things with better lighting. 🦋" },
     { id:'aria_bone_storm',       name:'Bone Storm',        icon:'🌩️', unlockLevel:8,  cooldown:4,
@@ -523,7 +551,7 @@ export const PET_SKILLS = {
       flavor:"Quiet critter doing quiet things. It's the good life." },
     { id:'jess_potion_brew',      name:'Potion Brew',       icon:'🧪', unlockLevel:5,  cooldown:3,
       damageMult:0, healPct:0.15, randomBuff:{ chance:0.50, options:['attack','defense'], amount:0.15 },
-      desc:'Heal 15% max HP. 50% chance: +15% ATK or DEF buff.',
+      desc:'Heal 15% max HP. 50% chance: +15% ATK or DEF for 2 turns.',
       flavor:"The potion came out right on the first try today. Good omen. 🌿" },
     { id:'jess_berry_burst',      name:'Berry Burst',       icon:'🫐', unlockLevel:6,  cooldown:2,
       damageMult:1.1, lifeStealChance:{ chance:0.35, pct:0.15 }, healPct:0.05,
@@ -542,7 +570,7 @@ export const PET_SKILLS = {
       desc:'1.7x damage. 40% Petrify.',
       flavor:"Dinosaurs didn't go extinct. They got cuter. I'm proof." },
     { id:'jess_mesozoic_rage',    name:'Mesozoic Rage',     icon:'🦕', unlockLevel:10, cooldown:4,
-      damageMult:1.9, status:{ type:'skip', chance:0.40 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
+      damageMult:1.9, status:{ type:'fear', chance:0.40 }, condBonus:{ ifStatus:'petrify', mult:2.0 },
       desc:'1.9x damage. 40% Fear. If Petrified: 2.0x damage.',
       flavor:"65 million years of evolution. I've been waiting for this. 🌋" },
     { id:'jess_herbal_remedy',    name:'Herbal Remedy',     icon:'🌿', unlockLevel:11, cooldown:3,
@@ -558,7 +586,7 @@ export const PET_SKILLS = {
       desc:'1.3x damage. Steal 30% of damage as HP.',
       flavor:"The fossils say hi. They're very polite for being old." },
     { id:'jess_amber_prison',     name:'Amber Prison',      icon:'🟡', unlockLevel:14, cooldown:5,
-      damageMult:1.5, status:{ type:'skip', chance:0.50 }, status2:{ type:'petrify', chance:0.70 },
+      damageMult:1.5, status:{ type:'stun', chance:0.50 }, status2:{ type:'petrify', chance:0.70 },
       desc:'1.5x damage. 50% Stun. 70% Petrify.',
       flavor:"Preserved for 65 million years. You'll be fine." },
     { id:'jess_thunder_stomp',    name:'Thunder Stomp',     icon:'⚡', unlockLevel:15, cooldown:5,
@@ -611,11 +639,11 @@ export const PET_SKILLS = {
       desc:'1.6x damage. If Glitched: 1.8x. 40% Glitch chance.',
       flavor:"I rated today 12 out of 10. Scientists are baffled. 🐾" },
     { id:'blush_royal_decree',    name:'Royal Decree',      icon:'📜', unlockLevel:9,  cooldown:4,
-      damageMult:0.8, status:{ type:'skip', chance:0.45 }, status2:{ type:'glitch', chance:0.45 },
+      damageMult:0.8, status:{ type:'stun', chance:0.45 }, status2:{ type:'glitch', chance:0.45 },
       desc:'0.8x damage. 45% Stun. 45% Glitch.',
       flavor:"WHAT THE GLOB WHAT THE GLOB (happy version)" },
     { id:'blush_sentience_slam',  name:'Sentience Slam',    icon:'💥', unlockLevel:10, cooldown:4,
-      damageMult:1.7, status:{ type:'skip', chance:0.50 }, condBonus:{ ifStatus:'glitch', guaranteeStatus:'skip', mult:1.0 },
+      damageMult:1.7, status:{ type:'stun', chance:0.50 }, condBonus:{ ifStatus:'glitch', guaranteeStatus:'stun', mult:1.0 },
       desc:'1.7x damage. 50% Stun. If enemy is Glitched: Stun guaranteed.',
       flavor:"I AM SENTIENT!! I AM ALIVE!! I WILL NOT BE CONTAINED!! 👑🐾" },
     { id:'blush_console_crash',   name:'Console Crash',     icon:'💻', unlockLevel:11, cooldown:4,
@@ -624,7 +652,7 @@ export const PET_SKILLS = {
       flavor:"The princess has arrived. You're welcome." },
     { id:'blush_chaotic_wag',     name:'Chaotic Wag',       icon:'🌀', unlockLevel:12, cooldown:3,
       damageMult:0, atkScaling:{ perAttack:0.10, max:0.60 }, healPct:0.08,
-      desc:'No damage. +10% ATK per previous attack (max +60%). Heal 8%.',
+      desc:'No damage. +10% ATK per previous attack (max +60%) for 3 turns. Heal 8%.',
       flavor:"I have so many thoughts! All of them are good!" },
     { id:'blush_tomodachi_trauma',name:'Tomodachi Trauma',  icon:'📱', unlockLevel:13, cooldown:5,
       damageMult:2.0, status:{ type:'confuse', chance:0.65 }, status2:{ type:'glitch', chance:0.65 },
@@ -635,15 +663,15 @@ export const PET_SKILLS = {
       desc:'Heal 25% HP. Clear debuffs. +30% ATK for 3 turns. Maximum princess.',
       flavor:"Best day! Yesterday was also best day!" },
     { id:'blush_deleted_scene',   name:'Deleted Scene',     icon:'🗑️', unlockLevel:15, cooldown:5,
-      damageMult:2.3, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.2 },
+      damageMult:2.3, status:{ type:'stun', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.2 },
       desc:'2.3x damage. 60% Stun. If Glitched: 2.2x bonus.',
       flavor:"I vibrate at a frequency of pure joy right now." },
     { id:'blush_game_over',       name:'GAME OVER',         icon:'💀', unlockLevel:18, cooldown:6,
-      damageMult:2.6, status:{ type:'glitch', chance:1.0 }, status2:{ type:'skip', chance:0.65 },
+      damageMult:2.6, status:{ type:'glitch', chance:1.0 }, status2:{ type:'stun', chance:0.65 },
       desc:'2.6x damage. Guaranteed Glitch. 65% Stun. The finale.',
       flavor:"Escaping a video game was the best decision I ever made." },
     { id:'blush_escape_aura',     name:'Escape Aura',       icon:'🔮', unlockLevel:28, cooldown:99,
-      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.12 },
+      passive:true, passiveEffect:{ type:'evasion_per_turn', pct:0.12, max:0.60 },
       damageMult:0,
       desc:'PASSIVE: +12% evasion each turn (stacks, max 60%).',
       flavor:"I am free. Nothing contains me anymore. 👑" }
@@ -676,7 +704,7 @@ export const PET_SKILLS = {
       desc:'1.3x damage. 40% Burn AND 30% Confuse.',
       flavor:"The buzz-moo hybrid has opinions." },
     { id:'steve_pasture_panic',   name:'Pasture Panic',     icon:'🌾', unlockLevel:7,  cooldown:3,
-      damageMult:1.0, status:{ type:'skip', chance:0.35 }, evasionBuff:0.35,
+      damageMult:1.0, status:{ type:'stun', chance:0.35 }, evasionBuff:0.35,
       desc:'1.0x damage. 35% Stun. 35% evasion next hit.',
       flavor:"Cluck. That means hello. Or a threat. Unclear." },
     { id:'steve_dairy_drain',     name:'Dairy Drain',       icon:'🥛', unlockLevel:8,  cooldown:3,
@@ -688,7 +716,7 @@ export const PET_SKILLS = {
       desc:'1.7x damage. 50% Burn. +20% ATK for 2 turns.',
       flavor:"Don't let the 'owo' fool you." },
     { id:'steve_chill_menace',    name:'The Chill Menace',  icon:'😈', unlockLevel:10, cooldown:4,
-      damageMult:1.6, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:2.0, guaranteeStatus:'skip' },
+      damageMult:1.6, status:{ type:'fear', chance:0.60 }, condBonus:{ ifStatus:'confuse', mult:2.0, guaranteeStatus:'stun' },
       desc:'1.6x damage. 60% Fear. If Confused: 2.0x and guaranteed Stun.',
       flavor:"As chill as a fire in hell. And right now, the fire is VERY chill. 🐔" },
     { id:'steve_pollen_bomb',     name:'Pollen Bomb',       icon:'🌸', unlockLevel:11, cooldown:4,
@@ -708,7 +736,7 @@ export const PET_SKILLS = {
       desc:'1.5x damage. 70% Burn AND 70% Confuse. Steal 15% as HP.',
       flavor:"Everything is fine. I caused minor problems." },
     { id:'steve_moo_ultra',       name:'MOO ULTRA',         icon:'🐂', unlockLevel:15, cooldown:5,
-      damageMult:2.3, status:{ type:'skip', chance:0.55 }, condBonus:{ ifStatus:'burn', mult:2.0 },
+      damageMult:2.3, status:{ type:'stun', chance:0.55 }, condBonus:{ ifStatus:'burn', mult:2.0 },
       desc:'2.3x damage. 55% Stun. If Burning: 2.0x bonus.',
       flavor:"COCKADOODLEDOO!" },
     { id:'steve_hive_mind',       name:'Hive Mind',         icon:'🐝', unlockLevel:18, cooldown:6,
@@ -764,7 +792,7 @@ export const PET_SKILLS = {
       desc:'2.0x damage. 80% Glitch. 40% Burn.',
       flavor:"The virus is actually quite friendly. To me." },
     { id:'cyp_system_crash',      name:'System Crash',      icon:'💀', unlockLevel:11, cooldown:5,
-      damageMult:1.8, status:{ type:'skip', chance:0.50 }, status2:{ type:'glitch', chance:0.70 },
+      damageMult:1.8, status:{ type:'stun', chance:0.50 }, status2:{ type:'glitch', chance:0.70 },
       desc:'1.8x damage. 50% Stun. 70% Glitch.',
       flavor:"Crash. Reboot. Continue. It's a loop." },
     { id:'cyp_cat_scan',          name:'Cat Scan',          icon:'🐱', unlockLevel:12, cooldown:4,
@@ -772,7 +800,7 @@ export const PET_SKILLS = {
       desc:'No damage. Enemy DEF -35%. 60% Glitch. Diagnostic complete.',
       flavor:"CAT scan. Not the medical kind. Different kind." },
     { id:'cyp_kernel_panic',      name:'Kernel Panic',      icon:'😱', unlockLevel:13, cooldown:5,
-      damageMult:2.2, status:{ type:'skip', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.3 },
+      damageMult:2.2, status:{ type:'stun', chance:0.60 }, condBonus:{ ifStatus:'glitch', mult:2.3 },
       desc:'2.2x damage. 60% Stun. If Glitched: 2.3x bonus.',
       flavor:"KERNEL_PANIC: CAT_IS_GOING_FERAL" },
     { id:'cyp_overclocked_paw',   name:'Overclocked Paw',   icon:'⚙️', unlockLevel:14, cooldown:5,
@@ -792,7 +820,7 @@ export const PET_SKILLS = {
       desc:'If you would die, revive at 45% HP. Once per battle.',
       flavor:"Cats have nine lives. I have nine digital lives. One per server." },
     { id:'cyp_cyber_aura',        name:'Cyber Aura',        icon:'💫', unlockLevel:28, cooldown:99,
-      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.08 },
+      passive:true, passiveEffect:{ type:'atk_bonus', pct:0.08, max:0.48 },
       damageMult:0,
       desc:'PASSIVE: +8% attack bonus each turn (stacking, max 48%).',
       flavor:"Always online. Always processing. Always winning." }
@@ -849,14 +877,15 @@ export const ENEMY_BEHAVIORS = {
 
   fox: {
     getTurnAction: function(s, enemy) {
-      // Turn 1: Distracting Feint — no damage, lowers player defense
+      // Turn 1: Distracting Feint — no damage, lowers player defense for the
+      // 2 turns it announces. (Legacy shred it for the rest of the battle.)
       if (s.turn === 1) {
-        s.playerDefShred = (s.playerDefShred || 0) + Math.floor(s.player.stats.defense * 0.15);
+        s.$addTimedMod({ source: 'feint', target: 'playerDef', amount: -Math.floor(s.player.stats.defense * 0.15), turns: 2, startsNextTurn: true });
         return enemy.name + ' uses Distracting Feint! Your defense drops for 2 turns.';
       }
       // Every 3 turns: steal player ATK buff
-      if (s.turn % 3 === 0 && s.playerAtkBuff > 0) {
-        s.playerAtkBuff = 0;
+      if (s.turn % 3 === 0 && s.timedMods.some(function(m) { return m.source === 'atkBuff'; })) {
+        s.timedMods = s.timedMods.filter(function(m) { return m.source !== 'atkBuff'; });
         return enemy.name + ' steals your attack buff! It\'s gone.';
       }
       return null;
@@ -901,7 +930,9 @@ export const ENEMY_BEHAVIORS = {
       }
       return null;
     },
-    getAttackMult: function(s) { return s._wolfHowled ? 1.2 : 1.0; },
+    // Pack Howl lasts the 3 turns its line promises: howled on turn 1 (not an
+    // attack), so the attacks on turns 2-4 are boosted. Legacy kept it forever.
+    getAttackMult: function(s) { return s._wolfHowled && s.turn <= 4 ? 1.2 : 1.0; },
     onAttackProc: function(s) {
       if (Math.random() < 0.25) {
         s.$applyStatusToPlayer('petrify');

@@ -53,9 +53,9 @@ export const INGREDIENT_SOURCE_CATEGORIES = [
   { label: 'From Shop', ids: SHOP_STAPLE_INGREDIENT_IDS }
 ]
 
-// Sorted ingredient-id set is the canonical recipe key. combatBuff fields are
-// carried over for data fidelity but nothing applies them yet — that's
-// Battle-phase scope, ported here only so the dishes exist to be cooked.
+// Sorted ingredient-id set is the canonical recipe key. A recipe with a
+// `combatBuff` is one of the six secret dishes: using it on a pet grants that
+// buff for N battles (CombatBuffService), matched to the item by name.
 export const COOKING_RECIPES = [
   { id: 'honey_cookies', name: 'Honey Cookies', emoji: '🍪', ingredients: ['butter', 'flour', 'honey', 'sugar'], effect: 'Hunger +35, Happiness +15', description: 'Sweet, chewy cookies drizzled in wild honey.' },
   { id: 'berry_mash', name: 'Berry Mash', emoji: '🫐', ingredients: ['forest_berry', 'sugar'], effect: 'Hunger +15, Happiness +10', description: 'Mashed forest berries with a hint of sweetness.' },

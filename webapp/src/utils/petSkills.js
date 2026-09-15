@@ -16,16 +16,23 @@ export function skillSlotCount(level) {
   return 3
 }
 
+// Passive skills are always on and don't consume a slot. Revive skills count:
+// they fire by themselves the moment the pet would fall, so there is nothing to
+// press. They used to take a loadout slot and do nothing when used — and the
+// automatic revive could never trigger either (see BattleService.tryRevive).
+export function isPassiveSkill(skill) {
+  return !!skill.passive || !!skill.revive
+}
+
 // Every active (non-passive) skill unlocked at this level, before slot limits.
 export function unlockedSkills(petName, petLevel) {
   const all = PET_SKILLS[skillKeyFor(petName)] || []
-  return all.filter(s => !s.passive && s.unlockLevel <= (petLevel || 1))
+  return all.filter(s => !isPassiveSkill(s) && s.unlockLevel <= (petLevel || 1))
 }
 
-// Passive skills are always on and don't consume a slot.
 export function passiveSkills(petName, petLevel) {
   const all = PET_SKILLS[skillKeyFor(petName)] || []
-  return all.filter(s => s.passive && s.unlockLevel <= (petLevel || 1))
+  return all.filter(s => isPassiveSkill(s) && s.unlockLevel <= (petLevel || 1))
 }
 
 // Ports petSkills_getLoadout(). The player's chosen loadout is stored per pet

@@ -18,6 +18,7 @@ import { questService } from './QuestService.js'
 import { petMoodService } from './PetMoodService.js'
 import { achievementTierService } from './AchievementTierService.js'
 import { activityService } from './ActivityService.js'
+import { combatBuffService } from './CombatBuffService.js'
 
 class OwnedPetsService {
   async getOwnedPetIds(userId) {
@@ -197,7 +198,7 @@ class OwnedPetsService {
       const healed = newHP - curHP
       await supabase.from('user_pets').update({ current_hp: newHP }).eq('id', pet.id)
       await inventoryService.useItem(invItem)
-      return { healed, currentHp: newHP, maxHp: maxHP }
+      return { healed, currentHp: newHP, maxHp: maxHP, combatBuff: await this.applyDishBuff(pet, invItem) }
     }
 
     const { data: ef, error } = await supabase.rpc('use_item_secure', { p_pet_id: pet.id, p_inv_id: invItem.invId })
@@ -236,7 +237,29 @@ class OwnedPetsService {
     }
     if (ef.leveled_up) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(ef.new_level); passService.addXP(10, 'level_up') }
 
-    return { reactionType: ef.reaction_type, leveledUp: !!ef.leveled_up, newLevel: ef.new_level }
+    return {
+      reactionType: ef.reaction_type,
+      leveledUp: !!ef.leveled_up,
+      newLevel: ef.new_level,
+      combatBuff: await this.applyDishBuff(pet, invItem)
+    }
+  }
+
+  // Ports the secret-recipe step of useItem() (game.js:3661-3707 at 826475d):
+  // eating one of the six combat dishes puts a per-battle stat buff on the pet.
+  // Never ported until now, which is why `pet_combat_buffs` held no rows. The
+  // item is already consumed by this point, so a failed write is logged rather
+  // than thrown — legacy treats it the same way.
+  async applyDishBuff(pet, invItem) {
+    const recipe = combatBuffService.recipeFor(invItem.name)
+    if (!recipe) return null
+    try {
+      const battles = await combatBuffService.apply(pet.id, recipe)
+      return { recipe, battles }
+    } catch (e) {
+      console.error('[ownedPetsService.applyDishBuff]', e)
+      return null
+    }
   }
 }
 

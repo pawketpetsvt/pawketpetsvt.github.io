@@ -37,7 +37,7 @@ const TIPS = {
   atk: '⚔️ ATTACK\nHow much damage your pet deals in battle.\n\n💡 Increase by:\n• Leveling up\n• Equipping weapons\n• Evolution',
   def: '🛡️ DEFENSE\nReduces damage taken from enemy attacks.\n\n💡 Increase by:\n• Leveling up\n• Equipping armor\n• Evolution',
   spd: '💨 SPEED\nDetermines who attacks first in battles.\nAlso affects race performance!\n\n💡 Increase by:\n• Leveling up\n• Speed equipment\n• Certain variants',
-  lck: '🍀 LUCK\nRaises your critical-hit chance in battle.\n\n💡 Comes from equipment.',
+  lck: '🍀 LUCK\nRaises your critical-hit chance in battle\nand helps resist status effects.\n\n💡 Comes from equipment and secret dishes.',
   spi: '🔮 SPIRIT\nResists status effects, amplifies healing,\nand makes Piper less likely to find you.\n\n💡 Comes from equipment.'
 }
 

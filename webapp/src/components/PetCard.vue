@@ -354,6 +354,11 @@ async function handleUseItem() {
     // The companion brings this up later when you're in the Shop — legacy's
     // `CompanionBuddy.lastFoodUsed` (game.js:3751).
     companionService.remember({ lastFoodUsed: item.name })
+    // One of the six secret dishes — legacy's own confirmation line.
+    if (result.combatBuff) {
+      const recipe = result.combatBuff.recipe
+      toastService.success(`${recipe.emoji} Combat buff active! ${recipe.effect}`)
+    }
     selectedInvId.value = ''
   } catch (err) {
     toastService.error('Error: ' + err.message)

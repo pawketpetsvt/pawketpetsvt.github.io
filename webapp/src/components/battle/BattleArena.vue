@@ -7,6 +7,13 @@
       {{ zoneMod.label }}: {{ zoneMod.desc }}
     </div>
 
+    <!-- Beta Integrity below Stable. Legacy appended this to the zone banner,
+         with the tier's explanation on hover. -->
+    <div v-if="s.integrity?.label" class="pp-zone-banner pp-integrity-banner mb-3 text-center py-2 px-tight"
+      :title="s.integrity.tip">
+      {{ s.integrity.label }}
+    </div>
+
     <!-- The full-screen half of the boss entrance: the RGB scanline overlay and
          the scrolling warnings. Rendered here rather than in AppShell so it
          cannot outlive the arena. -->
@@ -42,6 +49,10 @@
           </div>
         </div>
         <StatusRow :statuses="s.playerStatuses" />
+        <div v-if="playerMods.length" class="d-flex flex-wrap justify-content-center gap-1">
+          <span v-for="mod in playerMods" :key="mod.key" class="pp-buff-pill"
+            :class="mod.down ? 'pp-mod-down' : 'pp-mod-up'" :title="mod.title">{{ mod.text }}</span>
+        </div>
       </div>
 
       <div class="battle-vs">VS</div>
@@ -64,6 +75,10 @@
           </div>
         </div>
         <StatusRow :statuses="s.enemyStatuses" />
+        <div v-if="enemyMods.length" class="d-flex flex-wrap justify-content-center gap-1">
+          <span v-for="mod in enemyMods" :key="mod.key" class="pp-buff-pill"
+            :class="mod.down ? 'pp-mod-down' : 'pp-mod-up'" :title="mod.title">{{ mod.text }}</span>
+        </div>
 
         <!-- Melody counter — Piper only. The melody damages every third tick
              regardless of what either side does, so the countdown is the real
@@ -76,10 +91,15 @@
       </div>
     </div>
 
-    <!-- Piper's Influence. Dormant unless world-state corruption is high
-         enough (see tickInfluence), so it only appears once it starts filling
-         rather than sitting at a permanent 0%. -->
-    <div v-if="fightingPiper && s.piperInfluence > 0" class="pp-influence mt-2">
+    <!-- Piper's Influence. Dormant unless Beta Integrity is 25 or below (see
+         tickInfluence), so it only appears once it starts filling rather than
+         sitting at a permanent 0%.
+
+         Not gated on a Piper fight: the meter fills and its events fire
+         whoever the enemy is, and legacy shows it in every fight at that
+         point. The port had hidden it outside Piper fights while it filled. -->
+    <div v-if="s.piperInfluence > 0" class="pp-influence mt-2"
+      title="With the beta integrity failing, the veil between game and reality is weakening. Piper is watching.">
       <div class="pp-influence-head d-flex justify-content-between align-items-center">
         <span>👁️ Piper's Influence</span>
         <span>{{ s.piperInfluence }}%</span>
@@ -95,6 +115,15 @@
 
     <div v-if="s.phase === 'fighting'" class="mt-3">
       <div class="text-center pp-turn">TURN {{ s.turn }}</div>
+
+      <!-- Ports renderGlobalBuffPills() + combatBuff_renderPills(): what is
+           boosting this fight. Dropped by the Phase 7 port. -->
+      <div v-if="buffPills.length" class="d-flex flex-wrap justify-content-center gap-1 mt-2">
+        <span v-for="pill in buffPills" :key="pill.key" class="pp-buff-pill"
+          :class="{ 'pp-buff-food': pill.food }" :title="pill.desc">
+          {{ pill.text }}<span v-if="pill.left" class="pp-buff-left"> ({{ pill.left }} battles)</span>
+        </span>
+      </div>
 
       <!-- Ports manualBattle_showItemPicker(). Using an item costs the turn,
            which the heading says outright as legacy's did. -->
@@ -157,6 +186,10 @@ import { AppState } from '../../AppState.js'
 import { inventoryService } from '../../services/InventoryService.js'
 import { toastService } from '../../services/ToastService.js'
 import { bossPresentationService } from '../../services/BossPresentationService.js'
+import { weatherState } from '../../services/WeatherService.js'
+import { worldEventState, worldEventService } from '../../services/WorldEventService.js'
+import { guildPerkService } from '../../services/GuildPerkService.js'
+import { WEATHER_BONUSES } from '../../data/weatherData.js'
 import StatusRow from './StatusRow.vue'
 import BossOverlay from './BossOverlay.vue'
 
@@ -204,6 +237,55 @@ const VARIANT_FILTER = {
 }
 
 const zoneMod = computed(() => s.zoneConf && s.zoneConf.battleMod)
+
+// Ports getGlobalBuffSummary() + combatBuff_renderPills(): the weather's XP
+// bonus, the world event, active guild perks, then the pet's own cooking buffs.
+// The weather pill reads the weather's own bonus rather than
+// weatherService.bonus(), which also folds in the community celebration buff.
+// Timed stat changes on each side — skill buffs, Echo of Fear's DEF cut, the
+// fox's feint — as chips under that side's status icons.
+const MOD_STAT = { playerAtk: 'ATK', playerDef: 'DEF', enemyDef: 'DEF' }
+function modChips(side) {
+  return (s.timedMods || [])
+    .filter(m => m.target.startsWith(side))
+    .map(m => {
+      const turns = Math.max(1, m.lastTurn - s.turn)
+      return {
+        key: m.source,
+        text: `${m.amount > 0 ? '+' : ''}${m.amount} ${MOD_STAT[m.target]}`,
+        title: `${turns} turn${turns === 1 ? '' : 's'} left`,
+        down: m.amount < 0
+      }
+    })
+}
+const playerMods = computed(() => modChips('player'))
+const enemyMods = computed(() => modChips('enemy'))
+
+const STAT_LABELS = { attack: 'ATK', defense: 'DEF', speed: 'SPD', luck: 'Luck', spirit: 'Spirit' }
+const buffPills = computed(() => {
+  const pills = []
+  const weather = weatherState.current
+  const weatherXp = weather ? (WEATHER_BONUSES.xpBonus[weather.id] ?? 1) : 1
+  if (weatherXp > 1) {
+    pills.push({ key: 'weather', text: `${weather.icon} ${weather.name}`, desc: `+${Math.round((weatherXp - 1) * 100)}% XP` })
+  }
+  const event = worldEventState.event
+  if (event) {
+    pills.push({ key: 'event', text: `${event.icon || '🎉'} ${event.name}`, desc: worldEventService.bonusLines().join(', ') })
+  }
+  for (const perk of guildPerkService.activeList()) {
+    pills.push({ key: 'perk-' + perk.type, text: `🏛️ Guild: ${perk.type.replace(/_/g, ' ')}`, desc: 'Active perk' })
+  }
+  for (const buff of s.player?.combatBuffs || []) {
+    pills.push({
+      key: 'food-' + buff.id,
+      text: `+${buff.amount} ${STAT_LABELS[buff.stat] || buff.stat}`,
+      left: buff.battles_left,
+      food: true
+    })
+  }
+  return pills
+})
 
 const enemyEmoji = computed(() => {
   const key = (s.enemy?.species || '').toLowerCase().split(/\s+/)[0]
@@ -469,6 +551,46 @@ body.reduced-motion .boss-battle-indicator {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--purple-dark);
+}
+
+.pp-integrity-banner,
+.pp-influence { cursor: help; }
+
+// Buff pills, from legacy's inline styles.
+.pp-buff-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(153, 102, 255, 0.12);
+  border: 1px solid rgba(153, 102, 255, 0.25);
+  font-size: 0.68rem;
+  color: var(--purple-dark);
+}
+
+.pp-buff-food {
+  background: rgba(93, 222, 122, 0.15);
+  border-color: rgba(93, 222, 122, 0.4);
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #5dde7a;
+}
+
+.pp-buff-left { opacity: 0.7; }
+
+.pp-mod-up {
+  background: rgba(93, 222, 122, 0.15);
+  border-color: rgba(93, 222, 122, 0.4);
+  color: #3fae5c;
+  font-weight: 700;
+}
+
+.pp-mod-down {
+  background: rgba(255, 107, 107, 0.12);
+  border-color: rgba(255, 107, 107, 0.35);
+  color: #e05555;
+  font-weight: 700;
 }
 
 .pp-narrative {

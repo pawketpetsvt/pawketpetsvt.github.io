@@ -49,7 +49,7 @@
 import { ref, computed } from 'vue'
 import PetModal from './PetModal.vue'
 import { PET_SKILLS } from '../../data/battleData.js'
-import { skillKeyFor, skillSlotCount, unlockedSkills, passiveSkills, skillLoadout, saveSkillLoadout }
+import { skillKeyFor, skillSlotCount, unlockedSkills, passiveSkills, skillLoadout, saveSkillLoadout, isPassiveSkill }
   from '../../utils/petSkills.js'
 
 const props = defineProps({
@@ -64,7 +64,7 @@ const slots = computed(() => skillSlotCount(level.value))
 const unlocked = computed(() => unlockedSkills(petName.value, level.value))
 const passives = computed(() => passiveSkills(petName.value, level.value))
 const lockedCount = computed(() =>
-  allSkills.value.filter(s => !s.passive && s.unlockLevel > level.value).length
+  allSkills.value.filter(s => !isPassiveSkill(s) && s.unlockLevel > level.value).length
 )
 
 const subtitle = computed(() =>

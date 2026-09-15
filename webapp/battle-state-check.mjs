@@ -24,7 +24,8 @@ const EXEMPT = new Map([
   // references rather than per-battle data — carrying over is correct, and
   // clearing them would break ENEMY_BEHAVIORS, which calls them as `s.$…`.
   ['$applyStatus', 'behaviour helper rebound by attachBehaviorHelpers()'],
-  ['$applyStatusToPlayer', 'behaviour helper rebound by attachBehaviorHelpers()']
+  ['$applyStatusToPlayer', 'behaviour helper rebound by attachBehaviorHelpers()'],
+  ['$addTimedMod', 'behaviour helper rebound by attachBehaviorHelpers()']
 ])
 
 // The reset block: Object.assign(battleState, { ... }) inside startBattle.
@@ -43,8 +44,16 @@ const declaredKeys = new Set(
   declMatch ? [...declMatch[1].matchAll(/^\s{2}([a-zA-Z_$][\w$]*)\s*:/gm)].map(m => m[1]) : []
 )
 
-// Every field assigned anywhere in the service, minus the reset block itself.
-const body = src.replace(assignMatch[0], '')
+// Every field assigned anywhere in the engine, minus the reset block itself.
+// The species AI (battleData.js) and the Piper module write to the same state
+// object they are handed, so they count too. The AI's own flags were exactly the
+// fields this check could not see, and they did leak: a slime that had split
+// once never split again for the rest of the session.
+const body = [
+  src.replace(assignMatch[0], ''),
+  fs.readFileSync('./src/data/battleData.js', 'utf8'),
+  fs.readFileSync('./src/services/PiperBoss.js', 'utf8')
+].join('\n')
 const written = new Set()
 for (const m of body.matchAll(/\b(?:s|battleState)\.([a-zA-Z_$][\w$]*)\s*(?:=[^=]|\+=|-=|\|\|=|\?\?=)/g)) {
   written.add(m[1])
