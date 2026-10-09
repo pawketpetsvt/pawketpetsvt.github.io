@@ -1,5 +1,6 @@
 <template>
   <div class="my-pet-card d-flex flex-column" :class="variantClass">
+    <VariantParticles :variant="pet.current_variant" />
     <!-- Header banner: the habitat gradient runs to every edge of the card, and
          the avatar straddles the boundary into the body below via
          `.pet-avatar-wrap { margin-bottom: -50px }` + `.pet-card-body`'s 65px
@@ -103,11 +104,14 @@
            utilities reproduce what is actually on screen. The class stays as a
            hook for the ≤768px rule that still targets it. -->
       <div class="pet-actions d-flex flex-wrap justify-content-center gap-px6 my-tight">
-        <button class="btn-action btn-feed" :disabled="!pet.canFeed || feeding" @click="handleFeed">
-          {{ pet.canFeed ? '🍖 Feed' : '🍖 Full!' }}
+        <!-- Both open a picker (free daily option + owned food/toys) rather than
+             acting directly. Play stays clickable while "Tired!" as long as a toy
+             could still be used, as on the live site. -->
+        <button class="btn-action btn-feed" :disabled="!pet.canFeed || feeding" @click="picker = 'feed'">
+          {{ feeding ? '🍽️ …' : pet.canFeed ? '🍖 Feed' : '🍖 Full!' }}
         </button>
-        <button class="btn-action btn-play" :disabled="!pet.canPlay || playing" @click="handlePlay">
-          {{ pet.canPlay ? '🎾 Play' : '⚡ Tired!' }}
+        <button class="btn-action btn-play" :disabled="!pet.canPlayWithToy || playing" @click="picker = 'play'">
+          {{ playing ? '🎮 …' : pet.canPlay ? '🎾 Play' : '⚡ Tired!' }}
         </button>
         <button class="btn-action" title="Manage skill loadout" @click="$emit('manage-skills', pet.id)">⚔️
           Skills</button>
@@ -138,13 +142,19 @@
 
       <div class="use-item-section pt-tight">
         <div class="use-item-label mb-2">🎒 Use an Item</div>
-        <p v-if="!inventory.length" class="no-items">No items. <router-link to="/adopt">Visit the adoption
-            centre!</router-link></p>
+        <!-- Only items neither picker takes (healing, energy, XP and the like):
+             food lives under Feed and toys under Play, so each item has one place
+             to be used. The link now goes to the Shop, as legacy's did; it had
+             been pointing at the adoption centre. -->
+        <p v-if="!otherItems.length" class="no-items">
+          {{ inventory.length ? 'No other items — use food with 🍖 Feed and toys with 🎾 Play.' : 'No items.' }}
+          <router-link to="/shop">Visit the Shop!</router-link>
+        </p>
         <!-- 10px gap, again from the global rule that was overriding the scoped 8px. -->
         <div v-else class="d-flex gap-px10 mb-2">
           <select v-model="selectedInvId" class="item-select">
             <option value="">— Choose an item —</option>
-            <option v-for="item in inventory" :key="item.invId" :value="item.invId">
+            <option v-for="item in otherItems" :key="item.invId" :value="item.invId">
               {{ item.name }} (x{{ item.qty }}) — {{ item.effectText }}
             </option>
           </select>
@@ -172,6 +182,11 @@
 
       <div class="stat-flash" :style="{ opacity: flashMessage ? 1 : 0, color: flashColor }">{{ flashMessage }}</div>
     </div>
+
+    <!-- Owned by the card, unlike the page-level modals, because the outcome is
+         shown in this card's flash. v-if keeps it free when closed. -->
+    <CarePickerModal v-if="picker" :pet="pet" :inventory="inventory" :mode="picker"
+      @close="picker = null" @pick="onPick" />
   </div>
 </template>
 
@@ -194,6 +209,8 @@ import PetBattleStats from './PetBattleStats.vue'
 import PetEquipment from './PetEquipment.vue'
 import PetWishes from './PetWishes.vue'
 import PetQuest from './pet/PetQuest.vue'
+import VariantParticles from './pet/VariantParticles.vue'
+import CarePickerModal from './pet/CarePickerModal.vue'
 
 const props = defineProps({
   pet: { type: Object, required: true },
@@ -210,12 +227,14 @@ defineEmits(['manage-equipment', 'manage-skills', 'manage-variant', 'manage-room
 const imgError = ref(false)
 const feeding = ref(false)
 const playing = ref(false)
+const picker = ref(null) // 'feed' | 'play' while the care picker is open
 const usingItem = ref(false)
 const selectedInvId = ref('')
 const flashMessage = ref('')
 const flashColor = ref('')
 
-const selectedItem = computed(() => props.inventory.find(i => i.invId === selectedInvId.value) || null)
+const otherItems = computed(() => props.inventory.filter(i => i.isOtherItem))
+const selectedItem = computed(() => otherItems.value.find(i => i.invId === selectedInvId.value) || null)
 
 const editingName = ref(false)
 const savingName = ref(false)
@@ -242,8 +261,9 @@ const personalityMessage = computed(() =>
 )
 
 const variant = computed(() => petCosmeticsService.variantData(props.pet.current_variant))
-// Paints the card's variant aura — the global stylesheet carries a full set of
-// `.my-pet-card.pet-variant-*` treatments (glow, corner glyph, image filter).
+// Paints the card's variant — the `.my-pet-card.pet-variant-*` treatments at the
+// end of this component's style block (background, glow, corner glyph, image
+// filter), plus VariantParticles.
 const variantClass = computed(() => petCosmeticsService.variantClass(props.pet.current_variant))
 const activeTitle = computed(() => petCosmeticsService.titleById(props.pet.active_pet_title_id))
 const unlockedTitles = computed(() => petCosmeticsService.unlockedTitles(props.pet.id))
@@ -305,27 +325,75 @@ function flash(msg, color) {
   setTimeout(() => { flashMessage.value = '' }, 3000)
 }
 
-async function handleFeed() {
+function onPick(item) {
+  const mode = picker.value
+  picker.value = null
+  if (mode === 'feed') handleFeed(item)
+  else handlePlay(item)
+}
+
+// Legacy's per-reaction lines from feedWithItem (game.js:6393-6403).
+const REACTION_LINES = {
+  loved: (n) => `💖 ${n}! (1.75x bonus!)`,
+  liked: (n) => `😊 ${n}! (1.25x bonus)`,
+  disliked: (n) => `😐 ${n}... (0.75x effect)`,
+  hated: (n) => `😖 Ew, ${n}! (0.5x effect)`
+}
+
+function gains(care) {
+  const parts = []
+  if (care.hungerGained) parts.push('+' + care.hungerGained + ' Hunger')
+  if (care.happinessGained) parts.push('+' + care.happinessGained + ' Happiness')
+  if (care.xpGained) parts.push('+' + care.xpGained + ' XP')
+  return parts.join(' ')
+}
+
+// `item` null = the free daily treat.
+async function handleFeed(item) {
   feeding.value = true
   try {
-    const lu = await ownedPetsService.feed(props.pet)
-    if (lu.leveled) flash('🎉 Level ' + lu.level + '! Max stats +5!', '#b06aff')
-    else flash('+20 Hunger  +5 Happiness  +10 XP', '#5dde7a')
+    const care = await ownedPetsService.feed(props.pet, item)
+    const species = props.pet.species.name
+    if (care.leveled) {
+      flash('🎉 Level ' + care.level + '!', '#b06aff')
+    } else if (item) {
+      const line = (REACTION_LINES[care.reactionType] || (n => `🍽️ Ate ${n}!`))(item.name)
+      flash(line + ' ' + gains(care), care.reactionType === 'loved' ? '#ff66cc' : care.reactionType === 'hated' ? '#999' : '#5dde7a')
+    } else {
+      flash('✨ ' + gains(care), '#5dde7a')
+    }
+    // Journal discoveries, as legacy logged them: an item's reaction reveals
+    // that food preference; the free treat records 'loved' with no item.
+    if (item && care.reactionType !== 'normal') {
+      await journalService.logDiscovery(AppState.user.id, species, props.discoveries, care.reactionType, item.name)
+    } else if (!item) {
+      await journalService.logDiscovery(AppState.user.id, species, props.discoveries, 'loved', '')
+    }
+    if (item) companionService.remember({ lastFoodUsed: item.name })
+    // A secret combat dish — same confirmation as the Use an Item path.
+    if (care.combatBuff) {
+      const recipe = care.combatBuff.recipe
+      toastService.success(`${recipe.emoji} Combat buff active! ${recipe.effect}`)
+    }
   } catch (err) {
-    flash('Error!', '#ff6eb4')
+    flash(err.message || 'Error!', '#ff6eb4')
   } finally {
     feeding.value = false
   }
 }
 
-async function handlePlay() {
+// `item` null = the free daily playtime.
+async function handlePlay(item) {
   playing.value = true
   try {
-    const lu = await ownedPetsService.play(props.pet)
-    if (lu.leveled) flash('🎉 Level ' + lu.level + '! Max stats +5!', '#b06aff')
-    else flash('-10 Energy  +15 Happiness  +15 XP', '#5dde7a')
+    const care = await ownedPetsService.play(props.pet, item)
+    if (care.leveled) flash('🎉 Level ' + care.level + '!', '#b06aff')
+    else if (item) flash(`🎮 Played with ${item.name}! ${gains(care)}`, '#5dde7a')
+    else flash('🎾 -10 Energy ' + gains(care), '#5dde7a')
+    // Free playtime reveals the pet's hobby in the Journal (legacy playFree).
+    if (!item) await journalService.logDiscovery(AppState.user.id, props.pet.species.name, props.discoveries, 'hobby', '')
   } catch (err) {
-    flash('Error!', '#ff6eb4')
+    flash(err.message || 'Error!', '#ff6eb4')
   } finally {
     playing.value = false
   }
@@ -1168,5 +1236,234 @@ body.night-mode .btn-variant-selector { background: linear-gradient(135deg, #6d2
   text-align: center;
   min-height: 18px;
   transition: opacity 0.4s;
+}
+
+// ── Variant treatments ───────────────────────────────────────────────────────
+// Moved here from assets/scss/_surfaces.scss, where none of them ever rendered.
+// The base `.my-pet-card` rule above sets background, border and box-shadow
+// with `!important`; as a scoped rule it is (0,2,0), the same as a global
+// `.my-pet-card.pet-variant-X`, and component styles load after the globals, so
+// the plain white card won every time. Likewise the generic
+// `.my-pet-card[class*="pet-variant-"]::before { content: '✦' }` above, at
+// (0,3,1) scoped, outranked each variant's own corner glyph. Scoped here and
+// placed LAST, these are (0,3,0)/(0,3,1) and win on both counts — including
+// over `.my-pet-card:hover`, so the glow survives hovering.
+//
+// Spirit (a Twitch-reward variant) never had a rule of its own and shares
+// Ghost's. The keyframes are global (assets/scss/_animations.scss); Vue only
+// rewrites keyframe names declared in the same block, so these resolve as-is.
+
+/* ════════════════ GHOST ════════════════ */
+.my-pet-card.pet-variant-ghost,
+.my-pet-card.pet-variant-spirit {
+  background: linear-gradient(135deg, rgba(210,210,255,0.55), rgba(230,230,255,0.42)) !important;
+  border: 2px solid rgba(180,180,255,0.85) !important;
+  box-shadow: 0 0 30px rgba(180,180,255,0.65), inset 0 0 30px rgba(200,200,255,0.2) !important;
+}
+
+.my-pet-card.pet-variant-ghost::before,
+.my-pet-card.pet-variant-spirit::before { content: '👻'; }
+
+.my-pet-card.pet-variant-ghost::after,
+.my-pet-card.pet-variant-spirit::after {
+  background: repeating-linear-gradient(
+    60deg,
+    rgba(200,200,255,0.08) 0px, rgba(200,200,255,0.08) 1px,
+    transparent 1px, transparent 12px
+  );
+  animation: ghostMist 6s linear infinite;
+}
+
+.my-pet-card.pet-variant-ghost .pet-avatar img,
+.my-pet-card.pet-variant-spirit .pet-avatar img {
+  filter: brightness(1.08) contrast(0.9) blur(0.7px);
+  opacity: 0.76;
+}
+
+/* ════════════════ SHADOW ════════════════ */
+.my-pet-card.pet-variant-shadow {
+  background: linear-gradient(135deg, rgba(10,5,25,0.72), rgba(45,25,70,0.6)) !important;
+  border: 2px solid rgba(130,90,180,0.85) !important;
+  box-shadow: 0 0 35px rgba(0,0,0,0.85), 0 0 15px rgba(90,60,140,0.6), inset 0 0 25px rgba(0,0,0,0.5) !important;
+}
+
+.my-pet-card.pet-variant-shadow::before { content: '🌙'; }
+
+.my-pet-card.pet-variant-shadow::after {
+  background: radial-gradient(ellipse at 50% 100%, rgba(80,50,120,0.35) 0%, transparent 70%);
+  animation: shadowAura 3s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-shadow .pet-avatar img {
+  filter: brightness(0.62) contrast(1.35) saturate(0.65) drop-shadow(0 0 10px rgba(0,0,0,1));
+}
+
+/* ════════════════ FIRE ════════════════ */
+.my-pet-card.pet-variant-fire {
+  background: linear-gradient(160deg, rgba(255,50,0,0.48), rgba(255,130,0,0.35), rgba(255,200,50,0.2)) !important;
+  border: 2px solid rgba(255,80,10,0.9) !important;
+  box-shadow: 0 0 32px rgba(255,80,0,0.7), 0 0 10px rgba(255,160,30,0.5), inset 0 0 20px rgba(255,100,0,0.18) !important;
+  animation: fireCardGlow 1.4s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-fire::before { content: '🔥'; }
+
+.my-pet-card.pet-variant-fire::after {
+  background: repeating-conic-gradient(rgba(255,120,0,0.06) 0%, transparent 25%);
+  animation: fireShimmer 2s linear infinite;
+}
+
+.my-pet-card.pet-variant-fire .pet-avatar img {
+  filter: brightness(1.22) saturate(1.55) hue-rotate(-10deg) drop-shadow(0 0 6px rgba(255,80,0,0.7));
+}
+
+/* ════════════════ ICE ════════════════ */
+.my-pet-card.pet-variant-ice {
+  background: linear-gradient(135deg, rgba(60,200,255,0.45), rgba(160,235,255,0.32), rgba(200,245,255,0.25)) !important;
+  border: 2px solid rgba(80,210,255,0.9) !important;
+  box-shadow: 0 0 30px rgba(60,200,255,0.65), 0 0 10px rgba(180,240,255,0.4), inset 0 0 20px rgba(140,220,255,0.15) !important;
+}
+
+.my-pet-card.pet-variant-ice::before { content: '❄️'; animation: iceSpinBadge 4s linear infinite; }
+
+.my-pet-card.pet-variant-ice::after {
+  background: linear-gradient(180deg, rgba(200,240,255,0.12) 0%, transparent 60%);
+  animation: iceFrost 4s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-ice .pet-avatar img {
+  filter: brightness(1.18) saturate(0.78) hue-rotate(190deg) drop-shadow(0 0 8px rgba(80,210,255,0.8));
+}
+
+/* ════════════════ GOLDEN ════════════════ */
+.my-pet-card.pet-variant-golden {
+  background: linear-gradient(135deg, rgba(255,215,0,0.5), rgba(255,180,0,0.38), rgba(255,140,0,0.22)) !important;
+  border: 2px solid rgba(255,215,0,0.95) !important;
+  box-shadow: 0 0 36px rgba(255,215,0,0.75), 0 0 14px rgba(255,170,0,0.55), inset 0 0 24px rgba(255,215,0,0.22) !important;
+  animation: goldPulse 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-golden::before { content: '👑'; animation: crownBob 2.5s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-golden::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,200,0.18) 50%, transparent 100%);
+  animation: goldShine 2.5s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-golden .pet-avatar img {
+  filter: sepia(0.65) saturate(2) brightness(1.22) drop-shadow(0 0 8px rgba(255,215,0,0.9));
+}
+
+/* ════════════════ SHINY ════════════════ */
+.my-pet-card.pet-variant-shiny {
+  background: linear-gradient(135deg, rgba(255,80,160,0.35), rgba(255,160,60,0.25), rgba(60,220,120,0.25), rgba(80,150,255,0.3)) !important;
+  border: 2px solid transparent !important;
+  background-clip: padding-box !important;
+  box-shadow: 0 0 28px rgba(255,120,200,0.55), 0 0 10px rgba(120,200,255,0.4) !important;
+  animation: shinyBorderAnim 3s linear infinite;
+}
+
+.my-pet-card.pet-variant-shiny::before { content: '✨'; animation: sparkleSpin 1.5s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-shiny::after {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  animation: rainbowShine 2s linear infinite;
+}
+
+.my-pet-card.pet-variant-shiny .pet-avatar img { animation: rainbowCycle 3s linear infinite; }
+
+/* ════════════════ COSMIC ════════════════ */
+.my-pet-card.pet-variant-cosmic {
+  background: radial-gradient(ellipse at 30% 35%, rgba(130,60,210,0.55), rgba(50,20,100,0.48)) !important;
+  border: 2px solid rgba(160,110,255,0.9) !important;
+  box-shadow: 0 0 36px rgba(120,60,210,0.7), 0 0 14px rgba(160,110,255,0.5), inset 0 0 30px rgba(80,30,160,0.3) !important;
+  animation: cosmicPulse 3s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-cosmic::before { content: '🌌'; animation: cosmicBadge 8s linear infinite; }
+
+.my-pet-card.pet-variant-cosmic::after {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.9) 1px, transparent 1px),
+                    radial-gradient(circle, rgba(255,255,255,0.6) 1px, transparent 1px);
+  background-size: 25px 25px, 50px 50px;
+  background-position: 0 0, 12px 12px;
+  animation: starField 8s linear infinite;
+  opacity: 0.4;
+}
+
+.my-pet-card.pet-variant-cosmic .pet-avatar img {
+  filter: brightness(1.14) saturate(1.3) drop-shadow(0 0 8px rgba(160,110,255,0.8));
+  animation: cosmicImgFloat 3s ease-in-out infinite;
+}
+
+/* ════════════════ RAINBOW ════════════════ */
+.my-pet-card.pet-variant-rainbow {
+  background: linear-gradient(135deg, rgba(255,60,60,0.3), rgba(255,200,60,0.25), rgba(60,220,120,0.25), rgba(60,150,255,0.3), rgba(180,60,255,0.28)) !important;
+  border: 2px solid rgba(255,130,200,0.8) !important;
+  box-shadow: 0 0 28px rgba(200,100,255,0.55) !important;
+  animation: rainbowCardAnim 4s linear infinite;
+}
+
+.my-pet-card.pet-variant-rainbow::before { content: '🌈'; }
+
+.my-pet-card.pet-variant-rainbow .pet-avatar img { animation: rainbowCycle 6s linear infinite; }
+
+/* ════════════════ CRYSTAL ════════════════ */
+.my-pet-card.pet-variant-crystal {
+  background: linear-gradient(135deg, rgba(255,80,200,0.42), rgba(200,80,255,0.32), rgba(255,120,220,0.22)) !important;
+  border: 2px solid rgba(255,100,200,0.9) !important;
+  box-shadow: 0 0 32px rgba(255,80,200,0.65), 0 0 12px rgba(220,100,255,0.5), inset 0 0 20px rgba(255,100,200,0.2) !important;
+  animation: crystalGlow 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-crystal::before { content: '💎'; animation: diamondSpin 3s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-crystal::after {
+  background: linear-gradient(60deg, transparent 0%, rgba(255,255,255,0.22) 50%, transparent 100%);
+  animation: crystalShine 2s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-crystal .pet-avatar img {
+  filter: brightness(1.18) saturate(1.3) drop-shadow(0 0 8px rgba(255,80,200,0.9));
+  animation: crystalImgPulse 2s ease-in-out infinite;
+}
+
+/* ════════════════ ELECTRIC ════════════════ */
+.my-pet-card.pet-variant-electric {
+  background: linear-gradient(135deg, rgba(255,255,0,0.42), rgba(255,230,0,0.3), rgba(200,255,100,0.2)) !important;
+  border: 2px dashed rgba(255,230,0,0.95) !important;
+  box-shadow: 0 0 32px rgba(255,230,0,0.75), 0 0 12px rgba(200,255,0,0.5) !important;
+  animation: electricSurge 0.8s ease-in-out infinite;
+}
+
+.my-pet-card.pet-variant-electric::before { content: '⚡'; animation: boltZap 0.8s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-electric::after {
+  background: linear-gradient(45deg, transparent 30%, rgba(255,255,100,0.15) 50%, transparent 70%);
+  animation: electricScan 0.8s linear infinite;
+}
+
+.my-pet-card.pet-variant-electric .pet-avatar img {
+  filter: brightness(1.28) saturate(1.55) contrast(1.15) drop-shadow(0 0 8px rgba(255,230,0,1));
+}
+
+/* ════════════════ NATURE ════════════════ */
+.my-pet-card.pet-variant-nature {
+  background: linear-gradient(135deg, rgba(30,200,60,0.42), rgba(80,220,90,0.3), rgba(140,230,120,0.22)) !important;
+  border: 2px solid rgba(50,210,60,0.88) !important;
+  box-shadow: 0 0 28px rgba(50,200,60,0.6), 0 0 10px rgba(100,230,80,0.4) !important;
+}
+
+.my-pet-card.pet-variant-nature::before { content: '🌿'; animation: leafSway 4s ease-in-out infinite; }
+
+.my-pet-card.pet-variant-nature::after {
+  background-image: radial-gradient(circle, rgba(80,220,80,0.15) 2px, transparent 2px);
+  background-size: 18px 18px;
+  animation: leafPattern 5s linear infinite;
+  opacity: 0.7;
+}
+
+.my-pet-card.pet-variant-nature .pet-avatar img {
+  filter: brightness(1.12) saturate(1.28) hue-rotate(12deg) drop-shadow(0 0 6px rgba(50,200,60,0.7));
 }
 </style>

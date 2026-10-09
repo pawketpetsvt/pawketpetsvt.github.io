@@ -47,7 +47,13 @@ export class OwnedPet {
     return this.hunger < this.max_hunger
   }
 
+  // Free playtime costs 10 energy; a toy needs only 5 (legacy playFree /
+  // playWithToy), so a tired pet can still be played with using a toy.
   get canPlay() {
     return this.energy >= 10
+  }
+
+  get canPlayWithToy() {
+    return this.energy >= 5
   }
 }

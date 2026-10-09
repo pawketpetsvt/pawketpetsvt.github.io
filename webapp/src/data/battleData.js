@@ -1111,7 +1111,9 @@ export const BATTLE_CONSTANTS = {
   XP_PER_LEVEL: 100,
   EQUIP_TIER_MIN_LEVEL: { 1: 1, 2: 5, 3: 10, 4: 15 },
   BATTLE_MAX_TURNS: 50,
-  BOSS_ENCOUNTER_RATE: 0.008,
+  // TEMP: bumped from 0.008 to 0.8 for testing/recording Piper encounters.
+  // Revert to 0.008 (the documented ~0.8% base rate) when done.
+  BOSS_ENCOUNTER_RATE: 0.8,
   HP_REGEN_PER_HOUR: 5,
   // A DELIBERATE CHANGE FROM LEGACY, not a port. game.js rolled 0.12, but the
   // comment directly above that line reads "ZONE BOSS ROLL — 5% chance (~1/20

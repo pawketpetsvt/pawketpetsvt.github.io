@@ -8,6 +8,12 @@ export const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
 // redirect_uri that is not on the app's allow-list.
 export const TWITCH_REDIRECT_URI = 'https://pawketpets.net/'
 
+// Log In With Twitch (Supabase Auth's Twitch provider) runs on a SEPARATE Twitch
+// app, configured in the Supabase dashboard rather than here, so the existing
+// app above and the chat worker are untouched by it. Supabase always asks for
+// `user:read:email`; this adds what the follow rewards need.
+export const TWITCH_LOGIN_SCOPES = 'user:read:follows'
+
 // Cloudflare worker that watches the team's chats and credits chat/sub/bit
 // rewards. The site only reads what it has already awarded.
 export const WORKER_URL = 'https://pawketpets-twitch.pawketpetsvt.workers.dev'

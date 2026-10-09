@@ -97,10 +97,22 @@ onUnmounted(() => {
 //
 // Bleeding 8px out and padding 8px back gives rows up to `g-3` room to sit in
 // while leaving the content aligned exactly with the title and Done button.
+//
+// The bottom gets the same treatment for hover effects. A transform counts
+// towards scrollable overflow, so a tile scaling up on hover (CarePickerModal)
+// pushed a few pixels past the bottom of the body, which summoned a scrollbar,
+// which narrowed the body and reflowed every tile sideways mid-hover. The
+// bottom bleed only reaches into the Done button's 16px top margin. The TOP is
+// deliberately not bled: most callers pass no subtitle, so it would lay the
+// body over the title row and the ✕ button's lower half would stop taking
+// clicks. A tile that grows on hover should grow downward (transform-origin
+// top) so the first row isn't clipped.
 .pp-modal-body {
   min-height: 0;
   overflow-y: auto;
   margin-inline: -8px;
   padding-inline: 8px;
+  margin-bottom: -8px;
+  padding-bottom: 8px;
 }
 </style>

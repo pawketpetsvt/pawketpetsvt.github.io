@@ -40,17 +40,6 @@ export function calculateHappinessDecay(currentHappiness, lastFedTimestamp, last
   return Math.max(currentHappiness - Math.floor(hours * 0.625 * decayMultiplier), 0)
 }
 
-export function calculateLevelUp(currentXp, currentLevel, currentMaxHunger, currentMaxEnergy, currentMaxHappiness) {
-  const xpForNext = currentLevel * 100
-  if (currentXp < xpForNext) {
-    return { leveled: false, level: currentLevel, xp: currentXp, maxHunger: currentMaxHunger, maxEnergy: currentMaxEnergy, maxHappiness: currentMaxHappiness }
-  }
-  return {
-    leveled: true,
-    level: currentLevel + 1,
-    xp: currentXp - xpForNext,
-    maxHunger: currentMaxHunger + 5,
-    maxEnergy: currentMaxEnergy + 5,
-    maxHappiness: currentMaxHappiness + 5
-  }
-}
+// (calculateLevelUp lived here. Its only callers were the free-and-unlimited
+// Feed/Play that wrote stats straight to user_pets; feeding and playing now go
+// through feed_pet_secure / play_with_pet_secure, which level the pet server-side.)

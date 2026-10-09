@@ -372,6 +372,22 @@ export const BASIC_VARIANTS = {
 }
 
 
+// Ports VARIANT_PARTICLES (game.js:37787 at 826475d) — the emoji each variant
+// floats over its card and companion sprite. Anything unlisted gets '✨'.
+export const VARIANT_PARTICLES = {
+  ghost: ['👻', '💀', '🕯️', '🌙', '✨'],
+  shadow: ['🌑', '🖤', '💜', '🌙', '✨'],
+  golden: ['✨', '⭐', '💫', '🌟', '👑'],
+  shiny: ['🌟', '⭐', '✨', '💫', '🌈'],
+  cosmic: ['⭐', '🌠', '✨', '💫', '🌌'],
+  fire: ['🔥', '🎇', '✨', '💥', '🌋'],
+  ice: ['❄️', '💠', '🔹', '✨', '🌨️'],
+  electric: ['⚡', '💥', '✨', '💫', '🔋'],
+  nature: ['🍃', '🌿', '🌸', '🍂', '🌻'],
+  crystal: ['💎', '✨', '🔮', '💠', '⭐'],
+  rainbow: ['🌈', '✨', '🌟', '💫', '⭐']
+}
+
 // Ports petVariants — the full variant catalogue with rarity colours and how
 // each is unlocked (level roll, Twitch channel-point reward, or Skin Key).
 // Distinct from BASIC_VARIANTS above, which is only the Skin Key shop list.

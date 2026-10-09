@@ -17,6 +17,11 @@ import {
 // load, BEFORE the router is created (main.js imports this first), and parked
 // here for TwitchPage to pick up on mount.
 //
+// This is now only "Reconnect Twitch" (beginReconnect). Linking and logging in
+// go through Supabase, whose redirects ALSO carry `#access_token=…` — those
+// always include a `refresh_token`, so they're left for Supabase to read
+// (SupabaseService's isSupabaseCallback draws the same line from its side).
+//
 // Legacy did this inside initTwitchTab() because it had no router to fight with.
 let pendingOAuthToken = null
 
@@ -30,6 +35,7 @@ function consumeOAuthFragment() {
     const [k, v] = part.split('=')
     params[k] = decodeURIComponent(v || '')
   })
+  if (params.refresh_token) return
   if (params.access_token) pendingOAuthToken = params.access_token
 
   // Strip the fragment so a refresh doesn't replay the link, and so the router
@@ -50,12 +56,16 @@ export const twitchState = reactive({
   followStatus: {},
   stats: null,
   checkingFollows: false,
+  // Set when the stored Twitch token is missing or expired, so the page can
+  // offer "Reconnect Twitch" instead of a follow check that can only fail.
+  needsReconnect: false,
   // The token a streamer copies into their Cloudflare worker config. Only ever
   // set on the request that came back from Twitch, never re-read from the DB.
   displayToken: ''
 })
 
 let rewardPollStarted = false
+let clientIdCache = { token: null, clientId: null }
 
 class TwitchService {
   takePendingToken() {
@@ -64,8 +74,52 @@ class TwitchService {
     return t
   }
 
-  // Ports linkTwitch(), game.js:3763.
-  beginLink() {
+  // ── Linking ───────────────────────────────────────────────────────────────
+  // Linking is Supabase's Twitch identity now (AuthService.linkTwitch), not
+  // legacy's linkTwitch()/handleTwitchCallback() (game.js:3763/3773). Those
+  // wrote `players.twitch_id` from the browser, so any player could claim any
+  // Twitch id and collect that viewer's chat rewards. The column is set by a
+  // database trigger from the identity Twitch verified, and the browser can no
+  // longer write it (supabase/migrations/2026-10-08_twitch_login.sql).
+
+  // Asks Twitch who a token belongs to and which Twitch app issued it, or null
+  // if it is expired or revoked. Helix only accepts a token alongside the
+  // Client-Id of the app that issued it, and two apps issue them here: Log In
+  // With Twitch's own app (Supabase, ~4 hour tokens) and the original app
+  // below (~60 days).
+  async validateToken(token) {
+    if (!token) return null
+    const res = await fetch('https://id.twitch.tv/oauth2/validate', {
+      headers: { Authorization: 'OAuth ' + token }
+    })
+    if (!res.ok) return null
+    return res.json()
+  }
+
+  // The Client-Id to send with `token`, remembered per token so callers that
+  // poll (the sidebar's live status) validate once rather than every refresh.
+  // Null when the token is dead.
+  async clientIdFor(token) {
+    if (!token) return null
+    if (clientIdCache.token === token) return clientIdCache.clientId
+    const info = await this.validateToken(token)
+    clientIdCache = { token, clientId: info ? info.client_id : null }
+    return clientIdCache.clientId
+  }
+
+  // The Twitch token Supabase hands over once, right after a Twitch login or
+  // link. `twitch_token` is the one Twitch column the browser may still write.
+  async saveLoginToken(token) {
+    if (!AppState.user || !token) return
+    await supabase.from('players').update({ twitch_token: token }).eq('id', AppState.user.id)
+    twitchState.needsReconnect = false
+  }
+
+  // "Reconnect Twitch": legacy's direct implicit grant on the original Twitch
+  // app, kept for the longer-lived token it returns — the follow check outlasts
+  // a Log In With Twitch token by weeks — and for the token streamers copy into
+  // their Cloudflare worker config.
+  beginReconnect() {
     const scope = 'user:read:email user:read:follows'
     window.location.href =
       'https://id.twitch.tv/oauth2/authorize' +
@@ -75,24 +129,27 @@ class TwitchService {
       '&scope=' + encodeURIComponent(scope)
   }
 
-  // Ports handleTwitchCallback(), game.js:3773.
-  async completeLink(token) {
+  // Stores a reconnected token, but only for the Twitch account already
+  // linked to this player — it refreshes a link, it never makes or moves one.
+  async completeReconnect(token) {
     if (!AppState.user) return false
-    const resp = await fetch('https://api.twitch.tv/helix/users', {
-      headers: { 'Client-Id': TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token }
-    })
-    const body = await resp.json()
-    if (!body.data || !body.data.length) throw new Error('Failed to get Twitch user info')
+    const info = await this.validateToken(token)
+    if (!info) throw new Error('Twitch did not accept that sign-in. Please try again.')
 
-    const twitchUser = body.data[0]
-    const { error } = await supabase.from('players').update({
-      twitch_id: twitchUser.id,
-      twitch_username: twitchUser.login,
-      twitch_token: token
-    }).eq('id', AppState.user.id)
+    const { data: player } = await supabase
+      .from('players').select('twitch_id').eq('id', AppState.user.id).maybeSingle()
+    if (!player || !player.twitch_id) {
+      throw new Error('Link Twitch with "Connect with Twitch" first.')
+    }
+    if (String(player.twitch_id) !== String(info.user_id)) {
+      throw new Error(`That was the Twitch account "${info.login}", not the one linked here. Log in to Twitch as the linked account and try again.`)
+    }
+
+    const { error } = await supabase.from('players').update({ twitch_token: token }).eq('id', AppState.user.id)
     if (error) throw error
 
     twitchState.displayToken = token
+    twitchState.needsReconnect = false
     await this.loadStatus()
     return true
   }
@@ -108,7 +165,9 @@ class TwitchService {
         .eq('id', AppState.user.id)
         .maybeSingle()
 
-      twitchState.linked = !!(data && data.twitch_username)
+      // twitch_id, not twitch_username, is what the worker keys on — and the
+      // trigger can set the id before Twitch's claims supply a username.
+      twitchState.linked = !!(data && data.twitch_id)
       twitchState.username = (data && data.twitch_username) || ''
       twitchState.followRewards = (data && data.twitch_follow_rewards) || {}
       if (twitchState.linked) this.loadStats().catch(() => {})
@@ -137,8 +196,17 @@ class TwitchService {
         .eq('id', AppState.user.id)
         .maybeSingle()
 
-      if (!player || !player.twitch_token) {
+      if (!player || !player.twitch_id) {
         toastService.error('Twitch not linked!')
+        return
+      }
+      // Validated up front: a Log In With Twitch token lasts about 4 hours, and
+      // the check needs the issuing app's Client-Id (see validateToken).
+      const token = player.twitch_token
+      const info = await this.validateToken(token)
+      if (!info || String(info.user_id) !== String(player.twitch_id)) {
+        twitchState.needsReconnect = true
+        toastService.info('Your Twitch connection has expired. Press "Reconnect Twitch", then check again.')
         return
       }
 
@@ -152,7 +220,7 @@ class TwitchService {
           const r = await fetch(
             'https://api.twitch.tv/helix/channels/followed' +
             '?user_id=' + player.twitch_id + '&broadcaster_id=' + s.twitchId,
-            { headers: { 'Client-Id': TWITCH_CLIENT_ID, Authorization: 'Bearer ' + player.twitch_token } }
+            { headers: { 'Client-Id': info.client_id, Authorization: 'Bearer ' + token } }
           )
           const body = await r.json()
           if (body.data && body.data.length > 0) {
@@ -193,12 +261,30 @@ class TwitchService {
     }
   }
 
-  // Ports unlinkTwitch(), game.js:4213.
+  // Ports unlinkTwitch(), game.js:4213 — now removes the Twitch identity, and
+  // the database trigger clears the players columns with it. Supabase refuses
+  // to remove an account's only way in, so a Twitch-only account can't unlink;
+  // that's said up front rather than left to a raw API error.
   async unlink() {
     if (!AppState.user) return
-    await supabase.from('players')
-      .update({ twitch_id: null, twitch_username: null, twitch_token: null })
-      .eq('id', AppState.user.id)
+    const { data, error: idErr } = await supabase.auth.getUserIdentities()
+    if (idErr) { toastService.error(idErr.message); return }
+    const identities = (data && data.identities) || []
+    const twitch = identities.find(i => i.provider === 'twitch')
+    if (twitch && identities.length < 2) {
+      toastService.error('This account signs in with Twitch, so Twitch can\'t be unlinked from it.')
+      return
+    }
+    if (twitch) {
+      const { error } = await supabase.auth.unlinkIdentity(twitch)
+      if (error) { toastService.error(error.message); return }
+    } else {
+      // A legacy link with no identity — one of several accounts that had all
+      // claimed the same Twitch id, which the migration's backfill skips. The
+      // browser can't clear twitch_id any more, so it needs an admin.
+      toastService.error('This link predates Log In With Twitch and can only be removed by an admin.')
+      return
+    }
     twitchState.linked = false
     twitchState.username = ''
     twitchState.stats = null

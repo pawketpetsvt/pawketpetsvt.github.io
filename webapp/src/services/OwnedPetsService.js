@@ -5,7 +5,7 @@ import { AppState } from '../AppState.js'
 import { OwnedPet } from '../models/OwnedPet.js'
 import { playerService } from './PlayerService.js'
 import { inventoryService } from './InventoryService.js'
-import { calculateEnergyRegen, calculateHungerDecay, calculateHappinessDecay, calculateLevelUp } from '../utils/PetStatMath.js'
+import { calculateEnergyRegen, calculateHungerDecay, calculateHappinessDecay } from '../utils/PetStatMath.js'
 import { containsProfanity } from '../utils/profanity.js'
 import { taskTracker } from './TaskTrackerService.js'
 import { referralService } from './ReferralService.js'
@@ -19,6 +19,12 @@ import { petMoodService } from './PetMoodService.js'
 import { achievementTierService } from './AchievementTierService.js'
 import { activityService } from './ActivityService.js'
 import { combatBuffService } from './CombatBuffService.js'
+
+// True when an ISO timestamp falls on today's UTC date — legacy's
+// `toISOString().split('T')[0]` comparison.
+function sameUtcDay(iso) {
+  return !!iso && new Date(iso).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10)
+}
 
 class OwnedPetsService {
   async getOwnedPetIds(userId) {
@@ -140,44 +146,136 @@ class OwnedPetsService {
     return worldEventService.bonus('happinessGain')
   }
 
-  async feed(pet) {
-    if (!pet.canFeed) return
-    const nh = Math.min(pet.hunger + 20, pet.max_hunger)
-    const nhap = Math.min(pet.happiness + Math.round(5 * this.happinessMult()), pet.max_happiness)
-    const nxp = pet.xp + 10
-    const lu = calculateLevelUp(nxp, pet.level, pet.max_hunger, pet.max_energy, pet.max_happiness)
-    const updates = { hunger: nh, happiness: nhap, xp: lu.xp, level: lu.level, last_fed: new Date().toISOString() }
-    if (lu.leveled) { updates.max_hunger = lu.maxHunger; updates.max_energy = lu.maxEnergy; updates.max_happiness = lu.maxHappiness }
-    const res = await supabase.from('user_pets').update(updates).eq('id', pet.id)
-    if (res.error) throw new Error(res.error.message)
-    Object.assign(pet, updates)
-    taskTracker.report('feed_pet')
+  // ── Feed / Play ─────────────────────────────────────────────────────────
+  // Ports feed()/feedFree()/feedWithItem() and play()/playFree()/playWithToy()
+  // (game.js:6093-6716 at 826475d). On the live site the Feed and Play buttons
+  // open a picker: one free option per pet per day, plus whatever food or toys
+  // the player owns, each consumed on use. Both paths go through the server
+  // RPCs, which apply the stats; feed_pet_secure also decrements the food, and
+  // a toy is decremented in play() (see there).
+  //
+  // The port had replaced all of that with a direct `user_pets` update of fixed
+  // amounts and no cost, so both buttons could be pressed indefinitely for free
+  // stats and XP.
+  //
+  // "Used today" is read off `last_fed` / `last_played`, which the RPCs stamp —
+  // legacy's own server-side check. (Legacy also kept a localStorage flag; it
+  // added nothing the column doesn't already say.) As on the live site, any
+  // feed that day stamps `last_fed`, so feeding an item also spends the free
+  // treat.
+
+  freeFeedUsed(pet) {
+    return sameUtcDay(pet.last_fed)
+  }
+
+  freePlayUsed(pet) {
+    return sameUtcDay(pet.last_played)
+  }
+
+  // `invItem` null = the free daily treat.
+  async feed(pet, invItem = null) {
+    if (!invItem && this.freeFeedUsed(pet)) throw new Error('Free daily treat already used today!')
+    const r = await this._careRpc('feed_pet_secure', pet, invItem)
+    const care = await this._applyCare(pet, r, { last_fed: new Date().toISOString() })
+
+    taskTracker.report('feed_pet', 1, invItem ? { itemId: invItem.itemId } : undefined)
     passService.addXP(2, 'feed')
     questService.progress(pet.id, 'feed')
     petMoodService.completeWish(pet.id, 'feed')
     achievementTierService.check('feed_count', pet.id, 1)
-    if (lu.leveled) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(lu.level); passService.addXP(10, 'level_up') }
-    return lu
+    if (invItem) {
+      // 'Any item-based feed counts as a treat' (main:6366).
+      taskTracker.report('use_treat', 1, { itemId: invItem.itemId })
+      if (care.reactionType === 'loved') scrapbookService.add(pet.id, 'favorite_food', { food: invItem.name })
+      // A secret combat dish gives its battle buff however it's eaten. Legacy
+      // applied it only in useItem(), so feeding one through the Feed picker
+      // gave hunger and silently dropped the buff.
+      care.combatBuff = await this.applyDishBuff(pet, invItem)
+      await inventoryService.getInventory(AppState.user.id)
+    }
+    return care
   }
 
-  async play(pet) {
-    if (!pet.canPlay) return
-    const ne = Math.max(pet.energy - 10, 0)
-    const nhap = Math.min(pet.happiness + Math.round(15 * this.happinessMult()), pet.max_happiness)
-    const nxp = pet.xp + 15
-    const lu = calculateLevelUp(nxp, pet.level, pet.max_hunger, pet.max_energy, pet.max_happiness)
-    const updates = { energy: ne, happiness: nhap, xp: lu.xp, level: lu.level, last_played: new Date().toISOString() }
-    if (lu.leveled) { updates.max_hunger = lu.maxHunger; updates.max_energy = lu.maxEnergy; updates.max_happiness = lu.maxHappiness }
-    const res = await supabase.from('user_pets').update(updates).eq('id', pet.id)
-    if (res.error) throw new Error(res.error.message)
-    Object.assign(pet, updates)
+  // `invItem` null = the free daily playtime.
+  async play(pet, invItem = null) {
+    if (invItem) {
+      if (!pet.canPlayWithToy) throw new Error('Not enough energy!')
+    } else {
+      if (this.freePlayUsed(pet)) throw new Error('Free playtime already used today!')
+      if (!pet.canPlay) throw new Error('Not enough energy!')
+    }
+    const r = await this._careRpc('play_with_pet_secure', pet, invItem)
+    const care = await this._applyCare(pet, r, { last_played: new Date().toISOString() })
+
     taskTracker.report('play_pet')
     passService.addXP(2, 'play')
     questService.progress(pet.id, 'play')
     petMoodService.completeWish(pet.id, 'play')
     achievementTierService.check('play_count', pet.id, 1)
-    if (lu.leveled) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(lu.level); passService.addXP(10, 'level_up') }
-    return lu
+    if (invItem) {
+      // Unlike feed_pet_secure, play_with_pet_secure does NOT decrement the toy
+      // — legacy's playWithToy never even reloaded the inventory afterwards, so
+      // toys were reusable forever on the live site. A toy is a one-use item, so
+      // it is consumed here, after the play succeeds. This is a direct
+      // user_inventory write (the same one the healing-item path uses), so a
+      // player calling the RPC by hand could still skip it; closing that needs
+      // the decrement moved into the RPC itself.
+      await inventoryService.useItem(invItem)
+      taskTracker.report('use_toy', 1, { itemId: invItem.itemId })
+      petMoodService.completeWish(pet.id, 'use_toy')
+      scrapbookService.add(pet.id, 'first_toy_use', { toy: invItem.name })
+      await inventoryService.getInventory(AppState.user.id)
+    }
+    return care
+  }
+
+  async _careRpc(fn, pet, invItem) {
+    const { data, error } = await supabase.rpc(fn, { p_pet_id: pet.id, p_item_id: invItem ? invItem.itemId : null })
+    if (error) throw new Error(error.message)
+    if (data && data.error) throw new Error(data.error)
+    return data || {}
+  }
+
+  // Mirrors the RPC's returned stats onto the reactive pet. On a level-up the
+  // row is re-read for the new stat caps, which the RPC result doesn't carry.
+  async _applyCare(pet, r, stamp) {
+    const updates = { ...stamp }
+    for (const k of ['hunger', 'energy', 'happiness', 'xp']) {
+      if (typeof r[k] === 'number') updates[k] = r[k]
+    }
+    if (r.leveled_up && r.new_level) updates.level = r.new_level
+    Object.assign(pet, updates)
+
+    if (r.leveled_up) {
+      const row = await supabase.from('user_pets')
+        .select('level, xp, max_hunger, max_energy, max_happiness').eq('id', pet.id).maybeSingle()
+      if (row.data) Object.assign(pet, row.data)
+      taskTracker.report('level_up_pet')
+      badgeHooks.onPetLevel(pet.level)
+      passService.addXP(10, 'level_up')
+    }
+
+    // The world event's happiness bonus (see happinessMult) — the server applies
+    // a flat amount, so the extra share is topped up here.
+    let happinessGained = r.happiness_gained || 0
+    const mult = this.happinessMult()
+    if (mult > 1 && happinessGained > 0) {
+      const happiness = Math.min(pet.happiness + Math.round(happinessGained * (mult - 1)), pet.max_happiness)
+      const res = await supabase.from('user_pets').update({ happiness }).eq('id', pet.id)
+      if (!res.error) {
+        happinessGained += happiness - pet.happiness
+        pet.happiness = happiness
+      }
+    }
+
+    return {
+      leveled: !!r.leveled_up,
+      level: pet.level,
+      hungerGained: r.hunger_gained || 0,
+      happinessGained,
+      xpGained: r.xp_gained || 0,
+      reactionType: r.reaction_type || 'normal'
+    }
   }
 
   // Ports useOnPet(), game.js:7734-7827. Healing items (effect='healing'/
@@ -187,8 +285,7 @@ class OwnedPetsService {
   // applies effects, and decrements the inventory row server-side — so the
   // client only needs to mirror that decrement locally, not repeat it.
   async useItemOnPet(pet, invItem) {
-    const isHealing = invItem.effect === 'healing' || invItem.effect === 'full_heal' || invItem.effect === 'revive'
-    if (isHealing) {
+    if (invItem.isHealing) {
       const healAmount = invItem.effectValue > 0 ? invItem.effectValue : 9999
       const petRow = await supabase.from('user_pets').select('current_hp, max_hp').eq('id', pet.id).maybeSingle()
       if (!petRow.data) throw new Error('Could not find pet.')
@@ -218,7 +315,7 @@ class OwnedPetsService {
     // Legacy reports the same distinction via updateBingoProgress's itemId arg.
     const kind = (invItem.itemType || '').toLowerCase()
     if (kind === 'toy') {
-      taskTracker.report('use_toy', 1, { itemId: invItem.id })
+      taskTracker.report('use_toy', 1, { itemId: invItem.itemId })
       petMoodService.completeWish(pet.id, 'use_toy')
       petMoodService.completeWish(pet.id, 'play')
       // Scrapbook: the first time this pet plays with a given toy (main:6699).
@@ -232,8 +329,8 @@ class OwnedPetsService {
       // Legacy reports BOTH for a non-toy item, with the comment 'Any
       // item-based feed counts as a treat' (main:6366) — which is what makes
       // the Bingo 'Feed a Treat' square reachable at all.
-      taskTracker.report('feed_pet', 1, { itemId: invItem.id })
-      taskTracker.report('use_treat', 1, { itemId: invItem.id })
+      taskTracker.report('feed_pet', 1, { itemId: invItem.itemId })
+      taskTracker.report('use_treat', 1, { itemId: invItem.itemId })
     }
     if (ef.leveled_up) { taskTracker.report('level_up_pet'); badgeHooks.onPetLevel(ef.new_level); passService.addXP(10, 'level_up') }
 

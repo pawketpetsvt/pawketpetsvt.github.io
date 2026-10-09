@@ -1,7 +1,8 @@
 <template>
   <!-- Ports showPetVariantModal(). Variants are cosmetic skins that paint the
-       card with an aura, a corner glyph and an image filter (all defined as
-       `.my-pet-card.pet-variant-*` rules in the global stylesheet).
+       card with a background, a corner glyph, an image filter and floating
+       particles (the `.my-pet-card.pet-variant-*` rules in PetCard.vue, plus
+       VariantParticles.vue).
 
        Unlock state comes from the Skin Key system (SkinKeyService), migrated in
        Phase 9.5. A locked variant that can be bought with keys shows its price
@@ -41,10 +42,10 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import PetModal from './PetModal.vue'
-import { PET_VARIANTS } from '../../data/petCardData.js'
+import { BASIC_VARIANTS } from '../../data/petCardData.js'
 import { petCosmeticsService } from '../../services/PetCosmeticsService.js'
 import { skinKeyService, skinKeyState, SPECIAL_VARIANTS } from '../../services/SkinKeyService.js'
-import { BASIC_VARIANTS } from '../../data/petCardData.js'
+import { companionState } from '../../services/CompanionService.js'
 import { toastService } from '../../services/ToastService.js'
 
 const props = defineProps({
@@ -59,12 +60,13 @@ const owned = computed(() => {
   // A variant already applied counts as owned even if the unlock row is missing
   // — a pet that received one through a grant rather than a purchase.
   if (props.pet.current_variant) keys.add(props.pet.current_variant)
-  SPECIAL_VARIANTS.forEach(k => { if (PET_VARIANTS[k]) keys.add(k) })
+  SPECIAL_VARIANTS.forEach(k => { if (petCosmeticsService.variantData(k)) keys.add(k) })
   return keys
 })
 
-const unlocked = computed(() => Object.entries(PET_VARIANTS).filter(([k]) => owned.value.has(k)))
-const locked = computed(() => Object.entries(PET_VARIANTS).filter(([k]) => !owned.value.has(k)))
+const catalog = petCosmeticsService.variantCatalog()
+const unlocked = computed(() => catalog.filter(([k]) => owned.value.has(k)))
+const locked = computed(() => catalog.filter(([k]) => !owned.value.has(k)))
 
 const subtitle = computed(() =>
   `${unlocked.value.length} unlocked · ${locked.value.length} still to earn` +
@@ -101,7 +103,10 @@ async function choose(key) {
   try {
     await petCosmeticsService.setVariant(props.pet.id, key)
     props.pet.current_variant = key
-    toastService.success(key ? `${PET_VARIANTS[key].name} variant applied!` : 'Variant cleared.')
+    // The companion buddy holds its own copy of the pet row; legacy repainted
+    // it here too (skinkey_updateCompanionVariant).
+    if (companionState.pet && companionState.pet.id === props.pet.id) companionState.pet.current_variant = key
+    toastService.success(key ? `${petCosmeticsService.variantData(key).name} variant applied!` : 'Variant cleared.')
     emit('changed')
   } catch (e) {
     toastService.error(e.message)

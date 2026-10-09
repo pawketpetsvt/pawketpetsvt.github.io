@@ -43,6 +43,7 @@
 
       <button class="btn btn-primary btn-lg form-submit" :disabled="submitting" @click="handleRegister">{{ btnText
         }}</button>
+      <TwitchLoginButton />
     </div>
 
     <template #info>
@@ -74,6 +75,7 @@
 import { ref } from 'vue'
 import { authService } from '../services/AuthService.js'
 import AuthLanding from '../components/AuthLanding.vue'
+import TwitchLoginButton from '../components/TwitchLoginButton.vue'
 
 // Copy ported verbatim from the legacy register landing (index.html:1381-1388).
 const PERKS = [

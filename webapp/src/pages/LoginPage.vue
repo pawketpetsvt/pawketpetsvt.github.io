@@ -17,6 +17,7 @@
       <div style="text-align:center;margin:10px 0 0;">
         <router-link to="/forgot" style="font-size:0.85rem;color:var(--text-light);">Forgot your password?</router-link>
       </div>
+      <TwitchLoginButton />
     </div>
 
     <template #info>
@@ -56,6 +57,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { authService } from '../services/AuthService.js'
 import AuthLanding from '../components/AuthLanding.vue'
+import TwitchLoginButton from '../components/TwitchLoginButton.vue'
 
 // Copy ported verbatim from the legacy login landing (index.html:1268-1310).
 const FEATURES = [

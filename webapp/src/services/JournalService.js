@@ -22,10 +22,10 @@ class JournalService {
     return discoveries
   }
 
-  // Ports logJournalDiscovery(), game.js:21514-21542. Not yet called from
-  // anywhere in webapp/ — the systems that would trigger it (feeding
-  // reactions, battle wins, expeditions, leveling) aren't migrated yet.
-  // Exposed now so those phases can call it without re-deriving this.
+  // Ports logJournalDiscovery(), game.js:21514-21542. Called from PetCard:
+  // a fed item's reaction, the free daily treat ('loved') and free playtime
+  // ('hobby'). The Journal page shows the species' own data for an entry once
+  // it is discovered, so an empty item name still reveals it.
   async logDiscovery(userId, petType, discoveries, discoveryType, itemName) {
     if (!userId || !petType) return
     if (discoveries[petType] && discoveries[petType][discoveryType]) return

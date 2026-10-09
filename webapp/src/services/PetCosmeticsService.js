@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
-import { PET_VARIANTS } from '../data/petCardData.js'
+import { PET_VARIANTS, BASIC_VARIANTS } from '../data/petCardData.js'
 
 // Owns the three cosmetic layers on a pet card that aren't gear:
 // pet titles, variants (skins), and which pet is the active companion.
@@ -78,8 +78,24 @@ class PetCosmeticsService {
   }
 
   // ── variants ──────────────────────────────────────────────────────────────
+  // The full variant catalogue as [key, data] pairs: the Skin Key set
+  // (BASIC_VARIANTS) in its own order, then the level/Twitch-only extras from
+  // PET_VARIANTS. Legacy's picker listed BASIC_VARIANTS; the port had switched
+  // to PET_VARIANTS alone, which silently dropped Ghost, Electric and Nature —
+  // purchasable variants nobody could then buy, equip or see a badge for.
+  variantCatalog() {
+    const keys = [...new Set([...Object.keys(BASIC_VARIANTS), ...Object.keys(PET_VARIANTS)])]
+    return keys.map(k => [k, this.variantData(k)])
+  }
+
+  // PET_VARIANTS wins on name/icon (what cards already show) and supplies the
+  // colour and unlock route; BASIC_VARIANTS fills in the rest. '#9966ff' is
+  // legacy's own fallback colour for a variant with no PET_VARIANTS entry.
   variantData(key) {
-    return key ? (PET_VARIANTS[key] || null) : null
+    if (!key || !(BASIC_VARIANTS[key] || PET_VARIANTS[key])) return null
+    const merged = { ...BASIC_VARIANTS[key], ...PET_VARIANTS[key] }
+    merged.color = merged.color || '#9966ff'
+    return merged
   }
 
   // Ports getPetVariantClass() — the CSS hook that paints the card's aura.

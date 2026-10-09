@@ -1,23 +1,23 @@
 <template>
   <div class="page-wrap container-fluid position-relative z-1 pb-page">
     <div class="page-hero">
-      <div class="sparkle-row">🟪 ✦ 🟪</div>
+      <div class="sparkle-row"><TwitchLogo /> ✦ <TwitchLogo /></div>
       <h1>Twitch &amp; Rewards</h1>
       <p>Connect your Twitch and check out our team! ✨</p>
     </div>
 
     <a :href="TWITCH_TEAM_URL" target="_blank" rel="noopener" class="team-page-link">
-      🟪 Visit Our Official Twitch Team Page
+      <TwitchLogo /> Visit Our Official Twitch Team Page
     </a>
 
     <!-- Reward explainer — visible whether or not an account is linked -->
     <div class="twitch-rewards-section">
       <h3 class="tw-rewards-title mb-3">🎁 Earn PP by Being Active in Our Streams!</h3>
-      <div class="reward-cards row row-cols-1 row-cols-md-2 g-3">
+      <div class="row row-cols-1 row-cols-md-2 g-3 mb-3">
         <div v-for="c in TWITCH_REWARD_CARDS" :key="c.title" class="col">
           <div class="reward-card h-100">
             <div class="reward-icon">{{ c.icon }}</div>
-            <div class="reward-info">
+            <div class="reward-info min-w-0">
               <div class="reward-title">{{ c.title }}</div>
               <div class="reward-desc">{{ c.desc }}</div>
               <div v-if="c.cooldown" class="reward-cooldown">{{ c.cooldown }}</div>
@@ -49,8 +49,9 @@
       <div v-if="twitchState.loading" class="spinner"></div>
 
       <template v-else-if="!twitchState.linked">
-        <button class="btn-twitch" @click="twitchService.beginLink()">🟪 Connect with Twitch</button>
-        <p class="tw-privacy-note mt-px14">We only read public info. We never post on your behalf.</p>
+        <button class="btn-twitch" :disabled="linking" @click="link"><TwitchLogo /> Connect with Twitch</button>
+        <p class="tw-privacy-note mt-px14">We only read public info. We never post on your behalf.
+          Once linked, you can also sign in with "Log In With Twitch".</p>
       </template>
 
       <template v-else>
@@ -79,6 +80,19 @@
           >
             {{ twitchState.checkingFollows ? 'Checking...' : 'Check Follows & Claim Rewards' }}
           </button>
+
+          <!-- Follow checks need a live Twitch token, and the one from Log In
+               With Twitch lasts only hours. This fetches a long-lived one (and
+               is how streamers get the token for their worker config). -->
+          <div class="mt-3">
+            <button class="btn btn-sm" :class="twitchState.needsReconnect ? 'btn-primary' : 'btn-outline'"
+              @click="twitchService.beginReconnect()">
+              🔄 Reconnect Twitch
+            </button>
+            <p v-if="twitchState.needsReconnect" class="tw-privacy-note mt-2 mb-0">
+              Your Twitch connection expired — reconnect, then check your follows again.
+            </p>
+          </div>
         </div>
 
         <div v-if="twitchState.stats" class="tw-stats-panel py-px14 px-3 rounded-4">
@@ -101,9 +115,11 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { twitchService, twitchState } from '../services/TwitchService.js'
+import { authService } from '../services/AuthService.js'
 import { toastService } from '../services/ToastService.js'
+import TwitchLogo from '../components/TwitchLogo.vue'
 import {
   TWITCH_REWARD_CARDS, TWITCH_TEAM_URL, FOLLOW_STREAMERS, FOLLOW_REWARD_PP
 } from '../data/twitchData.js'
@@ -124,17 +140,31 @@ function copyToken() {
     .catch(() => toastService.error('Could not copy — select the box and copy manually.'))
 }
 
+// Leaves the site for Twitch and comes back through Supabase; AuthService
+// returns the player to this page afterwards.
+const linking = ref(false)
+async function link() {
+  linking.value = true
+  try {
+    await authService.linkTwitch()
+  } catch (e) {
+    toastService.error(e.message)
+    linking.value = false
+  }
+}
+
 onMounted(async () => {
-  // The OAuth fragment was captured and stripped at module load in
-  // TwitchService, before the router could try to route it.
+  // A "Reconnect Twitch" token, captured and stripped at module load in
+  // TwitchService before the router could try to route it.
   const token = twitchService.takePendingToken()
   if (token) {
     try {
-      await twitchService.completeLink(token)
-      toastService.success('✅ Twitch account linked successfully!')
+      await twitchService.completeReconnect(token)
+      toastService.success('✅ Twitch reconnected!')
     } catch (e) {
-      console.error('[twitch] link failed:', e)
-      toastService.error('Error linking Twitch account')
+      console.error('[twitch] reconnect failed:', e)
+      toastService.error(e.message || 'Error reconnecting Twitch')
+      await twitchService.loadStatus()
     }
   } else {
     await twitchService.loadStatus()
@@ -290,12 +320,14 @@ onMounted(async () => {
   padding: 20px;
   margin: 20px 0;
 }
-.reward-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin: 16px 0;
-}
+// The card grid is the Bootstrap `row row-cols-1 row-cols-md-2 g-3` in the
+// template. A `.reward-cards` rule here used to ALSO make that row a CSS grid
+// (`repeat(auto-fit, minmax(220px, 1fr))` plus a 12px gap and `margin: 16px 0`).
+// The two layouts nested rather than combined: each `.col` kept Bootstrap's
+// `width: 50%` and was then sized at 50% of its GRID TRACK, so every card
+// rendered at roughly half the width it was given, its text squeezed into a
+// ~100px column and spilling past the card's background and border. The margin
+// also cancelled the row's negative gutter margins. Bootstrap alone now owns it.
 .reward-card {
   display: flex;
   gap: 12px;
@@ -331,9 +363,6 @@ onMounted(async () => {
   color: var(--text-light);
   line-height: 1.5;
   margin-top: 8px;
-}
-@media (max-width: 500px) {
-  .reward-cards { grid-template-columns: 1fr; }
 }
 
 // the global stylesheet owns .twitch-card, .reward-card, .token-box, .btn-twitch,

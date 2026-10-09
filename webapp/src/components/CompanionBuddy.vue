@@ -13,6 +13,8 @@
       :class="variantClass" :style="spriteStyle" title="Pat your pet!" @click="pat">
       <span v-if="!imageFile" class="pp-companion-fallback">🐾</span>
     </div>
+    <!-- Legacy spawned 5 on #companion-buddy, beside the sprite rather than in it. -->
+    <VariantParticles :variant="pet.current_variant" :count="5" />
 
     <div class="companion-bubble"
       :class="{ show: companionState.showBubble, 'companion-spooky-bubble': companionState.spooky }">
@@ -34,6 +36,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { companionState, companionService } from '../services/CompanionService.js'
 import { petCosmeticsService } from '../services/PetCosmeticsService.js'
+import VariantParticles from './pet/VariantParticles.vue'
 
 const pet = computed(() => companionState.pet)
 const imageFile = computed(() => pet.value && pet.value.pets && pet.value.pets.image_file)

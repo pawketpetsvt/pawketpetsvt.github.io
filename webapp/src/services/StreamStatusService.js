@@ -1,6 +1,7 @@
 import { reactive, computed } from 'vue'
 import { supabase } from './SupabaseService.js'
 import { AppState } from '../AppState.js'
+import { twitchService } from './TwitchService.js'
 
 export const STREAMERS = [
   { id: 'ember', name: 'Embertail', login: 'embertail', image: 'pets/ember.png' },
@@ -31,24 +32,28 @@ export const liveStreamers = computed(() =>
     }))
 )
 
-const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
-
 class StreamStatusService {
   // Ports checkSidebarStreamStatus(), game.js:7638+. Checking live status
-  // requires a linked viewer's Twitch token (twitch_token on `players`), which
-  // the Twitch tab now writes (Phase 9 — TwitchService.completeLink). A player
-  // who has not linked still leaves every streamer OFFLINE rather than erroring,
-  // matching the original's fallback exactly.
+  // requires a linked viewer's Twitch token (twitch_token on `players`), saved
+  // by Log In With Twitch / linking or by "Reconnect Twitch". A player with no
+  // token still leaves every streamer OFFLINE rather than erroring, matching the
+  // original's fallback exactly.
+  //
+  // The Client-Id comes from the token itself: the two Twitch apps that issue
+  // these tokens have different ids, and Helix rejects a token sent with the
+  // other app's. Legacy hard-coded the original app's id.
   async refresh() {
     if (!AppState.user) return
     try {
       const pr = await supabase.from('players').select('twitch_token').eq('id', AppState.user.id).maybeSingle()
       const token = pr.data && pr.data.twitch_token
       if (!token) return
+      const clientId = await twitchService.clientIdFor(token)
+      if (!clientId) return
 
       const logins = STREAMERS.map(s => 'user_login=' + s.login).join('&')
       const resp = await fetch(`https://api.twitch.tv/helix/streams?${logins}`, {
-        headers: { 'Client-Id': TWITCH_CLIENT_ID, Authorization: `Bearer ${token}` }
+        headers: { 'Client-Id': clientId, Authorization: `Bearer ${token}` }
       })
       const data = await resp.json()
       STREAMERS.forEach(s => {
