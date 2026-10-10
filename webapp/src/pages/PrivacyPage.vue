@@ -22,7 +22,7 @@
         <h3>Information collected automatically:</h3>
         <ul>
           <li><strong>Gameplay data</strong> — your pets, inventory, PawketPoints balance, login streaks, battle history, and similar in-game activity. This is necessary for the game to function.</li>
-          <li><strong>Twitch ID and username</strong> — only if you voluntarily link your Twitch account via the Twitch tab. Used solely to detect when followed streamers go live and to credit PawketPoints for stream watching. We store only your Twitch user ID and display name — we do not access your Twitch email, subscriptions, payment information, or any other Twitch data.</li>
+          <li><strong>Twitch account</strong> — only if you sign in with Twitch or link Twitch on the Twitch tab. We store your Twitch user ID, username and a Twitch access token, used to credit PawketPoints for chatting, following, subscribing and cheering in PawketPetsVT team channels and to check which team streamers you follow. If you create your account with "Log In With Twitch", the email address on your Twitch account becomes your PawketPets account email. When you chat in a team channel we note that you chatted, not what you said. We do not access your Twitch payment information, private messages or any other Twitch data.</li>
           <li><strong>Session data</strong> — Supabase sets authentication cookies/tokens in your browser to keep you logged in. These are technical necessities and contain no personal tracking data.</li>
           <li><strong>Browser and device type</strong> — collected passively by our hosting infrastructure (GitHub Pages / Supabase). We do not run any analytics trackers or advertising scripts.</li>
         </ul>

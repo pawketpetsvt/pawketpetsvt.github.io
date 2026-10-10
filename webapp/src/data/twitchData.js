@@ -1,21 +1,43 @@
 // Twitch integration config, ported from game.js:322-335 and the Cloudflare
 // worker block at game.js:2817-2905.
 
-export const TWITCH_CLIENT_ID = 'moqd3war5e7fleif8yte1d8n6kl25u'
+// The PawketPets Twitch app (replaced the original `moqd3war…` app in 2026-10).
+// One app does everything: Log In With Twitch (its client ID and secret are in
+// Supabase → Authentication → Providers → Twitch), Reconnect Twitch and
+// streamer authorization (below), and the Cloudflare worker's EventSub and live
+// status (its TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET).
+export const TWITCH_CLIENT_ID = 'vgg0plq9stf7eub2ypba57c51dujih'
 
 // Registered with Twitch as this app's OAuth redirect, so it cannot be derived
 // from the running origin the way the referral link is — Twitch rejects any
 // redirect_uri that is not on the app's allow-list.
-export const TWITCH_REDIRECT_URI = 'https://pawketpets.net/'
+//
+// Under `npm run dev` it returns to the dev server instead, so Reconnect Twitch
+// can be tested locally rather than always landing on the live site — which
+// needs `http://localhost:5174/` on the Twitch app's redirect list too. The
+// guards keep this importable from the plain-Node smoke tests.
+const IS_DEV = typeof window !== 'undefined' && !!(import.meta.env && import.meta.env.DEV)
+export const TWITCH_REDIRECT_URI = IS_DEV ? window.location.origin + '/' : 'https://pawketpets.net/'
 
-// Log In With Twitch (Supabase Auth's Twitch provider) runs on a SEPARATE Twitch
-// app, configured in the Supabase dashboard rather than here, so the existing
-// app above and the chat worker are untouched by it. Supabase always asks for
-// `user:read:email`; this adds what the follow rewards need.
+// Supabase always asks for `user:read:email`; this adds what the follow
+// rewards need.
 export const TWITCH_LOGIN_SCOPES = 'user:read:follows'
 
-// Cloudflare worker that watches the team's chats and credits chat/sub/bit
-// rewards. The site only reads what it has already awarded.
+// What the worker's EventSub subscriptions need Twitch to have been granted
+// (twitch-worker/worker.js, handleSetup):
+//   channel — each team streamer, for their own channel: subs and gift subs,
+//             cheers, follows (as their own moderator), and letting the bot
+//             read their chat;
+//   bot     — the account named by the worker's BOT_USER_ID, which reads chat.
+export const STREAMER_AUTH_SCOPES = {
+  channel: 'channel:read:subscriptions bits:read moderator:read:followers channel:bot',
+  bot: 'user:read:chat user:bot'
+}
+
+// Cloudflare worker: receives Twitch EventSub (it pays chat/follow/sub/cheer PP
+// through Supabase), serves live status (/api/live) and the OBS overlay API.
+// Its source is twitch-worker/worker.js. Also referenced by obs.html and
+// overlay.js at the repo root — change all three together.
 export const WORKER_URL = 'https://pawketpets-twitch.pawketpetsvt.workers.dev'
 
 export const FOLLOW_REWARD_PP = 50

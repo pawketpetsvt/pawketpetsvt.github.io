@@ -36,9 +36,17 @@ class AuthService {
     return AppState.user
   }
 
-  // Supabase clears the fragment after a successful redirect but leaves a
-  // failed one (`#error=…`) in place, where the hash router would try to route
-  // it. Report it, then point the URL somewhere real.
+  // Where an OAuth round trip should land, if anywhere. Supabase clears the
+  // fragment after a successful redirect but leaves a failed one (`#error=…`)
+  // in place; either way the URL no longer says where the player was going.
+  //
+  // This has to be handed to the ROUTER (main.js does `router.replace` with it
+  // before mounting), not written into the URL: the hash history captures the
+  // location when router.js is first imported — long before this runs — and
+  // Supabase's own `location.hash = ''` then fires a popstate that leaves the
+  // router holding `/`, i.e. Home. A history.replaceState here is invisible to
+  // it, which is exactly how the first version of this sent every Twitch link
+  // back to Home instead of the Twitch page.
   _settleRedirect() {
     const returnTo = readSession(RETURN_KEY)
     writeSession(RETURN_KEY, null)
@@ -46,13 +54,18 @@ class AuthService {
     const failed = /[#&](error|error_code|error_description)=/.test(hash)
     if (!failed && !returnTo) return
 
-    let target = AppState.user ? (returnTo || '/home') : '/login'
     if (failed) {
       const params = new URLSearchParams(hash.replace(/^#\/?/, ''))
       const code = params.get('error_code') || params.get('error')
       toastService.error(REDIRECT_ERRORS[code] || params.get('error_description') || 'Twitch sign-in failed.')
     }
-    window.history.replaceState({}, '', window.location.pathname + '#' + target)
+    this.landingRoute = AppState.user ? (returnTo || '/home') : '/login'
+  }
+
+  takeLandingRoute() {
+    const route = this.landingRoute || null
+    this.landingRoute = null
+    return route
   }
 
   // Log In With Twitch — the same call creates the account on a first visit.

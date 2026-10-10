@@ -5,8 +5,8 @@ import { playerService } from './PlayerService.js'
 import { notificationService } from './NotificationService.js'
 import { toastService } from './ToastService.js'
 import {
-  TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI, WORKER_URL,
-  FOLLOW_STREAMERS, FOLLOW_REWARD_PP
+  TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI,
+  FOLLOW_STREAMERS, FOLLOW_REWARD_PP, STREAMER_AUTH_SCOPES
 } from '../data/twitchData.js'
 
 // ── OAuth token capture ─────────────────────────────────────────────────────
@@ -17,13 +17,15 @@ import {
 // load, BEFORE the router is created (main.js imports this first), and parked
 // here for TwitchPage to pick up on mount.
 //
-// This is now only "Reconnect Twitch" (beginReconnect). Linking and logging in
-// go through Supabase, whose redirects ALSO carry `#access_token=…` — those
-// always include a `refresh_token`, so they're left for Supabase to read
-// (SupabaseService's isSupabaseCallback draws the same line from its side).
+// Two flows use it, told apart by the `state` they send: "Reconnect Twitch"
+// (state=reconnect) and streamer authorization (state=channel / state=bot).
+// Linking and logging in go through Supabase, whose redirects ALSO carry
+// `#access_token=…` — those always include a `refresh_token`, so they're left
+// for Supabase to read (SupabaseService's isSupabaseCallback draws the same line
+// from its side).
 //
 // Legacy did this inside initTwitchTab() because it had no router to fight with.
-let pendingOAuthToken = null
+let pendingOAuth = null
 
 function consumeOAuthFragment() {
   if (typeof window === 'undefined') return
@@ -36,7 +38,7 @@ function consumeOAuthFragment() {
     params[k] = decodeURIComponent(v || '')
   })
   if (params.refresh_token) return
-  if (params.access_token) pendingOAuthToken = params.access_token
+  if (params.access_token) pendingOAuth = { token: params.access_token, state: params.state || 'reconnect' }
 
   // Strip the fragment so a refresh doesn't replay the link, and so the router
   // starts from a clean URL. Landing on /twitch is right: that is the tab the
@@ -59,19 +61,21 @@ export const twitchState = reactive({
   // Set when the stored Twitch token is missing or expired, so the page can
   // offer "Reconnect Twitch" instead of a follow check that can only fail.
   needsReconnect: false,
-  // The token a streamer copies into their Cloudflare worker config. Only ever
-  // set on the request that came back from Twitch, never re-read from the DB.
-  displayToken: ''
+  // The outcome of a streamer authorization round trip, shown on the page:
+  // { kind, login, missing[] }. Replaces the old "copy this token into
+  // Cloudflare" box — the worker never read those tokens; Twitch only needs the
+  // streamer to have authorized the app.
+  streamerAuth: null
 })
 
 let rewardPollStarted = false
-let clientIdCache = { token: null, clientId: null }
 
 class TwitchService {
-  takePendingToken() {
-    const t = pendingOAuthToken
-    pendingOAuthToken = null
-    return t
+  // { token, state } from a Twitch redirect, once.
+  takePendingAuth() {
+    const p = pendingOAuth
+    pendingOAuth = null
+    return p
   }
 
   // ── Linking ───────────────────────────────────────────────────────────────
@@ -82,11 +86,11 @@ class TwitchService {
   // database trigger from the identity Twitch verified, and the browser can no
   // longer write it (supabase/migrations/2026-10-08_twitch_login.sql).
 
-  // Asks Twitch who a token belongs to and which Twitch app issued it, or null
-  // if it is expired or revoked. Helix only accepts a token alongside the
-  // Client-Id of the app that issued it, and two apps issue them here: Log In
-  // With Twitch's own app (Supabase, ~4 hour tokens) and the original app
-  // below (~60 days).
+  // Asks Twitch who a token belongs to, which app issued it and with what
+  // scopes, or null if it is expired or revoked. Helix only accepts a token
+  // alongside the issuing app's Client-Id; using the one Twitch reports keeps
+  // tokens issued before the move to the new Twitch app working until they
+  // expire.
   async validateToken(token) {
     if (!token) return null
     const res = await fetch('https://id.twitch.tv/oauth2/validate', {
@@ -96,15 +100,34 @@ class TwitchService {
     return res.json()
   }
 
-  // The Client-Id to send with `token`, remembered per token so callers that
-  // poll (the sidebar's live status) validate once rather than every refresh.
-  // Null when the token is dead.
-  async clientIdFor(token) {
-    if (!token) return null
-    if (clientIdCache.token === token) return clientIdCache.clientId
+  _authorize(scope, state, forceVerify) {
+    window.location.href =
+      'https://id.twitch.tv/oauth2/authorize' +
+      '?client_id=' + TWITCH_CLIENT_ID +
+      '&redirect_uri=' + encodeURIComponent(TWITCH_REDIRECT_URI) +
+      '&response_type=token' +
+      '&scope=' + encodeURIComponent(scope) +
+      '&state=' + state +
+      (forceVerify ? '&force_verify=true' : '')
+  }
+
+  // ── Streamer authorization ────────────────────────────────────────────────
+  // The worker receives subs, cheers, follows and chat through Twitch EventSub,
+  // which Twitch only allows once each streamer (and the chat-reading bot
+  // account) has authorized the app with the scopes in STREAMER_AUTH_SCOPES.
+  // Nothing is stored: the authorization itself is what Twitch checks.
+  // force_verify makes Twitch show its consent screen, so a streamer can see
+  // and pick which Twitch account they're authorizing.
+  beginStreamerAuth(kind) {
+    this._authorize(STREAMER_AUTH_SCOPES[kind], kind, true)
+  }
+
+  async completeStreamerAuth(token, kind) {
     const info = await this.validateToken(token)
-    clientIdCache = { token, clientId: info ? info.client_id : null }
-    return clientIdCache.clientId
+    if (!info) throw new Error('Twitch did not accept that authorization. Please try again.')
+    const granted = info.scopes || []
+    const missing = STREAMER_AUTH_SCOPES[kind].split(' ').filter(s => !granted.includes(s))
+    twitchState.streamerAuth = { kind, login: info.login, userId: info.user_id, missing }
   }
 
   // The Twitch token Supabase hands over once, right after a Twitch login or
@@ -115,18 +138,11 @@ class TwitchService {
     twitchState.needsReconnect = false
   }
 
-  // "Reconnect Twitch": legacy's direct implicit grant on the original Twitch
-  // app, kept for the longer-lived token it returns — the follow check outlasts
-  // a Log In With Twitch token by weeks — and for the token streamers copy into
-  // their Cloudflare worker config.
+  // "Reconnect Twitch": legacy's direct implicit grant, kept for the
+  // longer-lived token it returns (~60 days, against ~4 hours for one from Log
+  // In With Twitch), which the follow check needs.
   beginReconnect() {
-    const scope = 'user:read:email user:read:follows'
-    window.location.href =
-      'https://id.twitch.tv/oauth2/authorize' +
-      '?client_id=' + TWITCH_CLIENT_ID +
-      '&redirect_uri=' + encodeURIComponent(TWITCH_REDIRECT_URI) +
-      '&response_type=token' +
-      '&scope=' + encodeURIComponent(scope)
+    this._authorize('user:read:email user:read:follows', 'reconnect', false)
   }
 
   // Stores a reconnected token, but only for the Twitch account already
@@ -148,7 +164,6 @@ class TwitchService {
     const { error } = await supabase.from('players').update({ twitch_token: token }).eq('id', AppState.user.id)
     if (error) throw error
 
-    twitchState.displayToken = token
     twitchState.needsReconnect = false
     await this.loadStatus()
     return true
@@ -288,62 +303,57 @@ class TwitchService {
     twitchState.linked = false
     twitchState.username = ''
     twitchState.stats = null
-    twitchState.displayToken = ''
     toastService.info('Twitch unlinked.')
   }
 
-  // Ports loadTwitchStats(), game.js:2877. Silent on failure — the worker is a
-  // separate deployment and the page is fully usable without it.
+  // Ports loadTwitchStats(), game.js:2877 — now the player's own row in
+  // twitch_reward_stats (written by the worker through Supabase) instead of the
+  // old worker's KV store. Follows count the site's own claim map, as before,
+  // since that also includes follows claimed with "Check Follows".
   async loadStats() {
     if (!AppState.user) return
-    const { data } = await supabase
-      .from('players')
-      .select('twitch_id, twitch_follow_rewards')
-      .eq('id', AppState.user.id)
-      .maybeSingle()
-    if (!data || !data.twitch_id) return
-
-    const res = await fetch(WORKER_URL + '/api/rewards/stats?twitch_id=' + data.twitch_id)
-    if (!res.ok) return
-    const stats = await res.json()
+    const [statsRes, playerRes] = await Promise.all([
+      supabase.from('twitch_reward_stats')
+        .select('total_pp_earned, chat_messages, subs').eq('player_id', AppState.user.id).maybeSingle(),
+      supabase.from('players').select('twitch_follow_rewards').eq('id', AppState.user.id).maybeSingle()
+    ])
+    const stats = statsRes.data || {}
     twitchState.stats = {
       pp: stats.total_pp_earned || 0,
       chats: stats.chat_messages || 0,
-      follows: Object.keys(data.twitch_follow_rewards || {}).length,
+      follows: Object.keys((playerRes.data && playerRes.data.twitch_follow_rewards) || {}).length,
       subs: stats.subs || 0
     }
   }
 
-  // Ports checkTwitchRewards(), game.js:2821 — claims whatever the worker has
-  // credited since the last check.
+  // Ports checkTwitchRewards(), game.js:2821 — announces the stream rewards the
+  // worker has paid since the last check.
+  //
+  // It no longer PAYS them. The worker always added the PP to the account
+  // itself, and legacy then paid each reward a second time here through
+  // award_pp_secure, so every chat, follow, sub and cheer reward was doubled.
+  // These rows are notifications; the balance is just re-read.
   async checkRewards() {
     if (!AppState.user) return
     try {
-      const { data } = await supabase
-        .from('players').select('twitch_id').eq('id', AppState.user.id).maybeSingle()
-      if (!data || !data.twitch_id) return
-
-      const res = await fetch(WORKER_URL + '/api/rewards?twitch_id=' + data.twitch_id, {
-        headers: { 'Content-Type': 'application/json' }
-      })
-      if (!res.ok) return
-      const rewards = await res.json()
-      if (!Array.isArray(rewards) || !rewards.length) return
+      const { data: rewards, error } = await supabase
+        .from('twitch_reward_events')
+        .select('id, amount, reason')
+        .eq('player_id', AppState.user.id)
+        .eq('seen', false)
+        .order('created_at', { ascending: true })
+        .limit(50)
+      if (error || !rewards || !rewards.length) return
 
       for (const reward of rewards) {
-        if (reward.claimed) continue
-        await playerService.awardPoints(reward.amount, 'twitch_' + reward.type)
         toastService.success('🎬 Twitch Reward! +' + reward.amount + ' PP for ' + reward.reason)
         notificationService.create(
           AppState.user.id, 'twitch_reward', '🎬 Twitch Reward!',
           '+' + reward.amount + ' PP for ' + reward.reason, 'tab:twitch'
         ).catch(() => {})
-        fetch(WORKER_URL + '/api/rewards/claim', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ reward_id: reward.id, twitch_id: data.twitch_id })
-        }).catch(() => {})
       }
+      await supabase.rpc('mark_twitch_rewards_seen', { p_ids: rewards.map(r => r.id) })
+      await playerService.getPlayer(AppState.user.id)
       this.loadStats().catch(() => {})
     } catch (e) {
       console.debug('[twitch] reward check failed:', e)

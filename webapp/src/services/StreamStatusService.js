@@ -1,7 +1,5 @@
 import { reactive, computed } from 'vue'
-import { supabase } from './SupabaseService.js'
-import { AppState } from '../AppState.js'
-import { twitchService } from './TwitchService.js'
+import { WORKER_URL } from '../data/twitchData.js'
 
 export const STREAMERS = [
   { id: 'ember', name: 'Embertail', login: 'embertail', image: 'pets/ember.png' },
@@ -33,43 +31,31 @@ export const liveStreamers = computed(() =>
 )
 
 class StreamStatusService {
-  // Ports checkSidebarStreamStatus(), game.js:7638+. Checking live status
-  // requires a linked viewer's Twitch token (twitch_token on `players`), saved
-  // by Log In With Twitch / linking or by "Reconnect Twitch". A player with no
-  // token still leaves every streamer OFFLINE rather than erroring, matching the
-  // original's fallback exactly.
+  // Ports checkSidebarStreamStatus(), game.js:7638+. Asks the worker
+  // (/api/live), which checks Twitch with the app's own token.
   //
-  // The Client-Id comes from the token itself: the two Twitch apps that issue
-  // these tokens have different ids, and Helix rejects a token sent with the
-  // other app's. Legacy hard-coded the original app's id.
+  // Legacy asked Twitch directly with the PLAYER's token, so anyone who hadn't
+  // linked Twitch saw every streamer as offline, and so did a Log In With Twitch
+  // player once their ~4-hour token expired. A failed check still leaves
+  // everyone OFFLINE rather than erroring, as the original's fallback did.
   async refresh() {
-    if (!AppState.user) return
     try {
-      const pr = await supabase.from('players').select('twitch_token').eq('id', AppState.user.id).maybeSingle()
-      const token = pr.data && pr.data.twitch_token
-      if (!token) return
-      const clientId = await twitchService.clientIdFor(token)
-      if (!clientId) return
-
-      const logins = STREAMERS.map(s => 'user_login=' + s.login).join('&')
-      const resp = await fetch(`https://api.twitch.tv/helix/streams?${logins}`, {
-        headers: { 'Client-Id': clientId, Authorization: `Bearer ${token}` }
-      })
+      const logins = STREAMERS.map(s => s.login).join(',')
+      const resp = await fetch(`${WORKER_URL}/api/live?logins=${logins}`)
+      if (!resp.ok) return
       const data = await resp.json()
       STREAMERS.forEach(s => {
         streamStatus[s.id].live = false
         streamStatus[s.id].viewers = 0
         streamStatus[s.id].title = ''
       })
-      if (data.data) {
-        data.data.forEach(stream => {
-          const match = STREAMERS.find(s => s.login.toLowerCase() === stream.user_login.toLowerCase())
-          if (!match) return
-          streamStatus[match.id].live = true
-          streamStatus[match.id].viewers = stream.viewer_count || 0
-          streamStatus[match.id].title = stream.title || ''
-        })
-      }
+      ;(data.live || []).forEach(stream => {
+        const match = STREAMERS.find(s => s.login.toLowerCase() === stream.login.toLowerCase())
+        if (!match) return
+        streamStatus[match.id].live = true
+        streamStatus[match.id].viewers = stream.viewers || 0
+        streamStatus[match.id].title = stream.title || ''
+      })
     } catch (err) {
       // Network/CORS hiccups shouldn't break the sidebar
     }

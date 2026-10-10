@@ -80,8 +80,14 @@ weeklyChallengeService.subscribe()
 communityGoalService.subscribe()
 communityGoalService.installUnloadFlush()
 
-authService.restoreSession().finally(() => {
+authService.restoreSession().finally(async () => {
   const app = createApp(App)
   app.directive('tooltip', vTooltip)
+  // After a Supabase OAuth round trip (Log In With Twitch, linking Twitch),
+  // the router's idea of the current location is stale — see
+  // AuthService._settleRedirect. Navigating before install makes this the
+  // initial route; app.use(router) then skips its own start-up navigation.
+  const landing = authService.takeLandingRoute()
+  if (landing) await router.replace(landing).catch(() => {})
   app.use(router).mount('#app')
 })

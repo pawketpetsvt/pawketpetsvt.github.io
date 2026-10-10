@@ -33,15 +33,6 @@
 
     <div class="section-header mt-5"><h2>Link Your Account</h2><div class="section-line"></div></div>
 
-    <!-- Streamers copy this into their Cloudflare worker config. Only shown on
-         the request that just came back from Twitch — never re-read from the DB. -->
-    <div v-if="twitchState.displayToken" class="token-box">
-      <h3>Authorization Successful!</h3>
-      <p class="tw-token-note mb-px10">Streamers: copy this token for Cloudflare. Viewers can ignore this.</p>
-      <textarea class="token-textarea" readonly :value="twitchState.displayToken"></textarea>
-      <br><button class="btn btn-primary btn-sm mt-2" @click="copyToken">Copy Token</button>
-    </div>
-
     <div class="twitch-card">
       <h2>Connect Twitch Account</h2>
       <p>Link your Twitch to unlock stream rewards! Earn PP for following and chatting live.</p>
@@ -82,8 +73,7 @@
           </button>
 
           <!-- Follow checks need a live Twitch token, and the one from Log In
-               With Twitch lasts only hours. This fetches a long-lived one (and
-               is how streamers get the token for their worker config). -->
+               With Twitch lasts only hours. This fetches a long-lived one. -->
           <div class="mt-3">
             <button class="btn btn-sm" :class="twitchState.needsReconnect ? 'btn-primary' : 'btn-outline'"
               @click="twitchService.beginReconnect()">
@@ -111,6 +101,40 @@
         <button class="btn btn-outline btn-sm mt-3" @click="twitchService.unlink()">Unlink Twitch</button>
       </template>
     </div>
+
+    <!-- Replaces the old "copy this token for Cloudflare" box. The worker gets
+         subs, cheers, follows and chat from Twitch EventSub, which Twitch only
+         allows once each streamer — and the chat-reading bot account — has
+         authorized the app. Nothing is stored; the authorization is the point. -->
+    <details class="tw-streamers mx-auto" :open="!!twitchState.streamerAuth">
+      <summary>🎥 For PawketPets streamers</summary>
+      <p class="tw-privacy-note mt-2">
+        So the game can reward your viewers for chatting, following, subscribing and cheering, authorize
+        PawketPets <strong>once, while logged in to Twitch as your streaming account</strong>. Twitch will show
+        exactly what's being allowed. Nothing posts on your behalf.
+      </p>
+      <div class="d-flex flex-wrap justify-content-center gap-2">
+        <button class="btn btn-primary btn-sm" @click="twitchService.beginStreamerAuth('channel')">
+          <TwitchLogo /> Authorize my channel
+        </button>
+        <button class="btn btn-outline btn-sm" @click="twitchService.beginStreamerAuth('bot')">
+          🤖 Authorize the chat bot account
+        </button>
+      </div>
+      <p class="tw-privacy-note mt-2 mb-0">The bot button is only for the PawketPets bot account that reads chat.</p>
+
+      <div v-if="twitchState.streamerAuth" class="tw-auth-result mt-3 p-3 rounded-3">
+        <template v-if="!twitchState.streamerAuth.missing.length">
+          ✅ <strong>{{ twitchState.streamerAuth.login }}</strong>
+          {{ twitchState.streamerAuth.kind === 'bot' ? 'is authorized as the chat bot.' : 'has authorized PawketPets for their channel.' }}
+          <div class="tw-privacy-note mt-1">Twitch user id: {{ twitchState.streamerAuth.userId }}</div>
+        </template>
+        <template v-else>
+          ⚠️ <strong>{{ twitchState.streamerAuth.login }}</strong> didn't grant everything needed
+          (missing: {{ twitchState.streamerAuth.missing.join(', ') }}). Please try again and accept all permissions.
+        </template>
+      </div>
+    </details>
   </div>
 </template>
 
@@ -132,14 +156,6 @@ function badgeFor(key) {
   return null
 }
 
-function copyToken() {
-  const t = twitchState.displayToken
-  if (!t) { toastService.info('No token to copy.'); return }
-  navigator.clipboard.writeText(t)
-    .then(() => toastService.success('Token copied to clipboard!'))
-    .catch(() => toastService.error('Could not copy — select the box and copy manually.'))
-}
-
 // Leaves the site for Twitch and comes back through Supabase; AuthService
 // returns the player to this page afterwards.
 const linking = ref(false)
@@ -154,12 +170,20 @@ async function link() {
 }
 
 onMounted(async () => {
-  // A "Reconnect Twitch" token, captured and stripped at module load in
-  // TwitchService before the router could try to route it.
-  const token = twitchService.takePendingToken()
-  if (token) {
+  // A token from a direct Twitch redirect, captured and stripped at module load
+  // in TwitchService before the router could try to route it. Its `state` says
+  // which button sent the player there.
+  const pending = twitchService.takePendingAuth()
+  if (pending && (pending.state === 'channel' || pending.state === 'bot')) {
     try {
-      await twitchService.completeReconnect(token)
+      await twitchService.completeStreamerAuth(pending.token, pending.state)
+    } catch (e) {
+      toastService.error(e.message)
+    }
+    await twitchService.loadStatus()
+  } else if (pending) {
+    try {
+      await twitchService.completeReconnect(pending.token)
       toastService.success('✅ Twitch reconnected!')
     } catch (e) {
       console.error('[twitch] reconnect failed:', e)
@@ -281,33 +305,26 @@ onMounted(async () => {
   text-transform: uppercase !important;
   font-family: 'Fredoka', cursive !important;
 }
-.token-box {
-  background: rgba(255,221,0,0.15) !important;
-  border: 3px solid var(--yellow) !important;
-  border-radius: var(--radius-xl) !important;
-  padding: 24px !important;
-  margin-bottom: 24px !important;
-  max-width: 600px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+// The streamer authorization panel, which replaced the old token box.
+.tw-streamers {
+  max-width: 600px;
+  background: var(--white);
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px 20px;
+  text-align: center;
+
+  summary {
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--purple-dark);
+  }
 }
-.token-box h3 {
-  font-family: 'Chewy', cursive !important;
-  font-size: 1.5rem !important;
-  color: var(--purple-dark) !important;
-  margin-bottom: 10px !important;
-}
-.token-textarea {
-  width: 100% !important;
-  min-height: 120px !important;
-  padding: 14px !important;
-  border: 3px solid var(--border) !important;
-  border-radius: 20px !important;
-  font-family: 'Courier New', monospace !important;
-  font-size: 0.85rem !important;
-  background: var(--white) !important;
-  color: var(--text) !important;
-  resize: vertical !important;
+
+.tw-auth-result {
+  background: rgba(145, 70, 255, 0.08);
+  border: 1px solid rgba(145, 70, 255, 0.25);
+  font-size: 0.9rem;
 }
 .reward-icon {
   font-size: 40px;
@@ -365,15 +382,12 @@ onMounted(async () => {
   margin-top: 8px;
 }
 
-// the global stylesheet owns .twitch-card, .reward-card, .token-box, .btn-twitch,
-// .linked-panel, .reward-list and .status-badge. What it does NOT define is
-// .status-done / .status-pending (the badge variants), and the whole stats
-// panel, which legacy built from inline styles in the markup.
+// .status-done / .status-pending (the badge variants) and the whole stats
+// panel were built from inline styles in the legacy markup.
 .tw-rewards-title {
   color: var(--purple-dark);
 }
 
-.tw-token-note,
 .tw-privacy-note {
   font-size: 0.85rem;
   color: var(--text-light);
