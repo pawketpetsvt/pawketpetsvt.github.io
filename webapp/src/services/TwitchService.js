@@ -4,6 +4,7 @@ import { AppState } from '../AppState.js'
 import { playerService } from './PlayerService.js'
 import { notificationService } from './NotificationService.js'
 import { toastService } from './ToastService.js'
+import { ppHistoryService } from './PPHistoryService.js'
 import {
   TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI,
   FOLLOW_STREAMERS, FOLLOW_REWARD_PP, STREAMER_AUTH_SCOPES
@@ -333,12 +334,18 @@ class TwitchService {
   // itself, and legacy then paid each reward a second time here through
   // award_pp_secure, so every chat, follow, sub and cheer reward was doubled.
   // These rows are notifications; the balance is just re-read.
+  //
+  // Each one is also written to PP History. That log is filled by
+  // playerService's award/spend calls, which the worker's server-side payment
+  // never passes through, so stream rewards were missing from it. Legacy logged
+  // them at this same point (its award call here did the logging), so the
+  // entries carry the time they were announced, as they always did.
   async checkRewards() {
     if (!AppState.user) return
     try {
       const { data: rewards, error } = await supabase
         .from('twitch_reward_events')
-        .select('id, amount, reason')
+        .select('id, amount, type, reason')
         .eq('player_id', AppState.user.id)
         .eq('seen', false)
         .order('created_at', { ascending: true })
@@ -354,6 +361,17 @@ class TwitchService {
       }
       await supabase.rpc('mark_twitch_rewards_seen', { p_ids: rewards.map(r => r.id) })
       await playerService.getPlayer(AppState.user.id)
+
+      // The balance after each reward, worked back from the fresh total so the
+      // newest entry shows the current balance and earlier ones step down from it.
+      let balance = AppState.player ? AppState.player.pawketpoints : undefined
+      const entries = rewards.map(r => ({ amount: r.amount, reason: 'twitch_' + r.type }))
+      for (let i = entries.length - 1; i >= 0; i--) {
+        entries[i].balance = balance
+        if (typeof balance === 'number') balance -= entries[i].amount
+      }
+      entries.forEach(e => ppHistoryService.log(e.amount, e.reason, e.balance))
+
       this.loadStats().catch(() => {})
     } catch (e) {
       console.debug('[twitch] reward check failed:', e)
