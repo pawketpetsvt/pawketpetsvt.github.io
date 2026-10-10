@@ -56,8 +56,21 @@ const PIPER_EVENTS = [
 // track, no phases, no melody. The hardcoded id 10 is not carried over: the
 // name test already covers that row, and an id literal is the more fragile of
 // the two halves.
+//
+// FOUND 2026-10-09: her actual `enemy_pets.name` is styled with combining
+// diacritics ("S̶͉̀h̵̩̐ḁ̶̓d̵̮͐o̴̥͑w̴̲͠ ̷̢̐ȍ̶͙f̸̣̑ ̷̲̎P̴͉͋i̶̢̕p̷̜̂e̵̲̍r̴̼͌") for the ARG's glitch
+// look. Those marks are separate codepoints sitting between the base letters,
+// so plain `.includes('piper')` never matched — `isPiper()` was false for
+// every row, `getBossEnemy()` always returned null, and she could never be
+// selected regardless of BOSS_ENCOUNTER_RATE. NFKD-normalising and stripping
+// combining marks (U+0300–U+036F) before the substring test recovers "shadow
+// of piper" and fixes this without touching the stylised name itself.
+function stripDiacritics(str) {
+  return str.normalize('NFKD').replace(/[̀-ͯ]/g, '')
+}
+
 export function isPiper(enemy) {
-  return !!enemy?.is_boss && (enemy.name || '').toLowerCase().includes('piper')
+  return !!enemy?.is_boss && stripDiacritics(enemy.name || '').toLowerCase().includes('piper')
 }
 
 // Ports piperBoss_getTurnAction(). Decides what Piper does, ticking the Melody
