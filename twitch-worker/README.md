@@ -69,17 +69,32 @@ before the site is redeployed).
 Build and deploy the site (it reads rewards and stats from Supabase and adds the
 "For PawketPets streamers" section to the Twitch page).
 
-### 6. Streamers and the bot authorize the new app
-Authorizations belong to a Twitch app, so everyone who authorized the old one
-does it again, once:
+### 6. The bot, then the streamers, authorize the new app
+Twitch keeps authorizations per app and only the person themselves can grant
+one, so nothing carries over from the original app — and there was little to
+carry: its secrets suggest only Embertail and Pyxshuul ever authorized it, and
+its empty KV store says it never paid a reward.
 
-- **Each team streamer**: pawketpets.net → Twitch page → *For PawketPets
-  streamers* → **Authorize my channel**, logged in to Twitch as their streaming
-  account.
-- **The chat bot account**: same section → **Authorize the chat bot account**.
-  This is the account the worker reads chat as (`BOT_USER_ID`). The original used
-  Embertail's own account (91821604); a dedicated account you control, e.g. a
-  "PawketPetsBot", is the cleaner choice. The page shows its Twitch user id.
+What each kind of reward needs (all granted to the new app):
+
+| Reward | Needs |
+|---|---|
+| Chat | the bot authorized, **and** either the bot is a moderator in the channel or the streamer authorized their channel |
+| Follow | the bot authorized and a moderator there, **or** the streamer authorized their channel |
+| Sub / gift sub | the streamer authorized their channel (Twitch keeps subs private to the channel) |
+| Cheer | the streamer authorized their channel |
+
+So, in order:
+
+- **The chat bot account** — do this yourself. A dedicated account you control
+  (e.g. "PawketPetsBot") is the cleaner choice; the original used Embertail's
+  own account (91821604). Logged in to Twitch as the bot: pawketpets.net →
+  Twitch page → *For PawketPets streamers* → **Authorize the chat bot account**.
+  The page shows its Twitch user id, for `BOT_USER_ID` in step 7.
+- **Each team streamer, minimum**: type `/mod <bot name>` in their own chat. That
+  alone turns on chat and follow rewards in their channel.
+- **Each team streamer, for subs and cheers too**: same section → **Authorize my
+  channel**, logged in to Twitch as their streaming account.
 
 ### 7. Switch the event subscriptions to the new app
 The original worker's KV store was empty, meaning it never recorded a single
@@ -95,9 +110,11 @@ In Variables and Secrets:
   cheer, paying it twice.
 - `BOT_USER_ID` → the bot account's id, if it changed in step 6.
 
-Deploy, then open `…/setup?key=<ADMIN_KEY>`. Every line should say `OK`; a `403`
-means that streamer (or the bot) hasn't finished step 6 — have them do it and
-open `/setup` again. `…/subscriptions?key=<ADMIN_KEY>` lists what's registered.
+Deploy, then open `…/setup?key=<ADMIN_KEY>`. Each line's `status` is what Twitch
+did: `202` registered, `409` already registered (fine), `403` not authorized yet
+(see the table in step 6). `/setup` can be opened again any time — after a
+streamer mods the bot or authorizes their channel, open it again and their
+lines turn `202`. `…/subscriptions?key=<ADMIN_KEY>` lists what's registered.
 
 ### 8. Tidy up
 - Delete the secrets the code never read: `BROADCASTER_TOKEN_*`,

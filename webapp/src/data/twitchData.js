@@ -28,10 +28,13 @@ export const TWITCH_LOGIN_SCOPES = 'user:read:follows'
 //   channel — each team streamer, for their own channel: subs and gift subs,
 //             cheers, follows (as their own moderator), and letting the bot
 //             read their chat;
-//   bot     — the account named by the worker's BOT_USER_ID, which reads chat.
+//   bot     — the account named by the worker's BOT_USER_ID: reads chat, and
+//             reads follows in any channel where it is a moderator. A streamer
+//             who only mods the bot therefore gets chat and follow rewards
+//             without authorizing anything; subs and cheers still need them.
 export const STREAMER_AUTH_SCOPES = {
   channel: 'channel:read:subscriptions bits:read moderator:read:followers channel:bot',
-  bot: 'user:read:chat user:bot'
+  bot: 'user:read:chat user:bot moderator:read:followers'
 }
 
 // Cloudflare worker: receives Twitch EventSub (it pays chat/follow/sub/cheer PP

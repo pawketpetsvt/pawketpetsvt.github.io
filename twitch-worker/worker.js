@@ -289,10 +289,22 @@ function requireAdmin(url, env) {
   return new Response('Forbidden', { status: 403 });
 }
 
-// Registers every subscription for every team channel. Each line of the result
-// says whether Twitch accepted it; a 403 means that streamer (or the chat bot)
-// hasn't authorized the app with the scope that subscription needs — see the
-// "For streamers" section of the site's Twitch page.
+// Registers every subscription for every team channel. Safe to open again
+// whenever another streamer has authorized: each line says what Twitch did —
+// 202 created, 409 already registered (fine), 403 not authorized yet.
+//
+// What each one needs, granted to THIS Twitch app:
+//   chat     — the bot (BOT_USER_ID) authorized `user:read:chat user:bot`, AND
+//              either the bot is a moderator in the channel or the streamer
+//              authorized `channel:bot`;
+//   follow   — `moderator:read:followers` from a moderator of the channel: the
+//              bot is tried first (so a modded bot covers it), then the streamer;
+//   sub/gift — the streamer authorized `channel:read:subscriptions`;
+//   cheer    — the streamer authorized `bits:read`;
+//   online/offline — nothing.
+// So a streamer who only mods the bot gets chat and follow rewards; subs and
+// cheers are private to the channel and need the streamer's own authorization
+// (the "For streamers" section of the site's Twitch page).
 async function handleSetup(request, env) {
   var callbackUrl = new URL(request.url).origin + '/twitch/eventsub';
   var results = [];
@@ -306,16 +318,34 @@ async function handleSetup(request, env) {
       { type: 'channel.subscribe', version: '1', condition: { broadcaster_user_id: id } },
       { type: 'channel.subscription.gift', version: '1', condition: { broadcaster_user_id: id } },
       { type: 'channel.cheer', version: '1', condition: { broadcaster_user_id: id } },
-      { type: 'channel.follow', version: '2', condition: { broadcaster_user_id: id, moderator_user_id: id } },
       { type: 'channel.chat.message', version: '1', condition: { broadcaster_user_id: id, user_id: env.BOT_USER_ID || id } }
     ];
     for (var j = 0; j < subs.length; j++) {
       var r = await registerSub(subs[j], callbackUrl, env);
       results.push({ type: subs[j].type, broadcaster: id, status: r.status, result: r.result });
     }
+    var f = await registerFollow(id, callbackUrl, env);
+    results.push({ type: 'channel.follow', broadcaster: id, moderator: f.moderator, status: f.status, result: f.result });
   }
 
   return jsonResponse(results);
+}
+
+// channel.follow as the bot if it's a moderator there, otherwise as the streamer.
+async function registerFollow(broadcasterId, callbackUrl, env) {
+  var candidates = [env.BOT_USER_ID, broadcasterId].filter(function (m, i, all) {
+    return m && all.indexOf(m) === i;
+  });
+  var last = null;
+  for (var i = 0; i < candidates.length; i++) {
+    last = await registerSub({
+      type: 'channel.follow', version: '2',
+      condition: { broadcaster_user_id: broadcasterId, moderator_user_id: candidates[i] }
+    }, callbackUrl, env);
+    last.moderator = candidates[i];
+    if (last.status === 202 || last.status === 409) return last;
+  }
+  return last;
 }
 
 async function handleClear(env) {

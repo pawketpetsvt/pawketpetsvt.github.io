@@ -121,7 +121,9 @@
           🤖 Authorize the chat bot account
         </button>
       </div>
-      <p class="tw-privacy-note mt-2 mb-0">The bot button is only for the PawketPets bot account that reads chat.</p>
+      <p class="tw-privacy-note mt-2 mb-0">The bot button is only for the PawketPets bot account that reads chat.
+        Making that bot a moderator in your channel is enough for chat and follow rewards; authorizing your
+        channel adds sub and cheer rewards.</p>
 
       <div v-if="twitchState.streamerAuth" class="tw-auth-result mt-3 p-3 rounded-3">
         <template v-if="!twitchState.streamerAuth.missing.length">
